@@ -1,0 +1,58 @@
+{
+  "entities": {
+    "Bundle": {
+      "title": "Data Bundle",
+      "description": "A data bundle package offered for sale.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Display name of the bundle (e.g. 1GB Non-Expiry)" },
+        "dataAmount": { "type": "string", "description": "Amount of data (e.g. 1GB)" },
+        "price": { "type": "number", "description": "Price in GHS" },
+        "network": { "type": "string", "enum": ["MTN", "Vodafone", "AirtelTigo"], "description": "Network provider" },
+        "active": { "type": "boolean", "description": "Whether the bundle is currently available" }
+      },
+      "required": ["name", "dataAmount", "price", "network"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "A customer order for a data bundle.",
+      "type": "object",
+      "properties": {
+        "customerPhone": { "type": "string", "description": "Customer's phone number" },
+        "customerNetwork": { "type": "string", "description": "Customer's network" },
+        "bundleId": { "type": "string", "description": "ID of the purchased bundle" },
+        "bundleName": { "type": "string", "description": "Name of the bundle at time of purchase" },
+        "price": { "type": "number", "description": "Price paid" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "cancelled"], "description": "Order status" },
+        "paymentMethod": { "type": "string", "description": "Payment method used (e.g. MTN MoMo)" },
+        "transactionId": { "type": "string", "description": "Optional transaction reference" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the order was placed" }
+      },
+      "required": ["customerPhone", "customerNetwork", "bundleId", "status", "createdAt"]
+    },
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "User account information.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["admin", "user"] }
+      },
+      "required": ["email", "role"]
+    }
+  },
+  "firestore": {
+    "/bundles/{bundleId}": {
+      "schema": "Bundle",
+      "description": "Available data bundles."
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Customer orders."
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profiles and roles."
+    }
+  }
+}
