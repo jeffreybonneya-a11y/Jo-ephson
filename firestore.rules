@@ -27,7 +27,9 @@ service cloud.firestore {
     function isAdmin() {
       return isAuthenticated() &&
         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          (request.auth.token.email == "jeffreybonneya@gmail.com" && request.auth.token.email_verified == true));
+          ((request.auth.token.email == "jeffreybonneya@gmail.com" || 
+            request.auth.token.email == "emmagyapong62@gmail.com") && 
+           request.auth.token.email_verified == true));
     }
 
     function isOwner(userId) {
@@ -48,22 +50,51 @@ service cloud.firestore {
              data.name is string && data.name.size() < 100 &&
              data.dataAmount is string && data.dataAmount.size() < 20 &&
              data.price is number && data.price > 0 &&
-             data.network in ['MTN', 'Vodafone', 'AirtelTigo'];
+             data.network in ['MTN', 'Telecel', 'AirtelTigo'];
     }
 
     function isValidOrder(data) {
-      return data.keys().hasAll(['customerPhone', 'customerNetwork', 'bundleId', 'status', 'createdAt']) &&
-             isValidPhone(data.customerPhone) &&
-             data.customerNetwork in ['MTN', 'Vodafone', 'AirtelTigo'] &&
+      return data.keys().hasAll(['userId', 'customerName', 'recipientPhone', 'recipientNetwork', 'bundleId', 'bundleName', 'amountSent', 'referenceCode', 'status', 'createdAt']) &&
+             data.userId is string &&
+             data.customerName is string && data.customerName.size() > 0 &&
+             isValidPhone(data.recipientPhone) &&
+             data.recipientNetwork in ['MTN', 'Telecel', 'AirtelTigo'] &&
              data.bundleId is string &&
-             data.status in ['pending', 'confirmed', 'cancelled'] &&
+             data.bundleName is string &&
+             data.amountSent is number && data.amountSent > 0 &&
+             data.referenceCode is string && data.referenceCode.size() > 0 &&
+             data.status in ['pending', 'processing', 'delivered', 'cancelled'] &&
              data.createdAt is timestamp;
     }
 
     function isValidUser(data) {
-      return data.keys().hasAll(['email', 'role']) &&
+      return data.keys().hasAll(['email', 'fullName', 'role']) &&
              isValidEmail(data.email) &&
-             data.role in ['admin', 'user'];
+             data.fullName is string && data.fullName.size() > 0 &&
+             data.role in ['admin', 'user'] &&
+             (!('phoneNumber' in data) || isValidPhone(data.phoneNumber));
+    }
+
+    function isValidMessage(data) {
+      return data.keys().hasAll(['userId', 'userEmail', 'userName', 'message', 'status', 'createdAt']) &&
+             data.userId is string &&
+             isValidEmail(data.userEmail) &&
+             data.userName is string && data.userName.size() > 0 &&
+             data.message is string && data.message.size() > 0 &&
+             data.status in ['unread', 'read'] &&
+             data.createdAt is timestamp &&
+             (!('subject' in data) || (data.subject is string && data.subject.size() < 100));
+    }
+
+    function isValidStreamAccess(data) {
+      return data.keys().hasAll(['userId', 'userName', 'userEmail', 'status', 'referenceCode', 'amountPaid', 'createdAt']) &&
+             data.userId is string &&
+             data.userName is string &&
+             isValidEmail(data.userEmail) &&
+             data.status in ['pending', 'approved', 'revoked'] &&
+             data.referenceCode is string &&
+             data.amountPaid is number &&
+             data.createdAt is timestamp;
     }
 
     // Rules
@@ -74,19 +105,35 @@ service cloud.firestore {
     }
 
     match /orders/{orderId} {
-      // Users can only see their own orders (if we had auth for them, but here it's mostly anonymous/phone based)
-      // For now, let's say only admin can see all orders.
-      // If we want customers to track, we'd need a different mechanism or auth.
-      allow read: if isAdmin();
-      allow create: if isValidOrder(request.resource.data); // Anyone can place an order
-      allow update: if isAdmin() && isValidOrder(request.resource.data); // Only admin confirms
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && isValidOrder(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow create: if isAuthenticated() && isValidUser(request.resource.data) && (request.resource.data.role == 'user' || isAdmin());
-      allow update: if isAdmin() && isValidUser(request.resource.data);
+      allow update: if isAdmin() || (isOwner(userId) && request.resource.data.role == resource.data.role);
+    }
+
+    match /messages/{messageId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && isValidMessage(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /streamAccess/{accessId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && isValidStreamAccess(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
   }
 }

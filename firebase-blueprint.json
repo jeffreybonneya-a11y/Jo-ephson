@@ -8,7 +8,7 @@
         "name": { "type": "string", "description": "Display name of the bundle (e.g. 1GB Non-Expiry)" },
         "dataAmount": { "type": "string", "description": "Amount of data (e.g. 1GB)" },
         "price": { "type": "number", "description": "Price in GHS" },
-        "network": { "type": "string", "enum": ["MTN", "Vodafone", "AirtelTigo"], "description": "Network provider" },
+        "network": { "type": "string", "enum": ["MTN", "Telecel", "AirtelTigo"], "description": "Network provider" },
         "active": { "type": "boolean", "description": "Whether the bundle is currently available" }
       },
       "required": ["name", "dataAmount", "price", "network"]
@@ -18,17 +18,18 @@
       "description": "A customer order for a data bundle.",
       "type": "object",
       "properties": {
-        "customerPhone": { "type": "string", "description": "Customer's phone number" },
-        "customerNetwork": { "type": "string", "description": "Customer's network" },
+        "userId": { "type": "string", "description": "ID of the user who placed the order" },
+        "customerName": { "type": "string", "description": "Customer's full name" },
+        "recipientPhone": { "type": "string", "description": "Phone number to receive the data" },
+        "recipientNetwork": { "type": "string", "description": "Recipient's network" },
         "bundleId": { "type": "string", "description": "ID of the purchased bundle" },
         "bundleName": { "type": "string", "description": "Name of the bundle at time of purchase" },
-        "price": { "type": "number", "description": "Price paid" },
-        "status": { "type": "string", "enum": ["pending", "confirmed", "cancelled"], "description": "Order status" },
-        "paymentMethod": { "type": "string", "description": "Payment method used (e.g. MTN MoMo)" },
-        "transactionId": { "type": "string", "description": "Optional transaction reference" },
+        "amountSent": { "type": "number", "description": "Amount sent by customer" },
+        "referenceCode": { "type": "string", "description": "Payment reference code" },
+        "status": { "type": "string", "enum": ["pending", "processing", "delivered", "cancelled"], "description": "Order status" },
         "createdAt": { "type": "string", "format": "date-time", "description": "When the order was placed" }
       },
-      "required": ["customerPhone", "customerNetwork", "bundleId", "status", "createdAt"]
+      "required": ["userId", "customerName", "recipientPhone", "recipientNetwork", "bundleId", "amountSent", "referenceCode", "status", "createdAt"]
     },
     "UserProfile": {
       "title": "User Profile",
@@ -36,9 +37,41 @@
       "type": "object",
       "properties": {
         "email": { "type": "string", "format": "email" },
+        "fullName": { "type": "string", "description": "User's full name" },
         "role": { "type": "string", "enum": ["admin", "user"] }
       },
-      "required": ["email", "role"]
+      "required": ["email", "fullName", "role"]
+    },
+    "Message": {
+      "title": "Support Message",
+      "description": "A message from a user to the admin.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "userName": { "type": "string" },
+        "subject": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string", "enum": ["unread", "read"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userEmail", "userName", "message", "status", "createdAt"]
+    },
+    "StreamAccess": {
+      "title": "Stream Access",
+      "description": "Access record for football streaming.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "revoked"] },
+        "referenceCode": { "type": "string" },
+        "amountPaid": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userName", "userEmail", "status", "referenceCode", "amountPaid", "createdAt"]
     }
   },
   "firestore": {
@@ -53,6 +86,14 @@
     "/users/{userId}": {
       "schema": "UserProfile",
       "description": "User profiles and roles."
+    },
+    "/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Support messages."
+    },
+    "/streamAccess/{accessId}": {
+      "schema": "StreamAccess",
+      "description": "Football streaming access records."
     }
   }
 }

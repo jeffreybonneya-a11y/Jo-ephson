@@ -1,88 +1,176 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import BundleList from './components/BundleList';
 import CheckoutForm from './components/CheckoutForm';
 import AdminDashboard from './components/AdminDashboard';
+import OrderHistory from './components/OrderHistory';
+import StreamPortal from './components/StreamPortal';
+import Leaderboard from './components/Leaderboard';
+import Footer from './components/Footer';
 import { Bundle } from './types';
 import { Toaster } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { MessageSquare, Phone, Mail, MapPin, Facebook, Twitter, Instagram } from 'lucide-react';
+import { auth, db } from './lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { MessageSquare, Zap, Crown } from 'lucide-react';
+import { motion } from 'motion/react';
+import { UserProfile } from './types';
 
 export default function App() {
-  const [isAdminView, setIsAdminView] = useState(false);
   const [selectedBundle, setSelectedBundle] = useState<Bundle | null>(null);
+  const [isAdminView, setIsAdminView] = useState(false);
+  const [isHistoryView, setIsHistoryView] = useState(false);
+  const [isStreamView, setIsStreamView] = useState(false);
+  const [isLeaderboardView, setIsLeaderboardView] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [announcement, setAnnouncement] = useState<{text: string, active: boolean, type: string} | null>(null);
+
+  useEffect(() => {
+    let profileUnsubscribe: (() => void) | undefined;
+
+    // Fetch announcement
+    const unsubAnnouncement = onSnapshot(doc(db, 'settings', 'announcement'), (snapshot) => {
+      if (snapshot.exists()) {
+        setAnnouncement(snapshot.data() as any);
+      }
+    });
+
+    const authUnsubscribe = onAuthStateChanged(auth, async (user) => {
+      setUser(user);
+      const adminEmails = ['jeffreybonneya@gmail.com', 'emmagyapong62@gmail.com'];
+      setIsAdmin(adminEmails.includes(user?.email || ''));
+      
+      if (profileUnsubscribe) {
+        profileUnsubscribe();
+        profileUnsubscribe = undefined;
+      }
+
+      if (user) {
+        // Real-time profile listener
+        profileUnsubscribe = onSnapshot(doc(db, 'users', user.uid), async (docSnapshot) => {
+          if (docSnapshot.exists()) {
+            const data = docSnapshot.data() as UserProfile;
+            setProfile(data);
+            setIsAdmin(data.role === 'admin' || adminEmails.includes(user.email || ''));
+          }
+        });
+      } else {
+        setProfile(null);
+        setIsAdmin(false);
+      }
+    });
+
+    return () => {
+      authUnsubscribe();
+      unsubAnnouncement();
+      if (profileUnsubscribe) profileUnsubscribe();
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-background font-sans antialiased">
       <Toaster position="top-center" richColors />
-      <Navbar onAdminView={setIsAdminView} isAdminView={isAdminView} />
+      
+      {announcement?.active && (
+        <motion.div 
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          className={`py-2 px-4 text-center font-bold text-sm relative z-[60] shadow-sm ${
+            announcement.type === 'discount' ? 'bg-primary text-white' :
+            announcement.type === 'alert' ? 'bg-red-500 text-white' :
+            'bg-blue-500 text-white'
+          }`}
+        >
+          <div className="container mx-auto flex items-center justify-center gap-2">
+            <Zap className="w-4 h-4 animate-pulse" />
+            <span>{announcement.text}</span>
+            <Zap className="w-4 h-4 animate-pulse" />
+          </div>
+        </motion.div>
+      )}
+
+      <Navbar 
+        onAdminView={setIsAdminView} 
+        onHistoryView={setIsHistoryView}
+        onStreamView={setIsStreamView}
+        onLeaderboardView={setIsLeaderboardView}
+        isAdminView={isAdminView}
+        isHistoryView={isHistoryView}
+        isStreamView={isStreamView}
+        isLeaderboardView={isLeaderboardView}
+        user={user}
+        profile={profile}
+      />
       
       <main>
-        {isAdminView ? (
+        {isAdminView && isAdmin ? (
           <AdminDashboard />
+        ) : isHistoryView && user ? (
+          <OrderHistory />
+        ) : isStreamView && user ? (
+          <StreamPortal />
+        ) : isLeaderboardView ? (
+          <Leaderboard />
         ) : (
           <>
             <Hero />
             <BundleList onSelectBundle={setSelectedBundle} />
             
             {/* How it Works */}
-            <section className="py-20 bg-white">
-              <div className="container mx-auto px-4">
-                <h2 className="text-3xl font-bold text-center mb-12">How It Works</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                  <div className="text-center space-y-4">
-                    <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto text-2xl font-bold">1</div>
-                    <h3 className="text-xl font-semibold">Select Bundle</h3>
-                    <p className="text-slate-600">Choose your network and the data amount you need from our list.</p>
-                  </div>
-                  <div className="text-center space-y-4">
-                    <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto text-2xl font-bold">2</div>
-                    <h3 className="text-xl font-semibold">Enter Details</h3>
-                    <p className="text-slate-600">Provide the phone number that will receive the data bundle.</p>
-                  </div>
-                  <div className="text-center space-y-4">
-                    <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto text-2xl font-bold">3</div>
-                    <h3 className="text-xl font-semibold">Confirm & Pay</h3>
-                    <p className="text-slate-600">Approve the MoMo prompt on your phone and receive your data instantly.</p>
-                  </div>
+            <section className="py-24 bg-white relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 blur-3xl rounded-full translate-x-1/2 -translate-y-1/2" />
+              
+              <div className="container relative mx-auto px-4">
+                <div className="text-center mb-16">
+                  <h2 className="text-4xl md:text-6xl font-black mb-6 tracking-tight">HOW IT <span className="text-primary">WORKS</span> 👑</h2>
+                  <p className="text-slate-500 max-w-2xl mx-auto text-lg">
+                    Follow these <span className="text-primary font-bold">Royal Steps</span> to get your data instantly.
+                  </p>
                 </div>
-              </div>
-            </section>
 
-            {/* Testimonials */}
-            <section className="py-20 bg-slate-50">
-              <div className="container mx-auto px-4">
-                <h2 className="text-3xl font-bold text-center mb-12">What Our Customers Say</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
                   {[
-                    { name: "Kofi Mensah", text: "Fastest data delivery I've ever experienced. Highly recommended!", role: "Student" },
-                    { name: "Ama Serwaa", text: "The prices are unbeatable. I save so much every month.", role: "Entrepreneur" },
-                    { name: "John Doe", text: "Excellent customer service. They helped me when I had a payment issue.", role: "Freelancer" }
-                  ].map((t, i) => (
-                    <div key={i} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                      <p className="text-slate-600 italic mb-4">"{t.text}"</p>
-                      <div className="font-bold">{t.name}</div>
-                      <div className="text-xs text-slate-400">{t.role}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </section>
-
-            {/* FAQ */}
-            <section className="py-20 bg-white">
-              <div className="container mx-auto px-4 max-w-3xl">
-                <h2 className="text-3xl font-bold text-center mb-12">Frequently Asked Questions</h2>
-                <div className="space-y-6">
-                  {[
-                    { q: "Does the data expire?", a: "No, all our data bundles are non-expiry. They stay active until you finish using them." },
-                    { q: "How long does delivery take?", a: "Delivery is usually instant after payment confirmation. In rare cases, it might take up to 5 minutes." },
-                    { q: "Which networks do you support?", a: "We currently support MTN, Vodafone, and AirtelTigo." }
-                  ].map((faq, i) => (
-                    <div key={i} className="border-b pb-6">
-                      <h3 className="font-bold text-lg mb-2">{faq.q}</h3>
-                      <p className="text-slate-600">{faq.a}</p>
+                    {
+                      step: "1",
+                      title: "Pick Your Deal",
+                      desc: "Select your preferred network and data bundle from our royal list.",
+                      color: "bg-blue-500/10 text-blue-600"
+                    },
+                    {
+                      step: "2",
+                      title: "Send Payment",
+                      desc: "Follow the payment instructions shown. Send the exact amount to our MoMo number.",
+                      color: "bg-purple-500/10 text-purple-600"
+                    },
+                    {
+                      step: "3",
+                      title: "Confirm Order",
+                      desc: "Enter your transaction reference and recipient number, then tap 'I have sent the money'.",
+                      color: "bg-amber-500/10 text-amber-600"
+                    },
+                    {
+                      step: "4",
+                      title: "Get Your Data",
+                      desc: "Wait for admin verification. Once confirmed, your data is delivered instantly! 👑",
+                      color: "bg-green-500/10 text-green-600"
+                    }
+                  ].map((item, i) => (
+                    <div key={i} className="relative group p-8 rounded-[2rem] bg-slate-50 border-2 border-transparent hover:border-primary/20 transition-all hover:shadow-xl">
+                      <div className={`w-16 h-16 ${item.color} rounded-2xl flex items-center justify-center text-3xl font-black mb-6 group-hover:scale-110 transition-transform`}>
+                        {item.step}
+                      </div>
+                      <h3 className="text-2xl font-black mb-4 text-slate-900">{item.title} 👑</h3>
+                      <p className="text-slate-600 leading-relaxed">
+                        {item.desc}
+                      </p>
+                      {i < 3 && (
+                        <div className="hidden md:block absolute top-1/2 -right-4 translate-x-1/2 -translate-y-1/2 text-primary/20">
+                          <Zap className="w-8 h-8" />
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -92,66 +180,52 @@ export default function App() {
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="bg-slate-950 text-slate-400 py-12 border-t border-slate-900">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
-            <div className="col-span-1 md:col-span-2">
-              <div className="flex items-center gap-2 font-bold text-2xl tracking-tighter text-white mb-6">
-                <span className="bg-primary text-primary-foreground px-2 py-1 rounded">Jo-Ephson</span>
-                <span>deals</span>
-              </div>
-              <p className="max-w-md mb-6">
-                Your number one destination for affordable, non-expiry data bundles in Ghana. We pride ourselves on speed, security, and customer satisfaction.
-              </p>
-              <div className="flex gap-4">
-                <Button variant="ghost" size="icon" className="rounded-full hover:bg-primary hover:text-white"><Facebook className="w-5 h-5" /></Button>
-                <Button variant="ghost" size="icon" className="rounded-full hover:bg-primary hover:text-white"><Twitter className="w-5 h-5" /></Button>
-                <Button variant="ghost" size="icon" className="rounded-full hover:bg-primary hover:text-white"><Instagram className="w-5 h-5" /></Button>
-              </div>
-            </div>
-            
-            <div>
-              <h4 className="text-white font-bold mb-6">Quick Links</h4>
-              <ul className="space-y-4 text-sm">
-                <li><a href="#" className="hover:text-primary transition-colors">Home</a></li>
-                <li><a href="#pricing" className="hover:text-primary transition-colors">Pricing</a></li>
-                <li><a href="#" className="hover:text-primary transition-colors">About Us</a></li>
-                <li><a href="#" className="hover:text-primary transition-colors">Terms of Service</a></li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="text-white font-bold mb-6">Contact Us</h4>
-              <ul className="space-y-4 text-sm">
-                <li className="flex items-center gap-3"><Phone className="w-4 h-4 text-primary" /> +233 53 588 4851</li>
-                <li className="flex items-center gap-3"><Mail className="w-4 h-4 text-primary" /> support@joephson.com</li>
-                <li className="flex items-center gap-3"><MapPin className="w-4 h-4 text-primary" /> Accra, Ghana</li>
-                <li className="flex items-center gap-3"><MessageSquare className="w-4 h-4 text-primary" /> WhatsApp Support</li>
-              </ul>
-            </div>
-          </div>
-          
-          <div className="pt-8 border-t border-slate-900 text-center text-xs">
-            <p>&copy; {new Date().getFullYear()} Jo-Ephson deals. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
-
       <CheckoutForm 
         bundle={selectedBundle} 
         onClose={() => setSelectedBundle(null)} 
+        profile={profile}
       />
+      
+      <Footer />
 
-      {/* Sticky WhatsApp Button */}
-      <a 
-        href="https://wa.me/0535884851" 
-        target="_blank" 
-        rel="noreferrer"
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-[#25D366] text-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
-      >
-        <MessageSquare className="w-8 h-8" />
-      </a>
+      {/* Movable WhatsApp Buttons */}
+      <div className="fixed bottom-24 right-6 z-50 flex flex-col gap-4 pointer-events-none">
+        <motion.a 
+          drag
+          dragConstraints={{ left: -300, right: 0, top: -600, bottom: 0 }}
+          dragElastic={0.1}
+          dragMomentum={false}
+          href="https://wa.me/233535884851" 
+          target="_blank" 
+          rel="noreferrer"
+          className="pointer-events-auto flex items-center gap-3 bg-[#25D366] text-white px-4 md:px-6 py-3 md:py-4 rounded-full shadow-[0_10px_40px_rgba(37,211,102,0.4)] hover:scale-110 transition-all group active:scale-95 cursor-move"
+          style={{ touchAction: 'none' }}
+        >
+          <div className="relative">
+            <MessageSquare className="w-6 h-6 md:w-8 md:h-8" />
+            <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-ping" />
+          </div>
+          <span className="font-black text-sm md:text-lg">CHAT WITH KING J 👑</span>
+        </motion.a>
+
+        <motion.a 
+          drag
+          dragConstraints={{ left: -300, right: 0, top: -600, bottom: 0 }}
+          dragElastic={0.1}
+          dragMomentum={false}
+          href="https://wa.me/233541557530" 
+          target="_blank" 
+          rel="noreferrer"
+          className="pointer-events-auto flex items-center gap-3 bg-[#25D366] text-white px-4 md:px-6 py-3 md:py-4 rounded-full shadow-[0_10px_40px_rgba(37,211,102,0.4)] hover:scale-110 transition-all group active:scale-95 cursor-move"
+          style={{ touchAction: 'none' }}
+        >
+          <div className="relative">
+            <MessageSquare className="w-6 h-6 md:w-8 md:h-8" />
+            <span className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-white animate-ping" />
+          </div>
+          <span className="font-black text-sm md:text-lg">CHAT WITH YHAW 👑</span>
+        </motion.a>
+      </div>
     </div>
   );
 }
