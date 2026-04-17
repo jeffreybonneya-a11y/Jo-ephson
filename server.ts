@@ -124,56 +124,76 @@ app.post(
 
       const event = JSON.parse(rawBody.toString());
       if (event.event === 'charge.success') {
-        const { reference, metadata } = event.data;
-        // metadata might be coming from our React frontend or from index.html
-        // We ensure we handle both
-        const phone = metadata.phone || metadata.recipientPhone;
-        const network = metadata.network || metadata.recipientNetwork;
-        const volume = metadata.volume;
-        const offerSlug = metadata.offerSlug;
-        const orderId = metadata.orderId || `pay_${reference}`;
+        const { reference, metadata, amount } = event.data;
+        const actualAmount = amount / 100;
 
-        console.log(`[Paystack Webhook] Success for Order ${orderId}`);
-
-        // Update or Create Order in Firestore
-        const orderRef = db.collection("orders").doc(orderId);
-        const orderDoc = await orderRef.get();
-
-        const updateData: any = {
-          paymentStatus: 'success',
-          referenceCode: reference,
-          status: 'processing',
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        };
-
-        if (orderDoc.exists) {
-          await orderRef.update(updateData);
+        if (metadata.mode === 'topup') {
+          // Wallet Top-up Logic
+          const userId = metadata.userId;
+          if (userId) {
+            console.log(`[Paystack Webhook] Top-up success for ${userId}: ${actualAmount}`);
+            const userRef = db.collection("users").doc(userId);
+            await userRef.update({
+              walletBalance: admin.firestore.FieldValue.increment(actualAmount)
+            });
+            await db.collection("walletTransactions").add({
+              userId: userId,
+              amount: actualAmount,
+              type: 'topup',
+              status: 'success',
+              reference: reference,
+              createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+          }
         } else {
-          // If order didn't exist (e.g. from a guest checkout on index.html)
-          await orderRef.set({
-            ...updateData,
-            customerName: 'Customer',
-            userEmail: event.data.customer.email,
-            recipientPhone: phone,
-            recipientNetwork: network,
-            bundleName: `${volume} Package`,
-            volume: volume,
-            offerSlug: offerSlug,
-            amount: event.data.amount / 100,
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
-          });
-        }
+          // Original Purchase Logic
+          const phone = metadata.phone || metadata.recipientPhone;
+          const network = metadata.network || metadata.recipientNetwork;
+          const volume = metadata.volume;
+          const offerSlug = metadata.offerSlug;
+          const orderId = metadata.orderId || `pay_${reference}`;
 
-        // Auto Fulfillment
-        try {
-          const fulfillment = await purchaseData(phone, network, volume, offerSlug, orderId);
-          await orderRef.update({
-            externalOrderId: fulfillment.orderId,
-            externalReference: fulfillment.reference
-          });
-        } catch (fErr: any) {
-          console.error(`[Fulfillment Failed] ${orderId}:`, fErr.message);
-          await orderRef.update({ status: 'failed', failureReason: fErr.message });
+          console.log(`[Paystack Webhook] Purchase success for Order ${orderId}`);
+
+          // Update or Create Order in Firestore
+          const orderRef = db.collection("orders").doc(orderId);
+          const orderDoc = await orderRef.get();
+
+          const updateData: any = {
+            paymentStatus: 'success',
+            referenceCode: reference,
+            status: 'processing',
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          };
+
+          if (orderDoc.exists) {
+            await orderRef.update(updateData);
+          } else {
+            await orderRef.set({
+              ...updateData,
+              customerName: 'Customer',
+              userEmail: event.data.customer.email,
+              recipientPhone: phone,
+              recipientNetwork: network,
+              bundleName: `${volume} Package`,
+              volume: volume,
+              offerSlug: offerSlug,
+              amount: actualAmount,
+              createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+          }
+
+          // Auto Fulfillment
+          try {
+            const fulfillment = await purchaseData(phone, network, volume, offerSlug, orderId);
+            await orderRef.update({
+              externalOrderId: fulfillment.orderId,
+              externalReference: fulfillment.reference
+            });
+          } catch (fErr: any) {
+            console.error(`[Fulfillment Failed] ${orderId}:`, fErr.message);
+            await orderRef.update({ status: 'failed', failureReason: fErr.message });
+          }
         }
       }
       res.sendStatus(200);
@@ -226,18 +246,52 @@ app.get('/site-status', async (req, res) => {
   try {
     const response = await api.get('/balance');
     const balance = response.data.balance;
-    // Notify if balance is less than 50 GHS
-    res.json({ status: balance <= 50 ? 'low' : 'ok', balance });
+    // Notify if balance is less than 10 GHS
+    res.json({ status: balance <= 10 ? 'low' : 'ok', balance });
   } catch {
     res.json({ status: 'ok' });
   }
 });
 
-app.post('/api/buy-data', async (req, res) => {
+app.post('/api/wallet/pay', async (req, res) => {
   try {
-    const { network, phone, volume, offerSlug, orderId } = req.body;
-    const result = await purchaseData(phone, network, volume, offerSlug, orderId || `man_${Date.now()}`);
-    res.json(result);
+    const { userId, bundleId, bundleName, dataAmount, recipientPhone, recipientNetwork, amount, volume, offerSlug } = req.body;
+    
+    // 1. Transactional check and deduct
+    const userRef = db.collection("users").doc(userId);
+    const orderId = `man_${Date.now()}`;
+    
+    await db.runTransaction(async (t) => {
+      const user = await t.get(userRef);
+      if (!user.exists) throw new Error("User not found");
+      const balance = user.data()!.walletBalance || 0;
+      if (balance < amount) throw new Error("Insufficient funds");
+      
+      t.update(userRef, { walletBalance: balance - amount });
+      
+      // 2. Create Order
+      const orderRef = db.collection("orders").doc(orderId);
+      t.set(orderRef, {
+        userId,
+        recipientPhone,
+        recipientNetwork,
+        bundleId,
+        bundleName,
+        dataAmount,
+        amountSent: amount,
+        status: 'processing',
+        paymentStatus: 'success',
+        paymentMethod: 'wallet',
+        volume,
+        offerSlug,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    });
+    
+    // 3. Trigger GigsHub
+    purchaseData(recipientPhone, recipientNetwork, volume, offerSlug, orderId);
+    
+    res.json({ success: true, orderId });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }

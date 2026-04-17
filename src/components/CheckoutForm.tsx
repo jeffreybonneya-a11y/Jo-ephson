@@ -52,75 +52,61 @@ export default function CheckoutForm({ bundle, onClose, profile }: CheckoutFormP
     }
   }, [profile, setValue]);
 
+  const handleTopUp = async (amount: number) => {
+    const publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
+    const paystack = new PaystackPop();
+    paystack.newTransaction({
+      key: publicKey,
+      email: auth.currentUser?.email || 'customer@kingjdeals.com',
+      amount: Math.round(amount * 100),
+      currency: 'GHS',
+      metadata: {
+        mode: 'topup',
+        userId: auth.currentUser?.uid
+      },
+      onSuccess: () => {
+        toast.success("Top-up successful! Your balance will reflect shortly. 👑");
+      }
+    });
+  };
+
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
-    if (!bundle || !auth.currentUser) {
+    if (!bundle || !auth.currentUser || !profile) {
       toast.error("You must be logged in to purchase.");
       return;
     }
 
-    const publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
-    if (!publicKey) {
-      toast.error("Payment system is currently unavailable (Missing Public Key).");
-      return;
+    if (profile.walletBalance < bundle.price) {
+        toast.error("Insufficient balance. Please top up your wallet.");
+        return;
     }
 
     setIsSubmitting(true);
-    
     try {
-      // 1. Pre-create pending order in Firestore
-      const uniqueRef = 'KJD-' + Math.random().toString(36).substring(2, 10).toUpperCase();
-      const volume = bundle.volume || bundle.dataAmount.replace(/[^0-9.]/g, ''); // Extract numeric volume if not explicit
-      
-      const orderRef = await addDoc(collection(db, 'orders'), {
-        userId: auth.currentUser.uid,
-        customerName: auth.currentUser.displayName || profile?.fullName || 'Customer',
-        userEmail: auth.currentUser.email || profile?.email || '',
-        recipientPhone: data.recipientPhone,
-        recipientNetwork: data.recipientNetwork,
-        bundleId: bundle.id,
-        bundleName: bundle.name,
-        dataAmount: bundle.dataAmount,
-        amountSent: data.amountSent,
-        referenceCode: uniqueRef,
-        status: 'pending',
-        paymentStatus: 'pending_payment',
-        paymentMethod: 'paystack',
-        volume: volume,
-        offerSlug: bundle.offerSlug || '',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
+        const response = await fetch('/api/wallet/pay', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                userId: auth.currentUser.uid,
+                bundleId: bundle.id,
+                bundleName: bundle.name,
+                dataAmount: bundle.dataAmount,
+                recipientPhone: data.recipientPhone,
+                recipientNetwork: data.recipientNetwork,
+                amount: bundle.price,
+                volume: bundle.volume,
+                offerSlug: bundle.offerSlug
+            })
+        });
 
-      setOrderId(orderRef.id);
-
-      // 2. Initialize Paystack
-      const paystack = new PaystackPop();
-      paystack.newTransaction({
-        key: publicKey,
-        email: auth.currentUser.email || 'customer@kingjdeals.com',
-        amount: Math.round(data.amountSent * 100), // In pesewas
-        currency: 'GHS',
-        reference: uniqueRef,
-        metadata: {
-          orderId: orderRef.id,
-          userId: auth.currentUser.uid,
-          phone: data.recipientPhone,
-          network: data.recipientNetwork,
-          volume: volume,
-          offerSlug: bundle.offerSlug || ''
-        },
-        onSuccess: (transaction: any) => {
-          setOrderStatus('success');
-          toast.success("Payment Received! 👑 Order is being processed.");
-        },
-        onCancel: () => {
-          setIsSubmitting(false);
-          toast.info("Transaction cancelled.");
-        }
-      });
+        if(!response.ok) throw new Error("Payment failed");
+        
+        const result = await response.json();
+        setOrderId(result.orderId);
+        setOrderStatus('success');
     } catch (err: any) {
-      console.error("Order initiation error:", err);
-      toast.error("Failed to initiate order.");
+      console.error("Order error:", err);
+      toast.error("Failed to place order: " + err.message);
       setIsSubmitting(false);
     }
   };
@@ -191,9 +177,20 @@ export default function CheckoutForm({ bundle, onClose, profile }: CheckoutFormP
                 </div>
               </div>
 
-              <Button type="submit" className="w-full h-14 text-lg font-black gap-2 rounded-2xl shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all bg-primary" disabled={isSubmitting}>
-                {isSubmitting ? <Loader2 className="h-6 w-6 animate-spin" /> : <>PAY GHS {bundle.price.toFixed(2)} 👑</>}
+              <Button type="submit" className="w-full h-14 text-lg font-black gap-2 rounded-2xl shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all bg-primary" disabled={isSubmitting || (profile?.walletBalance || 0) < bundle.price}>
+                {isSubmitting ? <Loader2 className="h-6 w-6 animate-spin" /> : <>BUY NOW (Balance: GHS {(profile?.walletBalance || 0).toFixed(2)}) 👑</>}
               </Button>
+              
+              {(profile?.walletBalance || 0) < bundle.price && (
+                <div className="space-y-3 pt-4 border-t-2 border-dashed">
+                  <p className="text-center font-bold text-red-500">Insufficient Funds! Select a top-up amount:</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[10, 20, 50].map(amt => (
+                      <Button key={amt} type="button" variant="outline" onClick={() => handleTopUp(amt)} className="font-black border-2">GHS {amt}</Button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </form>
           </>
         ) : (

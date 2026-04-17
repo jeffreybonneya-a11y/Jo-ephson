@@ -116,6 +116,13 @@ export default function Navbar({
 
             <div className="flex items-center gap-2 shrink-0">
 
+              {user && profile && (
+                <div onClick={() => setIsWalletOpen(true)} className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg cursor-pointer hover:bg-slate-200 transition-colors">
+                  <Wallet className="w-4 h-4 text-primary" />
+                  <span className="text-xs font-black text-slate-800">GHS {profile.walletBalance.toFixed(2)}</span>
+                </div>
+              )}
+
               {isAdmin && (
                 <Button 
                   variant={isAdminView ? "default" : "ghost"} 

@@ -1,8 +1,11 @@
 import { auth } from '@/src/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Wallet, MessageSquare, Info } from 'lucide-react';
+import { Wallet, Info, Loader2 } from 'lucide-react';
 import { UserProfile } from '@/src/types';
+import { useState } from 'react';
+import { toast } from 'sonner';
+import PaystackPop from '@paystack/inline-js';
 
 interface WalletModalProps {
   isOpen: boolean;
@@ -11,10 +14,42 @@ interface WalletModalProps {
 }
 
 export default function WalletModal({ isOpen, onClose, profile }: WalletModalProps) {
-  const handleWhatsApp = (target: 'kingj' | 'yhaw') => {
-    const phone = target === 'kingj' ? '233535884851' : '233541557530';
-    const text = `Hello King J Deals, I want to top up my royal wallet! 👑\n\nName: ${profile?.fullName || 'Customer'}\nEmail: ${auth.currentUser?.email}\nDesired Top-up Amount: GHS `;
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
+  const [isTopUpLoading, setIsTopUpLoading] = useState(false);
+  const [customAmount, setCustomAmount] = useState<string>('');
+
+  const handlePaystackTopUp = async (amount: number) => {
+    if (amount < 1) {
+      toast.error("Minimum top-up is GHS 1");
+      return;
+    }
+    const publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
+    if (!publicKey) {
+      toast.error("Payment system unavailable.");
+      return;
+    }
+
+    setIsTopUpLoading(true);
+    const paystack = new PaystackPop();
+    paystack.newTransaction({
+      key: publicKey,
+      email: auth.currentUser?.email || 'customer@kingjdeals.com',
+      amount: Math.round(amount * 100),
+      currency: 'GHS',
+      metadata: {
+        mode: 'topup',
+        userId: auth.currentUser?.uid
+      },
+      onSuccess: () => {
+        toast.success("Wallet top-up successful! Balance updating... 👑");
+        onClose();
+        setIsTopUpLoading(false);
+        setCustomAmount('');
+      },
+      onCancel: () => {
+        setIsTopUpLoading(false);
+        toast.info("Top-up cancelled.");
+      }
+    });
   };
 
   return (
@@ -26,7 +61,7 @@ export default function WalletModal({ isOpen, onClose, profile }: WalletModalPro
             WALLET TOP-UP 👑
           </DialogTitle>
           <DialogDescription>
-            Manage your royal balance for instant data.
+            Securely load your royal balance with Paystack.
           </DialogDescription>
         </DialogHeader>
 
@@ -37,30 +72,43 @@ export default function WalletModal({ isOpen, onClose, profile }: WalletModalPro
           </div>
           <div className="flex items-start gap-2 text-xs text-slate-500 mt-4 bg-white/50 p-3 rounded-xl">
             <Info className="w-4 h-4 mt-0.5 text-primary" />
-            <p>To add funds, please contact our support team via WhatsApp. We accept MoMo payments and credit your wallet instantly.</p>
+            <p>Enter any amount or select a quick option to top up via Paystack.</p>
           </div>
         </div>
 
         <div className="space-y-4">
-          <p className="text-xs font-black text-slate-400 uppercase text-center tracking-widest">Reach out to Top Up</p>
+          <p className="text-xs font-black text-slate-400 uppercase text-center tracking-widest">Enter Custom Amount</p>
           
-          <div className="grid grid-cols-1 gap-3">
-             <Button 
-              className="h-14 font-black rounded-2xl bg-[#25D366] hover:bg-[#128C7E] text-white transition-all gap-2 text-lg shadow-lg"
-              onClick={() => handleWhatsApp('kingj')}
-            >
-              <MessageSquare className="w-6 h-6" />
-              CONTACT KING J 👑
-            </Button>
-            
+          <div className="flex gap-2">
+            <input 
+              type="number"
+              placeholder="Enter amount (GHS)"
+              value={customAmount}
+              onChange={(e) => setCustomAmount(e.target.value)}
+              className="flex-1 h-14 px-4 rounded-2xl border-2 border-slate-200 focus:ring-primary focus:border-primary font-black"
+            />
             <Button 
-              variant="outline"
-              className="h-14 font-black rounded-2xl border-2 border-[#25D366] text-[#25D366] hover:bg-[#25D366] hover:text-white transition-all gap-2"
-              onClick={() => handleWhatsApp('yhaw')}
-            >
-              <MessageSquare className="w-5 h-5" />
-              CONTACT YHAW 👑
-            </Button>
+                disabled={isTopUpLoading || !customAmount}
+                className="h-14 px-6 font-black rounded-2xl bg-primary hover:bg-primary/90 text-white transition-all shadow-lg"
+                onClick={() => handlePaystackTopUp(parseFloat(customAmount))}
+              >
+                {isTopUpLoading ? <Loader2 className="animate-spin w-5 h-5"/> : 'TOP UP 👑'}
+              </Button>
+          </div>
+
+          <p className="text-xs font-black text-slate-400 uppercase text-center tracking-widest">Quick Options</p>
+          <div className="grid grid-cols-4 gap-2">
+            {[10, 20, 50, 100].map((amt) => (
+              <Button 
+                key={amt}
+                variant="outline"
+                disabled={isTopUpLoading}
+                className="h-12 font-black rounded-xl border-2 hover:bg-primary hover:text-white transition-all shadow-sm"
+                onClick={() => handlePaystackTopUp(amt)}
+              >
+                {amt}
+              </Button>
+            ))}
           </div>
 
           <Button variant="ghost" className="w-full text-slate-400 font-bold" onClick={onClose}>
