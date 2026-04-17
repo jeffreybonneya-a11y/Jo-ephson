@@ -25,6 +25,12 @@ export interface Order {
   status: 'pending' | 'processing' | 'delivered' | 'cancelled';
   userEmail?: string;
   createdAt: any; // Firestore Timestamp
+  offerSlug?: string;
+  volume?: string;
+  externalOrderId?: string;
+  externalReference?: string;
+  paymentStatus?: string;
+  failureReason?: string;
 }
 
 export interface Message {

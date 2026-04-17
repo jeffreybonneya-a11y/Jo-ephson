@@ -19,12 +19,15 @@ import { MessageSquare, Zap, Crown } from 'lucide-react';
 import { motion } from 'motion/react';
 import { UserProfile } from './types';
 
+import SuccessPage from './pages/Success';
+
 export default function App() {
   const [selectedBundle, setSelectedBundle] = useState<Bundle | null>(null);
   const [isAdminView, setIsAdminView] = useState(false);
   const [isHistoryView, setIsHistoryView] = useState(false);
   const [isStreamView, setIsStreamView] = useState(false);
   const [isLeaderboardView, setIsLeaderboardView] = useState(false);
+  const [paymentReference, setPaymentReference] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -73,19 +76,11 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     const reference = params.get('reference') || params.get('trxref');
     
-    if (reference) {
+    if (reference && typeof reference === 'string') {
+      // Show success page
+      setPaymentReference(reference);
       // Clean up the URL to prevent re-triggering
       window.history.replaceState({}, document.title, window.location.pathname);
-      
-      // Attempt to securely verify via our callback endpoint
-      fetch(`/api/paystack/callback/${reference}`)
-        .then(res => res.json())
-        .then(data => {
-          window.location.href = '/';
-        })
-        .catch(err => {
-          window.location.href = '/';
-        });
     }
 
     let profileUnsubscribe: (() => void) | undefined;
@@ -187,7 +182,9 @@ export default function App() {
       />
       
       <main>
-        {isAdminView && isAdmin ? (
+        {paymentReference ? (
+          <SuccessPage reference={paymentReference} onReturn={() => setPaymentReference(null)} />
+        ) : isAdminView && isAdmin ? (
           <AdminDashboard />
         ) : isHistoryView && user ? (
           <OrderHistory />

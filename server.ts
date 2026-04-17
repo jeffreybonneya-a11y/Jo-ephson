@@ -71,9 +71,17 @@ async function purchaseData(phone: string, network: string, volume: string, offe
 
   const gigshubNetwork = networkMap[network] || network.toLowerCase();
   
+  // Auto-convert standard local 10-digit number (e.g. 024xxxxxxx or 054xxxxxxx) to 233 format
+  let formattedPhone = phone.trim();
+  if (formattedPhone.startsWith('0') && formattedPhone.length === 10) {
+    formattedPhone = '233' + formattedPhone.substring(1);
+  } else if (formattedPhone.startsWith('+233')) {
+    formattedPhone = formattedPhone.substring(1);
+  }
+
   // Validate phone: must match /^233\d{9}$/
-  if (!/^233\d{9}$/.test(phone)) {
-    throw new Error(`Invalid phone format: ${phone}. Must be 233 + 9 digits.`);
+  if (!/^233\d{9}$/.test(formattedPhone)) {
+    throw new Error(`Invalid phone format: ${formattedPhone}. Must be 233 + 9 digits.`);
   }
 
   // Prevent duplicate double deducts on GigsHub by locking the idempotency to the exact order ID
@@ -82,7 +90,7 @@ async function purchaseData(phone: string, network: string, volume: string, offe
   const requestBody = {
     type: "single",
     volume: volume,
-    phone: phone,
+    phone: formattedPhone,
     offerSlug: offerSlug,
     webhookUrl: `https://${process.env.APP_URL || 'king-j-deals.onrender.com'}/api/webhook/gigshub`,
     metadata: { idempotencyKey, orderId }
@@ -323,6 +331,7 @@ async function startServer() {
 
   app.post("/api/paystack/webhook", express.raw({ type: '*/*', limit: '10mb' }), paystackWebhookHandler);
   app.post("/api/webhook/paystack", express.raw({ type: '*/*', limit: '10mb' }), paystackWebhookHandler);
+  app.post("/api/webhook", express.raw({ type: '*/*', limit: '10mb' }), paystackWebhookHandler);
 
   // ================================================
   // ✅ REGISTER BODY PARSERS AFTER WEBHOOK ROUTE

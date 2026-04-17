@@ -196,9 +196,40 @@ export default function AdminDashboard() {
 
   const handleUpdateOrderStatus = async (orderId: string, status: Order['status'], order: Order) => {
     try {
-      await updateDoc(doc(db, 'orders', orderId), { status });
+      let gigshubSuccess = false;
+      if (status === 'processing' && order.recipientPhone && order.offerSlug && order.volume) {
+        toast.info("Sending to GigsHub...");
+        try {
+          const res = await fetch('/api/buy-data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              network: order.recipientNetwork,
+              phone: order.recipientPhone,
+              volume: order.volume,
+              offerSlug: order.offerSlug,
+              orderId: orderId,
+            }),
+          });
+          
+          if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.message || 'GigsHub proxy failed');
+          }
+          toast.success("Successfully processed via GigsHub!");
+          gigshubSuccess = true;
+        } catch (hubErr: any) {
+             console.error("GigsHub trigger error", hubErr);
+             toast.error(`GigsHub Processing Failed: ${hubErr.message}. Marked as processing locally.`);
+        }
+      }
+
+      // If GigsHub succeeds, it updates the firestore order automatically. We only manually update for failures or manual actions.
+      if (!gigshubSuccess) {
+        await updateDoc(doc(db, 'orders', orderId), { status });
+      }
       
-      if (status === 'processing') {
+      if (status === 'processing' && !gigshubSuccess) {
         // Notify user that process is accepted
         await addDoc(collection(db, 'messages'), {
           userId: order.userId,
@@ -771,16 +802,16 @@ We appreciate your business, Royal! 👑`,
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-2 flex-wrap">
-                          {order.paymentStatus === 'success' && order.status === 'pending' && (
-                            <Button size="sm" variant="outline" className="h-8 text-blue-600 gap-1" onClick={() => handleUpdateOrderStatus(order.id, 'processing', order)}>
+                          {order.paymentStatus === 'success' && (order.status === 'pending' || order.status === 'processing') && (
+                            <Button size="sm" variant="outline" className="h-8 text-blue-600 gap-1 bg-blue-50 hover:bg-blue-100 border-blue-200" onClick={() => handleUpdateOrderStatus(order.id, 'processing', order)}>
                               <RefreshCw className="h-3 w-3" />
-                              Approve
+                              Send to GigsHub
                             </Button>
                           )}
                           {order.paymentStatus === 'success' && order.status === 'processing' && (
                             <Button size="sm" variant="outline" className="h-8 text-green-600 gap-1" onClick={() => handleUpdateOrderStatus(order.id, 'delivered', order)}>
                               <Check className="h-3 w-3" />
-                              Deliver
+                              Mark Delivered
                             </Button>
                           )}
                           {order.status !== 'delivered' && order.status !== 'cancelled' && (

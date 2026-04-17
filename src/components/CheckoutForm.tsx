@@ -77,81 +77,8 @@ export default function CheckoutForm({ bundle, onClose, profile }: CheckoutFormP
   }, [profile, setValue]);
 
   const handlePaystackSuccess = async (transaction: any, data: z.infer<typeof formSchema>) => {
-    // We do NOT set UI state here because the user wants an instant silent redirect to the homepage.
-    setIsSubmitting(true);
-    
-    try {
-      // 2. Call backend to verify transaction and finalize order using the pre-created ID
-      const verifyRes = await fetch('/api/paystack/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          reference: transaction.reference,
-          orderId: orderId // This is the ID we saved in onSubmit
-        })
-      });
-      
-      const verifyData = await verifyRes.json();
-
-      if (verifyData.success) {
-        // Execute post-payment tasks asynchronously in the background
-        (async () => {
-          try {
-            await addDoc(collection(db, 'messages'), {
-              userId: auth.currentUser!.uid,
-              userEmail: 'admin@kingjdeals.com',
-              userName: 'King J Deals 👑',
-              subject: '👑 THANK YOU FOR YOUR ORDER! 👑',
-              message: `Royal ${auth.currentUser!.displayName || 'Customer'}, 
-      
-      Thank you for choosing King J Deals! We have received your payment for ${bundle!.name}. 
-      
-      Your data will be delivered within 5-15 minutes under stable network. 
-      
-      We appreciate your business! 👑`,
-              status: 'unread',
-              createdAt: serverTimestamp(),
-            });
-
-            const emailParams = {
-              to_name: "Admins (King J & Yhaw)",
-              customer_name: auth.currentUser!.displayName || 'Customer',
-              order_id: verifyData.orderId || orderId || 'NEW',
-              service_name: bundle!.name,
-              amount: `GHS ${data.amountSent.toFixed(2)}`,
-              reference: transaction.reference,
-              recipient_info: `${data.recipientPhone} (${data.recipientNetwork})`,
-              customer_email: auth.currentUser!.email,
-              site_name: "King J Deals Site 👑",
-              admin_emails: "jeffreybonneya@gmail.com, emmagyapong62@gmail.com"
-            };
-
-            const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-            const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
-            const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
-
-            if (serviceId && templateId && publicKey) {
-              await emailjs.send(serviceId, templateId, emailParams, publicKey);
-            }
-          } catch (postError) {
-            console.error("Non-critical post-payment error:", postError);
-          }
-        })();
-
-        // Instantly close the modal to return to homepage without ANY success messages
-        onClose();
-        
-      } else {
-        toast.error("Verification failed. Please contact admin if you were charged.");
-        setPaymentStatus('idle');
-        setIsSubmitting(false);
-      }
-    } catch (error: any) {
-      console.error("Order error:", error);
-      toast.error("An error occurred. Please contact admin.");
-      setPaymentStatus('idle');
-      setIsSubmitting(false);
-    }
+    // Redirect to homepage with reference to trigger SuccessPage verification
+    window.location.href = `/?reference=${transaction.reference}`;
   };
 
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
