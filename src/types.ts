@@ -3,12 +3,12 @@ export type Network = 'MTN' | 'Telecel' | 'AirtelTigo';
 export interface Bundle {
   id: string;
   name: string;
-  dataAmount: string; // Used for "volume" in GigsHub
+  dataAmount: string;
   price: number;
   network: Network;
   active: boolean;
   offerSlug?: string;
-  volume?: string; // GigsHub specific
+  volume?: string;
 }
 
 export interface Order {
@@ -22,14 +22,16 @@ export interface Order {
   dataAmount?: string;
   amountSent: number;
   referenceCode: string;
-  status: 'pending' | 'processing' | 'delivered' | 'cancelled';
+  status: 'pending' | 'processing' | 'delivered' | 'cancelled' | 'failed';
   userEmail?: string;
-  createdAt: any; // Firestore Timestamp
-  offerSlug?: string;
+  createdAt: any;
+  updatedAt: any;
+  paymentStatus?: string;
+  paymentMethod?: string;
   volume?: string;
+  offerSlug?: string;
   externalOrderId?: string;
   externalReference?: string;
-  paymentStatus?: string;
   failureReason?: string;
 }
 

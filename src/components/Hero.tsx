@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { motion } from 'motion/react';
-import { Zap, ShieldCheck, Clock, MessageSquare, Crown, Sparkles, Home, CreditCard } from 'lucide-react';
+import { Zap, Clock, Crown, Home, CreditCard, Sparkles } from 'lucide-react';
 
 export default function Hero() {
   const scrollToPricing = () => {
@@ -24,18 +24,18 @@ export default function Hero() {
         >
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/20 border border-primary/30 text-primary text-sm font-bold mb-8 shadow-[0_0_20px_rgba(255,215,0,0.2)]">
             <Crown className="w-4 h-4 fill-primary" />
-            <span className="uppercase tracking-widest">The King of Data Deals 👑</span>
+            <span className="uppercase tracking-widest">Automatic Fulfillment live 👑</span>
           </div>
           
           <h1 className="text-6xl md:text-8xl font-black tracking-tight mb-8 leading-[0.9]">
             KING <span className="text-primary drop-shadow-[0_0_15px_rgba(255,215,0,0.5)]">J</span> DEALS <br />
             <span className="text-2xl md:text-4xl font-medium text-slate-300 block mt-4 italic">
-              👑 Spend small, enjoy like a King 👑
+              👑 Automated. Instant. Royal. 👑
             </span>
           </h1>
           
           <p className="text-xl md:text-2xl text-slate-300 max-w-3xl mx-auto mb-12 leading-relaxed">
-            Experience the <span className="text-primary font-bold">Royal Treatment</span> with Ghana's fastest and most affordable data bundles. Instant delivery, zero stress.
+            Experience Ghana's <span className="text-primary font-bold">Fastest Data Portal</span>. Powered by GigsHub & Paystack for a seamless, 100% automated experience.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
@@ -44,19 +44,17 @@ export default function Hero() {
               className="h-16 px-10 text-xl font-black rounded-full w-full sm:w-auto bg-primary hover:bg-primary/90 text-secondary shadow-[0_10px_30px_rgba(255,215,0,0.3)] hover:scale-105 transition-all gap-2" 
               onClick={scrollToPricing}
             >
-              <Home className="w-6 h-6" />
-              HOME / BUY DATA 👑
+              <Zap className="w-6 h-6" />
+              BUY DATA NOW 👑
             </Button>
             <Button 
               size="lg" 
               variant="outline" 
-              className="h-16 px-10 text-xl font-bold rounded-full w-full sm:w-auto border-primary/50 text-primary hover:bg-primary/10 hover:scale-105 transition-all shadow-[0_10px_30px_rgba(0,0,0,0.2)]" 
-              onClick={() => {
-                document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' });
-              }}
+              className="h-16 px-10 text-xl font-bold rounded-full w-full sm:w-auto border-primary/50 text-slate-300 hover:bg-primary/10 hover:text-primary transition-all" 
+              onClick={scrollToPricing}
             >
-              <Zap className="w-6 h-6 mr-2" />
-              VIEW OFFERS 👑
+              <Sparkles className="w-6 h-6 mr-2" />
+              VIEW ROYAL OFFERS
             </Button>
           </div>
         </motion.div>
@@ -68,13 +66,13 @@ export default function Hero() {
           className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-24"
         >
           {[
-            { icon: Zap, label: "Fast Delivery", desc: "5-15 Mins Stable Network" },
-            { icon: CreditCard, label: "Direct Purchase", desc: "No Top-up Required" },
-            { icon: Clock, label: "Non-Expiry", desc: "Data stays forever" },
-            { icon: Crown, label: "Royal Support", desc: "24/7 VIP Care" }
+            { icon: Zap, label: "Auto-Delivery", desc: "Instant GigsHub fulfillment" },
+            { icon: CreditCard, label: "Secure Pay", desc: "Paystack protected" },
+            { icon: Clock, label: "Non-Expiry", desc: "Royal data lasts forever" },
+            { icon: Crown, label: "VIP Service", desc: "The King's treatment" }
           ].map((feature, i) => (
             <div key={i} className="group flex flex-col items-center gap-3 p-6 rounded-3xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-primary/30 transition-all">
-              <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary group-hover:scale-110 transition-transform shadow-[0_0_15px_rgba(255,215,0,0.1)]">
+              <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
                 <feature.icon className="w-7 h-7" />
               </div>
               <div className="text-center">

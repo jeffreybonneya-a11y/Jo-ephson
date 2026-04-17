@@ -2,17 +2,16 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import emailjs from '@emailjs/browser';
 import PaystackPop from '@paystack/inline-js';
 import { Bundle, Network, UserProfile } from '@/src/types';
 import { auth, db } from '@/src/lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, getDoc, updateDoc, increment, onSnapshot } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { CheckCircle2, Loader2, Smartphone, CreditCard, MessageSquare, Wallet } from 'lucide-react';
+import { CheckCircle2, Loader2, Smartphone, CreditCard, MessageSquare, Info } from 'lucide-react';
 import { toast } from 'sonner';
 
 const formSchema = z.object({
@@ -29,33 +28,10 @@ interface CheckoutFormProps {
 
 export default function CheckoutForm({ bundle, onClose, profile }: CheckoutFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'failed'>('idle');
+  const [orderStatus, setOrderStatus] = useState<'idle' | 'processing' | 'success'>('idle');
   const [orderId, setOrderId] = useState('');
-  const [orderDetails, setOrderDetails] = useState<any>(null);
 
-  const pollOrder = async (reference: string) => {
-    let attempts = 0;
-    const maxAttempts = 10; // 50 seconds total
-    const interval = setInterval(async () => {
-      attempts++;
-      if (attempts >= maxAttempts) clearInterval(interval);
-
-      try {
-        const res = await fetch(`/api/orders?reference=${reference}`);
-        if (res.ok) {
-          const data = await res.json();
-          setOrderDetails(data);
-          if (data.status === 'delivered' || data.status === 'failed' || data.status === 'cancelled') {
-            clearInterval(interval);
-          }
-        }
-      } catch (e) {
-        console.error("Polling error:", e);
-      }
-    }, 5000);
-  };
-
-  const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<z.infer<typeof formSchema>>({
+  const { register, handleSubmit, formState: { errors }, setValue } = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       recipientNetwork: bundle?.network || 'MTN',
@@ -76,11 +52,6 @@ export default function CheckoutForm({ bundle, onClose, profile }: CheckoutFormP
     }
   }, [profile, setValue]);
 
-  const handlePaystackSuccess = async (transaction: any, data: z.infer<typeof formSchema>) => {
-    // Redirect to homepage with reference to trigger SuccessPage verification
-    window.location.href = `/?reference=${transaction.reference}`;
-  };
-
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
     if (!bundle || !auth.currentUser) {
       toast.error("You must be logged in to purchase.");
@@ -93,30 +64,19 @@ export default function CheckoutForm({ bundle, onClose, profile }: CheckoutFormP
       return;
     }
 
-    const volume = bundle.volume || bundle.dataAmount.replace(/[^0-9.]/g, '');
-    const offerSlug = bundle.offerSlug || '';
-    const phone = data.recipientPhone;
-    const network = data.recipientNetwork;
-
-    console.log("Validating Metadata:", { phone, network, volume, offerSlug });
-
-    if (!phone || !network || !volume || !offerSlug) {
-      toast.error("Missing critical order information. Please refresh and try again.");
-      return;
-    }
-
     setIsSubmitting(true);
     
     try {
-      // 1. PRE-CREATE THE ORDER IN FIRESTORE (Crucial for reliability)
+      // 1. Pre-create pending order in Firestore
       const uniqueRef = 'KJD-' + Math.random().toString(36).substring(2, 10).toUpperCase();
+      const volume = bundle.volume || bundle.dataAmount.replace(/[^0-9.]/g, ''); // Extract numeric volume if not explicit
       
       const orderRef = await addDoc(collection(db, 'orders'), {
         userId: auth.currentUser.uid,
-        customerName: auth.currentUser.displayName || 'Customer',
-        userEmail: auth.currentUser.email || '',
-        recipientPhone: phone,
-        recipientNetwork: network,
+        customerName: auth.currentUser.displayName || profile?.fullName || 'Customer',
+        userEmail: auth.currentUser.email || profile?.email || '',
+        recipientPhone: data.recipientPhone,
+        recipientNetwork: data.recipientNetwork,
         bundleId: bundle.id,
         bundleName: bundle.name,
         dataAmount: bundle.dataAmount,
@@ -124,177 +84,155 @@ export default function CheckoutForm({ bundle, onClose, profile }: CheckoutFormP
         referenceCode: uniqueRef,
         status: 'pending',
         paymentStatus: 'pending_payment',
-        createdAt: serverTimestamp(),
+        paymentMethod: 'paystack',
         volume: volume,
-        offerSlug: offerSlug
+        offerSlug: bundle.offerSlug || '',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
       });
 
       setOrderId(orderRef.id);
 
+      // 2. Initialize Paystack
       const paystack = new PaystackPop();
       paystack.newTransaction({
         key: publicKey,
         email: auth.currentUser.email || 'customer@kingjdeals.com',
-        amount: Math.round((data.amountSent + 0.20) * 100),
-        reference: uniqueRef,
+        amount: Math.round(data.amountSent * 100), // In pesewas
         currency: 'GHS',
+        reference: uniqueRef,
         metadata: {
           orderId: orderRef.id,
           userId: auth.currentUser.uid,
-          recipientPhone: data.recipientPhone,
-          recipientNetwork: data.recipientNetwork,
-          volume: bundle.volume || bundle.dataAmount.replace(/[^0-9.]/g, ''),
+          phone: data.recipientPhone,
+          network: data.recipientNetwork,
+          volume: volume,
           offerSlug: bundle.offerSlug || ''
         },
         onSuccess: (transaction: any) => {
-          handlePaystackSuccess(transaction, data);
+          setOrderStatus('success');
+          toast.success("Payment Received! 👑 Order is being processed.");
         },
         onCancel: () => {
           setIsSubmitting(false);
-          toast.error("Transaction was cancelled.");
+          toast.info("Transaction cancelled.");
         }
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error("Order initiation error:", err);
       toast.error("Failed to initiate order.");
       setIsSubmitting(false);
     }
   };
 
+  const handleWhatsApp = (target: 'kingj' | 'yhaw') => {
+    const phone = target === 'kingj' ? '233535884851' : '233541557530';
+    const text = `Hello, I just placed an order on King J Deals! 👑\n\nOrder ID: #${orderId.slice(-6).toUpperCase()}\nRef: ${orderDetails?.referenceCode || ''}\n\nPlease check my order status.`;
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  // Mock orderDetails for WhatsApp if needed
+  const orderDetails = { referenceCode: orderId.slice(-8).toUpperCase() };
+
   if (!bundle) return null;
 
   return (
     <Dialog open={!!bundle} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
-        {paymentStatus === 'idle' && (
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto rounded-3xl">
+        {orderStatus === 'idle' ? (
           <>
             <DialogHeader>
-              <DialogTitle className="text-2xl font-black">COMPLETE YOUR PURCHASE 👑</DialogTitle>
+              <DialogTitle className="text-2xl font-black flex items-center gap-2">
+                ROYAL CHECKOUT 👑
+              </DialogTitle>
               <DialogDescription className="text-lg">
-                {bundle.id === 'football-stream' 
-                  ? `Buying Lifetime football streaming apk for GHS ${bundle.price.toFixed(2)}`
-                  : `Buying ${bundle.dataAmount} {bundle.network} Data for GHS ${bundle.price.toFixed(2)}`
-                }
+                Automated delivery powered by King J Deals.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="bg-primary/10 border-2 border-primary/20 rounded-2xl p-6 space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary rounded-lg text-secondary">
-                  <CreditCard className="w-6 h-6" />
-                </div>
-                <h3 className="font-black text-xl">PAYMENT METHOD</h3>
-              </div>
-              
-              <div className="space-y-3 text-slate-700">
-                <p className="text-sm font-medium">
-                  You will be redirected to Paystack to complete your payment securely.
-                </p>
-              </div>
+            <div className="bg-primary/5 border-2 border-primary/20 rounded-2xl p-5 space-y-2">
+              <h3 className="font-black text-primary text-sm flex items-center gap-2">
+                <CreditCard className="w-4 h-4" />
+                SECURE PAYMENT
+              </h3>
+              <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                You will be redirected to Paystack to complete your purchase. Once payment is confirmed, GigsHub will automatically deliver your data.
+              </p>
             </div>
 
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 py-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="recipientPhone">Recipient Number (Data Number)</Label>
-                  <Input id="recipientPhone" placeholder="024XXXXXXX" {...register('recipientPhone')} className={errors.recipientPhone ? "border-destructive" : "rounded-xl h-12"} />
-                  {errors.recipientPhone && <p className="text-xs text-destructive">{errors.recipientPhone.message}</p>}
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 py-2">
+              <div className="space-y-4">
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                  <p className="text-xs font-bold text-slate-500 uppercase mb-1">Product Details</p>
+                  <p className="font-black text-slate-900">{bundle.name}</p>
+                  <p className="text-sm font-medium text-primary">GHS {bundle.price.toFixed(2)}</p>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="recipientNetwork">Recipient Network</Label>
-                  <Select defaultValue={bundle.network} onValueChange={(v) => setValue('recipientNetwork', v as Network)}>
-                    <SelectTrigger className="rounded-xl h-12">
-                      <SelectValue placeholder="Select Network" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="MTN">MTN</SelectItem>
-                      <SelectItem value="Telecel">Telecel</SelectItem>
-                      <SelectItem value="AirtelTigo">AirtelTigo</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="recipientPhone" className="text-xs font-bold uppercase tracking-wider text-slate-500">Recipient Phone (233...)</Label>
+                    <Input id="recipientPhone" placeholder="233XXXXXXXXX" {...register('recipientPhone')} className="rounded-xl h-12 bg-slate-50 border-slate-200 focus:ring-primary" />
+                    {errors.recipientPhone && <p className="text-[10px] text-destructive font-bold">{errors.recipientPhone.message}</p>}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="recipientNetwork" className="text-xs font-bold uppercase tracking-wider text-slate-500">Network</Label>
+                    <Select defaultValue={bundle.network} onValueChange={(v) => setValue('recipientNetwork', v as Network)}>
+                      <SelectTrigger className="rounded-xl h-12 bg-slate-50 border-slate-200">
+                        <SelectValue placeholder="Network" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="MTN">MTN</SelectItem>
+                        <SelectItem value="Telecel">Telecel</SelectItem>
+                        <SelectItem value="AirtelTigo">AirtelTigo</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
 
-              <Button type="submit" className="w-full h-14 text-xl font-black gap-2 rounded-2xl shadow-xl hover:scale-[1.02] transition-all" disabled={isSubmitting}>
-                {isSubmitting ? <Loader2 className="h-6 w-6 animate-spin" /> : <CreditCard className="w-6 h-6" />}
-                PAY GHS {bundle.price.toFixed(2)} WITH PAYSTACK 👑
+              <Button type="submit" className="w-full h-14 text-lg font-black gap-2 rounded-2xl shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all bg-primary" disabled={isSubmitting}>
+                {isSubmitting ? <Loader2 className="h-6 w-6 animate-spin" /> : <>PAY GHS {bundle.price.toFixed(2)} 👑</>}
               </Button>
             </form>
           </>
-        )}
-
-        {paymentStatus === 'processing' && (
-          <div className="py-12 text-center">
-            <Loader2 className="w-16 h-16 text-primary animate-spin mx-auto mb-4" />
-            <h2 className="text-2xl font-black mb-2 tracking-tight">VERIFYING PAYMENT...</h2>
-            <p className="text-slate-600">Please wait while we confirm your transaction with Paystack.</p>
-          </div>
-        )}
-
-        {paymentStatus === 'success' && (
+        ) : (
           <div className="py-8 text-center space-y-6">
-            <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse ${orderDetails?.status === 'delivered' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
-              {orderDetails?.status === 'delivered' ? <CheckCircle2 className="w-12 h-12" /> : <Loader2 className="w-12 h-12 animate-spin" />}
+            <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4 scale-in animate-in fade-in zoom-in duration-500">
+              <CheckCircle2 className="w-12 h-12" />
             </div>
             <div className="space-y-2">
-              <h2 className="text-3xl font-black tracking-tight uppercase">
-                {orderDetails?.status === 'delivered' ? 'Order Fulfilled! 👑' : 'Order Processing... 👑'}
-              </h2>
+              <h2 className="text-3xl font-black tracking-tight uppercase">Payment Success! 👑</h2>
+              <p className="text-slate-600 font-medium">Your order #<span className="text-primary">{orderId.slice(-6).toUpperCase()}</span> is being delivered automatically.</p>
               
-              {orderDetails?.status === 'delivered' ? (
-                <p className="text-xl font-bold text-green-600 animate-bounce">
-                  ✅ ROYAL, YOUR DATA HAS BEEN SENT!
+              <div className="bg-primary/5 p-6 rounded-3xl border-2 border-primary/10 mt-6 text-left">
+                <p className="text-sm font-black text-primary uppercase mb-3 text-center underline underline-offset-4">Automatic Fulfillment</p>
+                <p className="text-xs font-medium text-slate-700 leading-relaxed text-center">
+                  Our system has notified GigsHub. You will receive your data within 5-15 minutes. No further action is required!
                 </p>
-              ) : (
-                <p className="text-xl font-bold text-red-600">
-                  🔴 ROYAL, PLEASE WAIT SECONDS... DATA COMING SOON!
-                </p>
-              )}
-              
-              <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 mt-4 space-y-2 text-left">
-                <p className="text-sm font-bold flex justify-between">
-                  <span>ORDER ID:</span>
-                  <span className="font-mono text-primary">#{orderId.slice(-6).toUpperCase()}</span>
-                </p>
-                <p className="text-sm font-bold flex justify-between">
-                  <span>STATUS:</span>
-                  <span className={`uppercase ${orderDetails?.status === 'delivered' ? 'text-green-600' : 'text-blue-600'}`}>
-                    {orderDetails?.status || 'Processing'}
-                  </span>
-                </p>
-                {orderDetails?.externalReference && (
-                  <p className="text-xs font-mono text-slate-500 break-all text-center pt-2">
-                    REF: {orderDetails.externalReference}
-                  </p>
-                )}
               </div>
             </div>
 
             <div className="flex flex-col gap-3">
-              <Button className="w-full h-14 text-xl font-black rounded-2xl" onClick={onClose}>
-                BACK TO HOME 👑
+              <Button className="w-full h-14 text-xl font-black rounded-2xl bg-secondary text-white" onClick={onClose}>
+                AWESOME 👑
               </Button>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 <Button 
                   variant="outline" 
-                  className="h-14 text-xs font-black rounded-2xl border-2 border-[#25D366] text-[#25D366] hover:bg-[#25D366] hover:text-white transition-all gap-1"
-                  onClick={() => {
-                    window.open(`https://wa.me/233535884851?text=Hello King J, I have just placed an order on King J Deals Site. Order ID: ${orderId.slice(-6).toUpperCase()}`, '_blank');
-                  }}
+                  className="h-14 font-black rounded-2xl border-2 border-[#25D366] text-[#25D366] hover:bg-[#25D366] hover:text-white transition-all gap-2"
+                  onClick={() => handleWhatsApp('kingj')}
                 >
-                  <MessageSquare className="w-4 h-4" />
-                  TEXT KING J 👑
+                  <MessageSquare className="w-5 h-5" />
+                  KING J
                 </Button>
                 <Button 
                   variant="outline" 
-                  className="h-14 text-xs font-black rounded-2xl border-2 border-[#25D366] text-[#25D366] hover:bg-[#25D366] hover:text-white transition-all gap-1"
-                  onClick={() => {
-                    window.open(`https://wa.me/233541557530?text=Hello Yhaw, I have just placed an order on King J Deals Site. Order ID: ${orderId.slice(-6).toUpperCase()}`, '_blank');
-                  }}
+                  className="h-14 font-black rounded-2xl border-2 border-[#25D366] text-[#25D366] hover:bg-[#25D366] hover:text-white transition-all gap-2"
+                  onClick={() => handleWhatsApp('yhaw')}
                 >
-                  <MessageSquare className="w-4 h-4" />
-                  TEXT YHAW 👑
+                  <MessageSquare className="w-5 h-5" />
+                  YHAW
                 </Button>
               </div>
             </div>
