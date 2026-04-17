@@ -52,24 +52,6 @@ export default function CheckoutForm({ bundle, onClose, profile }: CheckoutFormP
     }
   }, [profile, setValue]);
 
-  const handleTopUp = async (amount: number) => {
-    const publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
-    const paystack = new PaystackPop();
-    paystack.newTransaction({
-      key: publicKey,
-      email: auth.currentUser?.email || 'customer@kingjdeals.com',
-      amount: Math.round(amount * 100),
-      currency: 'GHS',
-      metadata: {
-        mode: 'topup',
-        userId: auth.currentUser?.uid
-      },
-      onSuccess: () => {
-        toast.success("Top-up successful! Your balance will reflect shortly. 👑");
-      }
-    });
-  };
-
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
     if (!bundle || !auth.currentUser || !profile) {
       toast.error("You must be logged in to purchase.");
@@ -77,10 +59,10 @@ export default function CheckoutForm({ bundle, onClose, profile }: CheckoutFormP
     }
 
     if (profile.walletBalance < bundle.price) {
-        toast.error("Insufficient balance. Please top up your wallet.");
+        toast.error("Insufficient balance. Please contact support to top up your wallet.");
         return;
     }
-
+    
     setIsSubmitting(true);
     try {
         const response = await fetch('/api/wallet/pay', {
@@ -180,17 +162,6 @@ export default function CheckoutForm({ bundle, onClose, profile }: CheckoutFormP
               <Button type="submit" className="w-full h-14 text-lg font-black gap-2 rounded-2xl shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all bg-primary" disabled={isSubmitting || (profile?.walletBalance || 0) < bundle.price}>
                 {isSubmitting ? <Loader2 className="h-6 w-6 animate-spin" /> : <>BUY NOW (Balance: GHS {(profile?.walletBalance || 0).toFixed(2)}) 👑</>}
               </Button>
-              
-              {(profile?.walletBalance || 0) < bundle.price && (
-                <div className="space-y-3 pt-4 border-t-2 border-dashed">
-                  <p className="text-center font-bold text-red-500">Insufficient Funds! Select a top-up amount:</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[10, 20, 50].map(amt => (
-                      <Button key={amt} type="button" variant="outline" onClick={() => handleTopUp(amt)} className="font-black border-2">GHS {amt}</Button>
-                    ))}
-                  </div>
-                </div>
-              )}
             </form>
           </>
         ) : (
