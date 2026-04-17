@@ -16,7 +16,7 @@ const __dirname = path.dirname(__filename);
 
 // Constants
 const GIGSHUB_BASE_URL = process.env.GIGSHUB_BASE_URL || "https://www.gigshub.cloud/api/v1";
-const GIGSHUB_API_KEY = process.env.GIGSHUB_API_KEY;
+const GIGSHUB_API_KEY = process.env.GIGSHUB_API_KEY || "dk_e87pONcP0e0NxTfZg-gvEwwpVf025Czu";
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 
 // Load Firebase Config safely
@@ -33,8 +33,8 @@ const firebaseConfig = {
 
 // Initialize Firebase Admin
 if (!admin.apps.length) {
+  const targetProjectId = firebaseConfig.projectId || firebaseConfigData.projectId;
   const serviceAccountVar = process.env.FIREBASE_SERVICE_ACCOUNT;
-  const targetProjectId = process.env.FIREBASE_PROJECT_ID || firebaseConfigData.projectId;
   
   if (serviceAccountVar) {
     try {
@@ -42,19 +42,22 @@ if (!admin.apps.length) {
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
         projectId: targetProjectId,
-        databaseURL: `https://${targetProjectId}.firebaseio.com`
       });
-      console.log(`Firebase Admin initialized with Service Account for project: ${targetProjectId}`);
+      console.log(`[Firebase] Initialized with Service Account for: ${targetProjectId}`);
     } catch (e) {
-      console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT, falling back to PROJECT_ID:", e);
+      console.error("[Firebase] Service Account Parse Error, falling back:", e);
       admin.initializeApp({ projectId: targetProjectId });
     }
   } else {
     admin.initializeApp({ projectId: targetProjectId });
-    console.log(`Firebase Admin initialized with Project ID: ${targetProjectId}`);
+    console.log(`[Firebase] Initialized with Project ID: ${targetProjectId}`);
   }
 }
-const db = getFirestore(admin.apps[0], firebaseConfig.firestoreDatabaseId || '(default)');
+
+// Get Firestore instance with aggressive database ID handling
+const dbId = process.env.FIREBASE_DATABASE_ID || firebaseConfigData.firestoreDatabaseId || '(default)';
+console.log(`[Firebase] Target Database ID: ${dbId}`);
+const db = getFirestore(dbId);
 
 /**
  * purchaseData() - Automated fulfillment function
@@ -126,25 +129,45 @@ async function startServer() {
 
   // Proxy Offers
   app.get("/api/offers", async (req, res) => {
+    let responded = false;
     try {
-      if (!GIGSHUB_API_KEY) {
-        throw new Error("GIGSHUB_API_KEY is not configured");
-      }
+      if (!GIGSHUB_API_KEY) throw new Error("GIGSHUB_API_KEY missing");
+      
       const response = await axios.get(`${GIGSHUB_BASE_URL}/offers`, {
         headers: { 'Accept': 'application/json', 'x-api-key': GIGSHUB_API_KEY },
-        timeout: 5000
+        timeout: 25000 // Very generous timeout for GigsHub
       });
-      res.json(response.data);
+      
+      if (!responded) {
+        res.json(response.data);
+        responded = true;
+      }
     } catch (error: any) {
       console.error("[GigsHub Offers Error]", error.message);
-      // Fallback to local bundles if GigsHub is down
+      if (responded) return;
+
+      // Fallback 1: Local Firestore bundles
       try {
         const bundlesSnapshot = await db.collection("bundles").where("active", "==", true).get();
+        if (bundlesSnapshot.empty) throw new Error("No bundles in DB");
+        
         const bundles = bundlesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         res.json(bundles);
+        responded = true;
       } catch (dbErr: any) {
         console.error("[Local Bundles Fallback Error]", dbErr.message);
-        res.status(500).json({ status: "error", message: "Failed to fetch offers from all sources", details: error.message });
+        if (responded) return;
+
+        // Fallback 2: Hardcoded "Royal Emergency" deals
+        console.log("[Fallback] Using emergency hardcoded deals");
+        const emergencyBundles = [
+          { id: 'mtn-1', name: 'MTN Royal 1GB', dataAmount: '1 GB', price: 10, network: 'MTN', active: true, offerSlug: 'mtn_1gb' },
+          { id: 'mtn-2', name: 'MTN Royal 5GB', dataAmount: '5 GB', price: 35, network: 'MTN', active: true, offerSlug: 'mtn_5gb' },
+          { id: 'tel-1', name: 'Telecel Royal 1GB', dataAmount: '1 GB', price: 9, network: 'Telecel', active: true, offerSlug: 'telecel_1gb' },
+          { id: 'at-1', name: 'AirtelTigo Royal 1GB', dataAmount: '1 GB', price: 8, network: 'AirtelTigo', active: true, offerSlug: 'airteltigo_1gb' },
+        ];
+        res.json(emergencyBundles);
+        responded = true;
       }
     }
   });
