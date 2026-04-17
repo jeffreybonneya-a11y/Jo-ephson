@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { onSnapshot, doc } from 'firebase/firestore';
+import { onSnapshot, doc, collection } from 'firebase/firestore';
 import { db } from '@/src/lib/firebase';
 import { Bundle, Network } from '@/src/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,42 +44,23 @@ export default function BundleList({ onSelectBundle }: BundleListProps) {
       setAnnouncement(snapshot.exists() ? snapshot.data() : null);
     });
 
-        // 2. Fetch offers from API (GigsHub proxy)
+        // 2. Fetch offers
     const fetchOffers = async () => {
       try {
-        const response = await fetch('/api/offers');
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const contentType = response.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
-          throw new Error("Response was not JSON (probably an error page)");
-        }
-        const data = await response.json();
-        
-        // Transform GigsHub data to our Bundle format
-        const offersList = (Array.isArray(data) ? data : (data.offers || []));
-        const transformedOffers = offersList.map((offer: any) => {
-          const vol = offer.volume ? String(offer.volume) : '';
-          return {
-            id: offer.id || Math.random().toString(36).substring(7),
-            name: offer.name || `${vol} GB ${offer.network} Data`,
-            dataAmount: vol + (vol.toUpperCase().includes('GB') ? '' : ' GB'),
-            price: offer.price || offer.amount || 0,
-            network: (offer.network === 'vodafone' ? 'Telecel' : 
-                     offer.network === 'mtn' ? 'MTN' : 
-                     offer.network === 'airteltigo' ? 'AirtelTigo' : 
-                     offer.network) as Network,
-            active: true,
-            offerSlug: offer.offerSlug || offer.slug || '',
-            volume: vol
-          };
+        // Fetch from Firestore
+        const unsubFirestore = onSnapshot(collection(db, 'bundles'), (snapshot) => {
+          const firestoreBundles = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          })) as Bundle[];
+          
+          setBundles(firestoreBundles.filter(b => b.active));
+          setLoading(false);
         });
 
-        setBundles(transformedOffers);
+        return () => unsubFirestore();
       } catch (err) {
-        console.error("Failed to fetch offers:", err);
-      } finally {
+        console.error("Failed to fetch bundles:", err);
         setLoading(false);
       }
     };

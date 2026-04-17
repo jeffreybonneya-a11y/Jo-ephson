@@ -185,13 +185,13 @@ export default function AdminDashboard() {
         
         <div className="flex flex-wrap gap-4">
            {ghBalance !== null && (
-             <div className="bg-secondary text-white px-6 py-4 rounded-[1.5rem] shadow-xl border-l-4 border-primary group hover:scale-105 transition-transform cursor-pointer">
+             <div className={`bg-secondary text-white px-6 py-4 rounded-[1.5rem] shadow-xl border-l-4 group hover:scale-105 transition-transform cursor-pointer ${ghBalance <= 50 ? 'border-red-500 animate-pulse' : 'border-primary'}`}>
                <div className="flex items-center gap-3">
                  <div className="p-2 bg-primary/20 rounded-lg">
-                   <Wallet className="w-6 h-6 text-primary" />
+                   <Wallet className={`w-6 h-6 ${ghBalance <= 50 ? 'text-red-400' : 'text-primary'}`} />
                  </div>
                  <div>
-                   <p className="text-[10px] font-black uppercase tracking-widest text-primary/70 mb-0.5">GigsHub Wallet</p>
+                   <p className="text-[10px] font-black uppercase tracking-widest text-primary/70 mb-0.5">GigsHub Wallet {ghBalance <= 50 ? '⚠️ LOW' : ''}</p>
                    <p className="text-2xl font-black">GHS {ghBalance.toFixed(2)}</p>
                  </div>
                </div>

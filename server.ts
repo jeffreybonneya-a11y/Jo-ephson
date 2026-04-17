@@ -226,7 +226,8 @@ app.get('/site-status', async (req, res) => {
   try {
     const response = await api.get('/balance');
     const balance = response.data.balance;
-    res.json({ status: balance <= 0 ? 'low' : 'ok', balance });
+    // Notify if balance is less than 50 GHS
+    res.json({ status: balance <= 50 ? 'low' : 'ok', balance });
   } catch {
     res.json({ status: 'ok' });
   }
