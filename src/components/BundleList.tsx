@@ -38,13 +38,13 @@ export default function BundleList({ onSelectBundle }: BundleListProps) {
   };
 
   useEffect(() => {
-    const q = query(collection(db, 'bundles'), where('active', '==', true));
-    
     // Listen for announcement to apply dynamic discounts
     const unsubAnnouncement = onSnapshot(doc(db, 'settings', 'announcement'), (annSnapshot) => {
       const announcementData = annSnapshot.exists() ? annSnapshot.data() : null;
       const isDiscountActive = announcementData?.active && (announcementData?.type === 'discount' || announcementData?.type === 'alert');
 
+      // Primary source: Firestore bundles collection (allows admin to manage names/prices)
+      const q = query(collection(db, 'bundles'), where('active', '==', true));
       const unsubscribeBundles = onSnapshot(q, (snapshot) => {
         const bundleData = snapshot.docs.map(doc => {
           const data = doc.data();
@@ -60,13 +60,17 @@ export default function BundleList({ onSelectBundle }: BundleListProps) {
           return { 
             id: doc.id, 
             ...data,
-            originalPrice, // Keep track of original
-            price: discountedPrice, // Use discounted price for checkout
+            originalPrice,
+            price: discountedPrice,
             isDiscounted: isDiscountActive && discountedPrice < originalPrice,
             network: (data.network === 'Vodafone' ? 'Telecel' : data.network) as Network
           } as Bundle & { originalPrice: number, isDiscounted: boolean };
         });
+        
         setBundles(bundleData);
+        setLoading(false);
+      }, (err) => {
+        console.error("Firestore bundles error:", err);
         setLoading(false);
       });
 

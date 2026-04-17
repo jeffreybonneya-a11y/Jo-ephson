@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '@/src/lib/firebase';
+import { db, auth } from '@/src/lib/firebase';
 import emailjs from '@emailjs/browser';
 import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, doc, deleteDoc, getDoc, increment, serverTimestamp } from 'firebase/firestore';
 import { Bundle, Order, Network, UserProfile, Message, StreamAccess } from '@/src/types';
@@ -22,9 +22,13 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingBundle, setEditingBundle] = useState<Bundle | null>(null);
+  const [ghBalance, setGhBalance] = useState<number | null>(null);
   const [configStatus, setConfigStatus] = useState({
     emailService: false,
-    emailTemplate: false
+    emailTemplate: false,
+    paystackPublic: false,
+    paystackSecret: false,
+    gigshubKey: false,
   });
 
   const [announcement, setAnnouncement] = useState({
@@ -40,9 +44,24 @@ export default function AdminDashboard() {
     dataAmount: '',
     price: '',
     network: 'MTN' as Network,
+    offerSlug: '',
+    volume: '',
   });
 
   useEffect(() => {
+    // Fetch GigsHub balance if available
+    fetch('/api/balance')
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'error') {
+          console.warn("GigsHub Balance Error:", data.message);
+          setGhBalance(-1); // Use -1 to indicate error
+        } else if (data.balance !== undefined) {
+          setGhBalance(data.balance);
+        }
+      })
+      .catch(err => console.error("Failed to fetch balance:", err));
+
     // Fetch config status from backend
     fetch('/api/config-status')
       .then(res => res.json())
@@ -118,7 +137,7 @@ export default function AdminDashboard() {
         });
         toast.success("Bundle added successfully!");
       }
-      setBundleForm({ name: '', dataAmount: '', price: '', network: 'MTN' });
+      setBundleForm({ name: '', dataAmount: '', price: '', network: 'MTN', offerSlug: '', volume: '' });
     } catch (error: any) {
       console.error("Bundle operation error:", error);
       toast.error(editingBundle ? `Failed to update bundle: ${error.message}` : `Failed to add bundle: ${error.message}`);
@@ -132,18 +151,29 @@ export default function AdminDashboard() {
       dataAmount: bundle.dataAmount,
       price: bundle.price.toString(),
       network: (bundle.network as string) === 'Vodafone' ? 'Telecel' : bundle.network,
+      offerSlug: bundle.offerSlug || '',
+      volume: bundle.volume || '',
     });
   };
 
   const handleClearOrders = async () => {
     try {
       if (orders.length === 0) return;
-      const deletePromises = orders.map(order => updateDoc(doc(db, 'orders', order.id), { status: 'deleted' }));
+      const deletePromises = orders.map(order => deleteDoc(doc(db, 'orders', order.id)));
       await Promise.all(deletePromises);
-      toast.success("All orders moved to trash (deleted)!");
+      toast.success("All orders have been permanently cleared! 👑");
     } catch (error) {
       console.error("Clear orders error:", error);
-      toast.error("Failed to clear orders. Check console for details.");
+      toast.error("Failed to clear orders.");
+    }
+  };
+
+  const handleDeleteOrder = async (orderId: string) => {
+    try {
+      await deleteDoc(doc(db, 'orders', orderId));
+      toast.success("Order permanently deleted! 👑");
+    } catch (error) {
+      toast.error("Failed to delete order.");
     }
   };
 
@@ -300,7 +330,6 @@ We appreciate your business, Royal! 👑`,
   const handleTestSMS = async () => {
     toast.info("Notification feature is now handled via EmailJS. 👑");
   };
-
   const handleDeleteMessage = async (messageId: string) => {
     try {
       await deleteDoc(doc(db, 'messages', messageId));
@@ -328,7 +357,6 @@ We appreciate your business, Royal! 👑`,
       case 'processing': return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Processing</Badge>;
       case 'delivered': return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Delivered</Badge>;
       case 'cancelled': return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Cancelled</Badge>;
-      case 'deleted': return <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">Deleted</Badge>;
       default: return <Badge variant="outline">{status}</Badge>;
     }
   };
@@ -340,7 +368,7 @@ We appreciate your business, Royal! 👑`,
     // Admin emails to exclude
     const adminEmails = ['jeffreybonneya@gmail.com', 'emmagyapong62@gmail.com'];
     
-    orders.forEach(order => {
+    orders.filter(order => order.paymentStatus === 'success').forEach(order => {
       const email = order.userEmail || 'Unknown';
       
       // Exclude admins
@@ -379,6 +407,17 @@ We appreciate your business, Royal! 👑`,
               <span className="text-sm font-black text-blue-700">{users.length}</span>
             </div>
           </div>
+          {ghBalance !== null && (
+            <div className={`flex items-center gap-2 px-3 py-1 ${ghBalance === -1 ? 'bg-red-50 border-red-100' : 'bg-green-50 border-green-100'} rounded-xl border`}>
+              <Wallet className={`w-4 h-4 ${ghBalance === -1 ? 'text-red-600' : 'text-green-600'}`} />
+              <div className="flex flex-col">
+                <span className="text-[10px] font-bold text-slate-400 uppercase leading-none">GigsHub Balance</span>
+                <span className={`text-sm font-black ${ghBalance === -1 ? 'text-red-700' : 'text-green-700'}`}>
+                  {ghBalance === -1 ? 'API REVOKED/ERROR' : `GHS ${ghBalance.toFixed(2)}`}
+                </span>
+              </div>
+            </div>
+          )}
           {topCustomer && (
             <div className="flex items-center gap-2 px-3 py-1 bg-amber-50 rounded-xl border border-amber-100">
               <Star className="w-4 h-4 text-amber-600" />
@@ -397,26 +436,21 @@ We appreciate your business, Royal! 👑`,
             <div className={`w-2 h-2 rounded-full ${configStatus.emailTemplate ? 'bg-green-500' : 'bg-red-500'}`} />
             <span className="text-[10px] font-bold text-slate-500 uppercase">Email Template</span>
           </div>
-          <div className="h-4 w-[1px] bg-slate-200 mx-2" />
           <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${configStatus.telegram ? 'bg-green-500' : 'bg-red-500'}`} />
-            <span className="text-[10px] font-bold text-slate-500 uppercase">Free Alerts (Telegram)</span>
+            <div className={`w-2 h-2 rounded-full ${configStatus.gigshubKey ? 'bg-green-500' : 'bg-red-500'}`} />
+            <span className="text-[10px] font-bold text-slate-500 uppercase">GigsHub API</span>
           </div>
           <div className="h-4 w-[1px] bg-slate-200 mx-2" />
           <Button variant="outline" size="sm" onClick={handleTestEmail} className="gap-2 bg-primary/10 border-primary/20 text-primary hover:bg-primary/20 h-8">
             <MailIcon className="w-4 h-4" />
             Test Gmail
           </Button>
-          <Button variant="outline" size="sm" onClick={handleTestSMS} className="gap-2 bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200 h-8">
-            <MessageSquare className="w-4 h-4" />
-            Test Telegram
-          </Button>
         </div>
       </div>
 
       <Tabs defaultValue="orders" className="space-y-6">
         <TabsList className="flex flex-wrap h-auto gap-2 bg-transparent">
-          <TabsTrigger value="orders" className="bg-white border shadow-sm">Orders ({orders.length})</TabsTrigger>
+          <TabsTrigger value="orders" className="bg-white border shadow-sm">Orders ({orders.filter(o => o.paymentStatus === 'success').length})</TabsTrigger>
           <TabsTrigger value="discounts" className="bg-white border shadow-sm">Discount Bar 👑</TabsTrigger>
           <TabsTrigger value="users" className="bg-white border shadow-sm">Users ({users.length})</TabsTrigger>
           <TabsTrigger value="stream" className="bg-white border shadow-sm">Stream Access ({streamAccess.filter(s => s.status === 'pending').length})</TabsTrigger>
@@ -523,18 +557,22 @@ We appreciate your business, Royal! 👑`,
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {users.map((u) => (
-                    <TableRow key={u.id}>
-                      <TableCell className="font-bold">{u.fullName}</TableCell>
-                      <TableCell>{u.email}</TableCell>
-                      <TableCell>{u.phoneNumber || 'N/A'}</TableCell>
-                      <TableCell>
-                        <Badge variant={u.role === 'admin' ? 'default' : 'outline'}>
-                          {u.role}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {users.map((u) => {
+                    const isAdminUser = u.role === 'admin' || ['jeffreybonneya@gmail.com', 'emmagyapong62@gmail.com'].includes(u.email?.toLowerCase() || '');
+                    
+                    return (
+                      <TableRow key={u.id}>
+                        <TableCell className="font-bold">{u.fullName}</TableCell>
+                        <TableCell>{u.email}</TableCell>
+                        <TableCell>{u.phoneNumber || 'N/A'}</TableCell>
+                        <TableCell>
+                          <Badge variant={isAdminUser ? 'default' : 'outline'}>
+                            {isAdminUser ? 'admin' : u.role || 'user'}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </CardContent>
@@ -697,8 +735,15 @@ We appreciate your business, Royal! 👑`,
                 </TableHeader>
                 <TableBody>
                   {orders.map((order) => (
-                    <TableRow key={order.id}>
-                      <TableCell className="font-mono text-xs">#{order.id.slice(-6).toUpperCase()}</TableCell>
+                    <TableRow key={order.id} className={order.paymentStatus !== 'success' ? 'opacity-70 bg-slate-50 relative' : ''}>
+                      <TableCell className="font-mono text-xs">
+                        <div className="flex flex-col">
+                          <span>#{order.id.slice(-6).toUpperCase()}</span>
+                          {order.externalOrderId && (
+                            <Badge variant="outline" className="text-[8px] h-3 px-1 mt-1 bg-green-50">GH: {order.externalOrderId}</Badge>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="font-medium">{order.customerName}</TableCell>
                       <TableCell>
                         <div className="flex flex-col">
@@ -706,44 +751,54 @@ We appreciate your business, Royal! 👑`,
                           <span className="text-[10px] text-slate-500">{order.recipientNetwork}</span>
                         </div>
                       </TableCell>
-                      <TableCell>{order.bundleName}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{order.bundleName}</span>
+                          {order.dataAmount && <span className="text-[10px] text-primary font-bold uppercase">{order.dataAmount}</span>}
+                        </div>
+                      </TableCell>
                       <TableCell className="font-black">GHS {(order.amountSent || 0).toFixed(2)}</TableCell>
                       <TableCell className="font-mono text-xs text-slate-500">{order.referenceCode}</TableCell>
                       <TableCell>
-                        {getStatusBadge(order.status)}
+                        <div className="flex flex-col gap-1">
+                          {order.paymentStatus !== 'success' ? (
+                             <Badge variant="outline" className="bg-slate-100 text-slate-500 border-slate-200">Awaiting Payment</Badge>
+                          ) : (
+                             <Badge variant="outline" className="bg-emerald-100 text-emerald-800 border-emerald-300 font-bold tracking-widest uppercase text-[10px]">Paid</Badge>
+                          )}
+                          {order.paymentStatus === 'success' && getStatusBadge(order.status)}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-2 flex-wrap">
-                          {order.status === 'pending' && (
+                          {order.paymentStatus === 'success' && order.status === 'pending' && (
                             <Button size="sm" variant="outline" className="h-8 text-blue-600 gap-1" onClick={() => handleUpdateOrderStatus(order.id, 'processing', order)}>
                               <RefreshCw className="h-3 w-3" />
                               Approve
                             </Button>
                           )}
-                          {order.status === 'processing' && (
+                          {order.paymentStatus === 'success' && order.status === 'processing' && (
                             <Button size="sm" variant="outline" className="h-8 text-green-600 gap-1" onClick={() => handleUpdateOrderStatus(order.id, 'delivered', order)}>
                               <Check className="h-3 w-3" />
                               Deliver
                             </Button>
                           )}
-                          {order.status !== 'delivered' && order.status !== 'cancelled' && order.status !== 'deleted' && (
+                          {order.status !== 'delivered' && order.status !== 'cancelled' && (
                             <Button size="sm" variant="outline" className="h-8 text-red-600 gap-1" onClick={() => handleUpdateOrderStatus(order.id, 'cancelled', order)}>
                               <X className="h-3 w-3" />
                               Cancel
                             </Button>
                           )}
-                          {(order.status === 'cancelled' || order.status === 'delivered' || order.status === 'deleted') && (
+                          {order.paymentStatus === 'success' && (order.status === 'cancelled' || order.status === 'delivered') && (
                             <Button size="sm" variant="outline" className="h-8 text-amber-600 gap-1" onClick={() => handleUpdateOrderStatus(order.id, 'pending', order)}>
                               <RotateCcw className="h-3 w-3" />
                               Recall
                             </Button>
                           )}
-                          {order.status !== 'deleted' && (
-                            <Button size="sm" variant="outline" className="h-8 text-slate-600 gap-1" onClick={() => handleUpdateOrderStatus(order.id, 'deleted', order)}>
-                              <Trash2 className="h-3 w-3" />
-                              Delete
-                            </Button>
-                          )}
+                          <Button size="sm" variant="outline" className="h-8 text-slate-600 gap-1" onClick={() => handleDeleteOrder(order.id)}>
+                            <Trash2 className="h-3 w-3" />
+                            Delete
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -787,7 +842,17 @@ We appreciate your business, Royal! 👑`,
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="space-y-2">
+                    <Label>GigsHub Offer Slug (Optional for Auto-Fulfillment)</Label>
+                    <Input value={bundleForm.offerSlug} onChange={e => setBundleForm({...bundleForm, offerSlug: e.target.value})} placeholder="e.g. mtn_data_bundle" />
+                    <p className="text-[10px] text-slate-500 italic">If provided, this bundle will be automatically fulfilled via GigsHub API.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>GigsHub Volume (Optional)</Label>
+                    <Input value={bundleForm.volume} onChange={e => setBundleForm({...bundleForm, volume: e.target.value})} placeholder="e.g. 1" />
+                    <p className="text-[10px] text-slate-500 italic">The numeric volume for GigsHub (e.g., 1 for 1GB). If empty, we extract it from Data Amount.</p>
+                  </div>
+                  <div className="flex gap-2 pt-2">
                     <Button type="submit" className="flex-1 gap-2">
                       {editingBundle ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                       {editingBundle ? 'Update Bundle' : 'Add Bundle'}

@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { motion } from 'motion/react';
-import { Zap, ShieldCheck, Clock, MessageSquare, Crown, Sparkles, Home } from 'lucide-react';
+import { Zap, ShieldCheck, Clock, MessageSquare, Crown, Sparkles, Home, CreditCard } from 'lucide-react';
 
 export default function Hero() {
   const scrollToPricing = () => {
@@ -68,8 +68,8 @@ export default function Hero() {
           className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-24"
         >
           {[
-            { icon: Zap, label: "Instant Delivery", desc: "Seconds, not minutes" },
-            { icon: ShieldCheck, label: "Secure Payments", desc: "Safe & Encrypted" },
+            { icon: Zap, label: "Fast Delivery", desc: "5-15 Mins Stable Network" },
+            { icon: CreditCard, label: "Direct Purchase", desc: "No Top-up Required" },
             { icon: Clock, label: "Non-Expiry", desc: "Data stays forever" },
             { icon: Crown, label: "Royal Support", desc: "24/7 VIP Care" }
           ].map((feature, i) => (

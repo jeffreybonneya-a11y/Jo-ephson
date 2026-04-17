@@ -7,12 +7,13 @@ service cloud.firestore {
     // ===============================================================
     //
     // Collection: bundles
-    // Fields: name (string), dataAmount (string), price (number), network (string), active (bool)
+    // Fields: name (string), dataAmount (string), price (number), network (string), active (bool), externalPlanId (string, optional)
     //
     // Collection: orders
     // Fields: customerPhone (string), customerNetwork (string), bundleId (string), 
     //         bundleName (string), price (number), status (string), 
-    //         paymentMethod (string), transactionId (string), createdAt (timestamp)
+    //         paymentMethod (string), transactionId (string), createdAt (timestamp),
+    //         externalOrderId (string, optional), externalResponse (string, optional)
     //
     // Collection: users
     // Fields: email (string), role (string)
@@ -25,11 +26,12 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() &&
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          ((request.auth.token.email == "jeffreybonneya@gmail.com" || 
-            request.auth.token.email == "emmagyapong62@gmail.com") && 
-           request.auth.token.email_verified == true));
+      return isAuthenticated() && (
+        (request.auth.token.email == "jeffreybonneya@gmail.com") ||
+        (request.auth.token.email == "emmagyapong62@gmail.com") ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
     }
 
     function isOwner(userId) {
@@ -47,10 +49,11 @@ service cloud.firestore {
     // Domain Validators
     function isValidBundle(data) {
       return data.keys().hasAll(['name', 'dataAmount', 'price', 'network']) &&
-             data.name is string && data.name.size() < 100 &&
-             data.dataAmount is string && data.dataAmount.size() < 20 &&
+             data.name is string && data.name.size() < 200 &&
+             data.dataAmount is string && data.dataAmount.size() < 100 &&
              data.price is number && data.price > 0 &&
-             data.network in ['MTN', 'Telecel', 'AirtelTigo'];
+             data.network in ['MTN', 'Telecel', 'AirtelTigo'] &&
+             (!('externalPlanId' in data) || data.externalPlanId == null || data.externalPlanId is string);
     }
 
     function isValidOrder(data) {
@@ -64,7 +67,9 @@ service cloud.firestore {
              data.amountSent is number && data.amountSent > 0 &&
              data.referenceCode is string && data.referenceCode.size() > 0 &&
              data.status in ['pending', 'processing', 'delivered', 'cancelled'] &&
-             data.createdAt is timestamp;
+             data.createdAt is timestamp &&
+             (!('externalOrderId' in data) || data.externalOrderId is string) &&
+             (!('externalResponse' in data) || data.externalResponse is string);
     }
 
     function isValidUser(data) {
@@ -72,7 +77,18 @@ service cloud.firestore {
              isValidEmail(data.email) &&
              data.fullName is string && data.fullName.size() > 0 &&
              data.role in ['admin', 'user'] &&
-             (!('phoneNumber' in data) || isValidPhone(data.phoneNumber));
+             (!('phoneNumber' in data) || isValidPhone(data.phoneNumber)) &&
+             (!('walletBalance' in data) || data.walletBalance is number);
+    }
+
+    function isValidWalletTransaction(data) {
+      return data.keys().hasAll(['userId', 'amount', 'type', 'status', 'reference', 'createdAt']) &&
+             data.userId is string &&
+             data.amount is number && data.amount > 0 &&
+             data.type in ['topup', 'purchase'] &&
+             data.status in ['pending', 'success', 'failed'] &&
+             data.reference is string &&
+             data.createdAt is timestamp;
     }
 
     function isValidMessage(data) {
@@ -114,7 +130,15 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow create: if isAuthenticated() && isValidUser(request.resource.data) && (request.resource.data.role == 'user' || isAdmin());
-      allow update: if isAdmin() || (isOwner(userId) && request.resource.data.role == resource.data.role);
+      allow update: if isAdmin() || (isOwner(userId) && 
+                      request.resource.data.role == resource.data.role &&
+                      (!('walletBalance' in request.resource.data) || request.resource.data.walletBalance <= resource.data.walletBalance));
+    }
+
+    match /wallet_transactions/{transactionId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && isValidWalletTransaction(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin();
     }
 
     match /messages/{messageId} {

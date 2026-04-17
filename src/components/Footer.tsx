@@ -12,7 +12,7 @@ export default function Footer() {
               <span className="text-primary">DEALS 👑</span>
             </div>
             <p className="max-w-md mb-6 text-slate-400 leading-relaxed">
-              Experience the <span className="text-primary font-bold">Royal Treatment</span> in data deals. Your number one destination for affordable, non-expiry data bundles in Ghana. Spend small, enjoy like a King. 👑
+              Experience the <span className="text-primary font-bold">Royal Treatment</span> in data deals. Affordable, non-expiry data bundles in Ghana. 5-15 mins delivery under stable network. 👑
             </p>
             <div className="flex gap-4">
               <Button variant="ghost" size="icon" className="rounded-full hover:bg-primary hover:text-white"><Facebook className="w-5 h-5" /></Button>

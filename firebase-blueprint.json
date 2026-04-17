@@ -38,9 +38,25 @@
       "properties": {
         "email": { "type": "string", "format": "email" },
         "fullName": { "type": "string", "description": "User's full name" },
-        "role": { "type": "string", "enum": ["admin", "user"] }
+        "role": { "type": "string", "enum": ["admin", "user"] },
+        "walletBalance": { "type": "number", "description": "Current balance in Royal Wallet" }
       },
       "required": ["email", "fullName", "role"]
+    },
+    "WalletTransaction": {
+      "title": "Wallet Transaction",
+      "description": "A record of a wallet top-up or purchase.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["topup", "purchase"] },
+        "status": { "type": "string", "enum": ["pending", "success", "failed"] },
+        "reference": { "type": "string" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "amount", "type", "status", "reference", "createdAt"]
     },
     "Message": {
       "title": "Support Message",
@@ -94,6 +110,10 @@
     "/streamAccess/{accessId}": {
       "schema": "StreamAccess",
       "description": "Football streaming access records."
+    },
+    "/wallet_transactions/{transactionId}": {
+      "schema": "WalletTransaction",
+      "description": "Records of wallet top-ups and purchases."
     }
   }
 }

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import BundleList from './components/BundleList';
+import HowItWorks from './components/HowItWorks';
 import CheckoutForm from './components/CheckoutForm';
 import AdminDashboard from './components/AdminDashboard';
 import OrderHistory from './components/OrderHistory';
@@ -9,8 +10,9 @@ import StreamPortal from './components/StreamPortal';
 import Leaderboard from './components/Leaderboard';
 import Footer from './components/Footer';
 import { Bundle } from './types';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 import { auth, db } from './lib/firebase';
+import emailjs from '@emailjs/browser';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { MessageSquare, Zap, Crown } from 'lucide-react';
@@ -27,8 +29,65 @@ export default function App() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [announcement, setAnnouncement] = useState<{text: string, active: boolean, type: string} | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [siteStatus, setSiteStatus] = useState<'ok'|'low'>('ok');
 
   useEffect(() => {
+    // Check global site status and balance
+    fetch('/api/site-status')
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'low') {
+          setSiteStatus('low');
+          // Check throttle in localStorage before sending email (1 hour = 3600000ms)
+          const lastAlert = localStorage.getItem('lastLowBalanceAlert');
+          const now = Date.now();
+          if (!lastAlert || now - parseInt(lastAlert) > 3600000) {
+             localStorage.setItem('lastLowBalanceAlert', now.toString());
+             
+             const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+             const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+             const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+             
+             if (serviceId && templateId && publicKey) {
+               emailjs.send(serviceId, templateId, {
+                 to_name: "Admins (King J & Yhaw)",
+                 customer_name: "SYSTEM ALERT",
+                 order_id: "N/A",
+                 service_name: "LOW WALLET BALANCE",
+                 amount: "N/A",
+                 reference: "N/A",
+                 recipient_info: "N/A",
+                 customer_email: "system@kingjdeals.com",
+                 site_name: "King J Deals Site 👑",
+                 admin_emails: "jeffreybonneya@gmail.com, emmagyapong62@gmail.com",
+                 message: "⚠️ King J Deals — Low Wallet Balance Alert. Your GigsHub wallet balance has dropped below GHS 1. Please top up immediately to avoid failed orders."
+               }, publicKey).catch(console.error);
+             }
+          }
+        }
+      })
+      .catch(console.error);
+
+    // Handle Paystack callback parameter when users are redirected directly
+    const params = new URLSearchParams(window.location.search);
+    const reference = params.get('reference') || params.get('trxref');
+    
+    if (reference) {
+      // Clean up the URL to prevent re-triggering
+      window.history.replaceState({}, document.title, window.location.pathname);
+      
+      // Attempt to securely verify via our callback endpoint
+      fetch(`/api/paystack/callback/${reference}`)
+        .then(res => res.json())
+        .then(data => {
+          window.location.href = '/';
+        })
+        .catch(err => {
+          window.location.href = '/';
+        });
+    }
+
     let profileUnsubscribe: (() => void) | undefined;
 
     // Fetch announcement
@@ -40,8 +99,14 @@ export default function App() {
 
     const authUnsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
+      setIsAuthLoading(false);
       const adminEmails = ['jeffreybonneya@gmail.com', 'emmagyapong62@gmail.com'];
-      setIsAdmin(adminEmails.includes(user?.email || ''));
+      let userIsAdmin = false;
+      
+      if (user?.email) {
+         userIsAdmin = adminEmails.includes(user.email.toLowerCase());
+      }
+      setIsAdmin(userIsAdmin);
       
       if (profileUnsubscribe) {
         profileUnsubscribe();
@@ -54,7 +119,8 @@ export default function App() {
           if (docSnapshot.exists()) {
             const data = docSnapshot.data() as UserProfile;
             setProfile(data);
-            setIsAdmin(data.role === 'admin' || adminEmails.includes(user.email || ''));
+            const isEmailAdmin = adminEmails.includes(user.email?.toLowerCase() || '');
+            setIsAdmin(data.role === 'admin' || isEmailAdmin);
           }
         });
       } else {
@@ -70,10 +136,24 @@ export default function App() {
     };
   }, []);
 
+  const handleSelectBundle = (bundle: Bundle) => {
+    if (siteStatus === 'low') {
+       toast.error("⚠️ Service temporarily unavailable. Please try again later.");
+       return;
+    }
+    setSelectedBundle(bundle);
+  };
+
   return (
     <div className="min-h-screen bg-background font-sans antialiased">
       <Toaster position="top-center" richColors />
       
+      {siteStatus === 'low' && (
+        <div className="py-3 px-4 text-center font-black text-sm md:text-base bg-red-600 text-white relative z-[70] shadow-md flex items-center justify-center gap-2 animate-pulse">
+           <span>⚠️ Service temporarily unavailable. Please try again later.</span>
+        </div>
+      )}
+
       {announcement?.active && (
         <motion.div 
           initial={{ height: 0, opacity: 0 }}
@@ -103,6 +183,7 @@ export default function App() {
         isLeaderboardView={isLeaderboardView}
         user={user}
         profile={profile}
+        isAuthLoading={isAuthLoading}
       />
       
       <main>
@@ -117,65 +198,8 @@ export default function App() {
         ) : (
           <>
             <Hero />
-            <BundleList onSelectBundle={setSelectedBundle} />
-            
-            {/* How it Works */}
-            <section className="py-24 bg-white relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 blur-3xl rounded-full translate-x-1/2 -translate-y-1/2" />
-              
-              <div className="container relative mx-auto px-4">
-                <div className="text-center mb-16">
-                  <h2 className="text-4xl md:text-6xl font-black mb-6 tracking-tight">HOW IT <span className="text-primary">WORKS</span> 👑</h2>
-                  <p className="text-slate-500 max-w-2xl mx-auto text-lg">
-                    Follow these <span className="text-primary font-bold">Royal Steps</span> to get your data instantly.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-                  {[
-                    {
-                      step: "1",
-                      title: "Pick Your Deal",
-                      desc: "Select your preferred network and data bundle from our royal list.",
-                      color: "bg-blue-500/10 text-blue-600"
-                    },
-                    {
-                      step: "2",
-                      title: "Send Payment",
-                      desc: "Follow the payment instructions shown. Send the exact amount to our MoMo number.",
-                      color: "bg-purple-500/10 text-purple-600"
-                    },
-                    {
-                      step: "3",
-                      title: "Confirm Order",
-                      desc: "Enter your transaction reference and recipient number, then tap 'I have sent the money'.",
-                      color: "bg-amber-500/10 text-amber-600"
-                    },
-                    {
-                      step: "4",
-                      title: "Get Your Data",
-                      desc: "Wait for admin verification. Once confirmed, your data is delivered instantly! 👑",
-                      color: "bg-green-500/10 text-green-600"
-                    }
-                  ].map((item, i) => (
-                    <div key={i} className="relative group p-8 rounded-[2rem] bg-slate-50 border-2 border-transparent hover:border-primary/20 transition-all hover:shadow-xl">
-                      <div className={`w-16 h-16 ${item.color} rounded-2xl flex items-center justify-center text-3xl font-black mb-6 group-hover:scale-110 transition-transform`}>
-                        {item.step}
-                      </div>
-                      <h3 className="text-2xl font-black mb-4 text-slate-900">{item.title} 👑</h3>
-                      <p className="text-slate-600 leading-relaxed">
-                        {item.desc}
-                      </p>
-                      {i < 3 && (
-                        <div className="hidden md:block absolute top-1/2 -right-4 translate-x-1/2 -translate-y-1/2 text-primary/20">
-                          <Zap className="w-8 h-8" />
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </section>
+            <HowItWorks />
+            <BundleList onSelectBundle={handleSelectBundle} />
           </>
         )}
       </main>
@@ -190,6 +214,7 @@ export default function App() {
 
       {/* Movable WhatsApp Buttons */}
       <div className="fixed bottom-24 right-6 z-50 flex flex-col gap-4 pointer-events-none">
+        
         <motion.a 
           drag
           dragConstraints={{ left: -300, right: 0, top: -600, bottom: 0 }}

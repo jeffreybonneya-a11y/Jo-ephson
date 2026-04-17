@@ -12,11 +12,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { CheckCircle2, Loader2, Smartphone, CreditCard, AlertCircle, MessageSquare, Wallet } from 'lucide-react';
+import { CheckCircle2, Loader2, Smartphone, CreditCard, MessageSquare, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 
 const formSchema = z.object({
-  recipientPhone: z.string().min(10, "Invalid phone number").max(15),
+  recipientPhone: z.string().regex(/^233\d{9}$/, "Phone must start with 233 and be 12 digits total"),
   recipientNetwork: z.enum(['MTN', 'Telecel', 'AirtelTigo']),
   amountSent: z.number().min(1, "Amount must be greater than 0"),
 });
@@ -31,7 +31,29 @@ export default function CheckoutForm({ bundle, onClose, profile }: CheckoutFormP
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'failed'>('idle');
   const [orderId, setOrderId] = useState('');
-  const [royalRef] = useState(() => 'ROYAL-' + Math.random().toString(36).substring(7).toUpperCase());
+  const [orderDetails, setOrderDetails] = useState<any>(null);
+
+  const pollOrder = async (reference: string) => {
+    let attempts = 0;
+    const maxAttempts = 10; // 50 seconds total
+    const interval = setInterval(async () => {
+      attempts++;
+      if (attempts >= maxAttempts) clearInterval(interval);
+
+      try {
+        const res = await fetch(`/api/orders?reference=${reference}`);
+        if (res.ok) {
+          const data = await res.json();
+          setOrderDetails(data);
+          if (data.status === 'delivered' || data.status === 'failed' || data.status === 'cancelled') {
+            clearInterval(interval);
+          }
+        }
+      } catch (e) {
+        console.error("Polling error:", e);
+      }
+    }, 5000);
+  };
 
   const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -55,89 +77,79 @@ export default function CheckoutForm({ bundle, onClose, profile }: CheckoutFormP
   }, [profile, setValue]);
 
   const handlePaystackSuccess = async (transaction: any, data: z.infer<typeof formSchema>) => {
+    // We do NOT set UI state here because the user wants an instant silent redirect to the homepage.
+    setIsSubmitting(true);
+    
     try {
-      // 1. Create order as pending verification
-      const docRef = await addDoc(collection(db, 'orders'), {
-        userId: auth.currentUser!.uid,
-        customerName: auth.currentUser!.displayName || 'Customer',
-        userEmail: auth.currentUser!.email || '',
-        recipientPhone: data.recipientPhone,
-        recipientNetwork: data.recipientNetwork,
-        bundleId: bundle!.id,
-        bundleName: bundle!.name,
-        amountSent: data.amountSent,
-        referenceCode: transaction.reference,
-        status: 'pending', // Will be updated by backend webhook or verify call
-        paymentStatus: 'verifying',
-        createdAt: serverTimestamp(),
-      });
-
-      setOrderId(docRef.id);
-      setPaymentStatus('processing');
-
-      // 2. Call backend to verify transaction
+      // 2. Call backend to verify transaction and finalize order using the pre-created ID
       const verifyRes = await fetch('/api/paystack/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reference: transaction.reference, orderId: docRef.id })
+        body: JSON.stringify({ 
+          reference: transaction.reference,
+          orderId: orderId // This is the ID we saved in onSubmit
+        })
       });
       
       const verifyData = await verifyRes.json();
 
       if (verifyData.success) {
-        setPaymentStatus('success');
-        toast.success("Payment verified successfully! Order is now processing.");
+        // Execute post-payment tasks asynchronously in the background
+        (async () => {
+          try {
+            await addDoc(collection(db, 'messages'), {
+              userId: auth.currentUser!.uid,
+              userEmail: 'admin@kingjdeals.com',
+              userName: 'King J Deals 👑',
+              subject: '👑 THANK YOU FOR YOUR ORDER! 👑',
+              message: `Royal ${auth.currentUser!.displayName || 'Customer'}, 
+      
+      Thank you for choosing King J Deals! We have received your payment for ${bundle!.name}. 
+      
+      Your data will be delivered within 5-15 minutes under stable network. 
+      
+      We appreciate your business! 👑`,
+              status: 'unread',
+              createdAt: serverTimestamp(),
+            });
 
-        // 3. Send "THANK YOU" Message to Customer in their Portal
-        await addDoc(collection(db, 'messages'), {
-          userId: auth.currentUser!.uid,
-          userEmail: 'admin@kingjdeals.com',
-          userName: 'King J Deals 👑',
-          subject: '👑 THANK YOU FOR YOUR ORDER! 👑',
-          message: `Royal ${auth.currentUser!.displayName || 'Customer'}, 
-  
-  Thank you for choosing King J Deals! We have received your payment for ${bundle!.name}. 
-  
-  Your data will be delivered instantly. 
-  
-  We appreciate your business! 👑`,
-          status: 'unread',
-          createdAt: serverTimestamp(),
-        });
+            const emailParams = {
+              to_name: "Admins (King J & Yhaw)",
+              customer_name: auth.currentUser!.displayName || 'Customer',
+              order_id: verifyData.orderId || orderId || 'NEW',
+              service_name: bundle!.name,
+              amount: `GHS ${data.amountSent.toFixed(2)}`,
+              reference: transaction.reference,
+              recipient_info: `${data.recipientPhone} (${data.recipientNetwork})`,
+              customer_email: auth.currentUser!.email,
+              site_name: "King J Deals Site 👑",
+              admin_emails: "jeffreybonneya@gmail.com, emmagyapong62@gmail.com"
+            };
 
-        // 4. Send Email Notification to Admins via EmailJS
-        const emailParams = {
-          to_name: "Admins (King J & Yhaw)",
-          customer_name: auth.currentUser!.displayName || 'Customer',
-          order_id: docRef.id,
-          service_name: bundle!.name,
-          amount: `GHS ${data.amountSent.toFixed(2)}`,
-          reference: transaction.reference,
-          recipient_info: `${data.recipientPhone} (${data.recipientNetwork})`,
-          customer_email: auth.currentUser!.email,
-          site_name: "King J Deals Site 👑",
-          admin_emails: "jeffreybonneya@gmail.com, emmagyapong62@gmail.com"
-        };
+            const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+            const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+            const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
 
-        const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-        const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
-        const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+            if (serviceId && templateId && publicKey) {
+              await emailjs.send(serviceId, templateId, emailParams, publicKey);
+            }
+          } catch (postError) {
+            console.error("Non-critical post-payment error:", postError);
+          }
+        })();
 
-        if (serviceId && templateId && publicKey) {
-          emailjs.send(serviceId, templateId, emailParams, publicKey)
-            .catch((err) => console.error('EmailJS Error:', err));
-        }
-
+        // Instantly close the modal to return to homepage without ANY success messages
+        onClose();
+        
       } else {
-        setPaymentStatus('failed');
-        toast.error("Payment verification failed. Please contact support.");
+        toast.error("Verification failed. Please contact admin if you were charged.");
+        setPaymentStatus('idle');
+        setIsSubmitting(false);
       }
-
     } catch (error: any) {
       console.error("Order error:", error);
-      toast.error("Failed to process order: " + (error.message || "Unknown error"));
-      setPaymentStatus('failed');
-    } finally {
+      toast.error("An error occurred. Please contact admin.");
+      setPaymentStatus('idle');
       setIsSubmitting(false);
     }
   };
@@ -154,23 +166,72 @@ export default function CheckoutForm({ bundle, onClose, profile }: CheckoutFormP
       return;
     }
 
-    setIsSubmitting(true);
+    const volume = bundle.volume || bundle.dataAmount.replace(/[^0-9.]/g, '');
+    const offerSlug = bundle.offerSlug || '';
+    const phone = data.recipientPhone;
+    const network = data.recipientNetwork;
 
-    const paystack = new PaystackPop();
-    paystack.newTransaction({
-      key: publicKey,
-      email: auth.currentUser.email || 'customer@kingjdeals.com',
-      amount: Math.round(data.amountSent * 100), // Paystack expects amount in pesewas
-      reference: royalRef,
-      currency: 'GHS',
-      onSuccess: (transaction: any) => {
-        handlePaystackSuccess(transaction, data);
-      },
-      onCancel: () => {
-        setIsSubmitting(false);
-        toast.error("Transaction was cancelled.");
-      }
-    });
+    console.log("Validating Metadata:", { phone, network, volume, offerSlug });
+
+    if (!phone || !network || !volume || !offerSlug) {
+      toast.error("Missing critical order information. Please refresh and try again.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    
+    try {
+      // 1. PRE-CREATE THE ORDER IN FIRESTORE (Crucial for reliability)
+      const uniqueRef = 'KJD-' + Math.random().toString(36).substring(2, 10).toUpperCase();
+      
+      const orderRef = await addDoc(collection(db, 'orders'), {
+        userId: auth.currentUser.uid,
+        customerName: auth.currentUser.displayName || 'Customer',
+        userEmail: auth.currentUser.email || '',
+        recipientPhone: phone,
+        recipientNetwork: network,
+        bundleId: bundle.id,
+        bundleName: bundle.name,
+        dataAmount: bundle.dataAmount,
+        amountSent: data.amountSent,
+        referenceCode: uniqueRef,
+        status: 'pending',
+        paymentStatus: 'pending_payment',
+        createdAt: serverTimestamp(),
+        volume: volume,
+        offerSlug: offerSlug
+      });
+
+      setOrderId(orderRef.id);
+
+      const paystack = new PaystackPop();
+      paystack.newTransaction({
+        key: publicKey,
+        email: auth.currentUser.email || 'customer@kingjdeals.com',
+        amount: Math.round((data.amountSent + 0.20) * 100),
+        reference: uniqueRef,
+        currency: 'GHS',
+        metadata: {
+          orderId: orderRef.id,
+          userId: auth.currentUser.uid,
+          recipientPhone: data.recipientPhone,
+          recipientNetwork: data.recipientNetwork,
+          volume: bundle.volume || bundle.dataAmount.replace(/[^0-9.]/g, ''),
+          offerSlug: bundle.offerSlug || ''
+        },
+        onSuccess: (transaction: any) => {
+          handlePaystackSuccess(transaction, data);
+        },
+        onCancel: () => {
+          setIsSubmitting(false);
+          toast.error("Transaction was cancelled.");
+        }
+      });
+    } catch (err) {
+      console.error("Order initiation error:", err);
+      toast.error("Failed to initiate order.");
+      setIsSubmitting(false);
+    }
   };
 
   if (!bundle) return null;
@@ -195,12 +256,12 @@ export default function CheckoutForm({ bundle, onClose, profile }: CheckoutFormP
                 <div className="p-2 bg-primary rounded-lg text-secondary">
                   <CreditCard className="w-6 h-6" />
                 </div>
-                <h3 className="font-black text-xl">PAYMENT INSTRUCTIONS</h3>
+                <h3 className="font-black text-xl">PAYMENT METHOD</h3>
               </div>
+              
               <div className="space-y-3 text-slate-700">
                 <p className="text-sm font-medium">
-                  You will be redirected to Paystack to complete your payment securely. 
-                  Once payment is successful, your order will be processed automatically.
+                  You will be redirected to Paystack to complete your payment securely.
                 </p>
               </div>
             </div>
@@ -246,28 +307,45 @@ export default function CheckoutForm({ bundle, onClose, profile }: CheckoutFormP
 
         {paymentStatus === 'success' && (
           <div className="py-8 text-center space-y-6">
-            <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
-              <CheckCircle2 className="w-12 h-12" />
+            <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse ${orderDetails?.status === 'delivered' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
+              {orderDetails?.status === 'delivered' ? <CheckCircle2 className="w-12 h-12" /> : <Loader2 className="w-12 h-12 animate-spin" />}
             </div>
             <div className="space-y-2">
-              <h2 className="text-3xl font-black tracking-tight">ORDER RECEIVED! 👑</h2>
-              <p className="text-xl font-bold text-red-600">
-                🔴 Royal, please wait while the admin confirms your payment.
-              </p>
-              <p className="text-slate-600">
-                Order ID: <strong className="font-mono">#{orderId.slice(-6).toUpperCase()}</strong>
-              </p>
+              <h2 className="text-3xl font-black tracking-tight uppercase">
+                {orderDetails?.status === 'delivered' ? 'Order Fulfilled! 👑' : 'Order Processing... 👑'}
+              </h2>
+              
+              {orderDetails?.status === 'delivered' ? (
+                <p className="text-xl font-bold text-green-600 animate-bounce">
+                  ✅ ROYAL, YOUR DATA HAS BEEN SENT!
+                </p>
+              ) : (
+                <p className="text-xl font-bold text-red-600">
+                  🔴 ROYAL, PLEASE WAIT SECONDS... DATA COMING SOON!
+                </p>
+              )}
+              
+              <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 mt-4 space-y-2 text-left">
+                <p className="text-sm font-bold flex justify-between">
+                  <span>ORDER ID:</span>
+                  <span className="font-mono text-primary">#{orderId.slice(-6).toUpperCase()}</span>
+                </p>
+                <p className="text-sm font-bold flex justify-between">
+                  <span>STATUS:</span>
+                  <span className={`uppercase ${orderDetails?.status === 'delivered' ? 'text-green-600' : 'text-blue-600'}`}>
+                    {orderDetails?.status || 'Processing'}
+                  </span>
+                </p>
+                {orderDetails?.externalReference && (
+                  <p className="text-xs font-mono text-slate-500 break-all text-center pt-2">
+                    REF: {orderDetails.externalReference}
+                  </p>
+                )}
+              </div>
             </div>
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
-              <p className="text-sm text-slate-500">
-                You will be notified once your payment is verified. You can track your order in the history section.
-              </p>
-            </div>
+
             <div className="flex flex-col gap-3">
-              <Button className="w-full h-14 text-xl font-black rounded-2xl" onClick={() => {
-                onClose();
-                window.location.href = '/';
-              }}>
+              <Button className="w-full h-14 text-xl font-black rounded-2xl" onClick={onClose}>
                 BACK TO HOME 👑
               </Button>
               <div className="grid grid-cols-2 gap-2">
@@ -275,7 +353,7 @@ export default function CheckoutForm({ bundle, onClose, profile }: CheckoutFormP
                   variant="outline" 
                   className="h-14 text-xs font-black rounded-2xl border-2 border-[#25D366] text-[#25D366] hover:bg-[#25D366] hover:text-white transition-all gap-1"
                   onClick={() => {
-                    window.open(`https://wa.me/233535884851?text=Hello King J, I have just placed an order on King J Deals Site. Order ID: ${orderId.slice(-6).toUpperCase()}. Reference: ${royalRef}`, '_blank');
+                    window.open(`https://wa.me/233535884851?text=Hello King J, I have just placed an order on King J Deals Site. Order ID: ${orderId.slice(-6).toUpperCase()}`, '_blank');
                   }}
                 >
                   <MessageSquare className="w-4 h-4" />
@@ -285,7 +363,7 @@ export default function CheckoutForm({ bundle, onClose, profile }: CheckoutFormP
                   variant="outline" 
                   className="h-14 text-xs font-black rounded-2xl border-2 border-[#25D366] text-[#25D366] hover:bg-[#25D366] hover:text-white transition-all gap-1"
                   onClick={() => {
-                    window.open(`https://wa.me/233541557530?text=Hello Yhaw, I have just placed an order on King J Deals Site. Order ID: ${orderId.slice(-6).toUpperCase()}. Reference: ${royalRef}`, '_blank');
+                    window.open(`https://wa.me/233541557530?text=Hello Yhaw, I have just placed an order on King J Deals Site. Order ID: ${orderId.slice(-6).toUpperCase()}`, '_blank');
                   }}
                 >
                   <MessageSquare className="w-4 h-4" />
@@ -293,17 +371,6 @@ export default function CheckoutForm({ bundle, onClose, profile }: CheckoutFormP
                 </Button>
               </div>
             </div>
-          </div>
-        )}
-
-        {paymentStatus === 'failed' && (
-          <div className="py-8 text-center">
-            <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-              <AlertCircle className="w-10 h-10" />
-            </div>
-            <h2 className="text-2xl font-black mb-2">SUBMISSION FAILED</h2>
-            <p className="text-slate-600 mb-6">We couldn't record your order. Please try again or contact support.</p>
-            <Button variant="outline" className="w-full h-12 rounded-xl" onClick={() => setPaymentStatus('idle')}>Try Again</Button>
           </div>
         )}
       </DialogContent>

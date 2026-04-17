@@ -21,7 +21,7 @@ const messageSchema = z.object({
 interface SupportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  profile: UserProfile;
+  profile: UserProfile | null;
 }
 
 export default function SupportModal({ isOpen, onClose, profile }: SupportModalProps) {
@@ -35,9 +35,9 @@ export default function SupportModal({ isOpen, onClose, profile }: SupportModalP
     setIsLoading(true);
     try {
       await addDoc(collection(db, 'messages'), {
-        userId: profile.uid,
-        userEmail: profile.email,
-        userName: profile.fullName,
+        userId: profile?.uid || 'anonymous',
+        userEmail: profile?.email || 'anonymous',
+        userName: profile?.fullName || 'Anonymous User',
         subject: data.subject,
         message: data.message,
         status: 'unread',

@@ -94,6 +94,15 @@ export default function OrderHistory() {
                           <span>{order.recipientPhone} ({order.recipientNetwork})</span>
                         </div>
                       </div>
+                      {order.dataAmount && (
+                        <div className="flex items-center gap-2 text-slate-600">
+                          <Package className="w-4 h-4" />
+                          <div className="flex flex-col">
+                            <span className="text-[10px] uppercase font-bold text-slate-400">Data Amount</span>
+                            <span>{order.dataAmount}</span>
+                          </div>
+                        </div>
+                      )}
                       <div className="flex items-center gap-2 text-slate-600">
                         <Clock className="w-4 h-4" />
                         <div className="flex flex-col">

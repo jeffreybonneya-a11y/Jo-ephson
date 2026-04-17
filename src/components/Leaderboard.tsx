@@ -96,8 +96,7 @@ export default function Leaderboard() {
                 <TableRow className="border-b-2 border-slate-100">
                   <TableHead className="w-[100px] font-black text-slate-900 px-8 py-6">RANK</TableHead>
                   <TableHead className="font-black text-slate-900">ROYAL CUSTOMER</TableHead>
-                  <TableHead className="font-black text-slate-900 text-center">PURCHASES</TableHead>
-                  <TableHead className="font-black text-slate-900 text-right px-8">TOTAL SPENT</TableHead>
+                  <TableHead className="font-black text-slate-900 text-center px-8">PURCHASES</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -127,22 +126,18 @@ export default function Leaderboard() {
                         <span className={`font-black text-lg ${index === 0 ? 'text-amber-700' : 'text-slate-900'}`}>
                           {customer.name}
                         </span>
-                        <span className="text-xs text-slate-400 font-mono">{customer.email.split('@')[0]}***@{customer.email.split('@')[1]}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-center">
+                    <TableCell className="text-center px-8">
                       <Badge variant="outline" className={`font-black px-3 py-1 rounded-lg ${index === 0 ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-slate-100 text-slate-700'}`}>
                         {customer.count} ORDERS
                       </Badge>
-                    </TableCell>
-                    <TableCell className="text-right px-8 font-black text-lg text-slate-900">
-                      GHS {customer.total.toFixed(2)}
                     </TableCell>
                   </TableRow>
                 ))}
                 {rankings.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-24">
+                    <TableCell colSpan={3} className="text-center py-24">
                       <div className="flex flex-col items-center gap-4">
                         <Star className="w-12 h-12 text-slate-200 animate-pulse" />
                         <p className="font-black text-slate-400 uppercase tracking-widest">The race hasn't started yet! Be the first! 👑</p>

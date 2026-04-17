@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { auth, db } from '@/src/lib/firebase';
 import { signOut, onAuthStateChanged } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
-import { LogIn, LogOut, LayoutDashboard, ShoppingBag, History, User, PlusCircle, Crown, Home, MessageCircle, Trophy } from 'lucide-react';
+import { LogIn, LogOut, LayoutDashboard, ShoppingBag, History, User, PlusCircle, Crown, Home, MessageCircle, Trophy, Wallet, Plus, Zap } from 'lucide-react';
 import { doc, getDoc, onSnapshot, updateDoc, collection, query, where } from 'firebase/firestore';
 import { UserProfile } from '@/src/types';
 import AuthModal from './AuthModal';
 import SupportModal from './SupportModal';
+import WalletModal from './WalletModal';
 
 interface NavbarProps {
   onAdminView: (isAdmin: boolean) => void;
@@ -19,6 +20,7 @@ interface NavbarProps {
   isLeaderboardView: boolean;
   user: any;
   profile: UserProfile | null;
+  isAuthLoading?: boolean;
 }
 
 export default function Navbar({ 
@@ -31,13 +33,16 @@ export default function Navbar({
   isStreamView,
   isLeaderboardView,
   user,
-  profile
+  profile,
+  isAuthLoading
 }: NavbarProps) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
+  const [isWalletOpen, setIsWalletOpen] = useState(false);
   const [greeting, setGreeting] = useState('');
   const [unreadCount, setUnreadCount] = useState(0);
+  const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
 
   useEffect(() => {
     const hours = new Date().getHours();
@@ -49,17 +54,31 @@ export default function Navbar({
       const adminEmails = ['jeffreybonneya@gmail.com', 'emmagyapong62@gmail.com'];
       setIsAdmin(adminEmails.includes(user.email || '') || profile?.role === 'admin');
       
-      // Listen for unread messages if admin
+      // Listen for unread messages and pending orders if admin
       if (profile?.role === 'admin' || adminEmails.includes(user.email || '')) {
-        const q = query(collection(db, 'messages'), where('status', '==', 'unread'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+        const qMessages = query(collection(db, 'messages'), where('status', '==', 'unread'));
+        const unsubMessages = onSnapshot(qMessages, (snapshot) => {
           setUnreadCount(snapshot.size);
         });
-        return () => unsubscribe();
+
+        const qOrders = query(
+          collection(db, 'orders'), 
+          where('paymentStatus', '==', 'success'),
+          where('status', '==', 'pending')
+        );
+        const unsubOrders = onSnapshot(qOrders, (snapshot) => {
+          setPendingOrdersCount(snapshot.size);
+        });
+
+        return () => {
+          unsubMessages();
+          unsubOrders();
+        };
       }
     } else {
       setIsAdmin(false);
       setUnreadCount(0);
+      setPendingOrdersCount(0);
     }
   }, [user, profile]);
 
@@ -82,110 +101,50 @@ export default function Navbar({
   return (
     <>
       <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4">
-          <div 
-            className="flex items-center gap-2 font-black text-2xl tracking-tighter cursor-pointer group" 
-            onClick={() => { onAdminView(false); onHistoryView(false); onLeaderboardView(false); onStreamView(false); }}
-          >
-            <div className="relative">
-              <Crown className="w-6 h-6 text-primary absolute -top-4 -left-2 -rotate-12 drop-shadow-md group-hover:scale-125 transition-transform" />
-              <span className="bg-primary text-secondary px-3 py-1 rounded-lg shadow-lg">KING J</span>
-            </div>
-            <span className="text-primary drop-shadow-sm">DEALS 👑</span>
-          </div>
-
-          {/* Desktop Navigation */}
-          <div className="hidden lg:flex items-center gap-2 bg-slate-100 p-1 rounded-2xl border border-slate-200">
-            <Button 
-              variant={!isAdminView && !isHistoryView && !isStreamView && !isLeaderboardView ? "default" : "ghost"} 
-              size="sm"
-              className="font-black rounded-xl gap-2"
-              onClick={() => { onAdminView(false); onHistoryView(false); onStreamView(false); onLeaderboardView(false); }}
+        <div className="container mx-auto px-4">
+          <div className="flex h-16 items-center justify-between">
+            <div 
+              className="flex items-center gap-2 font-black text-2xl tracking-tighter cursor-pointer group shrink-0" 
+              onClick={() => { onAdminView(false); onHistoryView(false); onLeaderboardView(false); onStreamView(false); }}
             >
-              <Home className="w-4 h-4" />
-              HOME
-            </Button>
-
-            <Button 
-              variant={isLeaderboardView ? "default" : "ghost"} 
-              size="sm" 
-              onClick={() => { onLeaderboardView(!isLeaderboardView); onAdminView(false); onHistoryView(false); onStreamView(false); }}
-              className="font-black rounded-xl gap-2 text-amber-600"
-            >
-              <Trophy className="w-4 h-4" />
-              RACE 👑
-            </Button>
-
-            {user && (
-              <Button 
-                variant={isStreamView ? "default" : "ghost"} 
-                size="sm" 
-                onClick={() => { onStreamView(!isStreamView); onAdminView(false); onHistoryView(false); onLeaderboardView(false); }}
-                className="font-black rounded-xl gap-2 text-primary"
-              >
-                <Trophy className="w-4 h-4" />
-                STREAM
-              </Button>
-            )}
-
-            {user && (
-              <Button 
-                variant={isHistoryView ? "default" : "ghost"} 
-                size="sm" 
-                onClick={() => { onHistoryView(!isHistoryView); onAdminView(false); onStreamView(false); onLeaderboardView(false); }}
-                className="font-black rounded-xl gap-2"
-              >
-                <History className="w-4 h-4" />
-                HISTORY
-              </Button>
-            )}
-
-            {user && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => setIsSupportOpen(true)}
-                className="font-black rounded-xl gap-2 text-slate-600 hover:text-primary"
-              >
-                <MessageCircle className="w-4 h-4" />
-                SUPPORT
-              </Button>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 sm:gap-4">
-            <div className="hidden lg:block text-xs font-black text-slate-400 uppercase tracking-widest">
-              {user ? `${greeting}, ${profile?.fullName?.split(' ')[0] || user.displayName?.split(' ')[0] || 'Royal'}` : greeting}
+              <div className="relative">
+                <Crown className="w-6 h-6 text-primary absolute -top-4 -left-2 -rotate-12 drop-shadow-md group-hover:scale-125 transition-transform" />
+                <span className="bg-primary text-secondary px-3 py-1 rounded-lg shadow-lg">KING J</span>
+              </div>
+              <span className="text-primary drop-shadow-sm hidden xs:inline">DEALS 👑</span>
             </div>
 
-            {isAdmin && (
-              <Button 
-                variant={isAdminView ? "default" : "ghost"} 
-                size="sm" 
-                onClick={() => { onAdminView(!isAdminView); onHistoryView(false); onStreamView(false); onLeaderboardView(false); }}
-                className="gap-2 relative"
-              >
-                <LayoutDashboard className="w-4 h-4" />
-                <span className="hidden sm:inline">Admin</span>
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white shadow-lg animate-bounce">
-                    {unreadCount}
-                  </span>
-                )}
-              </Button>
-            )}
+            <div className="flex items-center gap-2 shrink-0">
 
-            {user ? (
-              <Button variant="outline" size="sm" onClick={handleLogout} className="gap-2">
-                <LogOut className="w-4 h-4" />
-                <span className="hidden sm:inline">Logout</span>
-              </Button>
-            ) : (
-              <Button size="sm" onClick={() => openAuth()} className="gap-2 bg-primary text-secondary font-black hover:bg-primary/90">
-                <LogIn className="w-4 h-4" />
-                LOGIN 👑
-              </Button>
-            )}
+              {isAdmin && (
+                <Button 
+                  variant={isAdminView ? "default" : "ghost"} 
+                  size="sm" 
+                  onClick={() => { onAdminView(!isAdminView); onHistoryView(false); onStreamView(false); onLeaderboardView(false); }}
+                  className="px-2 h-9 relative"
+                >
+                  <LayoutDashboard className="w-4 h-4" />
+                  {(unreadCount > 0 || pendingOrdersCount > 0) && (
+                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[8px] font-bold text-white shadow-lg">
+                      {unreadCount + pendingOrdersCount}
+                    </span>
+                  )}
+                </Button>
+              )}
+
+              {user ? (
+                <Button variant="outline" size="sm" onClick={handleLogout} className="px-2 h-9">
+                  <LogOut className="w-4 h-4" />
+                </Button>
+              ) : isAuthLoading ? (
+                <div className="h-9 w-20 bg-slate-100 animate-pulse rounded-lg" />
+              ) : (
+                <Button size="sm" onClick={() => openAuth()} className="px-3 h-10 bg-primary text-secondary font-black hover:bg-primary/90 flex items-center gap-1 shadow-lg">
+                  <LogIn className="w-4 h-4" />
+                  <span className="text-xs">LOGIN 👑</span>
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </nav>
@@ -276,11 +235,18 @@ export default function Navbar({
         onClose={() => setIsAuthModalOpen(false)} 
       />
       {profile && (
-        <SupportModal 
-          isOpen={isSupportOpen} 
-          onClose={() => setIsSupportOpen(false)} 
-          profile={profile}
-        />
+        <>
+          <SupportModal 
+            isOpen={isSupportOpen} 
+            onClose={() => setIsSupportOpen(false)} 
+            profile={profile}
+          />
+          <WalletModal 
+            isOpen={isWalletOpen} 
+            onClose={() => setIsWalletOpen(false)} 
+            profile={profile}
+          />
+        </>
       )}
     </>
   );
