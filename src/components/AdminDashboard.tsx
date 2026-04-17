@@ -34,7 +34,8 @@ export default function AdminDashboard() {
     name: '',
     dataAmount: '',
     price: '',
-    network: 'MTN' as Network,
+    network: 'MTN',
+    active: true,
     offerSlug: '',
     volume: '',
   });
@@ -50,26 +51,31 @@ export default function AdminDashboard() {
         .catch(console.error);
     };
     fetchBalance();
-    const balanceInterval = setInterval(fetchBalance, 60000); // Pulse every minute
+    const balanceInterval = setInterval(fetchBalance, 60000); 
 
     // 2. Fetch Announcement
     const unsubAnnouncement = onSnapshot(doc(db, 'settings', 'announcement'), (snapshot) => {
       if (snapshot.exists()) setAnnouncement(snapshot.data() as any);
     });
 
-    // 3. Listen for Orders (Real-time)
+    // 3. Listen for Orders
     const ordersQuery = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
     const unsubOrders = onSnapshot(ordersQuery, (snapshot) => {
       setOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order)));
       setLoading(false);
     });
 
-    // 4. Listen for Messages
+    // 4. Listen for Bundles
+    const unsubBundles = onSnapshot(collection(db, 'bundles'), (snapshot) => {
+      setBundles(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Bundle)));
+    });
+
+    // 5. Listen for Messages
     const unsubMessages = onSnapshot(query(collection(db, 'messages'), orderBy('createdAt', 'desc')), (snapshot) => {
       setMessages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message)));
     });
 
-    // 5. Fetch Users
+    // 6. Fetch Users
     const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
       setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any as UserProfile)));
     });
@@ -78,10 +84,50 @@ export default function AdminDashboard() {
       clearInterval(balanceInterval);
       unsubAnnouncement();
       unsubOrders();
+      unsubBundles();
       unsubMessages();
       unsubUsers();
     };
   }, []);
+
+  const handleSaveBundle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const data = {
+        ...bundleForm,
+        price: Number(bundleForm.price),
+        updatedAt: serverTimestamp(),
+      };
+
+      if (editingBundle) {
+        await updateDoc(doc(db, 'bundles', editingBundle.id), data);
+        toast.success("Bundle updated!");
+      } else {
+        await addDoc(collection(db, 'bundles'), {
+          ...data,
+          createdAt: serverTimestamp(),
+        });
+        toast.success("Bundle added!");
+      }
+      setEditingBundle(null);
+      setBundleForm({ name: '', dataAmount: '', price: '', network: 'MTN', active: true, offerSlug: '', volume: '' });
+    } catch (error: any) {
+      toast.error(error.message);
+    }
+  };
+
+  const startEditBundle = (bundle: Bundle) => {
+    setEditingBundle(bundle);
+    setBundleForm({
+      name: bundle.name,
+      dataAmount: bundle.dataAmount,
+      price: String(bundle.price),
+      network: bundle.network,
+      active: bundle.active ?? true,
+      offerSlug: bundle.offerSlug || '',
+      volume: bundle.volume || '',
+    });
+  };
 
   const handleUpdateOrderStatus = async (orderId: string, status: Order['status'], order: Order) => {
     try {
@@ -169,22 +215,197 @@ export default function AdminDashboard() {
       <Tabs defaultValue="orders" className="space-y-8">
         <TabsList className="flex flex-wrap h-auto gap-3 bg-transparent p-0">
           <TabsTrigger value="orders" className="bg-white border-2 h-12 px-6 rounded-xl font-black data-[state=active]:bg-secondary data-[state=active]:text-white">ORDERS 👑</TabsTrigger>
+          <TabsTrigger value="bundles" className="bg-white border-2 h-12 px-6 rounded-xl font-black data-[state=active]:bg-secondary data-[state=active]:text-white">BUNDLES</TabsTrigger>
           <TabsTrigger value="announcement" className="bg-white border-2 h-12 px-6 rounded-xl font-black data-[state=active]:bg-secondary data-[state=active]:text-white">ANNOUNCEMENT</TabsTrigger>
           <TabsTrigger value="users" className="bg-white border-2 h-12 px-6 rounded-xl font-black data-[state=active]:bg-secondary data-[state=active]:text-white">CUSTOMERS</TabsTrigger>
         </TabsList>
 
+        <TabsContent value="bundles">
+           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <Card className="lg:col-span-1 rounded-[2rem] border-2 bg-white h-fit">
+                <CardHeader className="p-8">
+                  <CardTitle className="text-xl font-black">{editingBundle ? 'EDIT BUNDLE' : 'ADD NEW BUNDLE'}</CardTitle>
+                </CardHeader>
+                <CardContent className="p-8 pt-0">
+                  <form onSubmit={handleSaveBundle} className="space-y-4">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase">Bundle Name</Label>
+                      <Input value={bundleForm.name} onChange={e => setBundleForm({...bundleForm, name: e.target.value})} placeholder="e.g. MTN Royal 10GB" required className="rounded-xl border-2" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-black uppercase">Amount</Label>
+                        <Input value={bundleForm.dataAmount} onChange={e => setBundleForm({...bundleForm, dataAmount: e.target.value})} placeholder="10GB" required className="rounded-xl border-2" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-black uppercase">Price (GHS)</Label>
+                        <Input type="number" value={bundleForm.price} onChange={e => setBundleForm({...bundleForm, price: e.target.value})} placeholder="20" required className="rounded-xl border-2" />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase">Network</Label>
+                      <Select value={bundleForm.network} onValueChange={(v: any) => setBundleForm({...bundleForm, network: v})}>
+                        <SelectTrigger className="rounded-xl border-2"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="MTN">MTN</SelectItem>
+                          <SelectItem value="Telecel">Telecel</SelectItem>
+                          <SelectItem value="AirtelTigo">AirtelTigo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="pt-4 border-t-2 border-dashed">
+                       <p className="text-[9px] font-black text-slate-400 mb-2 uppercase tracking-widest">GigsHub Integration (Optional)</p>
+                       <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <Label className="text-[10px] font-black uppercase">Offer Slug</Label>
+                            <Input value={bundleForm.offerSlug} onChange={e => setBundleForm({...bundleForm, offerSlug: e.target.value})} placeholder="mtn_10gb" className="rounded-xl border-2" />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[10px] font-black uppercase">Volume</Label>
+                            <Input value={bundleForm.volume} onChange={e => setBundleForm({...bundleForm, volume: e.target.value})} placeholder="10" className="rounded-xl border-2" />
+                          </div>
+                       </div>
+                    </div>
+                    <Button type="submit" className="w-full h-12 rounded-xl font-black bg-secondary text-white hover:bg-primary uppercase">
+                       {editingBundle ? 'Update Bundle' : 'Create Bundle'}
+                    </Button>
+                    {editingBundle && (
+                      <Button type="button" variant="ghost" onClick={() => { setEditingBundle(null); setBundleForm({name:'',dataAmount:'',price:'',network:'MTN',active:true,offerSlug:'',volume:''})}} className="w-full">Cancel</Button>
+                    )}
+                  </form>
+                </CardContent>
+              </Card>
+
+              <Card className="lg:col-span-2 rounded-[2rem] border-2 bg-white overflow-hidden">
+                <CardHeader className="p-8 bg-slate-50/50 border-b">
+                   <CardTitle className="text-xl font-black">ACTIVE BUNDLES</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="font-black p-6">Info</TableHead>
+                        <TableHead className="font-black text-center">Network</TableHead>
+                        <TableHead className="font-black text-right">Price</TableHead>
+                        <TableHead className="font-black text-right p-6">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {bundles.map(b => (
+                        <TableRow key={b.id}>
+                          <TableCell className="p-6">
+                            <div className="flex flex-col">
+                              <span className="font-black">{b.name}</span>
+                              <span className="text-xs text-slate-400 font-bold">{b.dataAmount} • {b.offerSlug || 'No Slug'}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant="outline" className="border-2 font-black uppercase">{b.network}</Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-black text-secondary">GHS {b.price.toFixed(2)}</TableCell>
+                          <TableCell className="text-right p-6">
+                            <div className="flex justify-end gap-2">
+                              <Button size="sm" variant="outline" className="h-8 w-8 p-0 rounded-lg" onClick={() => startEditBundle(b)}><RefreshCw className="w-3 h-3" /></Button>
+                              <Button size="sm" variant="outline" className="h-8 w-8 p-0 rounded-lg text-red-500" onClick={() => deleteDoc(doc(db, 'bundles', b.id))}><Trash2 className="w-3 h-3" /></Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+           </div>
+        </TabsContent>
+
         <TabsContent value="orders">
-          <Card className="rounded-[2rem] border-2 overflow-hidden bg-white">
-            <CardHeader className="bg-slate-50/50 border-b p-8">
-               <div className="flex justify-between items-center">
-                  <CardTitle className="text-2xl font-black">Active Stream</CardTitle>
-                  <Button variant="outline" size="sm" onClick={() => window.location.reload()} className="gap-2 rounded-xl h-10 border-2">
-                    <RefreshCw className="w-4 h-4" /> REFRESH
-                  </Button>
-               </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
+          <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
+            <div className="xl:col-span-1 space-y-8">
+              <Card className="rounded-[2rem] border-2 bg-white">
+                <CardHeader className="p-8">
+                  <CardTitle className="text-xl font-black">MANUAL ORDER 👑</CardTitle>
+                </CardHeader>
+                <CardContent className="p-8 pt-0">
+                  <form className="space-y-4" onSubmit={async (e) => {
+                    e.preventDefault();
+                    const target = e.target as any;
+                    const formData = {
+                      phone: target.phone.value,
+                      network: target.network.value,
+                      volume: target.volume.value,
+                      offerSlug: target.offerSlug.value,
+                      orderId: `manual_${Date.now()}`
+                    };
+                    try {
+                      toast.info("Processing manual order...");
+                      const res = await fetch('/api/buy-data', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(formData)
+                      });
+                      if (!res.ok) throw new Error("Failed");
+                      toast.success("Order request sent! 👑");
+                      target.reset();
+                    } catch (err: any) {
+                      toast.error("Fulfillment failed");
+                    }
+                  }}>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase">Recipient Phone</Label>
+                      <Input name="phone" placeholder="233241234567" required className="rounded-xl border-2" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase">Network</Label>
+                      <Select name="network" defaultValue="MTN">
+                        <SelectTrigger className="rounded-xl border-2"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="MTN">MTN</SelectItem>
+                          <SelectItem value="Telecel">Telecel</SelectItem>
+                          <SelectItem value="AirtelTigo">AirtelTigo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-black uppercase text-xs">Volume (GB)</Label>
+                        <Input name="volume" placeholder="10" required className="rounded-xl border-2" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-black uppercase text-xs">Offer Slug</Label>
+                        <Input name="offerSlug" placeholder="mtn_10gb" required className="rounded-xl border-2" />
+                      </div>
+                    </div>
+                    <Button type="submit" className="w-full h-12 rounded-xl font-black bg-primary text-secondary uppercase shadow-lg">
+                      PLACE ORDER 👑
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-[2rem] border-2 bg-white">
+                <CardHeader className="p-8 pb-4">
+                  <CardTitle className="text-xl font-black">QUICK ACTIONS</CardTitle>
+                </CardHeader>
+                <CardContent className="p-8 pt-0 space-y-3">
+                   <Button variant="outline" className="w-full justify-start rounded-xl border-2 h-12 font-bold" onClick={() => window.location.reload()}>
+                     <RefreshCw className="w-4 h-4 mr-2" /> REFRESH LIST
+                   </Button>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card className="xl:col-span-3 rounded-[2rem] border-2 overflow-hidden bg-white">
+              <CardHeader className="bg-slate-50/50 border-b p-8">
+                 <div className="flex justify-between items-center">
+                    <CardTitle className="text-2xl font-black">Active Stream</CardTitle>
+                    <div className="flex gap-2">
+                       <Badge className="bg-green-100 text-green-700 border-green-200">LIVE</Badge>
+                       <span className="text-xs font-mono opacity-50 uppercase">{orders.length} TOTAL</span>
+                    </div>
+                 </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
                 <TableHeader className="bg-slate-50">
                   <TableRow className="border-b-2">
                     <TableHead className="font-black p-6">Customer</TableHead>
@@ -250,7 +471,8 @@ export default function AdminDashboard() {
               </Table>
             </CardContent>
           </Card>
-        </TabsContent>
+        </div>
+      </TabsContent>
 
         <TabsContent value="announcement">
            <Card className="rounded-[2rem] border-2 bg-white">

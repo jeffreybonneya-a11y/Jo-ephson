@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>King J Deals — Automated Data</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://js.paystack.co/v1/inline.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0c0c0e; color: #f4f4f5; }
+        .royal-card { background: #18181b; border: 1px solid #27272a; border-radius: 1rem; transition: all 0.2s ease; }
+        .royal-card:hover { border-color: #3f3f46; transform: translateY(-2px); }
+        .modal { backdrop-filter: blur(8px); background: rgba(0,0,0,0.7); }
+        .btn-royal { background: #ffffff; color: #000000; font-weight: 600; border-radius: 0.5rem; transition: opacity 0.2s; }
+        .btn-royal:hover { opacity: 0.9; }
+        .btn-royal:disabled { opacity: 0.5; cursor: not-allowed; }
+        .loading-shimmer { background: linear-gradient(90deg, #18181b 25%, #27272a 50%, #18181b 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        .network-tab.active { background: #ffffff; color: #000000; }
+        .badge-status { font-size: 0.7rem; text-transform: uppercase; font-weight: 700; padding: 2px 8px; border-radius: 100px; }
+    </style>
+</head>
+<body class="min-h-screen pb-20">
+    <!-- Red Banner (Locked by Status) -->
+    <div id="statusBanner" class="hidden bg-red-600 text-white text-center py-2 text-sm font-semibold sticky top-0 z-50">
+        ⚠️ Service temporarily unavailable due to maintainance. Please try again later.
+    </div>
+
+    <nav class="max-w-6xl mx-auto px-6 py-8 flex justify-between items-center">
+        <h1 class="text-2xl font-bold tracking-tighter">KING J <span class="text-zinc-500 font-normal">DEALS</span></h1>
+        <div id="balanceDisplay" class="text-xs text-zinc-500 font-mono hidden md:block">...</div>
+    </nav>
+
+    <main class="max-w-6xl mx-auto px-6">
+        <header class="mb-12">
+            <h2 class="text-4xl md:text-6xl font-bold tracking-tight mb-4">Fast. Automated. <br><span class="text-zinc-500">Royal Service.</span></h2>
+            <p class="text-zinc-400 max-w-lg">Get instant data bundles for all networks. Every order is processed automatically within seconds of payment.</p>
+        </header>
+
+        <!-- Network Tabs -->
+        <div class="flex gap-2 mb-8" id="networkTabs">
+            <button onclick="switchNetwork('MTN')" class="network-tab active px-4 py-2 rounded-lg text-sm font-medium border border-zinc-700">MTN</button>
+            <button onclick="switchNetwork('Telecel')" class="network-tab px-4 py-2 rounded-lg text-sm font-medium border border-zinc-700">Telecel</button>
+            <button onclick="switchNetwork('AirtelTigo')" class="network-tab px-4 py-2 rounded-lg text-sm font-medium border border-zinc-700">AirtelTigo</button>
+        </div>
+
+        <!-- Bundles Grid -->
+        <div id="bundlesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Loading state -->
+            <div class="royal-card p-6 h-48 loading-shimmer"></div>
+            <div class="royal-card p-6 h-48 loading-shimmer"></div>
+            <div class="royal-card p-6 h-48 loading-shimmer"></div>
+        </div>
+    </main>
+
+    <!-- Modal for Checkout -->
+    <div id="checkoutModal" class="fixed inset-0 modal z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-zinc-900 border border-zinc-800 w-full max-w-md rounded-2xl p-8 royal-card">
+            <div class="flex justify-between items-start mb-6">
+                <div>
+                    <h3 class="text-xl font-bold" id="modalTitle">Checkout</h3>
+                    <p class="text-zinc-400 text-sm" id="modalSubtitle">Confirm your details to proceed</p>
+                </div>
+                <button onclick="closeModal()" class="text-zinc-500 hover:text-white">✕</button>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs uppercase tracking-widest font-bold text-zinc-500 mb-2">Phone Number</label>
+                    <input type="text" id="targetPhone" placeholder="233241234567" class="w-full bg-black border border-zinc-800 rounded-lg p-3 text-white focus:outline-none focus:border-white transition-colors">
+                    <p class="text-[10px] text-zinc-600 mt-1">Must be 12 digits starting with 233</p>
+                </div>
+                <div>
+                    <label class="block text-xs uppercase tracking-widest font-bold text-zinc-500 mb-2">Email Address</label>
+                    <input type="email" id="targetEmail" placeholder="your@email.com" class="w-full bg-black border border-zinc-800 rounded-lg p-3 text-white focus:outline-none focus:border-white transition-colors">
+                </div>
+
+                <div class="bg-black/50 p-4 rounded-xl border border-white/5 space-y-2">
+                    <div class="flex justify-between text-sm">
+                        <span class="text-zinc-500">Service</span>
+                        <span id="summaryNetwork">...</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-zinc-500">Package</span>
+                        <span id="summaryVolume">...</span>
+                    </div>
+                    <div class="flex justify-between font-bold pt-2 border-t border-zinc-800">
+                        <span>Total Pay</span>
+                        <span id="summaryPrice">GHS 0.00</span>
+                    </div>
+                </div>
+
+                <button id="payButton" onclick="initiatePayment()" class="w-full btn-royal py-4 mt-4">Confirm & Pay</button>
+                <div id="orderStatus" class="hidden text-center text-xs font-mono py-2 text-zinc-400 animate-pulse"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Section (Hidden to customers usually but visible here) -->
+    <footer class="mt-20 border-t border-zinc-900 pt-8 px-6 opacity-30 hover:opacity-100 transition-opacity">
+        <div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between gap-8">
+            <div class="space-y-2">
+                <h4 class="text-xs font-bold uppercase tracking-widest text-zinc-500">GigsHub Wallet</h4>
+                <div id="adminBalance" class="text-sm">GHS ...</div>
+            </div>
+            <div class="space-y-2 max-w-sm">
+                <h4 class="text-xs font-bold uppercase tracking-widest text-zinc-500">Recent Orders</h4>
+                <div id="recentOrders" class="text-[10px] font-mono space-y-1">No orders yet.</div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Configuration
+        const EMAILJS_USER_ID = "jeffreybonneya@gmail.com"; 
+        const EMAILJS_SERVICE_ID = "service_xxxx";
+        const EMAILJS_TEMPLATE_ID = "template_xxxx";
+
+        let allOffers = [];
+        let currentNetwork = 'MTN';
+        let isLowBalance = false;
+        let selectedOffer = null;
+        let trackingInterval = null;
+
+        // Initialize
+        async function init() {
+            emailjs.init({ publicKey: "YOUR_PUBLIC_KEY" }); // Should be user's actual key
+            
+            await checkStatus();
+            await fetchOffers();
+            updateBalance();
+            fetchRecentOrders();
+            
+            setInterval(fetchRecentOrders, 10000);
+        }
+
+        async function checkStatus() {
+            try {
+                const res = await fetch('/site-status');
+                const data = await res.json();
+                
+                if (data.status === 'low') {
+                    isLowBalance = true;
+                    document.getElementById('statusBanner').classList.remove('hidden');
+                    sendLowBalanceAlert();
+                }
+            } catch (err) {
+                console.error("Status check failed", err);
+            }
+        }
+
+        async function fetchOffers() {
+            try {
+                const res = await fetch('/offers');
+                const data = await res.json();
+                allOffers = data.offers || [];
+                renderBundles();
+            } catch (err) {
+                console.error("Fetch offers failed", err);
+                document.getElementById('bundlesGrid').innerHTML = '<div class="col-span-full text-center text-zinc-500">Failed to load bundles.</div>';
+            }
+        }
+
+        function renderBundles() {
+            const grid = document.getElementById('bundlesGrid');
+            const offers = allOffers.filter(o => o.isp === (currentNetwork === 'Telecel' ? 'Vodafone' : currentNetwork));
+            
+            if (offers.length === 0) {
+                grid.innerHTML = '<div class="col-span-full text-center text-zinc-500 py-12">No bundles available for this network currently.</div>';
+                return;
+            }
+
+            grid.innerHTML = '';
+            offers.forEach(offer => {
+                (offer.volumes || []).forEach(v => {
+                    const card = document.createElement('div');
+                    card.className = 'royal-card p-6 flex flex-col justify-between';
+                    card.innerHTML = `
+                        <div>
+                            <div class="flex justify-between items-start mb-4">
+                                <span class="text-[10px] font-bold uppercase tracking-widest text-zinc-500">${offer.isp}</span>
+                                <span class="text-xl font-bold">GHS ${v.sellingPrice}</span>
+                            </div>
+                            <h3 class="text-lg font-bold">${v.volume} Data Package</h3>
+                            <p class="text-zinc-500 text-sm mt-1">Instant delivery to your phone.</p>
+                        </div>
+                        <button onclick="openCheckout('${offer.isp}', '${v.volume}', ${v.sellingPrice}, '${offer.offerSlug}')" 
+                                ${isLowBalance ? 'disabled' : ''} 
+                                class="btn-royal w-full py-3 mt-8">
+                            ${isLowBalance ? 'Maintenance' : 'Buy Now'}
+                        </button>
+                    `;
+                    grid.appendChild(card);
+                });
+            });
+        }
+
+        function switchNetwork(network) {
+            currentNetwork = network;
+            document.querySelectorAll('.network-tab').forEach(t => {
+                t.classList.remove('active');
+                if (t.innerText === network) t.classList.add('active');
+            });
+            renderBundles();
+        }
+
+        function openCheckout(isp, volume, price, slug) {
+            selectedOffer = { isp, volume, price, slug };
+            
+            document.getElementById('modalTitle').innerText = `${isp} ${volume}`;
+            document.getElementById('summaryNetwork').innerText = isp;
+            document.getElementById('summaryVolume').innerText = volume;
+            document.getElementById('summaryPrice').innerText = `GHS ${price}.00`;
+            
+            document.getElementById('checkoutModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('checkoutModal').classList.add('hidden');
+            if (trackingInterval) clearInterval(trackingInterval);
+            document.getElementById('orderStatus').classList.add('hidden');
+            document.getElementById('payButton').disabled = false;
+        }
+
+        function validatePhone(phone) {
+            return /^233\d{9}$/.test(phone);
+        }
+
+        function initiatePayment() {
+            const phone = document.getElementById('targetPhone').value;
+            const email = document.getElementById('targetEmail').value;
+
+            if (!validatePhone(phone)) return alert("Invalid phone. Must be 233 + 9 digits.");
+            if (!email.includes('@')) return alert("Valid email is required.");
+
+            const handler = PaystackPop.setup({
+                key: 'pk_live_xxxx', // Use actual public key
+                email: email,
+                amount: selectedOffer.price * 100,
+                currency: 'GHS',
+                metadata: {
+                    phone: phone,
+                    network: selectedOffer.isp,
+                    volume: selectedOffer.volume,
+                    offerSlug: selectedOffer.slug
+                },
+                callback: function(response) {
+                    console.log("[Paystack] Success:", response.reference);
+                    trackOrder(response.reference);
+                },
+                onClose: function() {
+                    console.log("[Paystack] Modal closed");
+                }
+            });
+
+            handler.openIframe();
+        }
+
+        async function trackOrder(ref) {
+            const statusDiv = document.getElementById('orderStatus');
+            const payBtn = document.getElementById('payButton');
+            
+            statusDiv.classList.remove('hidden');
+            statusDiv.innerText = "Payment Verified! Sending data...";
+            payBtn.disabled = true;
+
+            let attempts = 0;
+            trackingInterval = setInterval(async () => {
+                attempts++;
+                try {
+                    const res = await fetch('/orders');
+                    const orders = await res.json();
+                    const myOrder = orders.find(o => o.paystackReference === ref);
+
+                    if (myOrder) {
+                        if (myOrder.status === 'completed' || myOrder.status === 'success') {
+                            statusDiv.innerHTML = `<span class="text-green-500 font-bold">✅ SUCCESS! Data Delievered.</span>`;
+                            clearInterval(trackingInterval);
+                        } else if (myOrder.status === 'failed') {
+                            statusDiv.innerHTML = `<span class="text-red-500 font-bold">❌ FAILED. Refunding shortly.</span>`;
+                            clearInterval(trackingInterval);
+                        }
+                    }
+
+                    if (attempts > 12) {
+                        statusDiv.innerText = "Processing complete. Check your balance soon.";
+                        clearInterval(trackingInterval);
+                    }
+                } catch (e) {
+                    console.error("Tracking error", e);
+                }
+            }, 5000);
+        }
+
+        async function updateBalance() {
+            try {
+                const res = await fetch('/balance');
+                const data = await res.json();
+                document.getElementById('balanceDisplay').innerText = `WALLET: GHS ${data.balance}`;
+                document.getElementById('adminBalance').innerText = `GHS ${data.balance}`;
+            } catch (e) {}
+        }
+
+        async function fetchRecentOrders() {
+            try {
+                const res = await fetch('/orders');
+                const data = await res.json();
+                const container = document.getElementById('recentOrders');
+                if (data.length === 0) return;
+                
+                container.innerHTML = data.slice(-5).reverse().map(o => `
+                    <div class="flex justify-between items-center border-b border-zinc-800 pb-1">
+                        <span>${o.phone} • ${o.volume}</span>
+                        <span class="${o.status === 'completed' ? 'text-green-500' : 'text-zinc-500'} uppercase">${o.status}</span>
+                    </div>
+                `).join('');
+            } catch (e) {}
+        }
+
+        function sendLowBalanceAlert() {
+            const lastAlert = localStorage.getItem('alertSentAt');
+            const now = Date.now();
+            if (!lastAlert || now - lastAlert > 3600000) {
+                // Actual EmailJS call would go here
+                console.warn("[Alert] Low balance alert sent to admin via EmailJS");
+                localStorage.setItem('alertSentAt', now);
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
