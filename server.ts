@@ -222,28 +222,7 @@ async function startServer() {
         return res.sendStatus(200);
       }
 
-      // 1. Check GigsHub balance before fulfillment
-      try {
-        const balanceRes = await axios.get(`${GIGSHUB_BASE_URL}/balance`, {
-          headers: { 'Accept': 'application/json', 'x-api-key': GIGSHUB_API_KEY },
-          timeout: 15000
-        });
-        const currentBalance = balanceRes.data.balance || 0;
-        console.log(`[Paystack Webhook] GigsHub Balance: ${currentBalance}`);
-
-        if (currentBalance < 1) {
-          console.warn(`[Paystack Webhook] Balance below GHS 1. Refunding customer...`);
-          await axios.post(`https://api.paystack.co/refund`, 
-            { transaction: reference },
-            { headers: { Authorization: `Bearer ${secretKey}` } }
-          ).catch(e => console.error("[Refund Error] ", e.message));
-          return res.sendStatus(200);
-        }
-      } catch (e: any) {
-        console.error("[Balance Check Error] ", e.message);
-      }
-
-      // 2. Find or Create Order
+      // 2. Find or Update Order
       let finalOrderId = metadata.orderId;
       let orderDoc: any = null;
 
@@ -267,30 +246,7 @@ async function startServer() {
              paystackReference: reference,
              updatedAt: admin.firestore.FieldValue.serverTimestamp()
           });
-        }
-
-        const phone = metadata.recipientPhone || (metadata.phone || orderData.recipientPhone);
-        const network = metadata.recipientNetwork || (metadata.network || orderData.recipientNetwork);
-        const volume = metadata.volume || orderData.volume;
-        const offerSlug = metadata.offerSlug || orderData.offerSlug;
-
-        if (orderData.status === 'pending' && phone && network && volume && offerSlug) {
-          try {
-            console.log(`[Paystack Webhook] Attempting automated fulfillment for order: ${finalOrderId}`);
-            // Atomic check to prevent double-processing if the verify API hits simultaneously
-            await db.runTransaction(async (transaction) => {
-              const docSnap = await transaction.get(db.collection("orders").doc(finalOrderId));
-              if (docSnap.data()?.status === 'pending') {
-                transaction.update(db.collection("orders").doc(finalOrderId), { status: 'processing' });
-              } else {
-                throw new Error("Already processing or delivered");
-              }
-            });
-
-            await purchaseData(phone, network, volume, offerSlug, finalOrderId);
-          } catch (err: any) {
-            console.error("[Paystack Webhook] Automation skipped or failed:", err.message);
-          }
+          console.log(`[Paystack Webhook] Order ${finalOrderId} marked as PAID. Manual fulfillment required.`);
         }
       } else {
         // Backup: create new order if none was found
@@ -298,7 +254,7 @@ async function startServer() {
         const network = metadata.recipientNetwork || metadata.network;
         const { volume, offerSlug } = metadata;
 
-        const orderRef = await db.collection("orders").add({
+        await db.collection("orders").add({
           userId: metadata.userId || 'anonymous',
           customerName: metadata.customerName || 'Customer',
           userEmail: metadata.userEmail || '',
@@ -312,15 +268,11 @@ async function startServer() {
           referenceCode: reference,
           status: 'pending',
           paymentStatus: 'success',
+          offerSlug: metadata.offerSlug,
+          volume: metadata.volume,
           createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
-
-        if (phone && network && volume && offerSlug) {
-          try {
-            await db.collection("orders").doc(orderRef.id).update({ status: 'processing' });
-            await purchaseData(phone, network, volume, offerSlug, orderRef.id);
-          } catch (err) {}
-        }
+        console.log(`[Paystack Webhook] New order created from webhook. Manual fulfillment required.`);
       }
       res.sendStatus(200);
     } catch (error: any) {
@@ -668,32 +620,7 @@ async function startServer() {
               referenceCode: reference, 
               updatedAt: admin.firestore.FieldValue.serverTimestamp()
             });
-            orderData.paymentStatus = 'success';
-          }
-
-          // Trigger automated fulfillment if pending
-          const recipientPhone = metadata.recipientPhone || orderData.recipientPhone;
-          const recipientNetwork = metadata.recipientNetwork || orderData.recipientNetwork;
-          const volume = metadata.volume || orderData.volume;
-          const offerSlug = metadata.offerSlug || orderData.offerSlug;
-
-          if (orderData.status === 'pending' && recipientPhone && recipientNetwork && volume && offerSlug) {
-            try {
-              console.log(`[Paystack Verify] Attempting automated fulfillment for order: ${finalOrderId}`);
-              // Atomic status check before calling purchaseData
-              await db.runTransaction(async (transaction) => {
-                const docSnap = await transaction.get(db.collection("orders").doc(finalOrderId));
-                if (docSnap.data()?.status === 'pending') {
-                  transaction.update(db.collection("orders").doc(finalOrderId), { status: 'processing' });
-                } else {
-                  throw new Error("Already processing or delivered");
-                }
-              });
-
-              await purchaseData(recipientPhone, recipientNetwork, volume, offerSlug, finalOrderId);
-            } catch (err: any) {
-              console.error("[Paystack Verify] Automation skipped or failed:", err.message);
-            }
+            console.log(`[Paystack Verify] Order ${finalOrderId} marked as PAID via verify. Manual fulfillment required.`);
           }
         } else {
           console.log("[Paystack Verify] No existing order found. Creating new order.");
@@ -711,15 +638,11 @@ async function startServer() {
             referenceCode: reference,
             status: 'pending',
             paymentStatus: 'success',
+            offerSlug: metadata.offerSlug,
+            volume: metadata.volume,
             createdAt: admin.firestore.FieldValue.serverTimestamp()
           });
           finalOrderId = newOrderRef.id;
-
-          if (metadata.recipientPhone && metadata.recipientNetwork && metadata.volume && metadata.offerSlug) {
-            try {
-              await purchaseData(metadata.recipientPhone, metadata.recipientNetwork, metadata.volume, metadata.offerSlug, finalOrderId);
-            } catch (err) {}
-          }
         }
         res.json({ success: true, orderId: finalOrderId });
       } else {
