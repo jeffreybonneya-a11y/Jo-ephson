@@ -65,6 +65,18 @@ export interface UserProfile {
   phoneNumber?: string;
   role: 'admin' | 'user';
   walletBalance: number;
+  isAgent?: boolean;
+}
+
+export interface Complaint {
+  id: string;
+  orderId: string;
+  userId: string;
+  userEmail: string;
+  message: string;
+  status: 'open' | 'resolved';
+  adminReply?: string;
+  createdAt: any;
 }
 
 export interface WalletTransaction {

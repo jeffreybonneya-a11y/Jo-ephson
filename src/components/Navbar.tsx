@@ -2,22 +2,20 @@ import { useState, useEffect } from 'react';
 import { auth, db } from '@/src/lib/firebase';
 import { signOut, onAuthStateChanged } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
-import { LogIn, LogOut, LayoutDashboard, ShoppingBag, History, User, PlusCircle, Crown, Home, MessageCircle, Trophy, Wallet, Plus, Zap } from 'lucide-react';
+import { LogIn, LogOut, LayoutDashboard, ShoppingBag, History, User, PlusCircle, Crown, Home, MessageCircle, Trophy, Plus, Zap, Tv, HeadphonesIcon } from 'lucide-react';
 import { doc, getDoc, onSnapshot, updateDoc, collection, query, where } from 'firebase/firestore';
 import { UserProfile } from '@/src/types';
 import AuthModal from './AuthModal';
 import SupportModal from './SupportModal';
-import WalletModal from './WalletModal';
 
 interface NavbarProps {
   onAdminView: (isAdmin: boolean) => void;
   onHistoryView: (isHistory: boolean) => void;
   onStreamView: (isStream: boolean) => void;
-  onLeaderboardView: (isLeaderboard: boolean) => void;
   isAdminView: boolean;
   isHistoryView: boolean;
   isStreamView: boolean;
-  isLeaderboardView: boolean;
+  isAdmin: boolean;
   user: any;
   profile: UserProfile | null;
   isAuthLoading?: boolean;
@@ -27,22 +25,18 @@ export default function Navbar({
   onAdminView, 
   onHistoryView, 
   onStreamView,
-  onLeaderboardView,
   isAdminView, 
   isHistoryView,
   isStreamView,
-  isLeaderboardView,
+  isAdmin,
   user,
   profile,
   isAuthLoading
 }: NavbarProps) {
-  const [isAdmin, setIsAdmin] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
-  const [isWalletOpen, setIsWalletOpen] = useState(false);
   const [greeting, setGreeting] = useState('');
   const [unreadCount, setUnreadCount] = useState(0);
-  const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
 
   useEffect(() => {
     const hours = new Date().getHours();
@@ -50,45 +44,38 @@ export default function Navbar({
     else if (hours < 18) setGreeting('Good Afternoon');
     else setGreeting('Good Evening');
 
-    if (user) {
-      const adminEmails = ['jeffreybonneya@gmail.com', 'emmagyapong62@gmail.com'];
-      setIsAdmin(adminEmails.includes(user.email || '') || profile?.role === 'admin');
-      
-      // Listen for unread messages and pending orders if admin
-      if (profile?.role === 'admin' || adminEmails.includes(user.email || '')) {
-        const qMessages = query(collection(db, 'messages'), where('status', '==', 'unread'));
-        const unsubMessages = onSnapshot(qMessages, (snapshot) => {
-          setUnreadCount(snapshot.size);
-        });
+    if (user && isAdmin) {
+      let messagesCount = 0;
+      let ordersCount = 0;
 
-        const qOrders = query(
-          collection(db, 'orders'), 
-          where('paymentStatus', '==', 'success'),
-          where('status', '==', 'pending')
-        );
-        const unsubOrders = onSnapshot(qOrders, (snapshot) => {
-          setPendingOrdersCount(snapshot.size);
-        });
+      // Listen for unread messages
+      const qMessages = query(collection(db, 'messages'), where('status', '==', 'unread'));
+      const unsubMessages = onSnapshot(qMessages, (snapshot) => {
+        messagesCount = snapshot.size;
+        setUnreadCount(messagesCount + ordersCount);
+      });
 
-        return () => {
-          unsubMessages();
-          unsubOrders();
-        };
-      }
+      // Listen for pending orders
+      const qOrders = query(collection(db, 'orders'), where('status', '==', 'pending'));
+      const unsubOrders = onSnapshot(qOrders, (snapshot) => {
+        ordersCount = snapshot.size;
+        setUnreadCount(messagesCount + ordersCount);
+      });
+
+      return () => {
+        unsubMessages();
+        unsubOrders();
+      };
     } else {
-      setIsAdmin(false);
       setUnreadCount(0);
-      setPendingOrdersCount(0);
     }
-  }, [user, profile]);
+  }, [user, profile, isAdmin]);
 
   const handleLogout = async () => {
     try {
       await signOut(auth);
       onAdminView(false);
       onHistoryView(false);
-      onLeaderboardView(false);
-      onStreamView(false);
     } catch (error) {
       console.error('Logout error:', error);
     }
@@ -100,26 +87,57 @@ export default function Navbar({
 
   return (
     <>
-      <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto px-4">
-          <div className="flex h-16 items-center justify-between">
+      <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="flex h-16 md:h-20 items-center justify-between">
             <div 
-              className="flex items-center gap-2 font-black text-2xl tracking-tighter cursor-pointer group shrink-0" 
-              onClick={() => { onAdminView(false); onHistoryView(false); onLeaderboardView(false); onStreamView(false); }}
+              className="flex items-center gap-2 font-black text-xl md:text-2xl tracking-tighter cursor-pointer group shrink-0" 
+              onClick={() => { onAdminView(false); onHistoryView(false); onStreamView(false); }}
             >
               <div className="relative">
-                <Crown className="w-6 h-6 text-primary absolute -top-4 -left-2 -rotate-12 drop-shadow-md group-hover:scale-125 transition-transform" />
-                <span className="bg-primary text-secondary px-3 py-1 rounded-lg shadow-lg">KING J</span>
+                <Crown className="w-5 h-5 md:w-6 md:h-6 text-primary absolute -top-4 -left-2 -rotate-12 drop-shadow-md group-hover:scale-125 transition-transform" />
+                <span className="bg-primary text-secondary px-3 py-1 rounded-xl shadow-lg">KING J</span>
               </div>
-              <span className="text-primary drop-shadow-sm hidden xs:inline">DEALS 👑</span>
+              <span className="text-primary drop-shadow-sm hidden sm:inline">DEALS 👑</span>
+            </div>
+
+            {/* Desktop Navigation Tabs */}
+            <div className="hidden md:flex items-center gap-1 bg-slate-100/50 p-1.5 rounded-2xl border border-slate-200/60">
+               <button 
+                onClick={() => { onAdminView(false); onHistoryView(false); onStreamView(false); }}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs transition-all ${!isAdminView && !isHistoryView && !isStreamView ? 'bg-primary text-secondary shadow-md scale-105' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/50'}`}
+               >
+                 <Home className="w-4 h-4" />
+                 HOME
+               </button>
+               <button 
+                onClick={() => user ? onStreamView(!isStreamView) : openAuth()}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs transition-all ${isStreamView ? 'bg-primary text-secondary shadow-md scale-105' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/50'}`}
+               >
+                 <Crown className="w-4 h-4" />
+                 AGENT STORE
+               </button>
+               <button 
+                onClick={() => user ? onHistoryView(!isHistoryView) : openAuth()}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs transition-all ${isHistoryView ? 'bg-primary text-secondary shadow-md scale-105' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/50'}`}
+               >
+                 <History className="w-4 h-4" />
+                 HISTORY
+               </button>
+               <button 
+                onClick={() => user ? setIsSupportOpen(true) : openAuth()}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs text-slate-500 hover:text-slate-900 hover:bg-slate-200/50 transition-all"
+               >
+                 <MessageCircle className="w-4 h-4" />
+                 SUPPORT
+               </button>
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-
-              {user && profile && (
-                <div onClick={() => setIsWalletOpen(true)} className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg cursor-pointer hover:bg-slate-200 transition-colors">
-                  <Wallet className="w-4 h-4 text-primary" />
-                  <span className="text-xs font-black text-slate-800">GHS {profile.walletBalance.toFixed(2)}</span>
+               {user && profile && (
+                <div className="hidden lg:flex items-center gap-2 bg-slate-100 px-4 py-2 rounded-xl border border-slate-200">
+                  <User className="w-4 h-4 text-primary" />
+                  <span className="text-xs font-black text-slate-800 lowercase opacity-80">{profile.fullName}</span>
                 </div>
               )}
 
@@ -127,13 +145,13 @@ export default function Navbar({
                 <Button 
                   variant={isAdminView ? "default" : "ghost"} 
                   size="sm" 
-                  onClick={() => { onAdminView(!isAdminView); onHistoryView(false); onStreamView(false); onLeaderboardView(false); }}
+                  onClick={() => { onAdminView(!isAdminView); onHistoryView(false); }}
                   className="px-2 h-9 relative"
                 >
                   <LayoutDashboard className="w-4 h-4" />
-                  {(unreadCount > 0 || pendingOrdersCount > 0) && (
+                  {unreadCount > 0 && (
                     <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[8px] font-bold text-white shadow-lg">
-                      {unreadCount + pendingOrdersCount}
+                      {unreadCount}
                     </span>
                   )}
                 </Button>
@@ -156,74 +174,71 @@ export default function Navbar({
         </div>
       </nav>
 
-      {/* Mobile Bottom Navigation */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur border-t border-slate-200 pb-safe">
-        <div className="grid grid-cols-5 h-20">
+      {/* Mobile Bottom Navigation - Dynamic 4 or 5 Tabs */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-lg border-t border-slate-200 pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.06)] h-20">
+        <div className={`grid ${isAdmin ? 'grid-cols-5' : 'grid-cols-4'} h-full px-2`}>
           <button 
-            className={`flex flex-col items-center justify-center gap-1 transition-colors ${!isAdminView && !isHistoryView && !isStreamView && !isLeaderboardView ? 'text-primary' : 'text-slate-500'}`}
+            className={`flex flex-col items-center justify-center gap-1 transition-all active:scale-95 ${!isAdminView && !isHistoryView && !isStreamView ? 'text-primary' : 'text-slate-400'}`}
             onClick={() => { 
               onAdminView(false); 
               onHistoryView(false); 
               onStreamView(false);
-              onLeaderboardView(false);
               setTimeout(() => {
                 document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' });
               }, 100);
             }}
           >
-            <Home className="w-6 h-6" />
-            <span className="text-[10px] font-black uppercase">Home</span>
+            <Home className={`w-5 h-5 ${!isAdminView && !isHistoryView && !isStreamView ? 'stroke-[3px]' : 'stroke-2'}`} />
+            <span className="text-[9px] font-black uppercase tracking-tight">Home</span>
           </button>
 
           <button 
-            className={`flex flex-col items-center justify-center gap-1 transition-colors ${isLeaderboardView ? 'text-amber-600' : 'text-slate-500'}`}
-            onClick={() => { 
-              onLeaderboardView(!isLeaderboardView); 
-              onAdminView(false); 
-              onHistoryView(false); 
-              onStreamView(false);
-            }}
-          >
-            <Trophy className="w-6 h-6" />
-            <span className="text-[10px] font-black uppercase">Race</span>
-          </button>
-
-          <button 
-            className={`flex flex-col items-center justify-center gap-1 transition-colors ${isStreamView ? 'text-primary' : 'text-slate-500'}`}
+            className={`flex flex-col items-center justify-center gap-1 transition-all active:scale-95 ${isStreamView ? 'text-primary' : 'text-slate-400'}`}
             onClick={() => { 
               if (user) {
-                onStreamView(!isStreamView);
-                onAdminView(false); 
-                onHistoryView(false); 
-                onLeaderboardView(false);
+                onStreamView(!isStreamView); 
               } else {
                 openAuth();
               }
             }}
           >
-            <Trophy className="w-6 h-6" />
-            <span className="text-[10px] font-black uppercase">Stream</span>
+            <Crown className={`w-5 h-5 ${isStreamView ? 'stroke-[3px]' : 'stroke-2'}`} />
+            <span className="text-[9px] font-black uppercase tracking-tight">Agent Store</span>
           </button>
 
           <button 
-            className={`flex flex-col items-center justify-center gap-1 transition-colors ${isHistoryView ? 'text-primary' : 'text-slate-500'}`}
+            className={`flex flex-col items-center justify-center gap-1 transition-all active:scale-95 ${isHistoryView ? 'text-primary' : 'text-slate-400'}`}
             onClick={() => { 
               if (user) {
                 onHistoryView(!isHistoryView); 
-                onAdminView(false); 
-                onStreamView(false);
-                onLeaderboardView(false);
               } else {
                 openAuth();
               }
             }}
           >
-            <History className="w-6 h-6" />
-            <span className="text-[10px] font-black uppercase">History</span>
+            <History className={`w-5 h-5 ${isHistoryView ? 'stroke-[3px]' : 'stroke-2'}`} />
+            <span className="text-[9px] font-black uppercase tracking-tight">History</span>
           </button>
 
+          {isAdmin && (
+            <button 
+              className={`flex flex-col items-center justify-center gap-1 transition-all active:scale-95 relative ${isAdminView ? 'text-primary' : 'text-slate-400'}`}
+              onClick={() => {
+                onAdminView(!isAdminView);
+              }}
+            >
+              <LayoutDashboard className={`w-5 h-5 ${isAdminView ? 'stroke-[3px]' : 'stroke-2'}`} />
+              <span className="text-[9px] font-black uppercase tracking-tight">Admin</span>
+              {unreadCount > 0 && (
+                <span className="absolute top-3 right-5 h-4 w-4 bg-red-600 rounded-full border-2 border-white flex items-center justify-center text-[8px] text-white font-black shadow-lg">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+          )}
+
           <button 
-            className="flex flex-col items-center justify-center gap-1 text-slate-500 transition-colors"
+            className="flex flex-col items-center justify-center gap-1 text-slate-400 transition-all active:scale-95"
             onClick={() => {
               if (user) {
                 setIsSupportOpen(true);
@@ -232,8 +247,8 @@ export default function Navbar({
               }
             }}
           >
-            <MessageCircle className="w-6 h-6" />
-            <span className="text-[10px] font-black uppercase">Support</span>
+            <HeadphonesIcon className="w-5 h-5 stroke-2" />
+            <span className="text-[9px] font-black uppercase tracking-tight">Support</span>
           </button>
         </div>
       </div>
@@ -242,18 +257,11 @@ export default function Navbar({
         onClose={() => setIsAuthModalOpen(false)} 
       />
       {profile && (
-        <>
-          <SupportModal 
-            isOpen={isSupportOpen} 
-            onClose={() => setIsSupportOpen(false)} 
-            profile={profile}
-          />
-          <WalletModal 
-            isOpen={isWalletOpen} 
-            onClose={() => setIsWalletOpen(false)} 
-            profile={profile}
-          />
-        </>
+        <SupportModal 
+          isOpen={isSupportOpen} 
+          onClose={() => setIsSupportOpen(false)} 
+          profile={profile}
+        />
       )}
     </>
   );

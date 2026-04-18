@@ -6,24 +6,24 @@ import HowItWorks from './components/HowItWorks';
 import CheckoutForm from './components/CheckoutForm';
 import AdminDashboard from './components/AdminDashboard';
 import OrderHistory from './components/OrderHistory';
-import StreamPortal from './components/StreamPortal';
-import Leaderboard from './components/Leaderboard';
 import Footer from './components/Footer';
 import { Bundle } from './types';
 import { Toaster, toast } from 'sonner';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { MessageSquare, Zap } from 'lucide-react';
+import { MessageSquare, Zap, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
+import MyOrders from './components/MyOrders';
 import { UserProfile } from './types';
+
+import AgentStore from './components/AgentStore';
 
 export default function App() {
   const [selectedBundle, setSelectedBundle] = useState<Bundle | null>(null);
   const [isAdminView, setIsAdminView] = useState(false);
   const [isHistoryView, setIsHistoryView] = useState(false);
   const [isStreamView, setIsStreamView] = useState(false);
-  const [isLeaderboardView, setIsLeaderboardView] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -31,6 +31,39 @@ export default function App() {
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   useEffect(() => {
+    // 1. Check for Paystack Reference in URL
+    const params = new URLSearchParams(window.location.search);
+    const reference = params.get('reference') || params.get('trxref');
+    
+    if (reference) {
+        toast.info("Verifying your payment, please wait...", { duration: 5000 });
+        
+        const verifyPayment = async () => {
+            try {
+                const res = await fetch('/api/verifyPayment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reference })
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    toast.success("Payment verified! Your order is being processed. 👑");
+                    setIsHistoryView(true); // Take them to see their orders
+                    // Clean up URL
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                } else {
+                    toast.error("We couldn't verify that payment. Please contact support.");
+                }
+            } catch (err) {
+                console.error("URL Verification Error:", err);
+                toast.error("Verification failed. Check your Order History or contact support.");
+            }
+        };
+        
+        verifyPayment();
+    }
+
     let profileUnsubscribe: (() => void) | undefined;
 
     // Fetch announcement
@@ -44,11 +77,7 @@ export default function App() {
       setUser(user);
       setIsAuthLoading(false);
       const adminEmails = ['jeffreybonneya@gmail.com', 'emmagyapong62@gmail.com'];
-      let userIsAdmin = false;
-      
-      if (user?.email) {
-         userIsAdmin = adminEmails.includes(user.email.toLowerCase());
-      }
+      const userIsAdmin = user?.email ? adminEmails.includes(user.email.toLowerCase()) : false;
       setIsAdmin(userIsAdmin);
       
       if (profileUnsubscribe) {
@@ -63,7 +92,7 @@ export default function App() {
             const data = docSnapshot.data() as UserProfile;
             setProfile(data);
             const isEmailAdmin = adminEmails.includes(user.email?.toLowerCase() || '');
-            setIsAdmin(data.role === 'admin' || isEmailAdmin);
+            setIsAdmin(isEmailAdmin);
           }
         });
       } else {
@@ -106,28 +135,35 @@ export default function App() {
       )}
 
       <Navbar 
-        onAdminView={setIsAdminView} 
-        onHistoryView={setIsHistoryView}
-        onStreamView={setIsStreamView}
-        onLeaderboardView={setIsLeaderboardView}
+        onAdminView={(v) => { setIsAdminView(v); setIsHistoryView(false); setIsStreamView(false); }} 
+        onHistoryView={(v) => { setIsHistoryView(v); setIsAdminView(false); setIsStreamView(false); }}
+        onStreamView={(v) => { setIsStreamView(v); setIsAdminView(false); setIsHistoryView(false); }}
         isAdminView={isAdminView}
         isHistoryView={isHistoryView}
         isStreamView={isStreamView}
-        isLeaderboardView={isLeaderboardView}
+        isAdmin={isAdmin}
         user={user}
         profile={profile}
         isAuthLoading={isAuthLoading}
       />
       
       <main>
-        {isAdminView && isAdmin ? (
+        {isAuthLoading ? (
+          <div className="flex flex-col items-center justify-center min-h-[70vh] gap-4">
+             <div className="relative">
+               <Loader2 className="w-12 h-12 text-primary animate-spin" />
+               <div className="absolute inset-0 flex items-center justify-center">
+                 <Zap className="w-4 h-4 text-primary animate-pulse" />
+               </div>
+             </div>
+             <p className="text-slate-500 font-black text-xs tracking-[0.2em] animate-pulse">VERIFYING ROYALTY...👑</p>
+          </div>
+        ) : isAdminView && isAdmin ? (
           <AdminDashboard />
         ) : isHistoryView && user ? (
-          <OrderHistory />
+          <MyOrders />
         ) : isStreamView && user ? (
-          <StreamPortal />
-        ) : isLeaderboardView ? (
-          <Leaderboard />
+          <AgentStore profile={profile} onSelectBundle={handleSelectBundle} />
         ) : (
           <>
             <Hero />

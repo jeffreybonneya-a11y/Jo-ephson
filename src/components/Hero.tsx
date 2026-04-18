@@ -24,18 +24,18 @@ export default function Hero() {
         >
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/20 border border-primary/30 text-primary text-sm font-bold mb-8 shadow-[0_0_20px_rgba(255,215,0,0.2)]">
             <Crown className="w-4 h-4 fill-primary" />
-            <span className="uppercase tracking-widest">Automatic Fulfillment live 👑</span>
+            <span className="uppercase tracking-widest">Order Fulfillment live 👑</span>
           </div>
           
           <h1 className="text-6xl md:text-8xl font-black tracking-tight mb-8 leading-[0.9]">
             KING <span className="text-primary drop-shadow-[0_0_15px_rgba(255,215,0,0.5)]">J</span> DEALS <br />
             <span className="text-2xl md:text-4xl font-medium text-slate-300 block mt-4 italic">
-              👑 Automated. Instant. Royal. 👑
+              👑 Premium. Instant. Royal. 👑
             </span>
           </h1>
           
           <p className="text-xl md:text-2xl text-slate-300 max-w-3xl mx-auto mb-12 leading-relaxed">
-            Experience Ghana's <span className="text-primary font-bold">Fastest Data Portal</span>. Powered by GigsHub & Paystack for a seamless, 100% automated experience.
+            Experience Ghana's <span className="text-primary font-bold">Fastest Data Portal</span>. Powered by Paystack for a seamless, secure experience.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
@@ -66,7 +66,7 @@ export default function Hero() {
           className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-24"
         >
           {[
-            { icon: Zap, label: "Auto-Delivery", desc: "Instant GigsHub fulfillment" },
+            { icon: Zap, label: "Fast Delivery", desc: "Reliable order processing" },
             { icon: CreditCard, label: "Secure Pay", desc: "Paystack protected" },
             { icon: Clock, label: "Non-Expiry", desc: "Royal data lasts forever" },
             { icon: Crown, label: "VIP Service", desc: "The King's treatment" }

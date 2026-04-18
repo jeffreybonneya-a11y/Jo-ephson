@@ -12,9 +12,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 interface BundleListProps {
   onSelectBundle: (bundle: Bundle) => void;
+  isAgentMode?: boolean;
 }
 
-export default function BundleList({ onSelectBundle }: BundleListProps) {
+export default function BundleList({ onSelectBundle, isAgentMode = false }: BundleListProps) {
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('MTN');
@@ -74,11 +75,20 @@ export default function BundleList({ onSelectBundle }: BundleListProps) {
   const processedBundles = bundles.map(b => {
     const originalPrice = b.price;
     let discountedPrice = originalPrice;
-    if (isDiscountActive) {
+    
+    if (isAgentMode) {
+      discountedPrice = Math.max(0, originalPrice - 1.50);
+    } else if (isDiscountActive) {
       const deduction = originalPrice < 10 ? 1 : 2;
       discountedPrice = Math.max(0, originalPrice - deduction);
     }
-    return { ...b, originalPrice, price: discountedPrice, isDiscounted: isDiscountActive && discountedPrice < originalPrice };
+    
+    return { 
+      ...b, 
+      originalPrice, 
+      price: discountedPrice, 
+      isDiscounted: (isAgentMode || isDiscountActive) && discountedPrice < originalPrice 
+    };
   });
 
   const filteredBundles = processedBundles
@@ -91,21 +101,23 @@ export default function BundleList({ onSelectBundle }: BundleListProps) {
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-primary/5 blur-3xl rounded-full translate-x-1/3 translate-y-1/3" />
 
       <div className="container relative mx-auto px-4">
-        <div className="text-center mb-16">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-primary/10 text-primary text-sm font-black uppercase tracking-tighter mb-4"
-          >
-            <Crown className="w-4 h-4" />
-            Royal Selection 👑
-          </motion.div>
-          <h2 className="text-4xl md:text-6xl font-black mb-6 tracking-tight">CHOOSE YOUR <span className="text-primary">DEAL</span> 👑</h2>
-          <p className="text-slate-500 max-w-2xl mx-auto text-lg">
-            Experience the <span className="text-primary font-bold">Royal Treatment</span>. Select your network and let our automated system deliver your data instantly.
-          </p>
-        </div>
+        {!isAgentMode && (
+          <div className="text-center mb-16">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-primary/10 text-primary text-sm font-black uppercase tracking-tighter mb-4"
+            >
+              <Crown className="w-4 h-4" />
+              Royal Selection 👑
+            </motion.div>
+            <h2 className="text-4xl md:text-6xl font-black mb-6 tracking-tight">CHOOSE YOUR <span className="text-primary">DEAL</span> 👑</h2>
+            <p className="text-slate-500 max-w-2xl mx-auto text-lg">
+              Experience the <span className="text-primary font-bold">Royal Treatment</span>. Select your network and let our automated system deliver your data instantly.
+            </p>
+          </div>
+        )}
 
         <Tabs defaultValue="MTN" className="w-full max-w-6xl mx-auto" onValueChange={setActiveTab}>
           <div className="overflow-x-auto pb-4 mb-8 no-scrollbar">
@@ -125,44 +137,10 @@ export default function BundleList({ onSelectBundle }: BundleListProps) {
           </div>
 
           <TabsContent value="streaming" className="mt-0">
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-               <Card className="overflow-hidden rounded-[2rem] border-2 bg-white">
-                 <div className="h-48 relative overflow-hidden">
-                    <img src="https://picsum.photos/seed/sports/800/400" alt="Sports" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                    <Badge className="absolute bottom-4 left-4 bg-primary text-secondary">LIVE SPORTS 👑</Badge>
-                 </div>
-                 <CardHeader className="p-8">
-                    <CardTitle className="text-3xl font-black">STREAM FOOTBALL LIVE 👑</CardTitle>
-                    <p className="text-slate-500 text-sm">Download our exclusive APK for Android and stream every match live with zero lag.</p>
-                 </CardHeader>
-                 <CardContent className="p-8 pt-0">
-                    <div className="flex justify-between items-center mb-8">
-                      <div className="flex flex-col">
-                        <span className="text-xs font-black text-slate-400 uppercase">Lifetime Access</span>
-                        <span className="text-4xl font-black">GHS 50.00</span>
-                      </div>
-                      <Trophy className="w-10 h-10 text-primary" />
-                    </div>
-                    <Button 
-                      className="w-full h-16 text-xl font-black rounded-2xl bg-secondary text-white hover:bg-primary"
-                      onClick={() => onSelectBundle({
-                        id: 'football-stream',
-                        name: 'Stream Football Live Matches',
-                        dataAmount: 'LIFETIME',
-                        price: 50,
-                        network: 'MTN',
-                        active: true
-                      })}
-                    >
-                      GET ACCESS NOW 👑
-                    </Button>
-                 </CardContent>
-               </Card>
-               <div className="flex flex-col justify-center items-center p-12 bg-slate-50 rounded-[2rem] border-4 border-dashed border-slate-200 text-center">
-                  <Tv className="w-16 h-16 text-slate-300 mb-4" />
-                  <h3 className="text-xl font-bold text-slate-400">MORE SERVICES COMING SOON</h3>
-                  <p className="text-slate-400 text-sm">Netflix, Spotify, and more.</p>
-               </div>
+             <div className="flex flex-col justify-center items-center py-24 bg-white rounded-[2rem] border-4 border-dashed border-primary/10 text-center">
+                <Tv className="w-16 h-16 text-slate-200 mb-6" />
+                <h3 className="text-2xl font-black text-slate-900 mb-2">SERVICES COMING SOON 👑</h3>
+                <p className="text-slate-500">The King is preparing new TV and Streaming services.</p>
              </div>
           </TabsContent>
 

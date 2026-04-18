@@ -27,10 +27,8 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() && (
-        (request.auth.token.email == "jeffreybonneya@gmail.com") ||
-        (request.auth.token.email == "emmagyapong62@gmail.com") ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        (request.auth.token.email.lower() == "jeffreybonneya@gmail.com") ||
+        (request.auth.token.email.lower() == "emmagyapong62@gmail.com")
       );
     }
 
@@ -57,19 +55,15 @@ service cloud.firestore {
     }
 
     function isValidOrder(data) {
-      return data.keys().hasAll(['userId', 'customerName', 'recipientPhone', 'recipientNetwork', 'bundleId', 'bundleName', 'amountSent', 'referenceCode', 'status', 'createdAt']) &&
-             data.userId is string &&
-             data.customerName is string && data.customerName.size() > 0 &&
-             isValidPhone(data.recipientPhone) &&
-             data.recipientNetwork in ['MTN', 'Telecel', 'AirtelTigo'] &&
-             data.bundleId is string &&
-             data.bundleName is string &&
-             data.amountSent is number && data.amountSent > 0 &&
-             data.referenceCode is string && data.referenceCode.size() > 0 &&
-             data.status in ['pending', 'processing', 'delivered', 'cancelled'] &&
+      return data.keys().hasAll(['email', 'phone', 'network', 'bundle', 'amount', 'status', 'createdAt']) &&
+             isValidEmail(data.email) &&
+             isValidPhone(data.phone) &&
+             data.network is string &&
+             data.bundle is string &&
+             data.amount is number && data.amount > 0 &&
+             data.status in ['paid', 'completed', 'failed', 'pending', 'processing', 'delivered', 'pending_payment'] &&
              data.createdAt is timestamp &&
-             (!('externalOrderId' in data) || data.externalOrderId is string) &&
-             (!('externalResponse' in data) || data.externalResponse is string);
+             (!('reference' in data) || data.reference is string);
     }
 
     function isValidUser(data) {
@@ -78,7 +72,24 @@ service cloud.firestore {
              data.fullName is string && data.fullName.size() > 0 &&
              data.role in ['admin', 'user'] &&
              (!('phoneNumber' in data) || isValidPhone(data.phoneNumber)) &&
-             (!('walletBalance' in data) || data.walletBalance is number);
+             (!('walletBalance' in data) || data.walletBalance is number) &&
+             (!('isAgent' in data) || data.isAgent is bool);
+    }
+
+    function isValidClientUserUpdate(incoming, existing) {
+       return incoming.role == existing.role &&
+              (!('walletBalance' in incoming) || incoming.walletBalance <= existing.get('walletBalance', 0));
+    }
+
+    function isValidComplaint(data) {
+      return data.keys().hasAll(['orderId', 'userId', 'userEmail', 'message', 'status', 'createdAt']) &&
+             data.orderId is string &&
+             data.userId is string &&
+             isValidEmail(data.userEmail) &&
+             data.message is string && data.message.size() > 0 && data.message.size() < 1000 &&
+             data.status in ['open', 'resolved'] &&
+             data.createdAt is timestamp &&
+             (!('adminReply' in data) || data.adminReply is string);
     }
 
     function isValidWalletTransaction(data) {
@@ -121,8 +132,8 @@ service cloud.firestore {
     }
 
     match /orders/{orderId} {
-      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
-      allow create: if isAuthenticated() && isValidOrder(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow read: if isAdmin() || (isAuthenticated() && (resource.data.userId == request.auth.uid || resource.data.email == request.auth.token.email));
+      allow create: if isAuthenticated() && isValidOrder(request.resource.data) && (request.resource.data.userId == request.auth.uid || request.resource.data.email == request.auth.token.email);
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
@@ -130,9 +141,14 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow create: if isAuthenticated() && isValidUser(request.resource.data) && (request.resource.data.role == 'user' || isAdmin());
-      allow update: if isAdmin() || (isOwner(userId) && 
-                      request.resource.data.role == resource.data.role &&
-                      (!('walletBalance' in request.resource.data) || request.resource.data.walletBalance <= resource.data.walletBalance));
+      allow update: if isAdmin() || (isOwner(userId) && isValidClientUserUpdate(request.resource.data, resource.data));
+    }
+
+    match /complaints/{complaintId} {
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && isValidComplaint(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     match /wallet_transactions/{transactionId} {

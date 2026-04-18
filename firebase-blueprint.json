@@ -18,18 +18,16 @@
       "description": "A customer order for a data bundle.",
       "type": "object",
       "properties": {
-        "userId": { "type": "string", "description": "ID of the user who placed the order" },
-        "customerName": { "type": "string", "description": "Customer's full name" },
-        "recipientPhone": { "type": "string", "description": "Phone number to receive the data" },
-        "recipientNetwork": { "type": "string", "description": "Recipient's network" },
-        "bundleId": { "type": "string", "description": "ID of the purchased bundle" },
-        "bundleName": { "type": "string", "description": "Name of the bundle at time of purchase" },
-        "amountSent": { "type": "number", "description": "Amount sent by customer" },
-        "referenceCode": { "type": "string", "description": "Payment reference code" },
-        "status": { "type": "string", "enum": ["pending", "processing", "delivered", "cancelled"], "description": "Order status" },
-        "createdAt": { "type": "string", "format": "date-time", "description": "When the order was placed" }
+        "reference": { "type": "string", "description": "Paystack transaction reference" },
+        "email": { "type": "string", "format": "email", "description": "Customer email" },
+        "phone": { "type": "string", "description": "Customer phone number" },
+        "network": { "type": "string", "description": "Selected network" },
+        "bundle": { "type": "string", "description": "Selected data plan" },
+        "amount": { "type": "number", "description": "Amount paid in GHS" },
+        "status": { "type": "string", "enum": ["paid", "completed", "failed"], "description": "Order status" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the order was created" }
       },
-      "required": ["userId", "customerName", "recipientPhone", "recipientNetwork", "bundleId", "amountSent", "referenceCode", "status", "createdAt"]
+      "required": ["reference", "email", "phone", "network", "bundle", "amount", "status", "createdAt"]
     },
     "UserProfile": {
       "title": "User Profile",
