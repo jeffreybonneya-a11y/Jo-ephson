@@ -46,20 +46,6 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
         customerName: profile?.fullName || auth.currentUser.displayName || 'Aspiring Agent'
       });
 
-      // Notify admin
-      fetch('/api/notifyOrder', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: auth.currentUser.email,
-          phone: profile?.phoneNumber || "0000000000",
-          network: "SYSTEM",
-          bundle: "AGENT ACCESS UNLOCK",
-          amount: 40,
-          reference: 'AGENT PAYMENT INITIATED'
-        })
-      });
-
       const handler = PaystackPop.setup({
         key: publicKey,
         email: auth.currentUser.email || '',

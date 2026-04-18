@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '@/src/lib/firebase';
-import emailjs from '@emailjs/browser';
 import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, doc, deleteDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { Bundle, Order, Network, UserProfile, Message, StreamAccess, Complaint } from '@/src/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,7 +22,6 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [editingBundle, setEditingBundle] = useState<Bundle | null>(null);
   const [ghBalance, setGhBalance] = useState<number | null>(null);
-  const [emailStatus, setEmailStatus] = useState<'connected' | 'error' | 'checking'>('checking');
 
   const [announcement, setAnnouncement] = useState({
     id: 'discount-bar',
@@ -74,16 +72,6 @@ export default function AdminDashboard() {
     const unsubComplaints = onSnapshot(query(collection(db, 'complaints'), orderBy('createdAt', 'desc')), (snapshot) => {
       setComplaints(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Complaint)));
     });
-
-    // Check Email Status
-    const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-    const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
-    const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
-    if (serviceId && templateId && publicKey) {
-      setEmailStatus('connected');
-    } else {
-      setEmailStatus('error');
-    }
 
     return () => {
       unsubAnnouncement();
@@ -178,38 +166,6 @@ export default function AdminDashboard() {
     }
   };
 
-  const testEmail = async () => {
-    try {
-      const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-      const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
-      const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
-
-      if (!serviceId || !templateId || !publicKey) {
-        toast.error("EmailJS credentials missing in ENV 👑");
-        return;
-      }
-
-      toast.info("Sending test email...");
-      await emailjs.send(
-        serviceId,
-        templateId,
-        {
-          admin_emails: 'jeffreybonneya@gmail.com, emmagyapong62@gmail.com',
-          customer_email: 'test@example.com',
-          phone: '0XXXXXXXXX',
-          network: 'SYSTEM TEST',
-          bundle: 'TEST ROYAL BUNDLE',
-          amount: 'GHS 0.00',
-          reference: 'TEST-KING-J-' + Math.random().toString(36).substring(7).toUpperCase()
-        },
-        publicKey
-      );
-      toast.success("Royal test email sent! Check your inbox. 👑");
-    } catch (err: any) {
-      toast.error(`Royal mail failed: ${err.text || err.message}`);
-    }
-  };
-
   const handleUpdateAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -226,32 +182,6 @@ export default function AdminDashboard() {
         <div>
           <h1 className="text-4xl font-black tracking-tight mb-2">ROYAL COMMAND CENTER 👑</h1>
           <p className="text-slate-500 font-medium italic">Order Fulfillment Dashboard</p>
-        </div>
-
-        <div className="flex flex-wrap gap-4">
-           {/* Email Status Indicator */}
-           <div className={`bg-white border-2 px-6 py-4 rounded-[1.5rem] shadow-sm transition-all flex flex-col gap-4 ${emailStatus === 'connected' ? 'border-green-100 hover:border-green-300' : 'border-red-100 hover:border-red-300'}`}>
-              <div className="flex items-center gap-3">
-                 <div className={`p-2 rounded-lg ${emailStatus === 'connected' ? 'bg-green-50' : 'bg-red-50'}`}>
-                    <MailIcon className={`w-6 h-6 ${emailStatus === 'connected' ? 'text-green-600' : 'text-red-600'}`} />
-                 </div>
-                 <div>
-                    <div className="flex items-center gap-2">
-                       <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Email System</p>
-                       <div className={`w-2 h-2 rounded-full animate-pulse ${emailStatus === 'connected' ? 'bg-green-500' : 'bg-red-500'}`} />
-                    </div>
-                    <p className="text-sm font-black uppercase">{emailStatus === 'connected' ? 'KING CONNECTED' : 'SYSTEM ERROR'}</p>
-                    {emailStatus === 'connected' && (
-                      <p className="text-[8px] text-slate-400 font-bold mt-1 max-w-[150px] leading-tight">
-                        IMPORTANT: Check "Allow API access from non-browser environments" in EmailJS Security dashboard.
-                      </p>
-                    )}
-                 </div>
-              </div>
-              <Button size="sm" variant="outline" className="w-full h-10 text-[10px] font-black uppercase border-2 rounded-lg bg-slate-50 hover:bg-white" onClick={testEmail}>
-                 Test Gmail 👑
-              </Button>
-           </div>
         </div>
       </div>
 

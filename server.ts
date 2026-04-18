@@ -27,46 +27,6 @@ const db = getFirestore(firebaseConfig.firestoreDatabaseId);
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// EmailJS Notification Logic (REST API)
-async function sendOrderNotification(orderData: any) {
-    const serviceId = process.env.VITE_EMAILJS_SERVICE_ID;
-    const templateId = process.env.VITE_EMAILJS_TEMPLATE_ID;
-    const publicKey = process.env.VITE_EMAILJS_PUBLIC_KEY;
-    const privateKey = process.env.EMAILJS_PRIVATE_KEY;
-
-    if (!serviceId || !templateId || !publicKey) {
-        console.warn('[EmailJS] Credentials missing! Check SERVICE_ID, TEMPLATE_ID, and PUBLIC_KEY in settings.');
-        return;
-    }
-
-    if (!privateKey) {
-        console.warn('[EmailJS] PRIVATE_KEY (accessToken) is missing. This is required for server-side mailing.');
-    }
-
-    const payload = {
-        service_id: serviceId,
-        template_id: templateId,
-        user_id: publicKey,
-        accessToken: privateKey, // Required for non-browser environments
-        template_params: {
-            admin_emails: 'jeffreybonneya@gmail.com, emmagyapong62@gmail.com',
-            customer_email: orderData.email,
-            phone: orderData.phone,
-            network: orderData.network,
-            bundle: orderData.bundle,
-            amount: `GHS ${orderData.amount}`,
-            reference: orderData.reference || 'PAYMENT PENDING'
-        }
-    };
-
-    try {
-        await axios.post('https://api.emailjs.com/api/v1.0/email/send', payload);
-        console.log('[EmailJS] Admin notification sent successfully');
-    } catch (err: any) {
-        console.error('[EmailJS] Failed to send notification:', err.response?.data || err.message);
-    }
-}
-
 async function verifyPaystackReference(reference: string) {
     const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
         headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` }
@@ -99,7 +59,7 @@ async function handlePaymentVerification(reference: string, metadata: any) {
           phone: metadata?.phone || data.metadata?.phone || null,
           network: metadata?.network || data.metadata?.network || null,
           bundle: metadata?.bundle || data.metadata?.bundle || null,
-          amount: data.amount / 100,
+          amount: metadata?.originalAmount || (data.metadata && data.metadata.originalAmount) || (data.amount / 100),
           paymentStatus: "success",
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           metadata: metadata || data.metadata || {}
@@ -120,24 +80,11 @@ async function handlePaymentVerification(reference: string, metadata: any) {
           await orderRef.set({ ...orderUpdate, status: "pending", createdAt: admin.firestore.FieldValue.serverTimestamp() });
       }
 
-      // 4. Send Email Notification to Admin
-      await sendOrderNotification({ ...orderUpdate, status: "pending" });
-
       return { success: true };
   } else {
       throw new Error('Paystack verification returned unsuccessful status');
   }
 }
-
-// REST Endpoint: notifyOrder (Immediate notification when BUY NOW is clicked)
-app.post('/api/notifyOrder', express.json(), async (req, res) => {
-    try {
-        await sendOrderNotification(req.body);
-        res.json({ success: true });
-    } catch (err: any) {
-        res.status(500).json({ success: false, error: err.message });
-    }
-});
 
 // REST Endpoint: verifyPayment (Accepts reference)
 app.post('/api/verifyPayment', express.json(), async (req, res) => {

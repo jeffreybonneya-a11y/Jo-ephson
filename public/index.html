@@ -6,7 +6,6 @@
     <title>King J Deals — Automated Data</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://js.paystack.co/v1/inline.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -116,10 +115,6 @@
 
     <script>
         // Configuration
-        const EMAILJS_USER_ID = "jeffreybonneya@gmail.com"; 
-        const EMAILJS_SERVICE_ID = "service_xxxx";
-        const EMAILJS_TEMPLATE_ID = "template_xxxx";
-
         let allOffers = [];
         let currentNetwork = 'MTN';
         let isLowBalance = false;
@@ -128,8 +123,6 @@
 
         // Initialize
         async function init() {
-            emailjs.init({ publicKey: "YOUR_PUBLIC_KEY" }); // Should be user's actual key
-            
             await checkStatus();
             await fetchOffers();
             updateBalance();
@@ -237,16 +230,19 @@
             if (!validatePhone(phone)) return alert("Invalid phone. Must be 233 + 9 digits.");
             if (!email.includes('@')) return alert("Valid email is required.");
 
+            const finalAmount = selectedOffer.price + 0.20;
+
             const handler = PaystackPop.setup({
                 key: 'pk_live_xxxx', // Use actual public key
                 email: email,
-                amount: selectedOffer.price * 100,
+                amount: Math.round(finalAmount * 100),
                 currency: 'GHS',
                 metadata: {
                     phone: phone,
                     network: selectedOffer.isp,
                     volume: selectedOffer.volume,
-                    offerSlug: selectedOffer.slug
+                    offerSlug: selectedOffer.slug,
+                    originalAmount: selectedOffer.price
                 },
                 callback: function(response) {
                     console.log("[Paystack] Success:", response.reference);
@@ -325,8 +321,7 @@
             const lastAlert = localStorage.getItem('alertSentAt');
             const now = Date.now();
             if (!lastAlert || now - lastAlert > 3600000) {
-                // Actual EmailJS call would go here
-                console.warn("[Alert] Low balance alert sent to admin via EmailJS");
+                console.warn("[Alert] Low balance alert triggered");
                 localStorage.setItem('alertSentAt', now);
             }
         }

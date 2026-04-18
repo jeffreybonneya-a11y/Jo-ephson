@@ -85,27 +85,17 @@ export default function CheckoutForm({ bundle, onClose, profile }: CheckoutFormP
         customerName: profile?.fullName || auth.currentUser.displayName || 'Royal Customer'
       });
 
-      // Notify admin immediately
-      fetch('/api/notifyOrder', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: auth.currentUser.email,
-          phone: data.recipientPhone,
-          network: data.recipientNetwork,
-          bundle: `${data.recipientNetwork} ${bundle.dataAmount}`,
-          amount: bundle.price,
-          reference: 'PAYMENT INITIATED'
-        })
-      });
-
       // 1. Initiate Payment
+      const paystackFee = 0.20;
+      const finalAmountToCharge = Number(bundle.price) + paystackFee;
+
       const handler = PaystackPop.setup({
         key: publicKey,
         email: auth.currentUser.email || '',
-        amount: Math.round(data.amountSent * 100),
+        amount: Math.round(finalAmountToCharge * 100),
         currency: 'GHS',
         metadata: {
+          originalAmount: bundle.price,
           custom_fields: [
             { display_name: "Order ID", variable_name: "order_id", value: preOrderId },
             { display_name: "Recipient Phone", variable_name: "phone", value: data.recipientPhone },
@@ -125,7 +115,8 @@ export default function CheckoutForm({ bundle, onClose, profile }: CheckoutFormP
                   internalOrderId: preOrderId,
                   phone: data.recipientPhone,
                   network: data.recipientNetwork,
-                  bundle: `${data.recipientNetwork} ${bundle.dataAmount}`
+                  bundle: `${data.recipientNetwork} ${bundle.dataAmount}`,
+                  originalAmount: bundle.price
                 }
               })
             });
