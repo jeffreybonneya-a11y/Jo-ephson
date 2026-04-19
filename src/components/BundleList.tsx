@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { motion } from 'motion/react';
 import { Smartphone, Wifi, Zap, Tv, Crown, Trophy } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import StreamingTab from './StreamingTab';
 
 interface BundleListProps {
   onSelectBundle: (bundle: Bundle) => void;
@@ -137,10 +138,8 @@ export default function BundleList({ onSelectBundle, isAgentMode = false }: Bund
           </div>
 
           <TabsContent value="streaming" className="mt-0">
-             <div className="flex flex-col justify-center items-center py-24 bg-white rounded-[2rem] border-4 border-dashed border-primary/10 text-center">
-                <Tv className="w-16 h-16 text-slate-200 mb-6" />
-                <h3 className="text-2xl font-black text-slate-900 mb-2">SERVICES COMING SOON 👑</h3>
-                <p className="text-slate-500">The King is preparing new TV and Streaming services.</p>
+             <div className="bg-white rounded-[2rem] border-4 border-dashed border-primary/10 p-4 md:p-8">
+                <StreamingTab />
              </div>
           </TabsContent>
 

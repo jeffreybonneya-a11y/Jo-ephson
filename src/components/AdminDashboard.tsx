@@ -138,9 +138,46 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleApproveStream = async (orderId: string) => {
+    try {
+      await updateDoc(doc(db, 'orders', orderId), { 
+        streamStatus: 'approved',
+        status: 'approved' 
+      });
+      toast.success('Royal System: Stream Approved! 👑');
+    } catch (e) {
+      toast.error('Failed to approve stream');
+    }
+  };
+
+  const handleRejectStream = async (orderId: string) => {
+    try {
+      await updateDoc(doc(db, 'orders', orderId), { 
+        streamStatus: 'rejected',
+        status: 'failed'
+      });
+      toast.error('Royal System: Stream Rejected.');
+    } catch (e) {
+      toast.error('Failed to reject stream');
+    }
+  };
+
+  const handleRelockStream = async (orderId: string) => {
+    try {
+      await updateDoc(doc(db, 'orders', orderId), { 
+        streamStatus: 'pending',
+        status: 'pending'
+      });
+      toast.info('Royal System: Stream Re-locked. 👑');
+    } catch (e) {
+      toast.error('Failed to lock stream');
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pending': return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">PENDING</Badge>;
+      case 'approved': return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 font-black">APPROVED</Badge>;
       case 'processing': return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 font-black animate-pulse">PROCESSING</Badge>;
       case 'delivered': return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">DELIVERED</Badge>;
       case 'failed': return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 font-bold">FAILED</Badge>;
@@ -163,6 +200,15 @@ export default function AdminDashboard() {
       toast.success("Complaint resolved! 👑");
     } catch (error: any) {
       toast.error(`Resolution failed: ${error.message}`);
+    }
+  };
+
+  const handleDeleteComplaint = async (complaintId: string) => {
+    try {
+      await deleteDoc(doc(db, 'complaints', complaintId));
+      toast.success("Message cleared! 👑");
+    } catch (error: any) {
+      toast.error(`Clear failed: ${error.message}`);
     }
   };
 
@@ -236,22 +282,35 @@ export default function AdminDashboard() {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-1">
-                           <Badge className="w-fit mb-1 bg-secondary text-white font-black text-[10px] px-2">{order.network}</Badge>
-                           <div className="flex items-center gap-2">
-                             <span className="font-mono text-sm font-black text-primary bg-primary/10 px-2 py-0.5 rounded-md w-fit">{order.phone}</span>
-                             <Button 
-                               size="sm" 
-                               variant="outline" 
-                               className="h-6 w-16 p-0 text-[9px] font-black uppercase text-slate-500 rounded-md border text-center shadow-sm hover:bg-primary/10 hover:text-primary transition-all cursor-pointer"
-                               onClick={() => {
-                                 navigator.clipboard.writeText(order.phone);
-                                 toast.success(`Copied: ${order.phone} 👑`);
-                               }}
-                             >
-                               Copy
-                             </Button>
-                           </div>
-                           <span className="text-[10px] font-black text-slate-500 mt-1 uppercase tracking-tight">{order.bundle}</span>
+                           {order.type === 'stream' ? (
+                             <>
+                               <Badge className={`w-fit mb-1 ${order.streamType === 'live' ? 'bg-purple-500' : 'bg-pink-500'} text-white font-black text-[10px] px-2`}>
+                                  STREAM: {order.streamType === 'live' ? 'LIVE ACCESS' : 'ONE-TIME'}
+                               </Badge>
+                               <span className="text-xs font-bold text-slate-500">
+                                 Status: <span className="uppercase text-primary">{order.streamStatus || 'unknown'}</span>
+                               </span>
+                             </>
+                           ) : (
+                             <>
+                               <Badge className="w-fit mb-1 bg-secondary text-white font-black text-[10px] px-2">{order.network}</Badge>
+                               <div className="flex items-center gap-2">
+                                 <span className="font-mono text-sm font-black text-primary bg-primary/10 px-2 py-0.5 rounded-md w-fit">{order.phone}</span>
+                                 <Button 
+                                   size="sm" 
+                                   variant="outline" 
+                                   className="h-6 w-16 p-0 text-[9px] font-black uppercase text-slate-500 rounded-md border text-center shadow-sm hover:bg-primary/10 hover:text-primary transition-all cursor-pointer"
+                                   onClick={() => {
+                                     navigator.clipboard.writeText(order.phone);
+                                     toast.success(`Copied: ${order.phone} 👑`);
+                                   }}
+                                 >
+                                   Copy
+                                 </Button>
+                               </div>
+                               <span className="text-[10px] font-black text-slate-500 mt-1 uppercase tracking-tight">{order.bundle}</span>
+                             </>
+                           )}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -268,25 +327,38 @@ export default function AdminDashboard() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-2">
-                          {order.status === 'pending' && (
-                            <Button 
-                              size="sm" 
-                              className="h-9 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black uppercase text-[10px] shadow-sm flex items-center gap-2"
-                              onClick={() => handleUpdateOrderStatus(order.id, 'processing', order)}
-                            >
-                              <Check className="w-3 h-3" />
-                              Accept 👑
-                            </Button>
-                          )}
-                          {order.status === 'processing' && (
-                            <Button 
-                              size="sm" 
-                              className="h-9 px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-black uppercase text-[10px] shadow-sm flex items-center gap-2"
-                              onClick={() => handleUpdateOrderStatus(order.id, 'delivered', order)}
-                            >
-                              <CheckCircle className="w-3 h-3" />
-                              Deliver 👑
-                            </Button>
+                          {order.type === 'stream' ? (
+                            (order.streamStatus === 'pending_approval' || order.streamStatus === 'pending') ? (
+                              <div className="flex gap-2">
+                                <Button size="sm" className="h-9 px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-black uppercase text-[10px]" onClick={() => handleApproveStream(order.id)}>Approve</Button>
+                                <Button size="sm" variant="destructive" className="h-9 px-4 rounded-xl font-black uppercase text-[10px]" onClick={() => handleRejectStream(order.id)}>Reject</Button>
+                              </div>
+                            ) : order.streamStatus === 'approved' ? (
+                              <Button size="sm" variant="outline" className="h-9 px-4 rounded-xl border-slate-300 text-slate-600 font-black uppercase text-[10px] hover:bg-slate-100" onClick={() => handleRelockStream(order.id)}>Re-lock Access</Button>
+                            ) : null
+                          ) : (
+                            <>
+                              {order.status === 'pending' && (
+                                <Button 
+                                  size="sm" 
+                                  className="h-9 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black uppercase text-[10px] shadow-sm flex items-center gap-2"
+                                  onClick={() => handleUpdateOrderStatus(order.id, 'processing', order)}
+                                >
+                                  <Check className="w-3 h-3" />
+                                  Accept 👑
+                                </Button>
+                              )}
+                              {order.status === 'processing' && (
+                                <Button 
+                                  size="sm" 
+                                  className="h-9 px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-black uppercase text-[10px] shadow-sm flex items-center gap-2"
+                                  onClick={() => handleUpdateOrderStatus(order.id, 'delivered', order)}
+                                >
+                                  <CheckCircle className="w-3 h-3" />
+                                  Deliver 👑
+                                </Button>
+                              )}
+                            </>
                           )}
                           <Button 
                             size="sm" 
@@ -470,7 +542,7 @@ export default function AdminDashboard() {
                       <TableHead className="p-6 font-black uppercase text-xs">Customer</TableHead>
                       <TableHead className="font-black uppercase text-xs">Issue</TableHead>
                       <TableHead className="font-black uppercase text-xs">Status</TableHead>
-                      <TableHead className="font-black uppercase text-xs text-right p-6">Resolve</TableHead>
+                      <TableHead className="font-black uppercase text-xs text-right p-6">Actions</TableHead>
                     </TableRow>
                  </TableHeader>
                  <TableBody>
@@ -485,7 +557,9 @@ export default function AdminDashboard() {
                        <TableCell className="p-6">
                          <div className="flex flex-col">
                            <span className="font-black">{c.userEmail}</span>
-                           <span className="text-[10px] text-slate-400 font-mono tracking-tighter">Order: {c.orderId.slice(-8).toUpperCase()}</span>
+                           <span className="text-[10px] text-slate-400 font-mono tracking-tighter">
+                             {c.subject ? `Subject: ${c.subject}` : `Order: ${c.orderId ? c.orderId.slice(-8).toUpperCase() : 'N/A'}`}
+                           </span>
                          </div>
                        </TableCell>
                        <TableCell className="py-4">
@@ -499,15 +573,25 @@ export default function AdminDashboard() {
                          </Badge>
                        </TableCell>
                        <TableCell className="text-right p-6">
-                         {c.status === 'open' && (
-                           <Button 
-                             size="sm" 
-                             className="bg-green-600 hover:bg-green-700 font-black uppercase text-[10px]"
-                             onClick={() => handleResolveComplaint(c.id)}
+                         <div className="flex justify-end gap-2">
+                           {c.status === 'open' && (
+                             <Button 
+                               size="sm" 
+                               className="bg-green-600 hover:bg-green-700 font-black uppercase text-[10px]"
+                               onClick={() => handleResolveComplaint(c.id)}
+                             >
+                               <CheckCircle className="w-3 h-3 mr-1" /> Resolve
+                             </Button>
+                           )}
+                           <Button
+                             size="sm"
+                             variant="destructive"
+                             className="font-black uppercase text-[10px]"
+                             onClick={() => handleDeleteComplaint(c.id)}
                            >
-                             <CheckCircle className="w-3 h-3 mr-1" /> Resolve
+                             <Trash2 className="w-3 h-3 mr-1" /> Clear
                            </Button>
-                         )}
+                         </div>
                        </TableCell>
                      </TableRow>
                    ))}

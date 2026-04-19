@@ -34,13 +34,13 @@ export default function SupportModal({ isOpen, onClose, profile }: SupportModalP
   const onSubmit = async (data: z.infer<typeof messageSchema>) => {
     setIsLoading(true);
     try {
-      await addDoc(collection(db, 'messages'), {
+      await addDoc(collection(db, 'complaints'), {
         userId: profile?.uid || 'anonymous',
         userEmail: profile?.email || 'anonymous',
         userName: profile?.fullName || 'Anonymous User',
         subject: data.subject,
         message: data.message,
-        status: 'unread',
+        status: 'open',
         createdAt: serverTimestamp(),
       });
       

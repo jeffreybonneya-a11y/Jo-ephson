@@ -33,6 +33,9 @@ export interface Order {
   externalOrderId?: string;
   externalReference?: string;
   failureReason?: string;
+  type?: 'data' | 'stream';
+  streamType?: 'live' | 'onetime';
+  streamStatus?: 'pending_approval' | 'approved' | 'rejected';
 }
 
 export interface Message {
@@ -70,9 +73,10 @@ export interface UserProfile {
 
 export interface Complaint {
   id: string;
-  orderId: string;
+  orderId?: string;
   userId: string;
   userEmail: string;
+  subject?: string;
   message: string;
   status: 'open' | 'resolved';
   adminReply?: string;

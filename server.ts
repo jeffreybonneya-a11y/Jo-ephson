@@ -53,16 +53,29 @@ async function handlePaymentVerification(reference: string, metadata: any) {
   const data = response.data.data;
   
   if (response.data.status && data.status === "success") {
+      const meta = metadata || data.metadata || {};
+      const isStream = meta.type === 'stream';
+      let streamStatus = null;
+      if (isStream) {
+          streamStatus = meta.streamType === 'live' ? 'approved' : 'pending_approval';
+      }
+
       const orderUpdate = {
           reference: reference,
           email: data.customer.email,
-          phone: metadata?.phone || data.metadata?.phone || null,
-          network: metadata?.network || data.metadata?.network || null,
-          bundle: metadata?.bundle || data.metadata?.bundle || null,
-          amount: metadata?.originalAmount || (data.metadata && data.metadata.originalAmount) || (data.amount / 100),
+          userId: meta.userId || null,
+          customerName: meta.customerName || null,
+          phone: meta.phone || null,
+          network: meta.network || null,
+          bundle: meta.bundle || null,
+          amount: meta.originalAmount || (data.amount / 100),
           paymentStatus: "success",
+          type: isStream ? 'stream' : 'data',
+          streamType: meta.streamType || null,
+          streamStatus: streamStatus,
+          status: isStream ? 'delivered' : 'pending',
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          metadata: metadata || data.metadata || {}
+          metadata: meta
       };
 
       // 3. Update existing pre-order if it exists, otherwise create new with reference as ID
@@ -123,6 +136,58 @@ app.post('/api/paystack-webhook', express.raw({ type: '*/*' }), async (req: any,
   }
 
   res.sendStatus(200);
+});
+
+// REST Endpoint: Stream Player (Secure Viewer)
+app.get('/api/stream/player/:orderId', async (req, res) => {
+    const { orderId } = req.params;
+    const uid = req.query.uid;
+    
+    if (!uid || !orderId) return res.status(403).send('Forbidden: Missing parameters');
+
+    try {
+        const orderDoc = await db.collection('orders').doc(orderId).get();
+        if (!orderDoc.exists) return res.status(404).send('Not Found');
+        
+        const data = orderDoc.data();
+        if (data?.userId !== uid || data?.type !== 'stream' || data?.streamStatus !== 'approved') {
+            const errorHtml = `<html><body style="background:#0c0c0e;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;"><h1>Access Denied 👑</h1><p style="color:#888;">Stream pending approval or invalid request.</p></body></html>`;
+            return res.status(403).send(errorHtml);
+        }
+
+        const streamUrl = data.streamType === 'live' 
+            ? 'https://cricfy.net/tv-63/' 
+            : 'https://www.soccertvhd.com/hesgoal-hes-goal-live-streaming/';
+
+        const html = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                    body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0c0c0e; }
+                    iframe { width: 100%; height: 100%; border: none; }
+                </style>
+                <script>
+                    document.addEventListener('contextmenu', event => event.preventDefault());
+                    document.onkeydown = function(e) {
+                        if(e.keyCode == 123) return false;
+                        if(e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)) return false;
+                        if(e.ctrlKey && e.shiftKey && e.keyCode == 'C'.charCodeAt(0)) return false;
+                        if(e.ctrlKey && e.shiftKey && e.keyCode == 'J'.charCodeAt(0)) return false;
+                        if(e.ctrlKey && e.keyCode == 'U'.charCodeAt(0)) return false;
+                    }
+                </script>
+            </head>
+            <body>
+                <iframe src="${streamUrl}" allowfullscreen sandbox="allow-scripts allow-same-origin allow-presentation"></iframe>
+            </body>
+            </html>
+        `;
+        res.send(html);
+    } catch (err: any) {
+        res.status(500).send('Server Error');
+    }
 });
 
 app.use(cors());

@@ -57,13 +57,21 @@ service cloud.firestore {
     function isValidOrder(data) {
       return data.keys().hasAll(['email', 'phone', 'network', 'bundle', 'amount', 'status', 'createdAt']) &&
              isValidEmail(data.email) &&
-             isValidPhone(data.phone) &&
+             data.phone is string &&
              data.network is string &&
              data.bundle is string &&
              data.amount is number && data.amount > 0 &&
              data.status in ['paid', 'completed', 'failed', 'pending', 'processing', 'delivered', 'pending_payment'] &&
              data.createdAt is timestamp &&
-             (!('reference' in data) || data.reference is string);
+             (!('reference' in data) || data.reference is string) &&
+             (!('userId' in data) || data.userId is string) &&
+             (!('customerName' in data) || data.customerName is string) &&
+             (!('paymentStatus' in data) || data.paymentStatus is string) &&
+             (!('paymentMethod' in data) || data.paymentMethod is string) &&
+             (!('type' in data) || data.type in ['data', 'stream']) &&
+             (!('streamType' in data) || data.streamType in ['live', 'onetime']) &&
+             (!('streamStatus' in data) || data.streamStatus in ['pending', 'pending_approval', 'approved', 'rejected']) &&
+             (!('metadata' in data) || data.metadata is map);
     }
 
     function isValidUser(data) {
@@ -82,13 +90,15 @@ service cloud.firestore {
     }
 
     function isValidComplaint(data) {
-      return data.keys().hasAll(['orderId', 'userId', 'userEmail', 'message', 'status', 'createdAt']) &&
-             data.orderId is string &&
+      return data.keys().hasAll(['userId', 'userEmail', 'message', 'status', 'createdAt']) &&
              data.userId is string &&
              isValidEmail(data.userEmail) &&
              data.message is string && data.message.size() > 0 && data.message.size() < 1000 &&
              data.status in ['open', 'resolved'] &&
              data.createdAt is timestamp &&
+             (!('orderId' in data) || data.orderId is string) &&
+             (!('subject' in data) || data.subject is string) &&
+             (!('userName' in data) || data.userName is string) &&
              (!('adminReply' in data) || data.adminReply is string);
     }
 

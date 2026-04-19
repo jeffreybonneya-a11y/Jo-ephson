@@ -48,8 +48,8 @@ export default function Navbar({
       let messagesCount = 0;
       let ordersCount = 0;
 
-      // Listen for unread messages
-      const qMessages = query(collection(db, 'messages'), where('status', '==', 'unread'));
+      // Listen for open complaints (support messages)
+      const qMessages = query(collection(db, 'complaints'), where('status', '==', 'open'));
       const unsubMessages = onSnapshot(qMessages, (snapshot) => {
         messagesCount = snapshot.size;
         setUnreadCount(messagesCount + ordersCount);
@@ -91,14 +91,14 @@ export default function Navbar({
         <div className="container mx-auto px-4 md:px-6">
           <div className="flex h-16 md:h-20 items-center justify-between">
             <div 
-              className="flex items-center gap-2 font-black text-xl md:text-2xl tracking-tighter cursor-pointer group shrink-0" 
+              className="flex items-center font-black text-xl md:text-2xl tracking-tighter cursor-pointer group shrink-0" 
               onClick={() => { onAdminView(false); onHistoryView(false); onStreamView(false); }}
             >
-              <div className="relative">
-                <Crown className="w-5 h-5 md:w-6 md:h-6 text-primary absolute -top-4 -left-2 -rotate-12 drop-shadow-md group-hover:scale-125 transition-transform" />
-                <span className="bg-primary text-secondary px-3 py-1 rounded-xl shadow-lg">KING J</span>
+              <div className="relative flex items-center">
+                <Crown className="w-5 h-5 md:w-6 md:h-6 text-primary absolute -top-4 -left-3 -rotate-12 drop-shadow-md group-hover:scale-125 transition-transform z-10" />
+                <span className="bg-primary text-secondary px-3 py-1 rounded-xl shadow-lg">KING J DEALS</span>
+                <span className="text-primary drop-shadow-sm ml-2 text-xl md:text-2xl">👑</span>
               </div>
-              <span className="text-primary drop-shadow-sm hidden sm:inline">DEALS 👑</span>
             </div>
 
             {/* Desktop Navigation Tabs */}
@@ -145,7 +145,7 @@ export default function Navbar({
                 <Button 
                   variant={isAdminView ? "default" : "ghost"} 
                   size="sm" 
-                  onClick={() => { onAdminView(!isAdminView); onHistoryView(false); }}
+                  onClick={() => { onAdminView(!isAdminView); }}
                   className="px-2 h-9 relative"
                 >
                   <LayoutDashboard className="w-4 h-4" />
