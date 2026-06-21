@@ -86,6 +86,50 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "userName", "userEmail", "status", "referenceCode", "amountPaid", "createdAt"]
+    },
+    "Agent": {
+      "title": "Agent",
+      "description": "Registered agent account details and settings.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "agent_name": { "type": "string" },
+        "agent_slug": { "type": "string" },
+        "momo_name": { "type": "string" },
+        "momo_number": { "type": "string" },
+        "profit_balance": { "type": "number" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "agent_name", "agent_slug", "momo_name", "momo_number", "profit_balance", "created_at"]
+    },
+    "AgentOrder": {
+      "title": "Agent Order",
+      "description": "Order made via an agent store.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "agent_id": { "type": "string" },
+        "customer_details": { "type": "object" },
+        "wholesale_price": { "type": "number" },
+        "agent_price": { "type": "number" },
+        "profit": { "type": "number" },
+        "status": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "agent_id", "customer_details", "wholesale_price", "agent_price", "profit", "status", "created_at"]
+    },
+    "ProfitRequest": {
+      "title": "Profit Request",
+      "description": "withdrawal request of an agent's profit.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "agent_id": { "type": "string" },
+        "withdrawal_amount": { "type": "number" },
+        "status": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "agent_id", "withdrawal_amount", "status", "created_at"]
     }
   },
   "firestore": {
@@ -112,6 +156,18 @@
     "/wallet_transactions/{transactionId}": {
       "schema": "WalletTransaction",
       "description": "Records of wallet top-ups and purchases."
+    },
+    "/agents/{agentId}": {
+      "schema": "Agent",
+      "description": "Registered agents list and configurations."
+    },
+    "/agent_orders/{orderId}": {
+      "schema": "AgentOrder",
+      "description": "Agent store client order records."
+    },
+    "/profit_requests/{requestId}": {
+      "schema": "ProfitRequest",
+      "description": "Agent profit withdrawal requests."
     }
   }
 }

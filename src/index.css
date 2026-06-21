@@ -6,8 +6,8 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-    --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', sans-serif;
+    --font-heading: var(--royal-font, var(--font-sans));
+    --font-sans: var(--royal-font, 'Geist Variable', sans-serif);
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -68,6 +68,21 @@
     --input: oklch(0.9 0.02 240);
     --ring: oklch(0.75 0.18 85);
     --radius: 1rem;
+
+    /* Semantic Overrides */
+    --card-bg: var(--card);
+    --heading-foreground: var(--foreground);
+    --body-foreground: var(--foreground);
+    --muted-text: var(--muted-foreground);
+
+    /* Customizer Variables */
+    --base-font-size: 16px;
+    --base-line-height: 1.5;
+    --base-letter-spacing: 0;
+    --base-radius: 1rem;
+    --base-padding: 1rem;
+    --base-gap: 1rem;
+    --content-width: 1200px;
 }
 
 .dark {
@@ -89,26 +104,89 @@
     --border: oklch(0.25 0.08 240);
     --input: oklch(0.25 0.08 240);
     --ring: oklch(0.75 0.18 85);
+
+    /* Dark Mode semantic overrides */
+    --heading-foreground: white;
+    --body-foreground: oklch(0.9 0.02 240);
+    --muted-text: oklch(0.6 0.02 240);
 }
 
 @layer base {
+  :root {
+    font-size: var(--base-font-size);
+  }
+
   * {
     @apply border-border outline-ring/50;
-    }
+  }
+
   body {
     @apply bg-background text-foreground;
-    }
-  html {
-    @apply font-sans;
-    }
+    font-family: var(--font-sans);
+    line-height: var(--base-line-height);
+    letter-spacing: var(--base-letter-spacing);
+  }
+
+  #root {
+    /* Apply theme filters here instead of body */
+    /* This ensures portals/iframes appended to body (like Paystack) are NOT affected */
+    filter: var(--royal-filter, none);
+    min-height: 100vh;
+  }
+
+  html.dyslexic-font {
+    font-family: 'OpenDyslexic', 'Comic Sans MS', sans-serif !important;
+  }
+
+  html.large-cursor * {
+    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cpath d='M8 4l16 12-16 12v-24z' fill='black' stroke='white' stroke-width='2'/%3E%3C/svg%3E"), auto !important;
+  }
+
+  html.reduced-motion * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  /* Textures */
+  body.texture-grain {
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    background-size: 100px;
+    background-repeat: repeat;
+    background-attachment: fixed;
+    opacity: 0.05;
+  }
+
+  body.texture-dots {
+    background-image: radial-gradient(var(--primary) 1px, transparent 0);
+    background-size: 40px 40px;
+    background-attachment: fixed;
+  }
+
+  body.texture-grid {
+    background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+    background-attachment: fixed;
+  }
 }
 
 @layer utilities {
-  .no-scrollbar::-webkit-scrollbar {
+  .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
-  .no-scrollbar {
+  .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-slate-300 dark:bg-slate-700 rounded-full transition-colors hover:bg-primary;
   }
 }

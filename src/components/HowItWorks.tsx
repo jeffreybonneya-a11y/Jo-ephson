@@ -52,7 +52,7 @@ export default function HowItWorks() {
   ];
 
   return (
-    <section className="py-32 bg-white relative overflow-hidden">
+    <section className="py-32 bg-background relative overflow-hidden">
       {/* Decorative patterns */}
       <div className="absolute top-0 right-0 w-1/3 h-1/3 bg-primary/5 blur-[120px] rounded-full -mr-20 -mt-20" />
       <div className="absolute bottom-0 left-0 w-1/4 h-1/4 bg-blue-600/5 blur-[120px] rounded-full -ml-20 -mb-20" />
@@ -68,17 +68,17 @@ export default function HowItWorks() {
             <ShieldCheck className="w-4 h-4" />
             The King's Experience 👑
           </motion.div>
-          <h2 className="text-5xl md:text-7xl font-black mb-8 tracking-tighter text-slate-900 uppercase italic">
+          <h2 className="text-5xl md:text-7xl font-black mb-8 tracking-tighter text-foreground uppercase italic dark:text-white">
             HOW THE <span className="text-primary not-italic">SITE</span> WORKS 👑
           </h2>
-          <p className="text-slate-500 max-w-2xl mx-auto text-lg md:text-xl font-medium leading-relaxed">
+          <p className="text-muted-foreground max-w-2xl mx-auto text-lg md:text-xl font-medium leading-relaxed">
             Experience the pinnacle of data fulfillment. Each step is optimized for the speed and security you deserve.
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 lg:gap-8 relative">
           {/* Connector Line (Desktop) */}
-          <div className="hidden lg:block absolute top-[2.75rem] left-[10%] right-[10%] h-[2px] bg-slate-100/50 z-0 overflow-hidden">
+          <div className="hidden lg:block absolute top-[2.75rem] left-[10%] right-[10%] h-[2px] bg-border z-0 overflow-hidden">
             <motion.div 
               initial={{ x: '-100%' }}
               whileInView={{ x: '100%' }}
@@ -97,22 +97,22 @@ export default function HowItWorks() {
               transition={{ duration: 0.5, delay: i * 0.15 }}
               className="relative flex flex-col items-center group"
             >
-              <div className="absolute top-12 left-1/2 -translate-x-1/2 -translate-y-1/2 text-8xl font-black text-slate-50 opacity-[0.03] select-none group-hover:opacity-[0.05] transition-opacity">
+              <div className="absolute top-12 left-1/2 -translate-x-1/2 -translate-y-1/2 text-8xl font-black text-foreground opacity-[0.03] select-none group-hover:opacity-[0.05] transition-opacity">
                 0{i + 1}
               </div>
 
               <div className={`relative w-24 h-24 rounded-[2rem] bg-gradient-to-br ${step.color} ${step.shadow} flex items-center justify-center mb-8 shadow-2xl group-hover:scale-110 transition-transform z-10 p-[1px]`}>
-                 <div className="w-full h-full bg-white rounded-[1.95rem] flex items-center justify-center">
-                    <step.icon className="w-10 h-10 text-slate-900" />
+                 <div className="w-full h-full bg-card rounded-[1.95rem] flex items-center justify-center">
+                    <step.icon className="w-10 h-10 text-foreground" />
                  </div>
               </div>
 
               <div className="text-center px-4 relative z-10">
-                <h3 className="text-xl font-black mb-4 tracking-tight text-slate-900 flex items-center justify-center gap-2">
+                <h3 className="text-xl font-black mb-4 tracking-tight text-foreground flex items-center justify-center gap-2">
                    {step.title}
-                   {i < steps.length - 1 && <ArrowRight className="hidden lg:block w-4 h-4 text-slate-300 ml-1" />}
+                   {i < steps.length - 1 && <ArrowRight className="hidden lg:block w-4 h-4 text-muted-foreground/30 ml-1" />}
                 </h3>
-                <p className="text-slate-500 text-sm leading-relaxed font-bold tracking-tight lowercase italic opacity-80 group-hover:opacity-100 transition-opacity">
+                <p className="text-muted-foreground text-sm leading-relaxed font-bold tracking-tight lowercase italic opacity-80 group-hover:opacity-100 transition-opacity">
                   {step.desc}
                 </p>
               </div>
@@ -129,13 +129,13 @@ export default function HowItWorks() {
               whileInView={{ opacity: 1, scale: 1 }}
               viewport={{ once: true }}
               transition={{ delay: idx * 0.1 }}
-              className="p-10 rounded-[2.5rem] bg-slate-50 border border-slate-100 hover:bg-white hover:border-primary/20 hover:shadow-2xl transition-all"
+              className="p-10 rounded-[2.5rem] bg-card border border-border hover:border-primary/20 hover:shadow-2xl transition-all"
             >
-              <div className="w-14 h-14 rounded-2xl bg-white shadow-sm flex items-center justify-center text-primary mb-6">
+              <div className="w-14 h-14 rounded-2xl bg-background border border-border shadow-sm flex items-center justify-center text-primary mb-6">
                 <feature.icon className="w-7 h-7" />
               </div>
-              <h4 className="text-lg font-black mb-3 text-slate-900 uppercase tracking-tight italic">{feature.title}</h4>
-              <p className="text-slate-500 text-sm leading-relaxed font-medium">
+              <h4 className="text-lg font-black mb-3 text-foreground uppercase tracking-tight italic">{feature.title}</h4>
+              <p className="text-muted-foreground text-sm leading-relaxed font-medium">
                 {feature.desc}
               </p>
             </motion.div>

@@ -12,11 +12,13 @@ import { Skeleton } from '@/components/ui/skeleton';
 import StreamingTab from './StreamingTab';
 
 interface BundleListProps {
-  onSelectBundle: (bundle: Bundle) => void;
+  onSelectBundle: (bundle: Bundle & { wholesalePrice?: number }) => void;
   isAgentMode?: boolean;
+  isAgentUser?: boolean;
+  agentContext?: any;
 }
 
-export default function BundleList({ onSelectBundle, isAgentMode = false }: BundleListProps) {
+export default function BundleList({ onSelectBundle, isAgentMode = false, isAgentUser = false, agentContext = null }: BundleListProps) {
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('MTN');
@@ -75,10 +77,15 @@ export default function BundleList({ onSelectBundle, isAgentMode = false }: Bund
 
   const processedBundles = bundles.map(b => {
     const originalPrice = b.price;
+    const wholesalePrice = b.network === 'FCMobile' ? Math.max(0, originalPrice - 1.00) : Math.max(0, originalPrice - 2.00);
     let discountedPrice = originalPrice;
     
-    if (isAgentMode) {
-      discountedPrice = Math.max(0, originalPrice - 1.50);
+    if (agentContext) {
+      discountedPrice = agentContext.prices?.[b.id] != null 
+        ? Number(agentContext.prices[b.id]) 
+        : wholesalePrice; // Actually, if they haven't set a price, maybe default is wholesalePrice or originalPrice
+    } else if (isAgentMode || isAgentUser) {
+      discountedPrice = wholesalePrice;
     } else if (isDiscountActive) {
       const deduction = originalPrice < 10 ? 1 : 2;
       discountedPrice = Math.max(0, originalPrice - deduction);
@@ -87,8 +94,9 @@ export default function BundleList({ onSelectBundle, isAgentMode = false }: Bund
     return { 
       ...b, 
       originalPrice, 
+      wholesalePrice,
       price: discountedPrice, 
-      isDiscounted: (isAgentMode || isDiscountActive) && discountedPrice < originalPrice 
+      isDiscounted: !agentContext && (isAgentMode || isAgentUser || isDiscountActive) && discountedPrice < originalPrice 
     };
   });
 
@@ -113,10 +121,20 @@ export default function BundleList({ onSelectBundle, isAgentMode = false }: Bund
               <Crown className="w-4 h-4" />
               Royal Selection 👑
             </motion.div>
-            <h2 className="text-4xl md:text-6xl font-black mb-6 tracking-tight">CHOOSE YOUR <span className="text-primary">DEAL</span> 👑</h2>
-            <p className="text-slate-500 max-w-2xl mx-auto text-lg">
+            <h2 className="text-4xl md:text-6xl font-black mb-6 tracking-tight text-foreground dark:text-white">CHOOSE YOUR <span className="text-primary">DEAL</span> 👑</h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto text-lg leading-relaxed font-medium">
               Experience the <span className="text-primary font-bold">Royal Treatment</span>. Select your network and let our automated system deliver your data instantly.
             </p>
+            {isAgentUser && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-6 inline-flex items-center gap-2 px-6 py-2.5 rounded-2xl bg-primary/10 border border-primary/20 text-primary text-sm font-black uppercase tracking-tight shadow-md"
+              >
+                <div className="w-2 h-2 rounded-full bg-primary animate-ping" />
+                <span>Verified Agent Wholesale Pricing Active 👑</span>
+              </motion.div>
+            )}
           </div>
         )}
 
@@ -128,18 +146,18 @@ export default function BundleList({ onSelectBundle, isAgentMode = false }: Bund
                   key={tab}
                   value={tab} 
                   className={`text-lg md:text-xl font-black h-14 md:h-16 px-6 md:px-0 min-w-[140px] md:min-w-0 border-2 rounded-2xl transition-all hover:border-primary/50 shadow-sm data-[state=active]:shadow-xl data-[state=active]:scale-105 ${
-                    tab === activeTab ? getNetworkColor(tab) : 'border-primary/20'
+                    tab === activeTab ? getNetworkColor(tab) : 'border-border bg-card text-muted-foreground'
                   }`}
                 >
-                  {tab === 'streaming' ? "TV 👑" : tab}
+                  {tab === 'streaming' ? "Extra 👑" : tab}
                 </TabsTrigger>
               ))}
             </TabsList>
           </div>
 
           <TabsContent value="streaming" className="mt-0">
-             <div className="bg-white rounded-[2rem] border-4 border-dashed border-primary/10 p-4 md:p-8">
-                <StreamingTab />
+             <div className="bg-card rounded-[2rem] border-4 border-dashed border-primary/10 p-4 md:p-8">
+                <StreamingTab onSelectBundle={onSelectBundle} bundles={processedBundles} />
              </div>
           </TabsContent>
 
@@ -157,27 +175,35 @@ export default function BundleList({ onSelectBundle, isAgentMode = false }: Bund
                       viewport={{ once: true }}
                       transition={{ duration: 0.4, delay: index * 0.05 }}
                     >
-                      <Card className={`hover:shadow-xl transition-all border-2 rounded-[2rem] overflow-hidden group bg-white hover:border-primary`}>
-                        <CardHeader className={`${getNetworkBadgeColor(bundle.network)}/5 border-b-2 p-8`}>
+                      <Card className={`hover:shadow-xl transition-all border-2 rounded-[2rem] overflow-hidden group bg-card hover:border-primary border-border shadow-sm`}>
+                        <CardHeader className={`${getNetworkBadgeColor(bundle.network)}/5 border-b-2 border-border p-8`}>
                           <div className="flex justify-between items-start">
                             <Badge className={`${getNetworkBadgeColor(bundle.network)} font-black`}>{bundle.network}</Badge>
                             <Zap className="w-6 h-6 text-primary fill-primary animate-pulse" />
                           </div>
-                          <CardTitle className="text-4xl font-black mt-4">{bundle.dataAmount}</CardTitle>
+                          <CardTitle className="text-4xl font-black mt-4 text-foreground dark:text-white">{bundle.dataAmount}</CardTitle>
                         </CardHeader>
                         <CardContent className="p-8">
                           <div className="flex items-center justify-between mb-8">
                             <div className="flex flex-col">
-                              <span className="text-xs font-black text-slate-400 uppercase">Royal Price</span>
-                              {(bundle as any).isDiscounted && (
+                              <span className="text-xs font-black text-muted-foreground uppercase">Royal Price</span>
+                              {(!isAgentMode && !isAgentUser && (bundle as any).isDiscounted) && (
                                 <span className="text-sm font-bold text-red-500 line-through">GHS {(bundle as any).originalPrice.toFixed(2)}</span>
                               )}
-                              <span className="text-4xl font-black">GHS {bundle.price.toFixed(2)}</span>
+                              {isAgentUser && (
+                                <span className="text-sm font-bold text-red-500 line-through">GHS {(bundle as any).originalPrice.toFixed(2)}</span>
+                              )}
+                              <span className="text-4xl font-black text-foreground dark:text-white">GHS {bundle.price.toFixed(2)}</span>
+                              {isAgentUser && (
+                                <Badge variant="outline" className="mt-1.5 border-primary/30 text-primary font-black animate-pulse rounded-md text-[10px] uppercase w-fit">
+                                  👑 Agent Wholesale
+                                </Badge>
+                              )}
                             </div>
                             <Wifi className="w-10 h-10 text-primary/20 group-hover:text-primary transition-colors" />
                           </div>
                           <Button 
-                            className="w-full h-16 text-xl font-black rounded-2xl bg-secondary text-white hover:bg-primary" 
+                            className="w-full h-16 text-xl font-black rounded-2xl bg-secondary text-secondary-foreground hover:bg-primary hover:text-white transition-all shadow-lg" 
                             onClick={() => onSelectBundle(bundle)}
                           >
                             BUY NOW 👑
@@ -187,15 +213,16 @@ export default function BundleList({ onSelectBundle, isAgentMode = false }: Bund
                     </motion.div>
                   ))
                 ) : (
-                  <div className="col-span-full text-center py-24 bg-white rounded-[2rem] border-4 border-dashed border-primary/10">
-                    <Smartphone className="w-16 h-16 text-slate-200 mx-auto mb-6" />
-                    <h3 className="text-2xl font-black text-slate-900 mb-2">RESTOCKING SOON 👑</h3>
-                    <p className="text-slate-500">The King is preparing more deals for {network}.</p>
+                  <div className="col-span-full text-center py-24 bg-card rounded-[2rem] border-4 border-dashed border-primary/10">
+                    <Smartphone className="w-16 h-16 text-muted-foreground/20 mx-auto mb-6" />
+                    <h3 className="text-2xl font-black text-foreground mb-2 dark:text-white">RESTOCKING SOON 👑</h3>
+                    <p className="text-muted-foreground">The King is preparing more deals for {network}.</p>
                   </div>
                 )}
               </div>
             </TabsContent>
           ))}
+
         </Tabs>
       </div>
     </section>

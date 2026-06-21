@@ -1,4 +1,4 @@
-export type Network = 'MTN' | 'Telecel' | 'AirtelTigo';
+export type Network = 'MTN' | 'Telecel' | 'AirtelTigo' | 'FCMobile';
 
 export interface Bundle {
   id: string;
@@ -92,4 +92,42 @@ export interface WalletTransaction {
   reference: string;
   description: string;
   createdAt: any;
+}
+
+export interface Agent {
+  id: string; // matches userId
+  agent_name: string;
+  agent_slug: string;
+  momo_name: string;
+  momo_number: string;
+  profit_balance: number;
+  created_at: any;
+  prices?: { [bundleId: string]: number };
+}
+
+export interface AgentOrder {
+  id: string; // matches the main order ID or reference
+  agent_id: string;
+  customer_details: {
+    name: string;
+    email: string;
+    phone: string;
+    network: string;
+  };
+  wholesale_price: number;
+  agent_price: number;
+  profit: number;
+  status: string;
+  created_at: any;
+}
+
+export interface ProfitRequest {
+  id: string;
+  agent_id: string;
+  agent_name?: string;
+  momo_name?: string;
+  momo_number?: string;
+  withdrawal_amount: number;
+  status: 'pending' | 'Seen';
+  created_at: any;
 }

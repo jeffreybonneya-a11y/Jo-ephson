@@ -233,7 +233,7 @@
             if (!validatePhone(phone)) return alert("Invalid phone. Must be 233 + 9 digits.");
             if (!email.includes('@')) return alert("Valid email is required.");
 
-            const finalAmount = selectedOffer.price + 0.20;
+            const finalAmount = selectedOffer.price + 0.50;
 
             const handler = PaystackPop.setup({
                 key: 'pk_live_xxxx', // Use actual public key

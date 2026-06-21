@@ -3,7 +3,6 @@ import axios from 'axios';
 import crypto from 'crypto';
 import cors from 'cors';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 import admin from 'firebase-admin';
@@ -17,15 +16,19 @@ const firebaseConfig = JSON.parse(readFileSync(path.join(process.cwd(), 'firebas
 
 // Initialize Firebase Admin
 if (!admin.apps.length) {
-    admin.initializeApp({
-        credential: admin.credential.applicationDefault(),
-        projectId: firebaseConfig.projectId,
-    });
+    try {
+        admin.initializeApp({
+            credential: admin.credential.applicationDefault(),
+            projectId: firebaseConfig.projectId,
+        });
+    } catch (e) {
+        console.warn('Failed to initialize with applicationDefault, falling back to default initializeApp:', e);
+        admin.initializeApp();
+    }
 }
 const db = getFirestore(firebaseConfig.firestoreDatabaseId);
 
 const app = express();
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function verifyPaystackReference(reference: string) {
     const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
@@ -74,6 +77,7 @@ async function handlePaymentVerification(reference: string, metadata: any) {
           streamType: meta.streamType || null,
           streamStatus: streamStatus,
           status: isStream ? 'delivered' : 'pending',
+          recipientUsername: meta.recipientUsername || null,
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           metadata: meta
       };

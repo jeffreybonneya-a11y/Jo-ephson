@@ -11,13 +11,14 @@ import { Bundle } from './types';
 import { Toaster, toast } from 'sonner';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { MessageSquare, Zap, Loader2 } from 'lucide-react';
+import { doc, onSnapshot, query, collection, where } from 'firebase/firestore';
+import { MessageSquare, Zap, Loader2, Crown } from 'lucide-react';
 import { motion } from 'motion/react';
 import MyOrders from './components/MyOrders';
 import { UserProfile } from './types';
-
 import AgentStore from './components/AgentStore';
+import ThemeCustomizer from './components/ThemeCustomizer';
+import { useTheme } from './hooks/useTheme';
 
 export default function App() {
   const [selectedBundle, setSelectedBundle] = useState<Bundle | null>(null);
@@ -29,6 +30,14 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [announcement, setAnnouncement] = useState<{text: string, active: boolean, type: string} | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+
+  // Agent store context
+  const [agentContext, setAgentContext] = useState<any>(null);
+  const [isAgentStoreView, setIsAgentStoreView] = useState(false);
+  const [hasRegisteredAgent, setHasRegisteredAgent] = useState(false);
+
+  // Theme management
+  const { settings } = useTheme();
 
   useEffect(() => {
     // 1. Check for Paystack Reference in URL
@@ -65,6 +74,7 @@ export default function App() {
     }
 
     let profileUnsubscribe: (() => void) | undefined;
+    let agentUnsubscribe: (() => void) | undefined;
 
     // Fetch announcement
     const unsubAnnouncement = onSnapshot(doc(db, 'settings', 'announcement'), (snapshot) => {
@@ -84,6 +94,10 @@ export default function App() {
         profileUnsubscribe();
         profileUnsubscribe = undefined;
       }
+      if (agentUnsubscribe) {
+        agentUnsubscribe();
+        agentUnsubscribe = undefined;
+      }
 
       if (user) {
         // Real-time profile listener
@@ -95,9 +109,18 @@ export default function App() {
             setIsAdmin(isEmailAdmin);
           }
         });
+
+        // Real-time agent listener
+        agentUnsubscribe = onSnapshot(doc(db, 'agents', user.uid), (docSnapshot) => {
+          setHasRegisteredAgent(docSnapshot.exists());
+        }, (error) => {
+          // Fallback handle Firestore error according to skill
+          console.error("Agent listener error: ", error);
+        });
       } else {
         setProfile(null);
         setIsAdmin(false);
+        setHasRegisteredAgent(false);
       }
     });
 
@@ -105,7 +128,30 @@ export default function App() {
       authUnsubscribe();
       unsubAnnouncement();
       if (profileUnsubscribe) profileUnsubscribe();
+      if (agentUnsubscribe) agentUnsubscribe();
     };
+  }, []);
+
+  // Separate effect for Agent Store check
+  useEffect(() => {
+    const path = window.location.pathname;
+    const match = path.match(/^\/store\/([a-zA-Z0-9_\-]+)$/);
+    const searchParams = new URLSearchParams(window.location.search);
+    const slug = match ? match[1] : searchParams.get('agent');
+
+    if (slug) {
+      setIsAgentStoreView(true);
+      const q = query(collection(db, 'agents'), where('agent_slug', '==', slug));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        if (!snapshot.empty) {
+          const docSnap = snapshot.docs[0];
+          setAgentContext({ id: docSnap.id, ...docSnap.data() });
+        } else {
+          setAgentContext(null);
+        }
+      });
+      return () => unsubscribe();
+    }
   }, []);
 
   const handleSelectBundle = (bundle: Bundle) => {
@@ -145,6 +191,7 @@ export default function App() {
         user={user}
         profile={profile}
         isAuthLoading={isAuthLoading}
+        agentContext={agentContext}
       />
       
       <main>
@@ -158,6 +205,29 @@ export default function App() {
              </div>
              <p className="text-slate-500 font-black text-xs tracking-[0.2em] animate-pulse">VERIFYING ROYALTY...👑</p>
           </div>
+        ) : isAgentStoreView ? (
+          agentContext ? (
+            <div className="min-h-screen">
+              <div className="pt-24 pb-12 text-center bg-gradient-to-b from-primary/5 to-transparent">
+                <div className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-slate-900 text-white text-xs font-black uppercase tracking-widest mb-6 shadow-lg">
+                  <Crown className="w-4 h-4 text-primary" />
+                  VERIFIED ROYAL AGENT
+                </div>
+                <h1 className="text-4xl md:text-6xl font-black mb-4 dark:text-white uppercase tracking-tight">
+                  {agentContext.agent_name.toUpperCase()}'S DEALS 👑
+                </h1>
+                <p className="text-slate-500 font-bold max-w-xl mx-auto text-base md:text-lg">
+                  Welcome to my store! Tap any bundle below to purchase with instant auto-delivery.
+                </p>
+              </div>
+              <BundleList onSelectBundle={handleSelectBundle} agentContext={agentContext} />
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center min-h-[70vh] gap-4">
+              <Loader2 className="w-12 h-12 text-primary animate-spin" />
+              <p className="text-slate-500 font-black text-xs tracking-[0.2em] animate-pulse">LOADING AGENT STORE...👑</p>
+            </div>
+          )
         ) : isAdminView && isAdmin ? (
           <AdminDashboard />
         ) : isHistoryView && user ? (
@@ -168,7 +238,7 @@ export default function App() {
           <>
             <Hero />
             <HowItWorks />
-            <BundleList onSelectBundle={handleSelectBundle} />
+            <BundleList onSelectBundle={handleSelectBundle} isAgentUser={hasRegisteredAgent} />
           </>
         )}
       </main>
@@ -177,48 +247,71 @@ export default function App() {
         bundle={selectedBundle} 
         onClose={() => setSelectedBundle(null)} 
         profile={profile}
+        agentContext={agentContext}
       />
       
       <Footer />
+      <ThemeCustomizer />
 
       {/* Movable WhatsApp Buttons */}
-      <div className="fixed bottom-24 right-6 z-50 flex flex-col gap-4 pointer-events-none">
-        
-        <motion.a 
-          drag
-          dragConstraints={{ left: -300, right: 0, top: -600, bottom: 0 }}
-          dragElastic={0.1}
-          dragMomentum={false}
-          href="https://wa.me/233535884851" 
-          target="_blank" 
-          rel="noreferrer"
-          className="pointer-events-auto flex items-center gap-3 bg-[#25D366] text-white px-4 md:px-6 py-3 md:py-4 rounded-full shadow-[0_10px_40px_rgba(37,211,102,0.4)] hover:scale-110 transition-all group active:scale-95 cursor-move"
-          style={{ touchAction: 'none' }}
-        >
-          <div className="relative">
-            <MessageSquare className="w-6 h-6 md:w-8 md:h-8" />
-            <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-ping" />
-          </div>
-          <span className="font-black text-sm md:text-lg">CHAT WITH KING J 👑</span>
-        </motion.a>
+      <div className="fixed bottom-48 md:bottom-24 right-6 z-50 flex flex-col gap-4 pointer-events-none">
+        {agentContext ? (
+          <motion.a 
+            drag
+            dragConstraints={{ left: -300, right: 0, top: -600, bottom: 0 }}
+            dragElastic={0.1}
+            dragMomentum={false}
+            href={`https://wa.me/233${agentContext.momo_number ? agentContext.momo_number.trim().replace(/^0/, '') : ''}?text=${encodeURIComponent(`Hello, I'm visiting your store on King J Deals! 👑`)}`} 
+            target="_blank" 
+            rel="noreferrer"
+            className="pointer-events-auto flex items-center gap-3 bg-[#25D366] text-white px-4 md:px-6 py-3 md:py-4 rounded-full shadow-[0_10px_40px_rgba(37,211,102,0.4)] hover:scale-110 transition-all group active:scale-95 cursor-move uppercase"
+            style={{ touchAction: 'none' }}
+          >
+            <div className="relative">
+              <MessageSquare className="w-6 h-6 md:w-8 md:h-8" />
+              <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-ping" />
+            </div>
+            <span className="font-black text-sm md:text-lg">CHAT WITH {agentContext.agent_name || 'AGENT'} 👑</span>
+          </motion.a>
+        ) : (
+          <>
+            <motion.a 
+              drag
+              dragConstraints={{ left: -300, right: 0, top: -600, bottom: 0 }}
+              dragElastic={0.1}
+              dragMomentum={false}
+              href="https://wa.me/233535884851" 
+              target="_blank" 
+              rel="noreferrer"
+              className="pointer-events-auto flex items-center gap-3 bg-[#25D366] text-white px-4 md:px-6 py-3 md:py-4 rounded-full shadow-[0_10px_40px_rgba(37,211,102,0.4)] hover:scale-110 transition-all group active:scale-95 cursor-move"
+              style={{ touchAction: 'none' }}
+            >
+              <div className="relative">
+                <MessageSquare className="w-6 h-6 md:w-8 md:h-8" />
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-ping" />
+              </div>
+              <span className="font-black text-sm md:text-lg">CHAT WITH KING J 👑</span>
+            </motion.a>
 
-        <motion.a 
-          drag
-          dragConstraints={{ left: -300, right: 0, top: -600, bottom: 0 }}
-          dragElastic={0.1}
-          dragMomentum={false}
-          href="https://wa.me/233541557530" 
-          target="_blank" 
-          rel="noreferrer"
-          className="pointer-events-auto flex items-center gap-3 bg-[#25D366] text-white px-4 md:px-6 py-3 md:py-4 rounded-full shadow-[0_10px_40px_rgba(37,211,102,0.4)] hover:scale-110 transition-all group active:scale-95 cursor-move"
-          style={{ touchAction: 'none' }}
-        >
-          <div className="relative">
-            <MessageSquare className="w-6 h-6 md:w-8 md:h-8" />
-            <span className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-white animate-ping" />
-          </div>
-          <span className="font-black text-sm md:text-lg">CHAT WITH YHAW 👑</span>
-        </motion.a>
+            <motion.a 
+              drag
+              dragConstraints={{ left: -300, right: 0, top: -600, bottom: 0 }}
+              dragElastic={0.1}
+              dragMomentum={false}
+              href="https://wa.me/233541557530" 
+              target="_blank" 
+              rel="noreferrer"
+              className="pointer-events-auto flex items-center gap-3 bg-[#25D366] text-white px-4 md:px-6 py-3 md:py-4 rounded-full shadow-[0_10px_40px_rgba(37,211,102,0.4)] hover:scale-110 transition-all group active:scale-95 cursor-move"
+              style={{ touchAction: 'none' }}
+            >
+              <div className="relative">
+                <MessageSquare className="w-6 h-6 md:w-8 md:h-8" />
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-white animate-ping" />
+              </div>
+              <span className="font-black text-sm md:text-lg">CHAT WITH YHAW 👑</span>
+            </motion.a>
+          </>
+        )}
       </div>
     </div>
   );

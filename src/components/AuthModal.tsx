@@ -75,7 +75,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[450px] p-0 overflow-hidden border-none bg-slate-50">
+      <DialogContent className="sm:max-w-[450px] p-0 overflow-hidden border-none bg-white dark:bg-slate-950">
         <div className="bg-secondary p-8 text-white relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/20 blur-3xl rounded-full translate-x-1/2 -translate-y-1/2" />
           <DialogHeader className="relative z-10">
@@ -109,12 +109,12 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
           <div className="space-y-6">
             <div className="text-center space-y-2">
-              <h3 className="text-xl font-black text-slate-900">SIGN IN TO CONTINUE 👑</h3>
-              <p className="text-sm text-slate-500">We use Google for a secure and instant login experience. No passwords required!</p>
+              <h3 className="text-xl font-black text-slate-900 dark:text-white">SIGN IN TO CONTINUE 👑</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">We use Google for a secure and instant login experience. No passwords required!</p>
             </div>
 
             <Button 
-              className="w-full h-16 font-black text-xl bg-white text-slate-900 border-2 border-slate-200 hover:bg-slate-50 rounded-2xl shadow-sm transition-all active:scale-95 flex items-center justify-center gap-4" 
+              className="w-full h-16 font-black text-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white border-2 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-2xl shadow-sm transition-all active:scale-95 flex items-center justify-center gap-4" 
               onClick={handleGoogleLogin} 
               disabled={isLoading}
             >
@@ -128,9 +128,9 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
               )}
             </Button>
 
-            <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex items-start gap-3">
-              <ShieldCheck className="w-5 h-5 text-amber-600 mt-0.5" />
-              <p className="text-xs text-amber-800 leading-relaxed">
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/30 p-4 rounded-xl flex items-start gap-3">
+              <ShieldCheck className="w-5 h-5 text-amber-600 dark:text-amber-500 mt-0.5" />
+              <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
                 Your data is safe with us. We only use your Google account to verify your identity and manage your royal wallet.
               </p>
             </div>

@@ -19,6 +19,7 @@ interface NavbarProps {
   user: any;
   profile: UserProfile | null;
   isAuthLoading?: boolean;
+  agentContext?: any;
 }
 
 export default function Navbar({ 
@@ -31,7 +32,8 @@ export default function Navbar({
   isAdmin,
   user,
   profile,
-  isAuthLoading
+  isAuthLoading,
+  agentContext = null
 }: NavbarProps) {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
@@ -47,24 +49,37 @@ export default function Navbar({
     if (user && isAdmin) {
       let messagesCount = 0;
       let ordersCount = 0;
+      let profitRequestsCount = 0;
+
+      const updateCount = () => {
+        setUnreadCount(messagesCount + ordersCount + profitRequestsCount);
+      };
 
       // Listen for open complaints (support messages)
       const qMessages = query(collection(db, 'complaints'), where('status', '==', 'open'));
       const unsubMessages = onSnapshot(qMessages, (snapshot) => {
         messagesCount = snapshot.size;
-        setUnreadCount(messagesCount + ordersCount);
+        updateCount();
       });
 
       // Listen for pending orders
       const qOrders = query(collection(db, 'orders'), where('status', '==', 'pending'));
       const unsubOrders = onSnapshot(qOrders, (snapshot) => {
         ordersCount = snapshot.size;
-        setUnreadCount(messagesCount + ordersCount);
+        updateCount();
+      });
+
+      // Listen for pending agent profit / withdrawal requests
+      const qProfitRequests = query(collection(db, 'profit_requests'), where('status', '==', 'pending'));
+      const unsubProfitRequests = onSnapshot(qProfitRequests, (snapshot) => {
+        profitRequestsCount = snapshot.size;
+        updateCount();
       });
 
       return () => {
         unsubMessages();
         unsubOrders();
+        unsubProfitRequests();
       };
     } else {
       setUnreadCount(0);
@@ -92,56 +107,60 @@ export default function Navbar({
           <div className="flex h-16 md:h-20 items-center justify-between">
             <div 
               className="flex items-center font-black text-xl md:text-2xl tracking-tighter cursor-pointer group shrink-0" 
-              onClick={() => { onAdminView(false); onHistoryView(false); onStreamView(false); }}
+              onClick={() => { if (!agentContext) { onAdminView(false); onHistoryView(false); onStreamView(false); } }}
             >
               <div className="relative flex items-center">
                 <Crown className="w-5 h-5 md:w-6 md:h-6 text-primary absolute -top-4 -left-3 -rotate-12 drop-shadow-md group-hover:scale-125 transition-transform z-10" />
-                <span className="bg-primary text-secondary px-3 py-1 rounded-xl shadow-lg">KING J DEALS</span>
+                <span className="bg-primary text-secondary px-3 py-1 rounded-xl shadow-lg">
+                  {agentContext ? `${agentContext.agent_name.toUpperCase()} STORE` : "KING J DEALS"}
+                </span>
                 <span className="text-primary drop-shadow-sm ml-2 text-xl md:text-2xl">👑</span>
               </div>
             </div>
 
             {/* Desktop Navigation Tabs */}
-            <div className="hidden md:flex items-center gap-1 bg-slate-100/50 p-1.5 rounded-2xl border border-slate-200/60">
-               <button 
-                onClick={() => { onAdminView(false); onHistoryView(false); onStreamView(false); }}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs transition-all ${!isAdminView && !isHistoryView && !isStreamView ? 'bg-primary text-secondary shadow-md scale-105' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/50'}`}
-               >
-                 <Home className="w-4 h-4" />
-                 HOME
-               </button>
-               <button 
-                onClick={() => user ? onStreamView(!isStreamView) : openAuth()}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs transition-all ${isStreamView ? 'bg-primary text-secondary shadow-md scale-105' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/50'}`}
-               >
-                 <Crown className="w-4 h-4" />
-                 AGENT STORE
-               </button>
-               <button 
-                onClick={() => user ? onHistoryView(!isHistoryView) : openAuth()}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs transition-all ${isHistoryView ? 'bg-primary text-secondary shadow-md scale-105' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/50'}`}
-               >
-                 <History className="w-4 h-4" />
-                 HISTORY
-               </button>
-               <button 
-                onClick={() => user ? setIsSupportOpen(true) : openAuth()}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs text-slate-500 hover:text-slate-900 hover:bg-slate-200/50 transition-all"
-               >
-                 <MessageCircle className="w-4 h-4" />
-                 SUPPORT
-               </button>
-            </div>
+            {!agentContext && (
+              <div className="hidden md:flex items-center gap-1 bg-slate-100/50 dark:bg-slate-800/50 p-1.5 rounded-2xl border border-slate-200/60 dark:border-slate-700/60">
+                 <button 
+                  onClick={() => { onAdminView(false); onHistoryView(false); onStreamView(false); }}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs transition-all ${!isAdminView && !isHistoryView && !isStreamView ? 'bg-primary text-secondary shadow-md scale-105' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-700/50'}`}
+                 >
+                   <Home className="w-4 h-4" />
+                   HOME
+                 </button>
+                 <button 
+                  onClick={() => user ? onStreamView(!isStreamView) : openAuth()}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs transition-all ${isStreamView ? 'bg-primary text-secondary shadow-md scale-105' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-700/50'}`}
+                 >
+                   <Crown className="w-4 h-4" />
+                   AGENT STORE
+                 </button>
+                 <button 
+                  onClick={() => user ? onHistoryView(!isHistoryView) : openAuth()}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs transition-all ${isHistoryView ? 'bg-primary text-secondary shadow-md scale-105' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-700/50'}`}
+                 >
+                   <History className="w-4 h-4" />
+                   HISTORY
+                 </button>
+                 <button 
+                  onClick={() => user ? setIsSupportOpen(true) : openAuth()}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-700/50 transition-all"
+                 >
+                   <MessageCircle className="w-4 h-4" />
+                   SUPPORT
+                 </button>
+              </div>
+            )}
 
             <div className="flex items-center gap-2 shrink-0">
                {user && profile && (
-                <div className="hidden lg:flex items-center gap-2 bg-slate-100 px-4 py-2 rounded-xl border border-slate-200">
+                <div className="hidden lg:flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700">
                   <User className="w-4 h-4 text-primary" />
-                  <span className="text-xs font-black text-slate-800 lowercase opacity-80">{profile.fullName}</span>
+                  <span className="text-xs font-black text-slate-800 dark:text-slate-200 lowercase opacity-80">{profile.fullName}</span>
                 </div>
               )}
 
-              {isAdmin && (
+              {isAdmin && !agentContext && (
                 <Button 
                   variant={isAdminView ? "default" : "ghost"} 
                   size="sm" 
@@ -175,83 +194,85 @@ export default function Navbar({
       </nav>
 
       {/* Mobile Bottom Navigation - Dynamic 4 or 5 Tabs */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-lg border-t border-slate-200 pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.06)] h-20">
-        <div className={`grid ${isAdmin ? 'grid-cols-5' : 'grid-cols-4'} h-full px-2`}>
-          <button 
-            className={`flex flex-col items-center justify-center gap-1 transition-all active:scale-95 ${!isAdminView && !isHistoryView && !isStreamView ? 'text-primary' : 'text-slate-400'}`}
-            onClick={() => { 
-              onAdminView(false); 
-              onHistoryView(false); 
-              onStreamView(false);
-              setTimeout(() => {
-                document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' });
-              }, 100);
-            }}
-          >
-            <Home className={`w-5 h-5 ${!isAdminView && !isHistoryView && !isStreamView ? 'stroke-[3px]' : 'stroke-2'}`} />
-            <span className="text-[9px] font-black uppercase tracking-tight">Home</span>
-          </button>
-
-          <button 
-            className={`flex flex-col items-center justify-center gap-1 transition-all active:scale-95 ${isStreamView ? 'text-primary' : 'text-slate-400'}`}
-            onClick={() => { 
-              if (user) {
-                onStreamView(!isStreamView); 
-              } else {
-                openAuth();
-              }
-            }}
-          >
-            <Crown className={`w-5 h-5 ${isStreamView ? 'stroke-[3px]' : 'stroke-2'}`} />
-            <span className="text-[9px] font-black uppercase tracking-tight">Agent Store</span>
-          </button>
-
-          <button 
-            className={`flex flex-col items-center justify-center gap-1 transition-all active:scale-95 ${isHistoryView ? 'text-primary' : 'text-slate-400'}`}
-            onClick={() => { 
-              if (user) {
-                onHistoryView(!isHistoryView); 
-              } else {
-                openAuth();
-              }
-            }}
-          >
-            <History className={`w-5 h-5 ${isHistoryView ? 'stroke-[3px]' : 'stroke-2'}`} />
-            <span className="text-[9px] font-black uppercase tracking-tight">History</span>
-          </button>
-
-          {isAdmin && (
+      {!agentContext && (
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/95 dark:bg-slate-900/95 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.06)] h-20">
+          <div className={`grid ${isAdmin ? 'grid-cols-5' : 'grid-cols-4'} h-full px-2`}>
             <button 
-              className={`flex flex-col items-center justify-center gap-1 transition-all active:scale-95 relative ${isAdminView ? 'text-primary' : 'text-slate-400'}`}
-              onClick={() => {
-                onAdminView(!isAdminView);
+              className={`flex flex-col items-center justify-center gap-1 transition-all active:scale-95 ${!isAdminView && !isHistoryView && !isStreamView ? 'text-primary' : 'text-slate-400 dark:text-slate-500'}`}
+              onClick={() => { 
+                onAdminView(false); 
+                onHistoryView(false); 
+                onStreamView(false);
+                setTimeout(() => {
+                  document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' });
+                }, 100);
               }}
             >
-              <LayoutDashboard className={`w-5 h-5 ${isAdminView ? 'stroke-[3px]' : 'stroke-2'}`} />
-              <span className="text-[9px] font-black uppercase tracking-tight">Admin</span>
-              {unreadCount > 0 && (
-                <span className="absolute top-3 right-5 h-4 w-4 bg-red-600 rounded-full border-2 border-white flex items-center justify-center text-[8px] text-white font-black shadow-lg">
-                  {unreadCount}
-                </span>
-              )}
+              <Home className={`w-5 h-5 ${!isAdminView && !isHistoryView && !isStreamView ? 'stroke-[3px]' : 'stroke-2'}`} />
+              <span className="text-[9px] font-black uppercase tracking-tight">Home</span>
             </button>
-          )}
 
-          <button 
-            className="flex flex-col items-center justify-center gap-1 text-slate-400 transition-all active:scale-95"
-            onClick={() => {
-              if (user) {
-                setIsSupportOpen(true);
-              } else {
-                openAuth();
-              }
-            }}
-          >
-            <HeadphonesIcon className="w-5 h-5 stroke-2" />
-            <span className="text-[9px] font-black uppercase tracking-tight">Support</span>
-          </button>
+            <button 
+              className={`flex flex-col items-center justify-center gap-1 transition-all active:scale-95 ${isStreamView ? 'text-primary' : 'text-slate-400 dark:text-slate-500'}`}
+              onClick={() => { 
+                if (user) {
+                  onStreamView(!isStreamView); 
+                } else {
+                  openAuth();
+                }
+              }}
+            >
+              <Crown className={`w-5 h-5 ${isStreamView ? 'stroke-[3px]' : 'stroke-2'}`} />
+              <span className="text-[9px] font-black uppercase tracking-tight">Agent Store</span>
+            </button>
+
+            <button 
+              className={`flex flex-col items-center justify-center gap-1 transition-all active:scale-95 ${isHistoryView ? 'text-primary' : 'text-slate-400 dark:text-slate-500'}`}
+              onClick={() => { 
+                if (user) {
+                  onHistoryView(!isHistoryView); 
+                } else {
+                  openAuth();
+                }
+              }}
+            >
+              <History className={`w-5 h-5 ${isHistoryView ? 'stroke-[3px]' : 'stroke-2'}`} />
+              <span className="text-[9px] font-black uppercase tracking-tight">History</span>
+            </button>
+
+            {isAdmin && (
+              <button 
+                className={`flex flex-col items-center justify-center gap-1 transition-all active:scale-95 relative ${isAdminView ? 'text-primary' : 'text-slate-400 dark:text-slate-500'}`}
+                onClick={() => {
+                  onAdminView(!isAdminView);
+                }}
+              >
+                <LayoutDashboard className={`w-5 h-5 ${isAdminView ? 'stroke-[3px]' : 'stroke-2'}`} />
+                <span className="text-[9px] font-black uppercase tracking-tight">Admin</span>
+                {unreadCount > 0 && (
+                  <span className="absolute top-3 right-5 h-4 w-4 bg-red-600 rounded-full border-2 border-white flex items-center justify-center text-[8px] text-white font-black shadow-lg">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+            )}
+
+            <button 
+              className="flex flex-col items-center justify-center gap-1 text-slate-400 dark:text-slate-500 transition-all active:scale-95"
+              onClick={() => {
+                if (user) {
+                  setIsSupportOpen(true);
+                } else {
+                  openAuth();
+                }
+              }}
+            >
+              <HeadphonesIcon className="w-5 h-5 stroke-2" />
+              <span className="text-[9px] font-black uppercase tracking-tight">Support</span>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
       <AuthModal 
         isOpen={isAuthModalOpen} 
         onClose={() => setIsAuthModalOpen(false)} 
@@ -261,6 +282,7 @@ export default function Navbar({
           isOpen={isSupportOpen} 
           onClose={() => setIsSupportOpen(false)} 
           profile={profile}
+          agentContext={agentContext}
         />
       )}
     </>

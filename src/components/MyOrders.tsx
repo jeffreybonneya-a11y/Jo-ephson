@@ -66,11 +66,11 @@ export default function MyOrders() {
       >
         <div className="flex items-center justify-between mb-8 text-center md:text-left flex-col md:flex-row gap-4">
           <div>
-            <h1 className="text-3xl font-black tracking-tighter text-slate-900 flex items-center gap-3">
+            <h1 className="text-3xl font-black tracking-tighter text-slate-900 dark:text-white flex items-center gap-3">
               <Package className="w-8 h-8 text-primary" />
               MY ROYAL ORDERS 👑
             </h1>
-            <p className="text-slate-500 font-medium">Tracking your data bundle purchases</p>
+            <p className="text-slate-500 dark:text-slate-400 font-medium">Tracking your data bundle purchases</p>
           </div>
           <Badge variant="outline" className="border-2 border-primary/20 text-primary font-black px-4 py-1.5 rounded-xl">
             {orders.length} TOTAL
@@ -78,12 +78,12 @@ export default function MyOrders() {
         </div>
 
         {orders.length === 0 ? (
-          <Card className="rounded-[2.5rem] border-4 border-dashed border-slate-200 bg-slate-50 p-12 text-center">
-            <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
-              <Package className="w-10 h-10 text-slate-300" />
+          <Card className="rounded-[2.5rem] border-4 border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-12 text-center">
+            <div className="w-20 h-20 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
+              <Package className="w-10 h-10 text-slate-300 dark:text-slate-600" />
             </div>
-            <h2 className="text-xl font-black text-slate-900 mb-2">NO ORDERS YET 👑</h2>
-            <p className="text-slate-500 max-w-xs mx-auto mb-8 font-medium">
+            <h2 className="text-xl font-black text-slate-900 dark:text-white mb-2">NO ORDERS YET 👑</h2>
+            <p className="text-slate-500 dark:text-slate-400 max-w-xs mx-auto mb-8 font-medium">
               You haven't placed any orders. Start saving on data today!
             </p>
             <Button 
@@ -102,17 +102,17 @@ export default function MyOrders() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: idx * 0.05 }}
               >
-                <Card className="rounded-3xl border-2 border-slate-100 hover:border-primary/30 transition-all hover:shadow-xl group overflow-hidden bg-white">
+                <Card className="rounded-3xl border-2 border-slate-100 dark:border-slate-800 hover:border-primary/30 transition-all hover:shadow-xl group overflow-hidden bg-white dark:bg-slate-950">
                   <div className="p-5 md:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-start gap-4">
                       <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shrink-0 group-hover:bg-primary group-hover:text-secondary transition-colors">
                         <Tag className="w-6 h-6" />
                       </div>
                       <div>
-                        <h3 className="font-black text-slate-900 text-lg uppercase tracking-tight">
+                        <h3 className="font-black text-slate-900 dark:text-white text-lg uppercase tracking-tight">
                           {order.bundle}
                         </h3>
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-slate-500 text-xs font-semibold">
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-slate-500 dark:text-slate-400 text-xs font-semibold">
                           <span className="flex items-center gap-1">
                             <Calendar className="w-3.5 h-3.5" />
                             {order.createdAt?.toDate ? new Date(order.createdAt.toDate()).toLocaleDateString('en-GB') : 'Recent'}
@@ -125,7 +125,7 @@ export default function MyOrders() {
                       </div>
                     </div>
 
-                    <div className="flex flex-col items-end gap-2 border-t md:border-t-0 pt-4 md:pt-0">
+                    <div className="flex flex-col items-end gap-2 border-t md:border-t-0 dark:border-slate-800 pt-4 md:pt-0">
                       <p className="text-xl font-black text-primary">GHS {Number(order.amount).toFixed(2)}</p>
                       <div className="flex items-center gap-2">
                         <Badge 
@@ -141,7 +141,7 @@ export default function MyOrders() {
                         <Button 
                           size="sm" 
                           variant="ghost" 
-                          className="h-6 px-2 text-[10px] font-black uppercase text-red-500 hover:text-red-600 hover:bg-red-50"
+                          className="h-6 px-2 text-[10px] font-black uppercase text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
                           onClick={() => handleReportAdmin(order)}
                         >
                           <AlertTriangle className="w-3 h-3 mr-1" />

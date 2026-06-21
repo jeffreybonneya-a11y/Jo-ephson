@@ -47,7 +47,7 @@ export default function Footer() {
         </div>
         
         <div className="pt-8 border-t border-slate-900 text-center text-xs">
-          <p>&copy; {new Date().getFullYear()} King J Deals. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} King 👑 J Deals. All rights reserved.</p>
         </div>
       </div>
     </footer>

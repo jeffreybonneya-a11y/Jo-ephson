@@ -22,9 +22,10 @@ interface SupportModalProps {
   isOpen: boolean;
   onClose: () => void;
   profile: UserProfile | null;
+  agentContext?: any;
 }
 
-export default function SupportModal({ isOpen, onClose, profile }: SupportModalProps) {
+export default function SupportModal({ isOpen, onClose, profile, agentContext }: SupportModalProps) {
   const [isLoading, setIsLoading] = useState(false);
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<z.infer<typeof messageSchema>>({
@@ -56,7 +57,7 @@ export default function SupportModal({ isOpen, onClose, profile }: SupportModalP
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden border-none bg-slate-50">
+      <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden border-none bg-white dark:bg-slate-950">
         <div className="bg-secondary p-8 text-white relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/20 blur-3xl rounded-full translate-x-1/2 -translate-y-1/2" />
           <DialogHeader className="relative z-10">
@@ -77,22 +78,22 @@ export default function SupportModal({ isOpen, onClose, profile }: SupportModalP
         <form onSubmit={handleSubmit(onSubmit)} className="p-8 space-y-6">
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="subject" className="text-slate-700 font-bold">Subject</Label>
+              <Label htmlFor="subject" className="text-slate-700 dark:text-slate-300 font-bold">Subject</Label>
               <Input 
                 id="subject"
                 placeholder="What can we help you with?"
-                className="h-12 border-slate-200 focus:border-primary rounded-xl"
+                className="h-12 border-slate-200 dark:border-slate-800 focus:border-primary rounded-xl dark:bg-slate-900 dark:text-white"
                 {...register('subject')}
               />
               {errors.subject && <p className="text-xs text-red-500 font-medium">{errors.subject.message}</p>}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="message" className="text-slate-700 font-bold">Your Message</Label>
+              <Label htmlFor="message" className="text-slate-700 dark:text-slate-300 font-bold">Your Message</Label>
               <Textarea 
                 id="message"
                 placeholder="Tell King J your concerns..."
-                className="min-h-[150px] border-slate-200 focus:border-primary rounded-xl resize-none"
+                className="min-h-[150px] border-slate-200 dark:border-slate-800 focus:border-primary rounded-xl resize-none dark:bg-slate-900 dark:text-white"
                 {...register('message')}
               />
               {errors.message && <p className="text-xs text-red-500 font-medium">{errors.message.message}</p>}
@@ -125,15 +126,28 @@ export default function SupportModal({ isOpen, onClose, profile }: SupportModalP
             </Button>
           </div>
 
-          <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex items-start gap-3">
-            <Crown className="w-5 h-5 text-amber-600 mt-0.5" />
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/30 p-4 rounded-xl flex items-start gap-3">
+            <Crown className="w-5 h-5 text-amber-600 dark:text-amber-500 mt-0.5" />
             <div className="space-y-2">
-              <p className="text-xs text-amber-800 leading-relaxed font-bold">
+              <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed font-bold">
                 Your messages are handled with royal priority. Reach us instantly via WhatsApp for faster response:
               </p>
               <div className="flex flex-col gap-1">
-                <a href="https://wa.me/233535884851" target="_blank" rel="noreferrer" className="text-[10px] text-primary font-black hover:underline">👑 CHAT WITH KING J: 0535884851</a>
-                <a href="https://wa.me/233541557530" target="_blank" rel="noreferrer" className="text-[10px] text-primary font-black hover:underline">👑 CHAT WITH YHAW: 0541557530</a>
+                {agentContext ? (
+                  <a 
+                    href={`https://wa.me/233${agentContext.momo_number ? agentContext.momo_number.trim().replace(/^0/, '') : ''}`} 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="text-[10px] text-primary font-black hover:underline"
+                  >
+                    👑 CHAT WITH {agentContext.agent_name ? agentContext.agent_name.toUpperCase() : 'AGENT'}: {agentContext.momo_number || ''}
+                  </a>
+                ) : (
+                  <>
+                    <a href="https://wa.me/233535884851" target="_blank" rel="noreferrer" className="text-[10px] text-primary font-black hover:underline">👑 CHAT WITH KING J: 0535884851</a>
+                    <a href="https://wa.me/233541557530" target="_blank" rel="noreferrer" className="text-[10px] text-primary font-black hover:underline">👑 CHAT WITH YHAW: 0541557530</a>
+                  </>
+                )}
               </div>
             </div>
           </div>
