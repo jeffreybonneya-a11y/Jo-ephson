@@ -341,6 +341,8 @@ export default function AdminDashboard() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
+      case 'unpaid': return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 font-bold dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/50">UNPAID</Badge>;
+      case 'paid': return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 font-bold dark:bg-green-900/20 dark:text-green-400 dark:border-green-900/50">PAID</Badge>;
       case 'pending': return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-900/50">PENDING</Badge>;
       case 'approved': return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 font-black dark:bg-green-900/20 dark:text-green-400 dark:border-green-900/50">APPROVED</Badge>;
       case 'processing': return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 font-black animate-pulse dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-900/50">PROCESSING</Badge>;

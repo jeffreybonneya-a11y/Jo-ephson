@@ -90,6 +90,17 @@ async function handlePaymentVerification(reference: string, metadata: any) {
           if (preOrderSnap.exists) {
               await preOrderRef.update(orderUpdate);
               console.log(`[Firestore] Pre-order updated: ${internalOrderId}`);
+              
+              // Update agent_orders if it exists
+              const agentOrderRef = db.collection('agent_orders').doc(internalOrderId);
+              const agentOrderSnap = await agentOrderRef.get();
+              if (agentOrderSnap.exists) {
+                  await agentOrderRef.update({
+                      status: "pending",
+                      paymentReference: reference,
+                      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                  });
+              }
           } else {
               await orderRef.set({ ...orderUpdate, status: "pending", createdAt: admin.firestore.FieldValue.serverTimestamp() });
           }

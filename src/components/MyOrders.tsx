@@ -131,12 +131,12 @@ export default function MyOrders() {
                         <Badge 
                           className={`
                             font-black text-[10px] uppercase px-3 py-0.5 rounded-lg
-                            ${order.status === 'delivered' ? 'bg-green-100 text-green-700' : 
+                            ${(order.status === 'delivered' || order.status === 'paid') ? 'bg-green-100 text-green-700' : 
                               order.status === 'processing' ? 'bg-blue-100 text-blue-700 animate-pulse' : 
-                              order.status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}
+                              (order.status === 'failed' || order.status === 'unpaid') ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}
                           `}
                         >
-                          {order.status}
+                          {order.status === 'unpaid' ? 'UNPAID' : order.status === 'pending' ? 'PENDING' : order.status}
                         </Badge>
                         <Button 
                           size="sm" 

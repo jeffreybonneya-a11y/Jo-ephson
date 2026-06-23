@@ -46,9 +46,6 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
   const [profitRequests, setProfitRequests] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
-  const [reportingOrder, setReportingOrder] = useState<any | null>(null);
-  const [reportReason, setReportReason] = useState('');
-  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [orderSearchQuery, setOrderSearchQuery] = useState('');
 
   // Registration Form State
@@ -391,6 +388,47 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
     }
   };
 
+  const handleRedirectToKingJWhatsApp = async (order: any) => {
+    try {
+      const orderId = order.id;
+      const refCode = order.referenceCode || order.reference || 'N/A';
+      
+      const structuredMessage = `--- AGENT REPORT ---
+Agent Store: ${agent?.agent_name || 'N/A'} (Slug: ${agent?.agent_slug || 'N/A'})
+Agent Phone: ${agent?.momo_number || 'N/A'}
+Customer Name: ${order.customerName || 'N/A'}
+Customer Email: ${order.email || 'N/A'}
+Recipient Phone: ${order.phone || 'N/A'}
+Network: ${order.network || 'N/A'}
+Bundle Purchased: ${order.bundle || 'N/A'}
+Amount Paid: GHS ${order.amount || 'N/A'}
+Wholesale Price: GHS ${order.wholesalePrice || 'N/A'}
+Agent Profit: GHS ${order.profit || 'N/A'}
+Order ID: ${orderId}
+Order Status: ${order.status || 'N/A'}
+Order Date: ${order.createdAt ? new Date(order.createdAt.seconds * 1000).toLocaleString() : 'N/A'}
+Reference Code: ${refCode}
+
+*Reason customer has not received bundle:* 
+[Please type your reason here...]`;
+
+      // Update the order in firestore to set reportedToAdmin = true
+      await updateDoc(doc(db, 'orders', orderId), {
+        reportedToAdmin: true,
+        agentReportReason: 'Reported directly to King J via WhatsApp'
+      });
+
+      const phone = '233535884851';
+      const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(structuredMessage)}`;
+      window.open(whatsappUrl, '_blank');
+
+      toast.success("Redirecting to King J's WhatsApp...");
+    } catch (error: any) {
+      console.error("Report error:", error);
+      toast.error(`Reporting failed: ${error.message}`);
+    }
+  };
+
   const copyStoreLink = () => {
     if (!agent) return;
     const link = `${window.location.origin}/store/${agent.agent_slug}`;
@@ -398,62 +436,6 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
     toast.success("Store link copied successfully! Share it to start earning. 👑");
   };
 
-  const handleReportOrderIssue = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!reportingOrder || !reportReason.trim()) return;
-
-    setIsSubmittingReport(true);
-    try {
-      const orderId = reportingOrder.id;
-      const refCode = reportingOrder.referenceCode || reportingOrder.reference || 'N/A';
-      
-      const structuredMessage = `--- AGENT REPORT ---
-Agent Store: ${agent?.agent_name || 'N/A'} (Slug: ${agent?.agent_slug || 'N/A'})
-Agent Phone: ${agent?.momo_number || 'N/A'}
-Customer Name: ${reportingOrder.customerName || 'N/A'}
-Customer Email: ${reportingOrder.email || 'N/A'}
-Recipient Phone: ${reportingOrder.phone || 'N/A'}
-Network: ${reportingOrder.network || 'N/A'}
-Bundle Purchased: ${reportingOrder.bundle || 'N/A'}
-Amount Paid: GHS ${reportingOrder.amount || 'N/A'}
-Wholesale Price: GHS ${reportingOrder.wholesalePrice || 'N/A'}
-Agent Profit: GHS ${reportingOrder.profit || 'N/A'}
-Order ID: ${orderId}
-Order Status: ${reportingOrder.status || 'N/A'}
-Order Date: ${reportingOrder.createdAt ? new Date(reportingOrder.createdAt.seconds * 1000).toLocaleString() : 'N/A'}
-Reference Code: ${refCode}
-
-Reason customer has not received payment / bundle:
-${reportReason}
-`;
-
-      // Create complaint / support message
-      await addDoc(collection(db, 'complaints'), {
-        userId: auth.currentUser?.uid || 'agent',
-        userEmail: auth.currentUser?.email || 'agent@store',
-        subject: `[Agent Report] Order #${orderId.slice(-6).toUpperCase()}`,
-        message: structuredMessage,
-        orderId: orderId,
-        status: 'open',
-        createdAt: serverTimestamp()
-      });
-
-      // Update the order in firestore to set reportedToAdmin = true
-      await updateDoc(doc(db, 'orders', orderId), {
-        reportedToAdmin: true,
-        agentReportReason: reportReason
-      });
-
-      toast.success("Issue successfully reported to Royal Admin! 👑 We will investigate immediately.");
-      setReportingOrder(null);
-      setReportReason('');
-    } catch (error: any) {
-      console.error("Report error:", error);
-      toast.error(`Reporting failed: ${error.message}`);
-    } finally {
-      setIsSubmittingReport(false);
-    }
-  };
 
   // Render Section
   if (loadingAgent) {
@@ -1084,8 +1066,18 @@ ${reportReason}
                                     #{order.id.slice(-6).toUpperCase()}
                                   </span>
                                   {order.status === 'pending' && (
-                                    <span className="text-[9px] bg-yellow-100 dark:bg-yellow-950/40 text-yellow-700 dark:text-yellow-400 border border-yellow-250 px-2.5 py-0.5 rounded-full font-black uppercase shadow-xs animate-pulse">
-                                      pending
+                                    <span className="text-[9px] bg-yellow-100 dark:bg-yellow-950/40 text-yellow-700 dark:text-yellow-400 border border-yellow-250 px-2.5 py-0.5 rounded-full font-black uppercase shadow-xs flex items-center gap-1">
+                                      PENDING
+                                    </span>
+                                  )}
+                                  {order.status === 'unpaid' && (
+                                    <span className="text-[9px] bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400 border border-red-250 px-2.5 py-0.5 rounded-full font-black uppercase shadow-xs">
+                                      unpaid
+                                    </span>
+                                  )}
+                                  {order.status === 'paid' && (
+                                    <span className="text-[9px] bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-400 border border-green-250 px-2.5 py-0.5 rounded-full font-black uppercase shadow-xs">
+                                      paid
                                     </span>
                                   )}
                                   {order.status === 'processing' && (
@@ -1181,7 +1173,7 @@ ${reportReason}
                                   </div>
                                 ) : (
                                   <Button
-                                    onClick={() => setReportingOrder(order)}
+                                    onClick={() => handleRedirectToKingJWhatsApp(order)}
                                     className="h-10 text-[10px] px-4 font-black rounded-xl border-4 bg-transparent hover:bg-red-500 hover:text-white border-red-500 text-red-500 transition-all uppercase gap-1"
                                   >
                                     <AlertTriangle className="w-3.5 h-3.5" />
@@ -1259,81 +1251,7 @@ ${reportReason}
 
         </Tabs>
 
-        {reportingOrder && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
-            <Card className="max-w-md w-full bg-white dark:bg-slate-950 rounded-[2rem] border-4 border-red-500 shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-              <CardHeader className="text-center p-6 border-b dark:border-slate-800 bg-red-50/50 dark:bg-red-950/20">
-                <div className="w-12 h-12 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                  <AlertTriangle className="w-6 h-6" />
-                </div>
-                <CardTitle className="text-xl font-black text-red-600 uppercase tracking-tight">Report Undelivered Order ⚠️</CardTitle>
-                <CardDescription className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-1">
-                  Report ID: #{reportingOrder.id.slice(-6).toUpperCase()}
-                </CardDescription>
-              </CardHeader>
 
-              <form onSubmit={handleReportOrderIssue}>
-                <CardContent className="p-6 space-y-4">
-                  {/* Summary preloaded details */}
-                  <div className="bg-slate-50 dark:bg-slate-900 p-4 border border-slate-150 rounded-2xl space-y-2 text-xs">
-                    <div className="flex justify-between font-bold">
-                      <span className="text-slate-400 uppercase text-[9px]">Customer Name:</span>
-                      <span className="text-slate-800 dark:text-slate-200">{reportingOrder.customerName || 'Royal Customer'}</span>
-                    </div>
-                    <div className="flex justify-between font-bold">
-                      <span className="text-slate-400 uppercase text-[9px]">Recipient Line:</span>
-                      <span className="text-slate-800 dark:text-slate-200 font-mono">{reportingOrder.phone}</span>
-                    </div>
-                    <div className="flex justify-between font-bold">
-                      <span className="text-slate-400 uppercase text-[9px]">Data Bundle:</span>
-                      <span className="text-slate-800 dark:text-slate-200">{reportingOrder.bundle}</span>
-                    </div>
-                    <div className="flex justify-between font-bold">
-                      <span className="text-slate-400 uppercase text-[9px]">Amount Paid:</span>
-                      <span className="text-primary font-black">GHS {Number(reportingOrder.amount || 0).toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between font-bold text-[9px] text-slate-400">
-                      <span>Ref Code:</span>
-                      <span className="font-mono">{reportingOrder.referenceCode || reportingOrder.reference || 'N/A'}</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-xs font-black uppercase tracking-wider text-slate-400 font-sans">Describe the Issue (Reason for Admin claim)</Label>
-                    <textarea
-                      placeholder="e.g., Customer completed payment via MoMo on our storefront but data has still not been credited."
-                      value={reportReason}
-                      onChange={(e) => setReportReason(e.target.value)}
-                      className="w-full h-24 rounded-xl p-3 bg-slate-50 border-2 border-slate-200 dark:bg-slate-900 dark:border-slate-850 font-bold text-xs focus:ring-0 resize-none outline-none focus:border-red-400"
-                      required
-                    />
-                  </div>
-                </CardContent>
-
-                <div className="p-6 border-t dark:border-slate-800 flex gap-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setReportingOrder(null);
-                      setReportReason('');
-                    }}
-                    className="flex-1 h-12 rounded-xl font-black uppercase text-xs"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={isSubmittingReport}
-                    className="flex-1 h-12 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black uppercase text-xs gap-1.5"
-                  >
-                    {isSubmittingReport ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Send className="w-3.5 h-3.5" /> Submit Claim 👑</>}
-                  </Button>
-                </div>
-              </form>
-            </Card>
-          </div>
-        )}
 
       </div>
     </div>

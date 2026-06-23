@@ -43,6 +43,20 @@ export default function BundleList({ onSelectBundle, isAgentMode = false, isAgen
   };
 
   useEffect(() => {
+    const handleNav = () => {
+      setActiveTab('streaming');
+      setTimeout(() => {
+        const tabsElement = document.getElementById('bundle-tabs');
+        if (tabsElement) {
+          tabsElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 100);
+    };
+    window.addEventListener('NAVIGATE_TO_PC_GAMES', handleNav);
+    return () => window.removeEventListener('NAVIGATE_TO_PC_GAMES', handleNav);
+  }, []);
+
+  useEffect(() => {
     // 1. Listen for discount announcement
     const unsubAnnouncement = onSnapshot(doc(db, 'settings', 'announcement'), (snapshot) => {
       setAnnouncement(snapshot.exists() ? snapshot.data() : null);
@@ -138,7 +152,7 @@ export default function BundleList({ onSelectBundle, isAgentMode = false, isAgen
           </div>
         )}
 
-        <Tabs defaultValue="MTN" className="w-full max-w-6xl mx-auto" onValueChange={setActiveTab}>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full max-w-6xl mx-auto" id="bundle-tabs">
           <div className="overflow-x-auto pb-4 mb-8 no-scrollbar">
             <TabsList className="flex w-max md:grid md:w-full md:grid-cols-4 h-auto gap-4 bg-transparent p-0">
               {['MTN', 'Telecel', 'AirtelTigo', 'streaming'].map((tab) => (

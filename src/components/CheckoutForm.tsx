@@ -2,10 +2,9 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import PaystackPop from '@paystack/inline-js';
 import { Bundle, Network, UserProfile } from '@/src/types';
 import { auth, db } from '@/src/lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, setDoc, updateDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -51,9 +50,10 @@ interface CheckoutFormProps {
   onClose: () => void;
   profile: UserProfile | null;
   agentContext?: any;
+  isAgentUser?: boolean;
 }
 
-export default function CheckoutForm({ bundle, onClose, profile, agentContext }: CheckoutFormProps) {
+export default function CheckoutForm({ bundle, onClose, profile, agentContext, isAgentUser }: CheckoutFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderStatus, setOrderStatus] = useState<'idle' | 'processing' | 'success'>('idle');
   const [orderId, setOrderId] = useState('');
@@ -110,12 +110,12 @@ export default function CheckoutForm({ bundle, onClose, profile, agentContext }:
       const calculatedProfit = agPrice - wsPrice;
 
       // Create pre-order record
-      await setDoc(preOrderRef, {
-        email: auth.currentUser.email,
+      const preOrderData = {
+        email: auth.currentUser.email || 'no-email@example.com',
         phone: data.recipientPhone,
         network: data.recipientNetwork,
         bundle: `${data.recipientNetwork} ${bundle.dataAmount}`,
-        amount: bundle.price,
+        amount: Number(bundle.price),
         status: "pending",
         createdAt: serverTimestamp(),
         userId: auth.currentUser.uid,
@@ -135,16 +135,19 @@ export default function CheckoutForm({ bundle, onClose, profile, agentContext }:
           profitAwarded: false,
           profit_credited: false
         } : {})
-      });
+      };
+      
+      console.log("PreOrder Data:", preOrderData);
+      await setDoc(preOrderRef, preOrderData);
 
       // If buyer is via an agent store, create agent_orders entry
       if (agentContext) {
-        await setDoc(doc(db, 'agent_orders', preOrderId), {
+        const agentOrderData = {
           id: preOrderId,
           agent_id: agentContext.id,
           customer_details: {
             name: profile?.fullName || auth.currentUser.displayName || 'Royal Customer',
-            email: auth.currentUser.email || '',
+            email: auth.currentUser.email || 'no-email@example.com',
             phone: data.recipientPhone,
             network: data.recipientNetwork,
             recipientUsername: data.recipientUsername || ''
@@ -154,17 +157,27 @@ export default function CheckoutForm({ bundle, onClose, profile, agentContext }:
           profit: calculatedProfit,
           status: "pending",
           created_at: serverTimestamp()
-        });
+        };
+        console.log("AgentOrder Data:", agentOrderData);
+        await setDoc(doc(db, 'agent_orders', preOrderId), agentOrderData);
       }
 
-      // 1. Initiate Payment
-      const paystackFee = 1.00; 
+      // 1. Initiate Payment with Paystack Pop
+      const isAgentBuyingFromOwnStore = agentContext && auth.currentUser?.uid === agentContext.id;
+      const isAgentBuyingOnHomePage = !agentContext && isAgentUser;
+      const paystackFee = (isAgentBuyingFromOwnStore || isAgentBuyingOnHomePage) ? 1.00 : 0.00; 
       const finalAmountToCharge = Number(bundle.price) + paystackFee;
 
-      const paystack = new (PaystackPop as any)();
+      const mod = await import('@paystack/inline-js');
+      let PaystackCtor: any = mod.default || mod;
+      if (typeof PaystackCtor !== 'function' && PaystackCtor.default) {
+        PaystackCtor = PaystackCtor.default;
+      }
+
+      const paystack = new PaystackCtor();
       paystack.newTransaction({
         key: publicKey,
-        email: auth.currentUser.email || '',
+        email: auth.currentUser.email || 'no-email@example.com',
         amount: Math.round(finalAmountToCharge * 100),
         currency: 'GHS',
         metadata: {
@@ -176,10 +189,13 @@ export default function CheckoutForm({ bundle, onClose, profile, agentContext }:
           ]
         },
         onSuccess: async (response: any) => {
-          setOrderStatus('processing');
+          // Immediately close the checkout form (redirect back to home layout)
+          onClose();
+          setIsSubmitting(false);
+
+          // Silently trigger background payment verification if completed
           try {
-            // Verify payment
-            const res = await fetch('/api/verifyPayment', {
+            fetch('/api/verifyPayment', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -193,30 +209,23 @@ export default function CheckoutForm({ bundle, onClose, profile, agentContext }:
                   recipientUsername: data.recipientUsername || ''
                 }
               })
-            });
-            const verifyData = await res.json();
-            
-            if (verifyData.success) {
-              setOrderId(preOrderId);
-              setOrderStatus('success');
-            } else {
-              // Silently close without showing an error popup
-              setIsSubmitting(false);
-              onClose();
-            }
+            }).catch(err => console.error("Background verify error:", err));
           } catch (err) {
-            console.error("Verification error:", err);
-            // Silently close without showing an error popup
-            setIsSubmitting(false);
-            onClose();
+            console.error("Payment verify trigger error:", err);
           }
         },
         onCancel: () => {
+          // Immediately close on cancel as well. No popups or toasts.
+          onClose();
           setIsSubmitting(false);
         }
       });
+
     } catch (err: any) {
       console.error("Checkout Error:", err);
+      // Detailed error logging
+      if (err.code) console.error("Error Code:", err.code);
+      if (err.message) console.error("Error Message:", err.message);
       toast.error("Failed to start checkout. Please try again.");
       setIsSubmitting(false);
     }
@@ -390,17 +399,17 @@ export default function CheckoutForm({ bundle, onClose, profile, agentContext }:
             <div className="space-y-3 sm:space-y-4 mb-8 sm:mb-10">
               <h2 className="text-3xl sm:text-4xl font-black tracking-tighter text-foreground dark:text-white leading-none">ORDER RECEIVED! 👑</h2>
               <p className="text-slate-500 dark:text-slate-400 font-medium text-base sm:text-lg leading-relaxed lowercase italic">
-                Payment confirmed for <span className="text-primary font-black uppercase not-italic">{bundle.dataAmount}</span>.
+                Order submitted for <span className="text-primary font-black uppercase not-italic">{bundle.dataAmount}</span>.
               </p>
             </div>
 
             <div className="w-full bg-slate-50 dark:bg-slate-900 rounded-[1.5rem] sm:rounded-[2.5rem] p-6 sm:p-8 space-y-4 mb-8 sm:mb-10 border-2 border-slate-100 dark:border-slate-800 text-left relative overflow-hidden">
                <div className="absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 bg-green-500/5 rounded-full -mr-12 -mt-12 sm:-mr-16 sm:-mt-16" />
                <p className="text-[9px] sm:text-[10px] font-black text-green-600 uppercase tracking-widest mb-2 flex items-center gap-2">
-                  <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> SUCCESSFUL VERIFICATION
+                  <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> RECIPIENT INFORMATION SECURED
                </p>
                <p className="text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 leading-relaxed font-mono">
-                  Verified. Agents are processing delivery. Usually 2-5 minutes.
+                  Your order is logged. The admin will verify any payment and process delivery in 2-5 minutes.
                </p>
                <div className="pt-3 sm:pt-4 border-t border-slate-200 dark:border-slate-700 mt-3 sm:mt-4 flex items-center justify-between">
                   <span className="text-[9px] sm:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Order ID</span>

@@ -37,6 +37,8 @@ export default function OrderHistory() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
+      case 'unpaid': return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">UNPAID</Badge>;
+      case 'paid': return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">PAID</Badge>;
       case 'pending': return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Pending</Badge>;
       case 'processing': return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Processing</Badge>;
       case 'delivered': return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Delivered</Badge>;

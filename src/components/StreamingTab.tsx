@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Loader2, Tv, Lock, PlayCircle, Smartphone, Video, X, Crown, Search } from 'lucide-react';
 import { toast } from 'sonner';
-import PaystackPop from '@paystack/inline-js';
 import fcMobilePointsImg from '../assets/images/ea_fc_mobile_points_1781985298107.jpg';
 import { Bundle } from '../types';
 
@@ -23,6 +22,18 @@ export default function StreamingTab({ onSelectBundle, bundles = [] }: Streaming
   const [streamList, setStreamList] = useState<any[]>([]);
   const [activePlayer, setActivePlayer] = useState<{ url: string, title: string } | null>(null);
   const [showFcMobileDialog, setShowFcMobileDialog] = useState(false);
+  
+  const [activeTab, setActiveTab] = useState('buy_games');
+  const [activeSubTab, setActiveSubTab] = useState('game_coins');
+
+  useEffect(() => {
+    const handleNav = () => {
+      setActiveTab('buy_games');
+      setActiveSubTab('pc_games');
+    };
+    window.addEventListener('NAVIGATE_TO_PC_GAMES', handleNav);
+    return () => window.removeEventListener('NAVIGATE_TO_PC_GAMES', handleNav);
+  }, []);
 
   useEffect(() => {
     if (!auth.currentUser?.uid) {
@@ -67,8 +78,8 @@ export default function StreamingTab({ onSelectBundle, bundles = [] }: Streaming
 
       await setDoc(preOrderRef, {
           userId: auth.currentUser.uid,
-          customerName: auth.currentUser.displayName || auth.currentUser.email,
-          email: auth.currentUser.email,
+          customerName: auth.currentUser.displayName || auth.currentUser.email || 'Royal Customer',
+          email: auth.currentUser.email || 'no-email@example.com',
           phone: "N/A", // Needed for Admin table to not crash visually
           bundle: type === 'live' ? 'LIVE ACCESS' : 'ONE-TIME STREAM',
           network: 'STREAM',
@@ -77,12 +88,19 @@ export default function StreamingTab({ onSelectBundle, bundles = [] }: Streaming
           streamStatus: type === 'live' ? 'pending' : 'pending_approval',
           status: 'pending',
           paymentStatus: 'pending',
-          amount: price,
+          amount: Number(price),
           createdAt: serverTimestamp()
       });
 
       // 2. Open Paystack
-      const handler = PaystackPop.setup({
+      const mod = await import('@paystack/inline-js');
+      let PaystackCtor: any = mod.default || mod;
+      if (typeof PaystackCtor !== 'function' && PaystackCtor.default) {
+        PaystackCtor = PaystackCtor.default;
+      }
+
+      const paystack = new PaystackCtor();
+      paystack.newTransaction({
         key: publicKey,
         email: auth.currentUser.email || 'guest@kingjdeals.com',
         amount: Math.round(price * 100),
@@ -92,13 +110,13 @@ export default function StreamingTab({ onSelectBundle, bundles = [] }: Streaming
           streamType: type,
           userId: auth.currentUser.uid,
           customerName: auth.currentUser.displayName || auth.currentUser.email,
-          phone: 'N/A',
+          phone: "N/A",
           internalOrderId: preOrderId,
           originalAmount: price
         },
-        callback: async (response: any) => {
+        onSuccess: async (response: any) => {
           try {
-            const res = await fetch('/api/verifyPayment', {
+            await fetch('/api/verifyPayment', {
                method: 'POST',
                headers: { 'Content-Type': 'application/json' },
                body: JSON.stringify({ 
@@ -112,25 +130,18 @@ export default function StreamingTab({ onSelectBundle, bundles = [] }: Streaming
                   }
                })
             });
-            const verifyData = await res.json();
-            if (verifyData.success) {
-               toast.success("Payment Received! Updating access...");
-            }
           } catch (err) {
-             toast.error("Error verifying stream payment. Support will be notified.");
+             console.error("Error verifying stream payment:", err);
           } finally {
             if (type === 'live') setIsProcessingLive(false);
             if (type === 'onetime') setIsProcessingOneTime(false);
           }
         },
-        onClose: () => {
+        onCancel: () => {
           if (type === 'live') setIsProcessingLive(false);
           if (type === 'onetime') setIsProcessingOneTime(false);
-          toast.info("Payment window closed. Order preserved in system.");
         }
       });
-      
-      handler.openIframe();
       
     } catch (err) {
       console.error(err);
@@ -163,7 +174,7 @@ export default function StreamingTab({ onSelectBundle, bundles = [] }: Streaming
 
   return (
     <div className="max-w-4xl mx-auto">
-      <Tabs defaultValue="buy_games" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3 h-auto bg-card border-border border rounded-2xl p-1 mb-8">
           <TabsTrigger value="buy_games" className="rounded-xl font-black uppercase text-[10px] md:text-sm py-3 data-[state=active]:bg-primary data-[state=active]:text-secondary whitespace-normal h-full flex flex-col items-center gap-1">Buy Game & Coins</TabsTrigger>
           <TabsTrigger value="results_checker" className="rounded-xl font-black uppercase text-[10px] md:text-sm py-3 data-[state=active]:bg-primary data-[state=active]:text-secondary whitespace-normal h-full flex flex-col items-center gap-1">Results Checker</TabsTrigger>
@@ -171,7 +182,7 @@ export default function StreamingTab({ onSelectBundle, bundles = [] }: Streaming
         </TabsList>
 
         <TabsContent value="buy_games" className="animate-in fade-in zoom-in-95 duration-300">
-          <Tabs defaultValue="game_coins" className="w-full">
+          <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="w-full">
             <TabsList className="grid w-full grid-cols-3 h-12 bg-muted/50 rounded-xl p-1 mb-6">
               <TabsTrigger value="game_coins" className="rounded-lg font-bold uppercase text-[9px] sm:text-xs">Game Coins</TabsTrigger>
               <TabsTrigger value="pc_games" className="rounded-lg font-bold uppercase text-[9px] sm:text-xs">PC Games</TabsTrigger>
