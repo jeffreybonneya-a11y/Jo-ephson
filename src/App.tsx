@@ -135,6 +135,15 @@ export default function App() {
 
   // Separate effect for Agent Store check
   useEffect(() => {
+    const handleAgentStoreNav = () => {
+      setIsStreamView(true);
+      setIsAdminView(false);
+      setIsHistoryView(false);
+      // Scroll to top
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+    window.addEventListener('NAVIGATE_TO_AGENT_STORE', handleAgentStoreNav);
+
     const path = window.location.pathname;
     const match = path.match(/^\/store\/([a-zA-Z0-9_\-]+)$/);
     const searchParams = new URLSearchParams(window.location.search);
@@ -151,8 +160,15 @@ export default function App() {
           setAgentContext(null);
         }
       });
-      return () => unsubscribe();
+      return () => {
+        unsubscribe();
+        window.removeEventListener('NAVIGATE_TO_AGENT_STORE', handleAgentStoreNav);
+      };
     }
+
+    return () => {
+      window.removeEventListener('NAVIGATE_TO_AGENT_STORE', handleAgentStoreNav);
+    };
   }, []);
 
   const handleSelectBundle = (bundle: Bundle) => {
