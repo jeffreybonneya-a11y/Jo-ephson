@@ -171,6 +171,8 @@ export default function App() {
     };
   }, []);
 
+  const [activeService, setActiveService] = useState('data');
+
   const handleSelectBundle = (bundle: Bundle) => {
     setSelectedBundle(bundle);
   };
@@ -244,7 +246,6 @@ export default function App() {
         ) : (
           <>
             <Hero />
-            <HowItWorks />
             <BundleList onSelectBundle={handleSelectBundle} isAgentUser={hasRegisteredAgent} />
           </>
         )}

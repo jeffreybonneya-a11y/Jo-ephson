@@ -24,27 +24,29 @@ export default function BundleList({ onSelectBundle, isAgentMode = false, isAgen
   const [activeTab, setActiveTab] = useState('MTN');
   const [announcement, setAnnouncement] = useState<any>(null);
 
-  const getNetworkColor = (network: string) => {
-    switch (network) {
+  const tabs = ['MTN', 'Telecel', 'AirtelTigo', 'Result Checker', 'PC Games', 'Premium Apps', 'Game Coins'];
+
+  const getNetworkColor = (tab: string) => {
+    switch (tab) {
       case 'MTN': return 'bg-primary text-secondary border-primary';
       case 'Telecel': return 'bg-red-600 text-white border-red-600';
       case 'AirtelTigo': return 'bg-blue-600 text-white border-blue-600';
-      default: return 'bg-primary text-secondary border-primary';
+      default: return 'bg-slate-700 text-white border-slate-700';
     }
   };
 
-  const getNetworkBadgeColor = (network: string) => {
-    switch (network) {
+  const getNetworkBadgeColor = (tab: string) => {
+    switch (tab) {
       case 'MTN': return 'bg-primary text-secondary';
       case 'Telecel': return 'bg-red-600 text-white';
       case 'AirtelTigo': return 'bg-blue-600 text-white';
-      default: return 'bg-primary text-secondary';
+      default: return 'bg-slate-700 text-white';
     }
   };
 
   useEffect(() => {
     const handleNav = () => {
-      setActiveTab('streaming');
+      setActiveTab('PC Games');
       setTimeout(() => {
         const tabsElement = document.getElementById('bundle-tabs');
         if (tabsElement) {
@@ -154,8 +156,8 @@ export default function BundleList({ onSelectBundle, isAgentMode = false, isAgen
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full max-w-6xl mx-auto" id="bundle-tabs">
           <div className="overflow-x-auto pb-4 mb-8 no-scrollbar">
-            <TabsList className="flex w-max md:grid md:w-full md:grid-cols-4 h-auto gap-4 bg-transparent p-0">
-              {['MTN', 'Telecel', 'AirtelTigo'].map((tab) => (
+            <TabsList className="flex w-max md:grid md:w-full md:grid-cols-6 h-auto gap-4 bg-transparent p-0">
+              {tabs.map((tab) => (
                 <TabsTrigger 
                   key={tab}
                   value={tab} 
@@ -169,65 +171,71 @@ export default function BundleList({ onSelectBundle, isAgentMode = false, isAgen
             </TabsList>
           </div>
 
-          {['MTN', 'Telecel', 'AirtelTigo'].map((network) => (
-            <TabsContent key={network} value={network} className="mt-0">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {loading ? (
-                  Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-64 rounded-[2rem]" />)
-                ) : filteredBundles.length > 0 ? (
-                  filteredBundles.map((bundle, index) => (
-                    <motion.div
-                      key={bundle.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 0.4, delay: index * 0.05 }}
-                    >
-                      <Card className={`hover:shadow-xl transition-all border-2 rounded-[2rem] overflow-hidden group bg-card hover:border-primary border-border shadow-sm`}>
-                        <CardHeader className={`${getNetworkBadgeColor(bundle.network)}/5 border-b-2 border-border p-8`}>
-                          <div className="flex justify-between items-start">
-                            <Badge className={`${getNetworkBadgeColor(bundle.network)} font-black`}>{bundle.network}</Badge>
-                            <Zap className="w-6 h-6 text-primary fill-primary animate-pulse" />
-                          </div>
-                          <CardTitle className="text-4xl font-black mt-4 text-foreground dark:text-white">{bundle.dataAmount}</CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-8">
-                          <div className="flex items-center justify-between mb-8">
-                            <div className="flex flex-col">
-                              <span className="text-xs font-black text-muted-foreground uppercase">Royal Price</span>
-                              {(!isAgentMode && !isAgentUser && (bundle as any).isDiscounted) && (
-                                <span className="text-sm font-bold text-red-500 line-through">GHS {(bundle as any).originalPrice.toFixed(2)}</span>
-                              )}
-                              {isAgentUser && (
-                                <span className="text-sm font-bold text-red-500 line-through">GHS {(bundle as any).originalPrice.toFixed(2)}</span>
-                              )}
-                              <span className="text-4xl font-black text-foreground dark:text-white">GHS {bundle.price.toFixed(2)}</span>
-                              {isAgentUser && (
-                                <Badge variant="outline" className="mt-1.5 border-primary/30 text-primary font-black animate-pulse rounded-md text-[10px] uppercase w-fit">
-                                  👑 Agent Wholesale
-                                </Badge>
-                              )}
+          {tabs.map((tab) => (
+            <TabsContent key={tab} value={tab} className="mt-0">
+              {['MTN', 'Telecel', 'AirtelTigo'].includes(tab) ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {loading ? (
+                    Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-64 rounded-[2rem]" />)
+                  ) : filteredBundles.length > 0 ? (
+                    filteredBundles.map((bundle, index) => (
+                      <motion.div
+                        key={bundle.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 0.4, delay: index * 0.05 }}
+                      >
+                        <Card className={`hover:shadow-xl transition-all border-2 rounded-[2rem] overflow-hidden group bg-card hover:border-primary border-border shadow-sm`}>
+                          <CardHeader className={`${getNetworkBadgeColor(bundle.network)}/5 border-b-2 border-border p-8`}>
+                            <div className="flex justify-between items-start">
+                              <Badge className={`${getNetworkBadgeColor(bundle.network)} font-black`}>{bundle.network}</Badge>
+                              <Zap className="w-6 h-6 text-primary fill-primary animate-pulse" />
                             </div>
-                            <Wifi className="w-10 h-10 text-primary/20 group-hover:text-primary transition-colors" />
-                          </div>
-                          <Button 
-                            className="w-full h-16 text-xl font-black rounded-2xl bg-secondary text-secondary-foreground hover:bg-primary hover:text-white transition-all shadow-lg" 
-                            onClick={() => onSelectBundle(bundle)}
-                          >
-                            BUY NOW 👑
-                          </Button>
-                        </CardContent>
-                      </Card>
-                    </motion.div>
-                  ))
-                ) : (
-                  <div className="col-span-full text-center py-24 bg-card rounded-[2rem] border-4 border-dashed border-primary/10">
-                    <Smartphone className="w-16 h-16 text-muted-foreground/20 mx-auto mb-6" />
-                    <h3 className="text-2xl font-black text-foreground mb-2 dark:text-white">RESTOCKING SOON 👑</h3>
-                    <p className="text-muted-foreground">The King is preparing more deals for {network}.</p>
-                  </div>
-                )}
-              </div>
+                            <CardTitle className="text-4xl font-black mt-4 text-foreground dark:text-white">{bundle.dataAmount}</CardTitle>
+                          </CardHeader>
+                          <CardContent className="p-8">
+                            <div className="flex items-center justify-between mb-8">
+                              <div className="flex flex-col">
+                                <span className="text-xs font-black text-muted-foreground uppercase">Royal Price</span>
+                                {(!isAgentMode && !isAgentUser && (bundle as any).isDiscounted) && (
+                                  <span className="text-sm font-bold text-red-500 line-through">GH₵ {(bundle as any).originalPrice.toFixed(2)}</span>
+                                )}
+                                {isAgentUser && (
+                                  <span className="text-sm font-bold text-red-500 line-through">GH₵ {(bundle as any).originalPrice.toFixed(2)}</span>
+                                )}
+                                <span className="text-4xl font-black text-foreground dark:text-white">GH₵ {bundle.price.toFixed(2)}</span>
+                                {isAgentUser && (
+                                  <Badge variant="outline" className="mt-1.5 border-primary/30 text-primary font-black animate-pulse rounded-md text-[10px] uppercase w-fit">
+                                    👑 Agent Wholesale
+                                  </Badge>
+                                )}
+                              </div>
+                              <Wifi className="w-10 h-10 text-primary/20 group-hover:text-primary transition-colors" />
+                            </div>
+                            <Button 
+                              className="w-full h-16 text-xl font-black rounded-2xl bg-secondary text-secondary-foreground hover:bg-primary hover:text-white transition-all shadow-lg" 
+                              onClick={() => onSelectBundle(bundle)}
+                            >
+                              BUY NOW 👑
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    ))
+                  ) : (
+                    <div className="col-span-full text-center py-24 bg-card rounded-[2rem] border-4 border-dashed border-primary/10">
+                      <Smartphone className="w-16 h-16 text-muted-foreground/20 mx-auto mb-6" />
+                      <h3 className="text-2xl font-black text-foreground mb-2 dark:text-white">RESTOCKING SOON 👑</h3>
+                      <p className="text-muted-foreground">The King is preparing more deals for {tab}.</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="min-h-[50vh] flex items-center justify-center p-8 bg-card rounded-[2rem] border-2 border-border">
+                  <h2 className="text-xl font-black text-muted-foreground uppercase tracking-widest">{tab} Coming Soon</h2>
+                </div>
+              )}
             </TabsContent>
           ))}
 
