@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '@/src/lib/firebase';
 import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, doc, deleteDoc, getDoc, serverTimestamp, increment, getDocs, where } from 'firebase/firestore';
 import { Bundle, Order, Network, UserProfile, Message, StreamAccess, Complaint } from '@/src/types';
+import { ImageUploader } from './ImageUploader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -54,10 +55,13 @@ export default function AdminDashboard() {
     name: '',
     dataAmount: '',
     price: '',
-    network: 'MTN',
+    network: 'MTN' as Network,
     active: true,
     offerSlug: '',
     volume: '',
+    category: 'MTN',
+    description: '',
+    imageUrl: '',
   });
 
   useEffect(() => {
@@ -217,18 +221,36 @@ export default function AdminDashboard() {
         updatedAt: serverTimestamp(),
       };
 
+      // Set default network based on category to maintain backward compatibility
+      if (['MTN', 'Telecel', 'AirtelTigo'].includes(data.category)) {
+        data.network = data.category as any;
+      } else {
+        data.network = 'FCMobile'; // Keep fallback for FCMobile queries
+      }
+
       if (editingBundle) {
         await updateDoc(doc(db, 'bundles', editingBundle.id), data);
-        toast.success("Bundle updated!");
+        toast.success("Product updated!");
       } else {
         await addDoc(collection(db, 'bundles'), {
           ...data,
           createdAt: serverTimestamp(),
         });
-        toast.success("Bundle added!");
+        toast.success("Product added!");
       }
       setEditingBundle(null);
-      setBundleForm({ name: '', dataAmount: '', price: '', network: 'MTN', active: true, offerSlug: '', volume: '' });
+      setBundleForm({ 
+        name: '', 
+        dataAmount: '', 
+        price: '', 
+        network: 'MTN' as Network, 
+        active: true, 
+        offerSlug: '', 
+        volume: '',
+        category: 'MTN',
+        description: '',
+        imageUrl: ''
+      });
     } catch (error: any) {
       toast.error(error.message);
     }
@@ -238,12 +260,15 @@ export default function AdminDashboard() {
     setEditingBundle(bundle);
     setBundleForm({
       name: bundle.name,
-      dataAmount: bundle.dataAmount,
+      dataAmount: bundle.dataAmount || '',
       price: String(bundle.price),
       network: bundle.network,
       active: bundle.active ?? true,
       offerSlug: bundle.offerSlug || '',
       volume: bundle.volume || '',
+      category: bundle.category || (bundle.network === 'FCMobile' ? 'Game Coins' : bundle.network),
+      description: bundle.description || '',
+      imageUrl: bundle.imageUrl || '',
     });
   };
 
@@ -644,41 +669,58 @@ export default function AdminDashboard() {
            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <Card className="lg:col-span-1 rounded-3xl border-2 bg-white dark:bg-slate-950 dark:border-slate-800 h-fit">
                 <CardHeader className="p-8">
-                  <CardTitle className="text-xl font-black text-slate-900 dark:text-white">{editingBundle ? 'EDIT BUNDLE' : 'ADD NEW BUNDLE'}</CardTitle>
+                  <CardTitle className="text-xl font-black text-slate-900 dark:text-white">{editingBundle ? 'EDIT PRODUCT' : 'ADD NEW PRODUCT'}</CardTitle>
                 </CardHeader>
                 <CardContent className="p-8 pt-0">
                   <form onSubmit={handleSaveBundle} className="space-y-4">
                     <div className="space-y-1">
-                      <Label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Bundle Name</Label>
-                      <Input value={bundleForm.name} onChange={e => setBundleForm({...bundleForm, name: e.target.value})} placeholder="e.g. MTN Royal 10GB" required className="rounded-xl border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white" />
+                      <Label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Product Name</Label>
+                      <Input value={bundleForm.name} onChange={e => setBundleForm({...bundleForm, name: e.target.value})} placeholder="e.g. MTN Royal 10GB or Netflix Premium" required className="rounded-xl border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white" />
                     </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Category</Label>
+                      <Select value={bundleForm.category} onValueChange={(v: any) => setBundleForm({...bundleForm, category: v})}>
+                        <SelectTrigger className="rounded-xl border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white"><SelectValue /></SelectTrigger>
+                        <SelectContent className="dark:bg-slate-900 dark:border-slate-800">
+                          <SelectItem value="MTN">MTN Data</SelectItem>
+                          <SelectItem value="Telecel">Telecel Data</SelectItem>
+                          <SelectItem value="AirtelTigo">AirtelTigo Data</SelectItem>
+                          <SelectItem value="Game Coins">Game Coins</SelectItem>
+                          <SelectItem value="PC Games">PC Games</SelectItem>
+                          <SelectItem value="PlayStation">PlayStation</SelectItem>
+                          <SelectItem value="Premium Apps">Premium Apps</SelectItem>
+                          <SelectItem value="Results Checker">Results Checker</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
-                        <Label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-300">Amount</Label>
-                        <Input value={bundleForm.dataAmount} onChange={e => setBundleForm({...bundleForm, dataAmount: e.target.value})} placeholder="10GB" required className="rounded-xl border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white" />
+                        <Label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-300">Amount / Vol</Label>
+                        <Input value={bundleForm.dataAmount} onChange={e => setBundleForm({...bundleForm, dataAmount: e.target.value})} placeholder="e.g. 10GB, 1 Account" className="rounded-xl border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white" />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-300">Price (GHS)</Label>
                         <Input type="number" step="0.01" value={bundleForm.price} onChange={e => setBundleForm({...bundleForm, price: e.target.value})} placeholder="20" required className="rounded-xl border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white" />
                       </div>
                     </div>
+
                     <div className="space-y-1">
-                      <Label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Network</Label>
-                      <Select value={bundleForm.network} onValueChange={(v: any) => setBundleForm({...bundleForm, network: v})}>
-                        <SelectTrigger className="rounded-xl border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white"><SelectValue /></SelectTrigger>
-                        <SelectContent className="dark:bg-slate-900 dark:border-slate-800">
-                          <SelectItem value="MTN">MTN</SelectItem>
-                          <SelectItem value="Telecel">Telecel</SelectItem>
-                          <SelectItem value="AirtelTigo">AirtelTigo</SelectItem>
-                          <SelectItem value="FCMobile">FCMobile</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Short Description</Label>
+                      <Input value={bundleForm.description} onChange={e => setBundleForm({...bundleForm, description: e.target.value})} placeholder="e.g. Instant delivery, valid for 30 days" className="rounded-xl border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white" />
                     </div>
-                    <Button type="submit" className="w-full h-12 rounded-xl font-black bg-secondary text-white hover:bg-primary uppercase shadow-lg">
-                       {editingBundle ? 'Update Bundle' : 'Create Bundle'}
+
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Product Banner Image</Label>
+                      <ImageUploader value={bundleForm.imageUrl} onChange={(url) => setBundleForm({...bundleForm, imageUrl: url})} />
+                    </div>
+
+                    <Button type="submit" className="w-full h-12 rounded-xl font-black bg-secondary text-white hover:bg-primary uppercase shadow-lg cursor-pointer">
+                       {editingBundle ? 'Save Changes' : 'Create Product'}
                     </Button>
                     {editingBundle && (
-                      <Button type="button" variant="ghost" onClick={() => { setEditingBundle(null); setBundleForm({name:'',dataAmount:'',price:'',network:'MTN',active:true,offerSlug:'',volume:''})}} className="w-full dark:text-slate-400">Cancel</Button>
+                      <Button type="button" variant="ghost" onClick={() => { setEditingBundle(null); setBundleForm({name:'',dataAmount:'',price:'',network:'MTN' as Network,active:true,offerSlug:'',volume:'',category:'MTN',description:'',imageUrl:''})}} className="w-full dark:text-slate-400 cursor-pointer">Cancel</Button>
                     )}
                   </form>
                 </CardContent>
@@ -688,7 +730,7 @@ export default function AdminDashboard() {
                 <CardHeader className="p-8 bg-slate-50 dark:bg-slate-900/50 border-b dark:border-slate-800">
                    <CardTitle className="text-xl font-black flex items-center gap-2 text-slate-900 dark:text-white">
                      <Box className="w-5 h-5 text-primary" />
-                     ACTIVE BUNDLES
+                     ACTIVE PRODUCTS & BUNDLES
                    </CardTitle>
                 </CardHeader>
                 <CardContent className="p-0 overflow-x-auto">
@@ -696,7 +738,7 @@ export default function AdminDashboard() {
                     <TableHeader className="bg-slate-50 dark:bg-slate-900">
                       <TableRow className="border-b dark:border-slate-800">
                         <TableHead className="font-black text-[10px] uppercase tracking-wider p-6 text-slate-600 dark:text-slate-200">Info</TableHead>
-                        <TableHead className="font-black text-[10px] uppercase tracking-wider text-center text-slate-600 dark:text-slate-200">Network</TableHead>
+                        <TableHead className="font-black text-[10px] uppercase tracking-wider text-center text-slate-600 dark:text-slate-200">Category</TableHead>
                         <TableHead className="font-black text-[10px] uppercase tracking-wider text-right text-slate-600 dark:text-slate-200">Price</TableHead>
                         <TableHead className="font-black text-[10px] uppercase tracking-wider text-right p-6 text-slate-600 dark:text-slate-200">Actions</TableHead>
                       </TableRow>
@@ -705,19 +747,30 @@ export default function AdminDashboard() {
                       {bundles.map(b => (
                         <TableRow key={b.id} className="dark:border-slate-800">
                           <TableCell className="p-6">
-                            <div className="flex flex-col min-w-[120px]">
-                              <span className="font-black text-slate-900 dark:text-slate-100">{b.name}</span>
-                              <span className="text-xs text-slate-400 font-bold">{b.dataAmount}</span>
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 shrink-0 flex items-center justify-center">
+                                {b.imageUrl ? (
+                                  <img src={b.imageUrl} alt={b.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  <Box className="w-5 h-5 text-slate-400" />
+                                )}
+                              </div>
+                              <div className="flex flex-col min-w-[120px]">
+                                <span className="font-black text-slate-900 dark:text-slate-100">{b.name}</span>
+                                <span className="text-xs text-slate-400 font-bold">{b.dataAmount || 'No specific amount'}</span>
+                              </div>
                             </div>
                           </TableCell>
                           <TableCell className="text-center">
-                            <Badge variant="outline" className="border-2 font-black uppercase dark:border-slate-800 dark:text-slate-300">{b.network}</Badge>
+                            <Badge variant="outline" className="border-2 font-black uppercase dark:border-slate-800 dark:text-slate-300">
+                              {b.category || b.network}
+                            </Badge>
                           </TableCell>
-                          <TableCell className="text-right font-black text-secondary">GHS {b.price.toFixed(2)}</TableCell>
+                          <TableCell className="text-right font-black text-secondary font-mono">GHS {b.price.toFixed(2)}</TableCell>
                           <TableCell className="text-right p-6">
                             <div className="flex justify-end gap-2">
-                              <Button size="sm" variant="outline" className="h-8 w-8 p-0 rounded-lg dark:border-slate-800 dark:text-slate-400" onClick={() => startEditBundle(b)}><RefreshCw className="w-3 h-3" /></Button>
-                              <Button size="sm" variant="outline" className="h-8 w-8 p-0 rounded-lg text-red-500 dark:border-slate-800" onClick={() => deleteDoc(doc(db, 'bundles', b.id))}><Trash2 className="w-3 h-3" /></Button>
+                              <Button size="sm" variant="outline" className="h-8 w-8 p-0 rounded-lg dark:border-slate-800 dark:text-slate-400 cursor-pointer" onClick={() => startEditBundle(b)}><RefreshCw className="w-3 h-3" /></Button>
+                              <Button size="sm" variant="outline" className="h-8 w-8 p-0 rounded-lg text-red-500 dark:border-slate-800 cursor-pointer" onClick={() => deleteDoc(doc(db, 'bundles', b.id))}><Trash2 className="w-3 h-3" /></Button>
                             </div>
                           </TableCell>
                         </TableRow>

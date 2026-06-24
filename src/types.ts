@@ -9,6 +9,9 @@ export interface Bundle {
   active: boolean;
   offerSlug?: string;
   volume?: string;
+  category?: string;
+  description?: string;
+  imageUrl?: string;
 }
 
 export interface Order {

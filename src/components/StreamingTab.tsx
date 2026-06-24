@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, doc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { Card, CardContent } from '@/components/ui/card';
@@ -7,7 +7,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Loader2, Tv, Lock, PlayCircle, Smartphone, Video, X, Crown, Search } from 'lucide-react';
 import { toast } from 'sonner';
-import fcMobilePointsImg from '../assets/images/ea_fc_mobile_points_1781985298107.jpg';
 import { Bundle } from '../types';
 
 interface StreamingTabProps {
@@ -15,13 +14,93 @@ interface StreamingTabProps {
   bundles?: Bundle[];
 }
 
+const getBundleCategory = (b: Bundle): string => {
+  if (b.category) return b.category;
+  if (b.network === 'FCMobile') return 'Game Coins';
+  return b.network;
+};
+
+const ProductCard: React.FC<{ bundle: Bundle; onSelect: (bundle: Bundle) => void }> = ({ bundle, onSelect }) => {
+  // Determine premium real background cover image fallback
+  let displayImage = bundle.imageUrl;
+  if (!displayImage) {
+    const nameLower = bundle.name.toLowerCase();
+    if (nameLower.includes('netflix')) {
+      displayImage = 'https://images.unsplash.com/photo-1574375927938-d5a98e8edd86?q=80&w=600&auto=format&fit=crop';
+    } else if (nameLower.includes('spotify')) {
+      displayImage = 'https://images.unsplash.com/photo-1614680376593-902f74fa0d41?q=80&w=600&auto=format&fit=crop';
+    } else if (nameLower.includes('canva')) {
+      displayImage = 'https://images.unsplash.com/photo-1626785774573-4b799315345d?q=80&w=600&auto=format&fit=crop';
+    } else if (nameLower.includes('chatgpt') || nameLower.includes('gpt')) {
+      displayImage = 'https://images.unsplash.com/photo-1677442136019-21780efad99a?q=80&w=600&auto=format&fit=crop';
+    } else if (nameLower.includes('capcut')) {
+      displayImage = 'https://images.unsplash.com/photo-1621574539437-4b7cb63120b8?q=80&w=600&auto=format&fit=crop';
+    } else if (nameLower.includes('gta')) {
+      displayImage = 'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=600&auto=format&fit=crop';
+    } else if (nameLower.includes('fc') || nameLower.includes('fifa') || nameLower.includes('pubg') || nameLower.includes('free fire') || nameLower.includes('coins')) {
+      displayImage = 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?q=80&w=600&auto=format&fit=crop';
+    } else if (nameLower.includes('playstation') || nameLower.includes('psn') || nameLower.includes('sony')) {
+      displayImage = 'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?q=80&w=600&auto=format&fit=crop';
+    } else if (nameLower.includes('bece') || nameLower.includes('wassce') || nameLower.includes('checker')) {
+      displayImage = 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?q=80&w=600&auto=format&fit=crop';
+    } else {
+      displayImage = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=600&auto=format&fit=crop';
+    }
+  }
+
+  return (
+    <div className="hover:border-amber-500/50 hover:shadow-[0_0_30px_rgba(245,158,11,0.15)] transition-all duration-300 group border-2 rounded-3xl overflow-hidden bg-[#0A192F] border-slate-800 flex flex-col h-full shadow-lg">
+      <div className="relative h-[220px] md:h-[240px] w-full overflow-hidden border-b border-slate-800 shrink-0">
+        <img 
+          src={displayImage} 
+          alt={bundle.name} 
+          className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
+          referrerPolicy="no-referrer"
+        />
+        <div className="absolute top-4 left-4 bg-[#0A192F]/80 backdrop-blur-md border border-amber-500/30 text-amber-500 text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full">
+          {bundle.category || bundle.network}
+        </div>
+      </div>
+      <div className="p-6 flex flex-col flex-1">
+        <div className="mb-4">
+          <h3 className="text-base md:text-lg font-black mb-1 text-white uppercase tracking-tight group-hover:text-amber-500 transition-colors line-clamp-1">{bundle.name}</h3>
+          <p className="text-slate-400 text-xs font-bold leading-relaxed line-clamp-2 h-10">
+            {bundle.description || `Get instant delivery on ${bundle.name}. ${bundle.dataAmount ? `Volume: ${bundle.dataAmount}.` : ''}`}
+          </p>
+        </div>
+        <div className="mt-auto pt-4 flex items-center justify-between border-t border-slate-800/50">
+          <div className="flex flex-col">
+            <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Royal Price</span>
+            <span className="text-lg font-black text-amber-500 font-mono">GHS {bundle.price.toFixed(2)}</span>
+          </div>
+          <Button 
+            className="rounded-xl px-4 h-9 bg-amber-500 text-slate-950 hover:bg-amber-600 font-black uppercase tracking-wider text-[10px] shadow-md transition-all active:scale-95 cursor-pointer"
+            onClick={() => onSelect(bundle)}
+          >
+            Buy Now
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const EmptyCategory: React.FC<{ title: string; subtitle: string }> = ({ title, subtitle }) => (
+  <div className="flex flex-col justify-center items-center py-16 px-4 bg-[#0A192F] rounded-3xl border-2 border-dashed border-slate-800 text-center w-full">
+    <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center mb-4">
+      <Crown className="w-6 h-6" />
+    </div>
+    <h3 className="text-sm font-black text-white mb-1 uppercase tracking-tight">{title}</h3>
+    <p className="text-slate-400 text-xs max-w-sm">{subtitle}</p>
+  </div>
+);
+
 export default function StreamingTab({ onSelectBundle, bundles = [] }: StreamingTabProps) {
   const [loading, setLoading] = useState(true);
   const [isProcessingLive, setIsProcessingLive] = useState(false);
   const [isProcessingOneTime, setIsProcessingOneTime] = useState(false);
   const [streamList, setStreamList] = useState<any[]>([]);
   const [activePlayer, setActivePlayer] = useState<{ url: string, title: string } | null>(null);
-  const [showFcMobileDialog, setShowFcMobileDialog] = useState(false);
   
   const [activeTab, setActiveTab] = useState('buy_games');
   const [activeSubTab, setActiveSubTab] = useState('game_coins');
@@ -72,7 +151,6 @@ export default function StreamingTab({ onSelectBundle, bundles = [] }: Streaming
     if (type === 'onetime') setIsProcessingOneTime(true);
 
     try {
-      // 1. Create order immediately in tracking tab just like CheckoutForm
       const preOrderRef = doc(collection(db, 'orders'));
       const preOrderId = preOrderRef.id;
 
@@ -80,7 +158,7 @@ export default function StreamingTab({ onSelectBundle, bundles = [] }: Streaming
           userId: auth.currentUser.uid,
           customerName: auth.currentUser.displayName || auth.currentUser.email || 'Royal Customer',
           email: auth.currentUser.email || 'no-email@example.com',
-          phone: "N/A", // Needed for Admin table to not crash visually
+          phone: "N/A",
           bundle: type === 'live' ? 'LIVE ACCESS' : 'ONE-TIME STREAM',
           network: 'STREAM',
           type: 'stream',
@@ -92,7 +170,6 @@ export default function StreamingTab({ onSelectBundle, bundles = [] }: Streaming
           createdAt: serverTimestamp()
       });
 
-      // 2. Open Paystack
       const mod = await import('@paystack/inline-js');
       let PaystackCtor: any = mod.default || mod;
       if (typeof PaystackCtor !== 'function' && PaystackCtor.default) {
@@ -168,6 +245,13 @@ export default function StreamingTab({ onSelectBundle, bundles = [] }: Streaming
   const pendingOneTime = streamList.find(s => s.streamType === 'onetime' && s.streamStatus === 'pending_approval');
   const activeOneTime = streamList.find(s => s.streamType === 'onetime' && s.streamStatus === 'approved');
 
+  // Categorized live bundles list
+  const gameCoinsItems = bundles.filter(b => getBundleCategory(b) === 'Game Coins');
+  const pcGamesItems = bundles.filter(b => getBundleCategory(b) === 'PC Games');
+  const playStationItems = bundles.filter(b => getBundleCategory(b) === 'PlayStation');
+  const resultsCheckerItems = bundles.filter(b => getBundleCategory(b) === 'Results Checker');
+  const premiumAppsItems = bundles.filter(b => getBundleCategory(b) === 'Premium Apps');
+
   if (loading) {
      return <div className="py-20 flex justify-center text-primary"><Loader2 className="w-10 h-10 animate-spin" /></div>;
   }
@@ -189,137 +273,83 @@ export default function StreamingTab({ onSelectBundle, bundles = [] }: Streaming
               <TabsTrigger value="ps_games" className="rounded-lg font-bold uppercase text-[9px] sm:text-xs">PlayStation</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="game_coins">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <Card className="hover:border-primary/30 transition-all shadow-md group border-2 rounded-3xl overflow-hidden bg-card border-border flex flex-col">
-                  <div className="relative h-48 bg-slate-100 dark:bg-slate-800 w-full overflow-hidden">
-                    <img 
-                      src={fcMobilePointsImg}
-                      alt="EA Sports FC Mobile" 
-                      className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
-                      onError={(e) => {
-                         e.currentTarget.src = "https://images.unsplash.com/photo-1511882150382-421056c89033?q=80&w=1000&auto=format&fit=crop";
-                      }}
-                    />
-                  </div>
-                  <CardContent className="p-6 flex flex-col flex-1 items-center text-center">
-                    <div className="mb-4">
-                      <h3 className="text-xl font-black mb-1 text-foreground dark:text-white uppercase tracking-tight">EA Sports FC™ Mobile</h3>
-                      <p className="text-muted-foreground text-[10px] uppercase font-bold tracking-widest">FC Mobile Points & Silver</p>
-                    </div>
-                    <div className="mt-auto w-full pt-4">
-                       <Button className="w-full rounded-2xl h-12 bg-primary text-secondary hover:bg-slate-900 font-black uppercase tracking-widest text-xs" onClick={() => setShowFcMobileDialog(true)}>
-                         <Lock className="w-4 h-4 mr-2" /> Buy Points & Silver
-                       </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+            <TabsContent value="game_coins" className="animate-in fade-in zoom-in-95 duration-300">
+              {gameCoinsItems.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {gameCoinsItems.map(item => (
+                    <ProductCard key={item.id} bundle={item} onSelect={(selected) => onSelectBundle?.(selected)} />
+                  ))}
+                </div>
+              ) : (
+                <EmptyCategory 
+                  title="No Game Coin offers available" 
+                  subtitle="The King is preparing new FC Mobile Points, PUBG UC, Free Fire Diamonds, and Call of Duty Points offers. Stay tuned!" 
+                />
+              )}
             </TabsContent>
             
-            <TabsContent value="pc_games">
-              <div className="flex flex-col justify-center items-center py-20 bg-card rounded-[2rem] border-2 border-dashed border-primary/10 text-center border-border">
-                <h3 className="text-xl font-black text-foreground mb-2 dark:text-white">PC GAMES COMING SOON 👑</h3>
-                <p className="text-muted-foreground text-sm">The King is preparing this service.</p>
-              </div>
+            <TabsContent value="pc_games" className="animate-in fade-in zoom-in-95 duration-300">
+              {pcGamesItems.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {pcGamesItems.map(item => (
+                    <ProductCard key={item.id} bundle={item} onSelect={(selected) => onSelectBundle?.(selected)} />
+                  ))}
+                </div>
+              ) : (
+                <EmptyCategory 
+                  title="PC Games Coming Soon 👑" 
+                  subtitle="The King is preparing awesome game cover offers (GTA V, EA Sports FC, Call of Duty, Red Dead Redemption, Need for Speed). Stay tuned!" 
+                />
+              )}
             </TabsContent>
             
-            <TabsContent value="ps_games">
-              <div className="flex flex-col justify-center items-center py-20 bg-card rounded-[2rem] border-2 border-dashed border-primary/10 text-center border-border">
-                <h3 className="text-xl font-black text-foreground mb-2 dark:text-white">PLAYSTATION GAMES COMING SOON 👑</h3>
-                <p className="text-muted-foreground text-sm">The King is preparing this service.</p>
-              </div>
+            <TabsContent value="ps_games" className="animate-in fade-in zoom-in-95 duration-300">
+              {playStationItems.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {playStationItems.map(item => (
+                    <ProductCard key={item.id} bundle={item} onSelect={(selected) => onSelectBundle?.(selected)} />
+                  ))}
+                </div>
+              ) : (
+                <EmptyCategory 
+                  title="PlayStation Offers Coming Soon 👑" 
+                  subtitle="Get ready for official PlayStation game covers and PSN gift card deals. Coming very soon!" 
+                />
+              )}
             </TabsContent>
           </Tabs>
         </TabsContent>
 
         <TabsContent value="results_checker" className="animate-in fade-in zoom-in-95 duration-300">
-          <div className="flex flex-col justify-center items-center py-24 bg-card rounded-[2rem] border-4 border-dashed border-primary/10 text-center border-border">
-            <h3 className="text-2xl font-black text-foreground mb-2 dark:text-white">RESULTS CHECKER COMING SOON 👑</h3>
-            <p className="text-muted-foreground">The King is preparing this service.</p>
-          </div>
+          {resultsCheckerItems.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {resultsCheckerItems.map(item => (
+                <ProductCard key={item.id} bundle={item} onSelect={(selected) => onSelectBundle?.(selected)} />
+              ))}
+            </div>
+          ) : (
+            <EmptyCategory 
+              title="Results Checker Coming Soon 👑" 
+              subtitle="The King is curating secure and instant-delivery vouchers for BECE, WASSCE, and NovDec checkers. Stay tuned!" 
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="premium_apps" className="animate-in fade-in zoom-in-95 duration-300">
-          <div className="flex flex-col justify-center items-center py-24 bg-card rounded-[2rem] border-4 border-dashed border-primary/10 text-center border-border">
-            <Smartphone className="w-16 h-16 text-muted-foreground/20 mb-6" />
-            <h3 className="text-2xl font-black text-foreground mb-2 dark:text-white">PREMIUM APPS COMING SOON 👑</h3>
-            <p className="text-muted-foreground">The King is preparing this service.</p>
-          </div>
+          {premiumAppsItems.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {premiumAppsItems.map(item => (
+                <ProductCard key={item.id} bundle={item} onSelect={(selected) => onSelectBundle?.(selected)} />
+              ))}
+            </div>
+          ) : (
+            <EmptyCategory 
+              title="Premium Apps Subscriptions Coming Soon 👑" 
+              subtitle="Get ready for genuine, reliable premium subscriptions including Netflix, Spotify, Canva Pro, ChatGPT Plus, and CapCut Pro." 
+            />
+          )}
         </TabsContent>
       </Tabs>
-
-      {/* FC Mobile Dialog */}
-      <Dialog open={showFcMobileDialog} onOpenChange={setShowFcMobileDialog}>
-        <DialogContent className="sm:max-w-[500px] bg-card border-border rounded-3xl p-6">
-          <DialogHeader className="mb-4">
-            <DialogTitle className="text-2xl font-black uppercase tracking-tight text-center">Buy FC Mobile</DialogTitle>
-          </DialogHeader>
-
-          <Tabs defaultValue="points" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 h-14 bg-muted/50 rounded-xl p-1 mb-6">
-              <TabsTrigger value="points" className="rounded-lg font-bold uppercase text-xs">Points</TabsTrigger>
-              <TabsTrigger value="silver" className="rounded-lg font-bold uppercase text-xs">Silver</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="points" className="animate-in fade-in zoom-in-95 duration-300">
-               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto no-scrollbar pb-2">
-                  {bundles.filter(b => b.network === 'FCMobile' && !b.name.toLowerCase().includes('silver')).sort((a,b) => a.price - b.price).map(bundle => (
-                    <button
-                      key={bundle.id}
-                      onClick={() => {
-                        setShowFcMobileDialog(false);
-                        if (onSelectBundle) onSelectBundle(bundle);
-                      }}
-                      className="flex bg-card items-center justify-between p-4 rounded-xl border border-border hover:border-emerald-500/50 transition-all shadow-sm hover:shadow-md group text-left w-full animate-in fade-in slide-in-from-bottom-2 duration-300 relative overflow-hidden"
-                    >
-                      <div className="absolute inset-0 bg-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                      <div className="relative z-10">
-                        <p className="font-black text-sm uppercase text-foreground">{bundle.name}</p>
-                        <p className="text-xs font-bold text-muted-foreground uppercase">{bundle.network}</p>
-                      </div>
-                      <div className="text-right flex flex-col items-end gap-1.5 relative z-10">
-                        <p className="font-black text-lg text-emerald-500">GHS {bundle.price}</p>
-                        <span className="text-[10px] bg-emerald-500 text-white px-3 py-1 rounded-lg font-black uppercase shadow-sm group-hover:scale-105 transition-transform">Buy Now</span>
-                      </div>
-                    </button>
-                  ))}
-                  {bundles.filter(b => b.network === 'FCMobile' && !b.name.toLowerCase().includes('silver')).length === 0 && (
-                     <div className="col-span-full py-12 text-center text-muted-foreground font-bold">No points packages available right now</div>
-                  )}
-               </div>
-            </TabsContent>
-            
-            <TabsContent value="silver" className="animate-in fade-in zoom-in-95 duration-300">
-               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto no-scrollbar pb-2">
-                  {bundles.filter(b => b.network === 'FCMobile' && b.name.toLowerCase().includes('silver')).sort((a,b) => a.price - b.price).map(bundle => (
-                    <button
-                      key={bundle.id}
-                      onClick={() => {
-                        setShowFcMobileDialog(false);
-                        if (onSelectBundle) onSelectBundle(bundle);
-                      }}
-                      className="flex bg-card items-center justify-between p-4 rounded-xl border border-border hover:border-slate-400/50 transition-all shadow-sm hover:shadow-md group text-left w-full animate-in fade-in slide-in-from-bottom-2 duration-300 relative overflow-hidden"
-                    >
-                      <div className="absolute inset-0 bg-slate-400/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                      <div className="relative z-10">
-                        <p className="font-black text-sm uppercase text-foreground">{bundle.name}</p>
-                        <p className="text-xs font-bold text-muted-foreground uppercase">{bundle.network}</p>
-                      </div>
-                      <div className="text-right flex flex-col items-end gap-1.5 relative z-10">
-                        <p className="font-black text-lg text-slate-500 dark:text-slate-400">GHS {bundle.price}</p>
-                        <span className="text-[10px] bg-slate-600 dark:bg-slate-500 text-white px-3 py-1 rounded-lg font-black uppercase shadow-sm group-hover:scale-105 transition-transform">Buy Now</span>
-                      </div>
-                    </button>
-                  ))}
-                  {bundles.filter(b => b.network === 'FCMobile' && b.name.toLowerCase().includes('silver')).length === 0 && (
-                     <div className="col-span-full py-12 text-center text-muted-foreground font-bold">No silver packages available right now</div>
-                  )}
-               </div>
-            </TabsContent>
-          </Tabs>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
