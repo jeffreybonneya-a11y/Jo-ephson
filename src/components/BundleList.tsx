@@ -7,9 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { motion } from 'motion/react';
-import { Smartphone, Wifi, Zap, Tv, Crown, Trophy } from 'lucide-react';
+import { Smartphone, Wifi, Zap, Crown } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import StreamingTab from './StreamingTab';
+import fcMobileIcon from '@/src/assets/images/fc_mobile_icon_1782342161399.jpg';
 
 interface BundleListProps {
   onSelectBundle: (bundle: Bundle & { wholesalePrice?: number }) => void;
@@ -22,9 +23,11 @@ export default function BundleList({ onSelectBundle, isAgentMode = false, isAgen
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('MTN');
+  const [activeGameCoinSubTab, setActiveGameCoinSubTab] = useState('FC_MOBILE');
   const [announcement, setAnnouncement] = useState<any>(null);
 
   const tabs = ['MTN', 'Telecel', 'AirtelTigo', 'Result Checker', 'PC Games', 'Premium Apps', 'Game Coins'];
+  const gameCoinSubTabs = [{ id: 'FC_MOBILE', label: 'FC ™ MOBILE points and silver' }];
 
   const getNetworkColor = (tab: string) => {
     switch (tab) {
@@ -228,6 +231,31 @@ export default function BundleList({ onSelectBundle, isAgentMode = false, isAgen
                       <Smartphone className="w-16 h-16 text-muted-foreground/20 mx-auto mb-6" />
                       <h3 className="text-2xl font-black text-foreground mb-2 dark:text-white">RESTOCKING SOON 👑</h3>
                       <p className="text-muted-foreground">The King is preparing more deals for {tab}.</p>
+                    </div>
+                  )}
+                </div>
+              ) : tab === 'Game Coins' ? (
+                <div className="space-y-6">
+                  <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+                    {gameCoinSubTabs.map((subTab) => (
+                      <Button
+                        key={subTab.id}
+                        onClick={() => setActiveGameCoinSubTab(subTab.id)}
+                        variant={activeGameCoinSubTab === subTab.id ? 'default' : 'outline'}
+                        className="rounded-full font-black uppercase tracking-wider h-12"
+                      >
+                        {subTab.label}
+                      </Button>
+                    ))}
+                  </div>
+                  {activeGameCoinSubTab === 'FC_MOBILE' && (
+                    <div className="min-h-[50vh] flex flex-col items-center justify-center p-8 bg-card rounded-[2rem] border-2 border-border gap-4">
+                      <img 
+                        src={fcMobileIcon} 
+                        alt="FC Mobile" 
+                        className="mb-4 rounded-3xl w-48 h-48 object-contain" 
+                      />
+                      <h2 className="text-xl font-black text-muted-foreground uppercase tracking-widest">FC ™ MOBILE points and silver Coming Soon</h2>
                     </div>
                   )}
                 </div>
