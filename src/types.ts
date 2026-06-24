@@ -1,4 +1,4 @@
-export type Network = 'MTN' | 'Telecel' | 'AirtelTigo' | 'FCMobile';
+export type Network = 'MTN' | 'Telecel' | 'AirtelTigo';
 
 export interface Bundle {
   id: string;

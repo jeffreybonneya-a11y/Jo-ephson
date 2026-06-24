@@ -633,7 +633,7 @@ Reference Code: ${refCode}
                   </div>
                 ) : (
                   <div className="space-y-8">
-                    {['MTN', 'Telecel', 'AirtelTigo', 'FCMobile'].map(net => {
+                    {['MTN', 'Telecel', 'AirtelTigo'].map(net => {
                       const networkBundles = bundles
                         .filter(b => b.network === net)
                         .sort((a, b) => {
@@ -661,13 +661,6 @@ Reference Code: ${refCode}
                           button: 'bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-600 dark:hover:bg-blue-700',
                           disabledBtn: 'bg-blue-500/50 text-white'
                         };
-                        if (n === 'FCMobile') return {
-                          text: 'text-emerald-500 dark:text-emerald-400',
-                          border: 'border-emerald-500/20 dark:border-emerald-400/20',
-                          ring: 'focus-visible:ring-emerald-500',
-                          button: 'bg-emerald-500 hover:bg-emerald-600 text-white dark:bg-emerald-500 dark:hover:bg-emerald-600',
-                          disabledBtn: 'bg-emerald-500/50 text-white'
-                        };
                         return {
                           text: 'text-primary',
                           border: 'border-primary/20',
@@ -687,7 +680,7 @@ Reference Code: ${refCode}
                           </h3>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {networkBundles.map(bundle => {
-                              const wholesale = bundle.network === 'FCMobile' ? Math.max(0, Number(bundle.price) - 1.00) : Math.max(0, Number(bundle.price) - 2.00);
+                              const wholesale = Math.max(0, Number(bundle.price) - 2.00);
                               const currentVal = customPrices[bundle.id] ?? String(wholesale);
                               const sellingPrice = customPrices[bundle.id] ? Number(customPrices[bundle.id]) : wholesale;
                               const profit = sellingPrice - wholesale;
@@ -1120,11 +1113,6 @@ Reference Code: ${refCode}
                                     <span className="font-sans font-black text-xs text-slate-800 dark:text-white bg-slate-100 dark:bg-slate-800 p-1.5 px-3 rounded-xl border">
                                       {order.network}: <span className="text-primary tracking-tight font-mono">{order.phone}</span>
                                     </span>
-                                    {order.network === 'FCMobile' && (order.recipientUsername || order.customer_details?.recipientUsername) && (
-                                      <span className="text-[11px] font-sans font-black text-rose-500 bg-rose-50 dark:bg-rose-950/30 px-2 py-0.5 rounded-md border border-rose-100 dark:border-rose-900/50">
-                                        @{order.recipientUsername || order.customer_details?.recipientUsername}
-                                      </span>
-                                    )}
                                   </div>
                                   <a 
                                     href={`https://wa.me/233${order.phone.replace(/^0/, '')}?text=${encodeURIComponent(`Hello, this is agent ${agent?.agent_name || 'storeholder'} from King J Deals. Regarding your order #${order.id.slice(-6).toUpperCase()} of ${order.bundle}...`)}`}

@@ -1,355 +1,247 @@
-import React, { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, doc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db, auth } from '../lib/firebase';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Loader2, Tv, Lock, PlayCircle, Smartphone, Video, X, Crown, Search } from 'lucide-react';
-import { toast } from 'sonner';
+import React, { useState } from 'react';
+import { motion } from 'motion/react';
+import { Coins, Monitor, Gamepad2, Sparkles, GraduationCap, Search, Crown, ShoppingCart, Zap } from 'lucide-react';
 import { Bundle } from '../types';
+import { getProductImage } from '../lib/images';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 
 interface StreamingTabProps {
   onSelectBundle?: (bundle: Bundle) => void;
   bundles?: Bundle[];
 }
 
-const getBundleCategory = (b: Bundle): string => {
-  if (b.category) return b.category;
-  if (b.network === 'FCMobile') return 'Game Coins';
-  return b.network;
-};
+const SUB_TABS = [
+  { id: 'pc_games', label: 'PC Games', icon: Monitor, desc: 'Steam Keys, Epic Games, GTA & Need for Speed' },
+  { id: 'playstation_games', label: 'Playstation Games', icon: Gamepad2, desc: 'PSN Cards, PS4 & PS5 Digital Titles' },
+  { id: 'premium_apps', label: 'Premium Apps', icon: Sparkles, desc: 'Netflix, Spotify, Canva Pro & ChatGPT Plus' },
+  { id: 'results_checker', label: 'Results Checker', icon: GraduationCap, desc: 'BECE, WASSCE, NOV/DEC & WAEC Checkers' },
+] as const;
 
-const ProductCard: React.FC<{ bundle: Bundle; onSelect: (bundle: Bundle) => void }> = ({ bundle, onSelect }) => {
-  // Determine premium real background cover image fallback
-  let displayImage = bundle.imageUrl;
-  if (!displayImage) {
-    const nameLower = bundle.name.toLowerCase();
-    if (nameLower.includes('netflix')) {
-      displayImage = 'https://images.unsplash.com/photo-1574375927938-d5a98e8edd86?q=80&w=600&auto=format&fit=crop';
-    } else if (nameLower.includes('spotify')) {
-      displayImage = 'https://images.unsplash.com/photo-1614680376593-902f74fa0d41?q=80&w=600&auto=format&fit=crop';
-    } else if (nameLower.includes('canva')) {
-      displayImage = 'https://images.unsplash.com/photo-1626785774573-4b799315345d?q=80&w=600&auto=format&fit=crop';
-    } else if (nameLower.includes('chatgpt') || nameLower.includes('gpt')) {
-      displayImage = 'https://images.unsplash.com/photo-1677442136019-21780efad99a?q=80&w=600&auto=format&fit=crop';
-    } else if (nameLower.includes('capcut')) {
-      displayImage = 'https://images.unsplash.com/photo-1621574539437-4b7cb63120b8?q=80&w=600&auto=format&fit=crop';
-    } else if (nameLower.includes('gta')) {
-      displayImage = 'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=600&auto=format&fit=crop';
-    } else if (nameLower.includes('fc') || nameLower.includes('fifa') || nameLower.includes('pubg') || nameLower.includes('free fire') || nameLower.includes('coins')) {
-      displayImage = 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?q=80&w=600&auto=format&fit=crop';
-    } else if (nameLower.includes('playstation') || nameLower.includes('psn') || nameLower.includes('sony')) {
-      displayImage = 'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?q=80&w=600&auto=format&fit=crop';
-    } else if (nameLower.includes('bece') || nameLower.includes('wassce') || nameLower.includes('checker')) {
-      displayImage = 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?q=80&w=600&auto=format&fit=crop';
-    } else {
-      displayImage = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=600&auto=format&fit=crop';
-    }
+type SubTabId = typeof SUB_TABS[number]['id'];
+
+function getTabCategory(b: Bundle): SubTabId | null {
+  const nameLower = (b.name || '').toLowerCase();
+  const categoryLower = (b.category || '').toLowerCase();
+  const networkLower = (b.network || '').toLowerCase();
+
+  // Exclude standard telecom data bundles (MTN, Telecel, AirtelTigo) unless explicitly categorized
+  if (['mtn', 'telecel', 'airteltigo', 'vodafone', 'tigo'].includes(networkLower) && !categoryLower && !nameLower.includes('checker') && !nameLower.includes('coin') && !nameLower.includes('points') && !nameLower.includes('silver') && !nameLower.includes('uc') && !nameLower.includes('diamonds')) {
+    return null;
   }
 
+  // 1. Results Checker
+  if (categoryLower.includes('checker') || nameLower.includes('bece') || nameLower.includes('wassce') || nameLower.includes('novdec') || nameLower.includes('waec') || nameLower.includes('checker') || nameLower.includes('results')) {
+    return 'results_checker';
+  }
+  // 2. Premium Apps
+  if (categoryLower.includes('premium') || categoryLower.includes('app') || nameLower.includes('netflix') || nameLower.includes('spotify') || nameLower.includes('canva') || nameLower.includes('chatgpt') || nameLower.includes('capcut') || nameLower.includes('apple music') || nameLower.includes('youtube')) {
+    return 'premium_apps';
+  }
+  // 3. Playstation Games
+  if (nameLower.includes('playstation') || nameLower.includes('psn') || nameLower.includes('ps4') || nameLower.includes('ps5') || nameLower.includes('sony') || categoryLower.includes('playstation') || categoryLower.includes('ps_games')) {
+    return 'playstation_games';
+  }
+  // 4. PC Games
+  if (categoryLower.includes('pc') || categoryLower.includes('steam') || nameLower.includes('steam') || nameLower.includes('gta') || nameLower.includes('need for speed') || nameLower.includes('nfs') || nameLower.includes('pc game') || nameLower.includes('epic')) {
+    return 'pc_games';
+  }
+  // 5. Default: PC Games
+  return 'pc_games';
+}
+
+const ProductCard: React.FC<{ bundle: Bundle; onSelect: (bundle: Bundle) => void }> = ({ bundle, onSelect }) => {
+  const displayImage = getProductImage(bundle);
+
   return (
-    <div className="hover:border-amber-500/50 hover:shadow-[0_0_30px_rgba(245,158,11,0.15)] transition-all duration-300 group border-2 rounded-3xl overflow-hidden bg-[#0A192F] border-slate-800 flex flex-col h-full shadow-lg">
-      <div className="relative h-[220px] md:h-[240px] w-full overflow-hidden border-b border-slate-800 shrink-0">
+    <motion.div 
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ duration: 0.25 }}
+      className="hover:border-primary hover:shadow-[0_10px_30px_rgba(245,158,11,0.15)] transition-all duration-300 group border-2 rounded-[2rem] overflow-hidden bg-card border-border flex flex-col h-full shadow-md"
+    >
+      <div className="relative h-48 md:h-56 w-full overflow-hidden border-b-2 border-border shrink-0 bg-slate-950">
         <img 
           src={displayImage} 
           alt={bundle.name} 
           className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
           referrerPolicy="no-referrer"
         />
-        <div className="absolute top-4 left-4 bg-[#0A192F]/80 backdrop-blur-md border border-amber-500/30 text-amber-500 text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full">
-          {bundle.category || bundle.network}
+        <div className="absolute top-4 left-4 bg-background/90 backdrop-blur-md border border-primary/30 text-primary text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full shadow-sm">
+          {bundle.category || bundle.network || 'Deal👑'}
+        </div>
+        <div className="absolute top-4 right-4 bg-primary text-secondary text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shadow-md flex items-center gap-1">
+          <Zap className="w-3 h-3 fill-secondary" />
+          <span>Instant</span>
         </div>
       </div>
-      <div className="p-6 flex flex-col flex-1">
-        <div className="mb-4">
-          <h3 className="text-base md:text-lg font-black mb-1 text-white uppercase tracking-tight group-hover:text-amber-500 transition-colors line-clamp-1">{bundle.name}</h3>
-          <p className="text-slate-400 text-xs font-bold leading-relaxed line-clamp-2 h-10">
-            {bundle.description || `Get instant delivery on ${bundle.name}. ${bundle.dataAmount ? `Volume: ${bundle.dataAmount}.` : ''}`}
+
+      <div className="p-6 md:p-8 flex flex-col flex-1">
+        <div className="mb-6">
+          <h3 className="text-lg md:text-xl font-black mb-2 text-foreground dark:text-white uppercase tracking-tight group-hover:text-primary transition-colors line-clamp-1">
+            {bundle.name}
+          </h3>
+          <p className="text-muted-foreground text-xs md:text-sm font-medium leading-relaxed line-clamp-2 min-h-[2.5rem]">
+            {bundle.description || `Automated instant delivery. ${bundle.dataAmount ? `Package Volume: ${bundle.dataAmount}.` : 'Verified high quality service.'}`}
           </p>
         </div>
-        <div className="mt-auto pt-4 flex items-center justify-between border-t border-slate-800/50">
+
+        <div className="mt-auto pt-5 flex items-center justify-between border-t-2 border-border/60">
           <div className="flex flex-col">
-            <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Royal Price</span>
-            <span className="text-lg font-black text-amber-500 font-mono">GHS {bundle.price.toFixed(2)}</span>
+            <span className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Royal Price</span>
+            <span className="text-2xl md:text-3xl font-black text-primary font-mono">
+              GHS {bundle.price.toFixed(2)}
+            </span>
           </div>
           <Button 
-            className="rounded-xl px-4 h-9 bg-amber-500 text-slate-950 hover:bg-amber-600 font-black uppercase tracking-wider text-[10px] shadow-md transition-all active:scale-95 cursor-pointer"
+            className="rounded-2xl px-6 h-14 bg-secondary text-secondary-foreground hover:bg-primary hover:text-white font-black uppercase tracking-wider text-xs md:text-sm shadow-lg transition-all active:scale-95 cursor-pointer flex items-center gap-2"
             onClick={() => onSelect(bundle)}
           >
-            Buy Now
+            <ShoppingCart className="w-4 h-4" />
+            <span>Buy Now</span>
           </Button>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
-const EmptyCategory: React.FC<{ title: string; subtitle: string }> = ({ title, subtitle }) => (
-  <div className="flex flex-col justify-center items-center py-16 px-4 bg-[#0A192F] rounded-3xl border-2 border-dashed border-slate-800 text-center w-full">
-    <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center mb-4">
-      <Crown className="w-6 h-6" />
-    </div>
-    <h3 className="text-sm font-black text-white mb-1 uppercase tracking-tight">{title}</h3>
-    <p className="text-slate-400 text-xs max-w-sm">{subtitle}</p>
-  </div>
-);
-
 export default function StreamingTab({ onSelectBundle, bundles = [] }: StreamingTabProps) {
-  const [loading, setLoading] = useState(true);
-  const [isProcessingLive, setIsProcessingLive] = useState(false);
-  const [isProcessingOneTime, setIsProcessingOneTime] = useState(false);
-  const [streamList, setStreamList] = useState<any[]>([]);
-  const [activePlayer, setActivePlayer] = useState<{ url: string, title: string } | null>(null);
-  
-  const [activeTab, setActiveTab] = useState('buy_games');
-  const [activeSubTab, setActiveSubTab] = useState('game_coins');
+  const [activeSubTab, setActiveSubTab] = useState<SubTabId>('pc_games');
+  const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
-    const handleNav = () => {
-      setActiveTab('buy_games');
-      setActiveSubTab('pc_games');
-    };
-    window.addEventListener('NAVIGATE_TO_PC_GAMES', handleNav);
-    return () => window.removeEventListener('NAVIGATE_TO_PC_GAMES', handleNav);
-  }, []);
+  // Group bundles by sub tab
+  const activeTabConfig = SUB_TABS.find(t => t.id === activeSubTab) || SUB_TABS[0];
 
-  useEffect(() => {
-    if (!auth.currentUser?.uid) {
-      setLoading(false);
-      return;
-    }
+  const matchingBundles = bundles.filter(b => {
+    const tabCategory = getTabCategory(b);
+    if (tabCategory !== activeSubTab) return false;
 
-    const q = query(
-      collection(db, 'orders'),
-      where('userId', '==', auth.currentUser.uid),
-      where('type', '==', 'stream')
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      b.name.toLowerCase().includes(q) ||
+      (b.description || '').toLowerCase().includes(q) ||
+      (b.category || '').toLowerCase().includes(q)
     );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setStreamList(fetched);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  const handlePayForStream = async (type: 'live' | 'onetime', price: number) => {
-    if (!auth.currentUser) {
-      toast.error("You must be logged in to purchase.");
-      return;
-    }
-
-    const publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
-    if (!publicKey) {
-      toast.error("Paystack Public Key is missing! Please set it in settings. 👑");
-      return;
-    }
-
-    if (type === 'live') setIsProcessingLive(true);
-    if (type === 'onetime') setIsProcessingOneTime(true);
-
-    try {
-      const preOrderRef = doc(collection(db, 'orders'));
-      const preOrderId = preOrderRef.id;
-
-      await setDoc(preOrderRef, {
-          userId: auth.currentUser.uid,
-          customerName: auth.currentUser.displayName || auth.currentUser.email || 'Royal Customer',
-          email: auth.currentUser.email || 'no-email@example.com',
-          phone: "N/A",
-          bundle: type === 'live' ? 'LIVE ACCESS' : 'ONE-TIME STREAM',
-          network: 'STREAM',
-          type: 'stream',
-          streamType: type,
-          streamStatus: type === 'live' ? 'pending' : 'pending_approval',
-          status: 'pending',
-          paymentStatus: 'pending',
-          amount: Number(price),
-          createdAt: serverTimestamp()
-      });
-
-      const mod = await import('@paystack/inline-js');
-      let PaystackCtor: any = mod.default || mod;
-      if (typeof PaystackCtor !== 'function' && PaystackCtor.default) {
-        PaystackCtor = PaystackCtor.default;
-      }
-
-      const paystack = new PaystackCtor();
-      paystack.newTransaction({
-        key: publicKey,
-        email: auth.currentUser.email || 'guest@kingjdeals.com',
-        amount: Math.round(price * 100),
-        currency: "GHS",
-        metadata: {
-          type: 'stream',
-          streamType: type,
-          userId: auth.currentUser.uid,
-          customerName: auth.currentUser.displayName || auth.currentUser.email,
-          phone: "N/A",
-          internalOrderId: preOrderId,
-          originalAmount: price
-        },
-        onSuccess: async (response: any) => {
-          try {
-            await fetch('/api/verifyPayment', {
-               method: 'POST',
-               headers: { 'Content-Type': 'application/json' },
-               body: JSON.stringify({ 
-                  reference: response.reference,
-                  metadata: {
-                    type: 'stream',
-                    streamType: type,
-                    userId: auth.currentUser?.uid,
-                    internalOrderId: preOrderId,
-                    originalAmount: price
-                  }
-               })
-            });
-          } catch (err) {
-             console.error("Error verifying stream payment:", err);
-          } finally {
-            if (type === 'live') setIsProcessingLive(false);
-            if (type === 'onetime') setIsProcessingOneTime(false);
-          }
-        },
-        onCancel: () => {
-          if (type === 'live') setIsProcessingLive(false);
-          if (type === 'onetime') setIsProcessingOneTime(false);
-        }
-      });
-      
-    } catch (err) {
-      console.error(err);
-      toast.error("Error communicating with server.");
-      if (type === 'live') setIsProcessingLive(false);
-      if (type === 'onetime') setIsProcessingOneTime(false);
-    }
-  };
-
-  const watchStream = (streamType: 'live' | 'onetime') => {
-    if (streamType === 'live') {
-      toast.success("Redirecting to Live Stream... 👑");
-      setTimeout(() => {
-        window.location.href = 'https://cricfy.net/android-8-apk-214/';
-      }, 1200);
-    } else {
-      setActivePlayer({ url: 'https://www.soccertvhd.com/hesgoal-hes-goal-live-streaming/', title: 'One-Time Stream Access' });
-    }
-  };
-
-  const pendingLiveStream = streamList.find(s => s.streamType === 'live' && s.streamStatus === 'pending');
-  const activeLiveStream = streamList.find(s => s.streamType === 'live' && s.streamStatus === 'approved');
-  
-  const pendingOneTime = streamList.find(s => s.streamType === 'onetime' && s.streamStatus === 'pending_approval');
-  const activeOneTime = streamList.find(s => s.streamType === 'onetime' && s.streamStatus === 'approved');
-
-  // Categorized live bundles list
-  const gameCoinsItems = bundles.filter(b => getBundleCategory(b) === 'Game Coins');
-  const pcGamesItems = bundles.filter(b => getBundleCategory(b) === 'PC Games');
-  const playStationItems = bundles.filter(b => getBundleCategory(b) === 'PlayStation');
-  const resultsCheckerItems = bundles.filter(b => getBundleCategory(b) === 'Results Checker');
-  const premiumAppsItems = bundles.filter(b => getBundleCategory(b) === 'Premium Apps');
-
-  if (loading) {
-     return <div className="py-20 flex justify-center text-primary"><Loader2 className="w-10 h-10 animate-spin" /></div>;
-  }
+  });
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 h-auto bg-card border-border border rounded-2xl p-1 mb-8">
-          <TabsTrigger value="buy_games" className="rounded-xl font-black uppercase text-[10px] md:text-sm py-3 data-[state=active]:bg-primary data-[state=active]:text-secondary whitespace-normal h-full flex flex-col items-center gap-1">Buy Game & Coins</TabsTrigger>
-          <TabsTrigger value="results_checker" className="rounded-xl font-black uppercase text-[10px] md:text-sm py-3 data-[state=active]:bg-primary data-[state=active]:text-secondary whitespace-normal h-full flex flex-col items-center gap-1">Results Checker</TabsTrigger>
-          <TabsTrigger value="premium_apps" className="rounded-xl font-black uppercase text-[10px] md:text-sm py-3 data-[state=active]:bg-primary data-[state=active]:text-secondary whitespace-normal h-full flex flex-col items-center gap-1">Premium Apps</TabsTrigger>
-        </TabsList>
+    <div className="w-full space-y-8">
+      {/* Header Info & Search */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b-2 border-border">
+        <div>
+          <h2 className="text-3xl md:text-4xl font-black text-foreground dark:text-white uppercase tracking-tight flex items-center gap-3">
+            <span>👑</span>
+            <span>More Royal Deals</span>
+          </h2>
+          <p className="text-muted-foreground text-sm font-medium mt-1">
+            Choose a category below to explore gaming points, software licenses, and official checkers.
+          </p>
+        </div>
 
-        <TabsContent value="buy_games" className="animate-in fade-in zoom-in-95 duration-300">
-          <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3 h-12 bg-muted/50 rounded-xl p-1 mb-6">
-              <TabsTrigger value="game_coins" className="rounded-lg font-bold uppercase text-[9px] sm:text-xs">Game Coins</TabsTrigger>
-              <TabsTrigger value="pc_games" className="rounded-lg font-bold uppercase text-[9px] sm:text-xs">PC Games</TabsTrigger>
-              <TabsTrigger value="ps_games" className="rounded-lg font-bold uppercase text-[9px] sm:text-xs">PlayStation</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="game_coins" className="animate-in fade-in zoom-in-95 duration-300">
-              {gameCoinsItems.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {gameCoinsItems.map(item => (
-                    <ProductCard key={item.id} bundle={item} onSelect={(selected) => onSelectBundle?.(selected)} />
-                  ))}
-                </div>
-              ) : (
-                <EmptyCategory 
-                  title="No Game Coin offers available" 
-                  subtitle="The King is preparing new FC Mobile Points, PUBG UC, Free Fire Diamonds, and Call of Duty Points offers. Stay tuned!" 
-                />
-              )}
-            </TabsContent>
-            
-            <TabsContent value="pc_games" className="animate-in fade-in zoom-in-95 duration-300">
-              {pcGamesItems.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {pcGamesItems.map(item => (
-                    <ProductCard key={item.id} bundle={item} onSelect={(selected) => onSelectBundle?.(selected)} />
-                  ))}
-                </div>
-              ) : (
-                <EmptyCategory 
-                  title="PC Games Coming Soon 👑" 
-                  subtitle="The King is preparing awesome game cover offers (GTA V, EA Sports FC, Call of Duty, Red Dead Redemption, Need for Speed). Stay tuned!" 
-                />
-              )}
-            </TabsContent>
-            
-            <TabsContent value="ps_games" className="animate-in fade-in zoom-in-95 duration-300">
-              {playStationItems.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {playStationItems.map(item => (
-                    <ProductCard key={item.id} bundle={item} onSelect={(selected) => onSelectBundle?.(selected)} />
-                  ))}
-                </div>
-              ) : (
-                <EmptyCategory 
-                  title="PlayStation Offers Coming Soon 👑" 
-                  subtitle="Get ready for official PlayStation game covers and PSN gift card deals. Coming very soon!" 
-                />
-              )}
-            </TabsContent>
-          </Tabs>
-        </TabsContent>
-
-        <TabsContent value="results_checker" className="animate-in fade-in zoom-in-95 duration-300">
-          {resultsCheckerItems.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {resultsCheckerItems.map(item => (
-                <ProductCard key={item.id} bundle={item} onSelect={(selected) => onSelectBundle?.(selected)} />
-              ))}
-            </div>
-          ) : (
-            <EmptyCategory 
-              title="Results Checker Coming Soon 👑" 
-              subtitle="The King is curating secure and instant-delivery vouchers for BECE, WASSCE, and NovDec checkers. Stay tuned!" 
-            />
+        <div className="relative w-full md:w-80 shrink-0">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+          <Input
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder={`Search ${activeTabConfig.label.toLowerCase()}...`}
+            className="pl-12 h-14 rounded-2xl border-2 border-border bg-background text-foreground font-medium text-sm focus-visible:ring-primary shadow-inner"
+          />
+          {searchQuery && (
+            <button 
+              onClick={() => setSearchQuery('')}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-muted-foreground hover:text-foreground uppercase tracking-wider"
+            >
+              Clear
+            </button>
           )}
-        </TabsContent>
+        </div>
+      </div>
 
-        <TabsContent value="premium_apps" className="animate-in fade-in zoom-in-95 duration-300">
-          {premiumAppsItems.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {premiumAppsItems.map(item => (
-                <ProductCard key={item.id} bundle={item} onSelect={(selected) => onSelectBundle?.(selected)} />
-              ))}
-            </div>
-          ) : (
-            <EmptyCategory 
-              title="Premium Apps Subscriptions Coming Soon 👑" 
-              subtitle="Get ready for genuine, reliable premium subscriptions including Netflix, Spotify, Canva Pro, ChatGPT Plus, and CapCut Pro." 
+      {/* Sub Tabs Navigation Bar */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
+        {SUB_TABS.map(tab => {
+          const Icon = tab.icon;
+          const isActive = tab.id === activeSubTab;
+
+          return (
+            <button
+              key={tab.id}
+              onClick={() => {
+                setActiveSubTab(tab.id);
+                setSearchQuery('');
+              }}
+              className={`flex flex-col items-center justify-center p-4 md:p-6 rounded-2xl border-2 transition-all cursor-pointer text-center select-none ${
+                isActive 
+                  ? 'bg-primary text-secondary border-primary shadow-xl scale-102 font-black' 
+                  : 'bg-card border-border text-muted-foreground hover:border-primary/40 hover:bg-card/80 font-bold'
+              }`}
+            >
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-2 transition-transform ${
+                isActive ? 'bg-secondary text-primary scale-110' : 'bg-primary/10 text-primary'
+              }`}>
+                <Icon className="w-5 h-5 stroke-[2.5px]" />
+              </div>
+              <span className="text-xs md:text-sm uppercase tracking-tight line-clamp-1">{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Selected Tab Banner Description */}
+      <div className="bg-primary/5 border-2 border-primary/20 rounded-2xl p-4 md:p-6 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <Badge className="bg-primary text-secondary font-black uppercase tracking-wider text-[10px] px-2.5 py-1">
+            Active Category
+          </Badge>
+          <span className="font-black text-foreground dark:text-white uppercase tracking-tight text-sm md:text-base">
+            {activeTabConfig.label}
+          </span>
+          <span className="text-muted-foreground hidden md:inline">• {activeTabConfig.desc}</span>
+        </div>
+        <span className="text-xs font-black text-primary font-mono uppercase bg-background px-3 py-1.5 rounded-xl border border-primary/20 shrink-0">
+          {matchingBundles.length} {matchingBundles.length === 1 ? 'Item' : 'Items'}
+        </span>
+      </div>
+
+      {/* Product Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 pt-2">
+        {matchingBundles.length > 0 ? (
+          matchingBundles.map(bundle => (
+            <ProductCard 
+              key={bundle.id} 
+              bundle={bundle} 
+              onSelect={b => onSelectBundle && onSelectBundle(b)} 
             />
-          )}
-        </TabsContent>
-      </Tabs>
+          ))
+        ) : (
+          <div className="col-span-full py-20 px-6 bg-card rounded-[2.5rem] border-4 border-dashed border-border text-center flex flex-col items-center justify-center">
+            <div className="w-20 h-20 rounded-3xl bg-primary/10 border-2 border-primary/20 text-primary flex items-center justify-center mb-6 shadow-inner">
+              <Crown className="w-10 h-10 animate-pulse" />
+            </div>
+            <h3 className="text-2xl font-black text-foreground dark:text-white mb-2 uppercase tracking-tight">
+              {searchQuery ? 'No Results Found 👑' : `Restocking ${activeTabConfig.label} Soon 👑`}
+            </h3>
+            <p className="text-muted-foreground text-sm md:text-base max-w-md mx-auto leading-relaxed mb-6 font-medium">
+              {searchQuery 
+                ? `We couldn't find any items matching "${searchQuery}" in ${activeTabConfig.label}. Try a different search term.`
+                : `The King is currently preparing fresh automated deals for ${activeTabConfig.label}. Please check back shortly or explore our other royal categories!`
+              }
+            </p>
+            {searchQuery && (
+              <Button 
+                onClick={() => setSearchQuery('')}
+                className="rounded-xl px-6 h-12 bg-secondary text-secondary-foreground hover:bg-primary hover:text-white font-black uppercase text-xs tracking-wider"
+              >
+                Clear Search
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

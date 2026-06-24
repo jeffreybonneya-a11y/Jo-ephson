@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '@/src/lib/firebase';
 import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, doc, deleteDoc, getDoc, serverTimestamp, increment, getDocs, where } from 'firebase/firestore';
 import { Bundle, Order, Network, UserProfile, Message, StreamAccess, Complaint } from '@/src/types';
-import { ImageUploader } from './ImageUploader';
+import { getProductImage } from '@/src/lib/images';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -175,69 +175,20 @@ export default function AdminDashboard() {
         }
       }
 
-      // FCMobile
-      const qFCMobile = query(collection(db, 'bundles'), where('network', '==', 'FCMobile'));
-      const snapsFCMobile = await getDocs(qFCMobile);
-      
-      const newFCMobileBundles = [
-        { name: '40 FC Points', dataAmount: '40 FC Points', price: 7, network: 'FCMobile', active: true },
-        { name: '100 FC Points', dataAmount: '100 FC Points', price: 15, network: 'FCMobile', active: true },
-        { name: '140 FC Points', dataAmount: '140 FC Points', price: 22, network: 'FCMobile', active: true },
-        { name: '180 FC Points', dataAmount: '180 FC Points', price: 29, network: 'FCMobile', active: true },
-        { name: '220 FC Points', dataAmount: '220 FC Points', price: 36, network: 'FCMobile', active: true },
-        { name: '260 FC Points', dataAmount: '260 FC Points', price: 43, network: 'FCMobile', active: true },
-        { name: '340 FC Points', dataAmount: '340 FC Points', price: 50, network: 'FCMobile', active: true },
-        { name: '380 FC Points', dataAmount: '380 FC Points', price: 57, network: 'FCMobile', active: true },
-        { name: '380 FC Points (Pro)', dataAmount: '380 FC Points Pro', price: 74, network: 'FCMobile', active: true },
-        { name: '420 FC Points', dataAmount: '420 FC Points', price: 81, network: 'FCMobile', active: true },
-        { name: '460 FC Points', dataAmount: '460 FC Points', price: 88, network: 'FCMobile', active: true },
-        { name: '500 FC Points', dataAmount: '500 FC Points', price: 95, network: 'FCMobile', active: true },
-        { name: '540 FC Points', dataAmount: '540 FC Points', price: 102, network: 'FCMobile', active: true },
-        { name: '1070 FC Points', dataAmount: '1070 FC Points', price: 142, network: 'FCMobile', active: true },
-        { name: '2200 FC Points', dataAmount: '2200 FC Points', price: 280, network: 'FCMobile', active: true },
-        { name: '9999 FC Points', dataAmount: '9999 FC Points', price: 1500, network: 'FCMobile', active: true },
-        { name: '1000 FC Silver', dataAmount: '1000 FC Silver', price: 12, network: 'FCMobile', active: true },
-        { name: '2500 FC Silver', dataAmount: '2500 FC Silver', price: 29, network: 'FCMobile', active: true },
-        { name: '5000 FC Silver', dataAmount: '5000 FC Silver', price: 55, network: 'FCMobile', active: true },
-        { name: '10000 FC Silver', dataAmount: '10000 FC Silver', price: 110, network: 'FCMobile', active: true },
-      ];
-      
-      const existingFCMobile = snapsFCMobile.docs.map(d => String(d.data().dataAmount).toLowerCase().replace(/\s/g, ''));
-      for (const b of newFCMobileBundles) {
-        if (!existingFCMobile.includes(b.dataAmount.toLowerCase().replace(/\s/g, ''))) {
-           await addDoc(collection(db, 'bundles'), { ...b, createdAt: serverTimestamp() });
-        }
-      }
+      // FCMobile removed from here.
     };
     seed().catch(console.error);
   }, []);
 
   const handleSaveBundle = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!editingBundle) return;
     try {
-      const data = {
-        ...bundleForm,
+      await updateDoc(doc(db, 'bundles', editingBundle.id), {
         price: Number(bundleForm.price),
         updatedAt: serverTimestamp(),
-      };
-
-      // Set default network based on category to maintain backward compatibility
-      if (['MTN', 'Telecel', 'AirtelTigo'].includes(data.category)) {
-        data.network = data.category as any;
-      } else {
-        data.network = 'FCMobile'; // Keep fallback for FCMobile queries
-      }
-
-      if (editingBundle) {
-        await updateDoc(doc(db, 'bundles', editingBundle.id), data);
-        toast.success("Product updated!");
-      } else {
-        await addDoc(collection(db, 'bundles'), {
-          ...data,
-          createdAt: serverTimestamp(),
-        });
-        toast.success("Product added!");
-      }
+      });
+      toast.success("Price updated successfully!");
       setEditingBundle(null);
       setBundleForm({ 
         name: '', 
@@ -266,7 +217,7 @@ export default function AdminDashboard() {
       active: bundle.active ?? true,
       offerSlug: bundle.offerSlug || '',
       volume: bundle.volume || '',
-      category: bundle.category || (bundle.network === 'FCMobile' ? 'Game Coins' : bundle.network),
+      category: bundle.category || bundle.network,
       description: bundle.description || '',
       imageUrl: bundle.imageUrl || '',
     });
@@ -539,27 +490,9 @@ export default function AdminDashboard() {
                                    Copy
                                  </Button>
                                </div>
-                               {order.network === 'FCMobile' && (order.recipientUsername || order.customer_details?.recipientUsername) && (
-                                   <div className="flex items-center gap-2 mt-1">
-                                     <span className="text-[11px] font-sans font-black text-rose-500 bg-rose-50 dark:bg-rose-950/30 px-2 py-0.5 rounded-md border border-rose-100 dark:border-rose-900/50">
-                                       @{order.recipientUsername || order.customer_details?.recipientUsername}
-                                     </span>
-                                     <Button 
-                                       size="sm" 
-                                       variant="outline" 
-                                       className="h-6 w-16 p-0 text-[9px] font-black uppercase text-slate-500 dark:text-slate-400 rounded-md border dark:border-slate-800 text-center shadow-sm hover:bg-rose-50 hover:text-rose-600 transition-all cursor-pointer"
-                                       onClick={() => {
-                                         navigator.clipboard.writeText(order.recipientUsername || order.customer_details?.recipientUsername);
-                                         toast.success(`Copied username 👑`);
-                                       }}
-                                     >
-                                       Copy
-                                     </Button>
-                                   </div>
-                               )}
-                               <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 mt-1 uppercase tracking-tight">{order.bundle}</span>
-                             </>
-                           )}
+                                 <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 mt-1 uppercase tracking-tight">{order.bundle}</span>
+                               </>
+                             )}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -669,60 +602,34 @@ export default function AdminDashboard() {
            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <Card className="lg:col-span-1 rounded-3xl border-2 bg-white dark:bg-slate-950 dark:border-slate-800 h-fit">
                 <CardHeader className="p-8">
-                  <CardTitle className="text-xl font-black text-slate-900 dark:text-white">{editingBundle ? 'EDIT PRODUCT' : 'ADD NEW PRODUCT'}</CardTitle>
+                  <CardTitle className="text-xl font-black text-slate-900 dark:text-white">UPDATE PRICE</CardTitle>
                 </CardHeader>
                 <CardContent className="p-8 pt-0">
-                  <form onSubmit={handleSaveBundle} className="space-y-4">
-                    <div className="space-y-1">
-                      <Label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Product Name</Label>
-                      <Input value={bundleForm.name} onChange={e => setBundleForm({...bundleForm, name: e.target.value})} placeholder="e.g. MTN Royal 10GB or Netflix Premium" required className="rounded-xl border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white" />
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Category</Label>
-                      <Select value={bundleForm.category} onValueChange={(v: any) => setBundleForm({...bundleForm, category: v})}>
-                        <SelectTrigger className="rounded-xl border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white"><SelectValue /></SelectTrigger>
-                        <SelectContent className="dark:bg-slate-900 dark:border-slate-800">
-                          <SelectItem value="MTN">MTN Data</SelectItem>
-                          <SelectItem value="Telecel">Telecel Data</SelectItem>
-                          <SelectItem value="AirtelTigo">AirtelTigo Data</SelectItem>
-                          <SelectItem value="Game Coins">Game Coins</SelectItem>
-                          <SelectItem value="PC Games">PC Games</SelectItem>
-                          <SelectItem value="PlayStation">PlayStation</SelectItem>
-                          <SelectItem value="Premium Apps">Premium Apps</SelectItem>
-                          <SelectItem value="Results Checker">Results Checker</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
+                  {editingBundle ? (
+                    <form onSubmit={handleSaveBundle} className="space-y-4">
                       <div className="space-y-1">
-                        <Label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-300">Amount / Vol</Label>
-                        <Input value={bundleForm.dataAmount} onChange={e => setBundleForm({...bundleForm, dataAmount: e.target.value})} placeholder="e.g. 10GB, 1 Account" className="rounded-xl border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white" />
+                        <Label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Product Name</Label>
+                        <Input value={bundleForm.name} disabled className="rounded-xl border-2 dark:bg-slate-900/50 dark:border-slate-800 dark:text-slate-400 cursor-not-allowed" />
                       </div>
+
                       <div className="space-y-1">
                         <Label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-300">Price (GHS)</Label>
                         <Input type="number" step="0.01" value={bundleForm.price} onChange={e => setBundleForm({...bundleForm, price: e.target.value})} placeholder="20" required className="rounded-xl border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white" />
                       </div>
-                    </div>
 
-                    <div className="space-y-1">
-                      <Label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Short Description</Label>
-                      <Input value={bundleForm.description} onChange={e => setBundleForm({...bundleForm, description: e.target.value})} placeholder="e.g. Instant delivery, valid for 30 days" className="rounded-xl border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white" />
+                      <Button 
+                        type="submit" 
+                        className="w-full h-12 rounded-xl font-black bg-secondary text-white hover:bg-primary uppercase shadow-lg cursor-pointer"
+                      >
+                         Save New Price
+                      </Button>
+                      <Button type="button" variant="ghost" onClick={() => setEditingBundle(null)} className="w-full dark:text-slate-400 cursor-pointer">Cancel</Button>
+                    </form>
+                  ) : (
+                    <div className="text-center py-8 text-slate-500 dark:text-slate-400 font-bold text-sm">
+                      Select a product from the list to update its price.
                     </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Product Banner Image</Label>
-                      <ImageUploader value={bundleForm.imageUrl} onChange={(url) => setBundleForm({...bundleForm, imageUrl: url})} />
-                    </div>
-
-                    <Button type="submit" className="w-full h-12 rounded-xl font-black bg-secondary text-white hover:bg-primary uppercase shadow-lg cursor-pointer">
-                       {editingBundle ? 'Save Changes' : 'Create Product'}
-                    </Button>
-                    {editingBundle && (
-                      <Button type="button" variant="ghost" onClick={() => { setEditingBundle(null); setBundleForm({name:'',dataAmount:'',price:'',network:'MTN' as Network,active:true,offerSlug:'',volume:'',category:'MTN',description:'',imageUrl:''})}} className="w-full dark:text-slate-400 cursor-pointer">Cancel</Button>
-                    )}
-                  </form>
+                  )}
                 </CardContent>
               </Card>
 
@@ -749,11 +656,7 @@ export default function AdminDashboard() {
                           <TableCell className="p-6">
                             <div className="flex items-center gap-3">
                               <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 shrink-0 flex items-center justify-center">
-                                {b.imageUrl ? (
-                                  <img src={b.imageUrl} alt={b.name} className="w-full h-full object-cover" />
-                                ) : (
-                                  <Box className="w-5 h-5 text-slate-400" />
-                                )}
+                                <img src={getProductImage(b)} alt={b.name} className="w-full h-full object-cover" />
                               </div>
                               <div className="flex flex-col min-w-[120px]">
                                 <span className="font-black text-slate-900 dark:text-slate-100">{b.name}</span>
@@ -769,8 +672,9 @@ export default function AdminDashboard() {
                           <TableCell className="text-right font-black text-secondary font-mono">GHS {b.price.toFixed(2)}</TableCell>
                           <TableCell className="text-right p-6">
                             <div className="flex justify-end gap-2">
-                              <Button size="sm" variant="outline" className="h-8 w-8 p-0 rounded-lg dark:border-slate-800 dark:text-slate-400 cursor-pointer" onClick={() => startEditBundle(b)}><RefreshCw className="w-3 h-3" /></Button>
-                              <Button size="sm" variant="outline" className="h-8 w-8 p-0 rounded-lg text-red-500 dark:border-slate-800 cursor-pointer" onClick={() => deleteDoc(doc(db, 'bundles', b.id))}><Trash2 className="w-3 h-3" /></Button>
+                              <Button size="sm" variant="outline" className="h-8 px-4 rounded-xl font-bold uppercase text-[10px] dark:border-slate-800 dark:text-slate-400 cursor-pointer flex items-center gap-1.5" onClick={() => startEditBundle(b)}>
+                                <RefreshCw className="w-3 h-3" /> Update Price
+                              </Button>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -1064,9 +968,6 @@ export default function AdminDashboard() {
                                    <div className="flex items-center space-x-2 mt-1">
                                      <div className="flex flex-col gap-1">
                                        <p className="font-mono text-primary font-black bg-primary/10 px-2 py-0.5 rounded-md w-fit m-0">{o.phone}</p>
-                                       {o.network === 'FCMobile' && o.recipientUsername && (
-                                         <p className="text-xs font-sans font-black text-rose-500 bg-rose-50 dark:bg-rose-950/30 px-2 py-0.5 rounded-md w-fit m-0">@{o.recipientUsername}</p>
-                                       )}
                                      </div>
                                      <Button
                                        variant="ghost"

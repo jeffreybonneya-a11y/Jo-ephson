@@ -17,7 +17,12 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const storage = getStorage(app);
+
+const storageBucketUrl = firebaseConfig.storageBucket 
+  ? (firebaseConfig.storageBucket.startsWith('gs://') ? firebaseConfig.storageBucket : `gs://${firebaseConfig.storageBucket}`)
+  : undefined;
+
+export const storage = getStorage(app, storageBucketUrl);
 
 // Use initializeFirestore with experimentalForceLongPolling to prevent iframe connection blocks
 export const db = initializeFirestore(app, {

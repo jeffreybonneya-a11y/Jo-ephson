@@ -91,7 +91,7 @@ export default function BundleList({ onSelectBundle, isAgentMode = false, isAgen
 
   const processedBundles = bundles.map(b => {
     const originalPrice = b.price;
-    const wholesalePrice = b.network === 'FCMobile' ? Math.max(0, originalPrice - 1.00) : Math.max(0, originalPrice - 2.00);
+    const wholesalePrice = Math.max(0, originalPrice - 2.00);
     let discountedPrice = originalPrice;
     
     if (agentContext) {
@@ -163,7 +163,7 @@ export default function BundleList({ onSelectBundle, isAgentMode = false, isAgen
                     tab === activeTab ? getNetworkColor(tab) : 'border-border bg-card text-muted-foreground'
                   }`}
                 >
-                  {tab === 'streaming' ? "Extra 👑" : tab}
+                  {tab === 'streaming' ? "MORE👑" : tab}
                 </TabsTrigger>
               ))}
             </TabsList>

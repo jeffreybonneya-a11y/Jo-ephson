@@ -14,34 +14,16 @@ import { CheckCircle2, Loader2, Smartphone, CreditCard, MessageSquare, Info, Shi
 import { toast } from 'sonner';
 
 const formSchema = z.object({
-  recipientPhone: z.string().min(1, "User ID or phone number is required"),
-  recipientNetwork: z.enum(['MTN', 'Telecel', 'AirtelTigo', 'FCMobile']),
+  recipientPhone: z.string().min(1, "Phone number is required"),
+  recipientNetwork: z.enum(['MTN', 'Telecel', 'AirtelTigo']),
   amountSent: z.number().min(1, "Amount must be greater than 0"),
-  recipientUsername: z.string().optional(),
 }).superRefine((data, ctx) => {
-  if (data.recipientNetwork !== 'FCMobile') {
-     if (!/^0\d{9}$/.test(data.recipientPhone)) {
-        ctx.addIssue({
-           code: z.ZodIssueCode.custom,
-           message: "Phone must start with 0 and be 10 digits total (e.g., 05XXXXXXXX)",
-           path: ["recipientPhone"]
-        });
-     }
-  } else {
-     if (!/^\d{19}$/.test(data.recipientPhone)) {
-        ctx.addIssue({
-           code: z.ZodIssueCode.custom,
-           message: "User ID must be exactly 19 digits (e.g., 1034714769079812097)",
-           path: ["recipientPhone"]
-        });
-     }
-     if (!data.recipientUsername || data.recipientUsername.trim().length === 0) {
-        ctx.addIssue({
-           code: z.ZodIssueCode.custom,
-           message: "Accurate username is required",
-           path: ["recipientUsername"]
-        });
-     }
+  if (!/^0\d{9}$/.test(data.recipientPhone)) {
+    ctx.addIssue({
+       code: z.ZodIssueCode.custom,
+       message: "Phone must start with 0 and be 10 digits total (e.g., 05XXXXXXXX)",
+       path: ["recipientPhone"]
+    });
   }
 });
 
@@ -61,27 +43,23 @@ export default function CheckoutForm({ bundle, onClose, profile, agentContext, i
   const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      recipientNetwork: bundle?.network || 'MTN',
+      recipientNetwork: bundle?.network && ['MTN', 'Telecel', 'AirtelTigo'].includes(bundle.network) ? (bundle.network as "MTN" | "Telecel" | "AirtelTigo") : 'MTN',
       amountSent: bundle?.price || 0,
-      recipientUsername: '',
     }
   });
 
   const watchNetwork = watch('recipientNetwork');
 
   useEffect(() => {
-    if (bundle) {
-      setValue('recipientNetwork', bundle.network);
+    if (bundle && ['MTN', 'Telecel', 'AirtelTigo'].includes(bundle.network)) {
+      setValue('recipientNetwork', bundle.network as "MTN" | "Telecel" | "AirtelTigo");
       setValue('amountSent', bundle.price);
     }
   }, [bundle, setValue]);
 
   useEffect(() => {
-    if (profile?.phoneNumber && bundle?.network !== 'FCMobile') {
+    if (profile?.phoneNumber) {
       setValue('recipientPhone', profile.phoneNumber);
-    } else if (bundle?.network === 'FCMobile') {
-      setValue('recipientPhone', '');
-      setValue('recipientUsername', '');
     }
   }, [profile, bundle, setValue]);
 
@@ -120,7 +98,6 @@ export default function CheckoutForm({ bundle, onClose, profile, agentContext, i
         createdAt: serverTimestamp(),
         userId: auth.currentUser.uid,
         customerName: profile?.fullName || auth.currentUser.displayName || 'Royal Customer',
-        recipientUsername: data.recipientUsername || '',
         ...(agentContext ? {
           agentId: agentContext.id,
           agent_id: agentContext.id,
@@ -150,7 +127,6 @@ export default function CheckoutForm({ bundle, onClose, profile, agentContext, i
             email: auth.currentUser.email || 'no-email@example.com',
             phone: data.recipientPhone,
             network: data.recipientNetwork,
-            recipientUsername: data.recipientUsername || ''
           },
           wholesale_price: wsPrice,
           agent_price: agPrice,
@@ -206,7 +182,6 @@ export default function CheckoutForm({ bundle, onClose, profile, agentContext, i
                   network: data.recipientNetwork,
                   bundle: `${data.recipientNetwork} ${bundle.dataAmount}`,
                   originalAmount: bundle.price,
-                  recipientUsername: data.recipientUsername || ''
                 }
               })
             }).catch(err => console.error("Background verify error:", err));
@@ -317,13 +292,13 @@ export default function CheckoutForm({ bundle, onClose, profile, agentContext, i
                 <div className="grid grid-cols-1 gap-3 sm:gap-6">
                   <div className="space-y-1">
                     <Label htmlFor="recipientPhone" className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 ml-1">
-                      {watchNetwork === 'FCMobile' ? 'Player ID / User ID' : 'Phone Number'}
+                      Phone Number
                     </Label>
                     <div className="relative">
                       <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                       <Input 
                         id="recipientPhone" 
-                        placeholder={watchNetwork === 'FCMobile' ? 'e.g. 1034714769079812097' : '0XXXXXXXXX'} 
+                        placeholder="0XXXXXXXXX" 
                         {...register('recipientPhone')} 
                         className="rounded-lg sm:rounded-[1.25rem] h-11 sm:h-14 pl-10 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 focus:border-primary/50 font-black text-sm sm:text-lg tracking-wider text-foreground" 
                       />
@@ -331,36 +306,11 @@ export default function CheckoutForm({ bundle, onClose, profile, agentContext, i
                     {errors.recipientPhone && (
                       <p className="text-red-500 text-[10px] font-black mt-1 ml-1 uppercase">{errors.recipientPhone.message}</p>
                     )}
-                    {watchNetwork === 'FCMobile' && (
-                      <p className="text-xs text-amber-500 font-bold mt-1 ml-1 leading-normal italic">
-                        * Under recipient details, please provide accurate details. User ID must be exactly 19 digits.
-                      </p>
-                    )}
                   </div>
-
-                  {watchNetwork === 'FCMobile' && (
-                    <div className="space-y-1">
-                      <Label htmlFor="recipientUsername" className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 ml-1">
-                        Recipient Username
-                      </Label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                        <Input 
-                          id="recipientUsername" 
-                          placeholder="Enter accurate playing username" 
-                          {...register('recipientUsername')} 
-                          className="rounded-lg sm:rounded-[1.25rem] h-11 sm:h-14 pl-10 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 focus:border-primary/50 font-black text-sm sm:text-lg tracking-wider text-foreground" 
-                        />
-                      </div>
-                      {errors.recipientUsername && (
-                        <p className="text-red-500 text-[10px] font-black mt-1 ml-1 uppercase">{errors.recipientUsername.message}</p>
-                      )}
-                    </div>
-                  )}
 
                   <div className="space-y-1">
                     <Label htmlFor="recipientNetwork" className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 ml-1">Network</Label>
-                    <Select defaultValue={bundle.network} value={watchNetwork} onValueChange={(v) => setValue('recipientNetwork', v as Network)}>
+                    <Select defaultValue={bundle.network} value={watchNetwork} onValueChange={(v) => setValue('recipientNetwork', v as "MTN" | "Telecel" | "AirtelTigo")}>
                       <SelectTrigger className="rounded-lg sm:rounded-[1.25rem] h-11 sm:h-14 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 focus:border-primary/50 font-black text-sm sm:text-lg text-foreground">
                         <SelectValue placeholder="Network" />
                       </SelectTrigger>
@@ -368,7 +318,6 @@ export default function CheckoutForm({ bundle, onClose, profile, agentContext, i
                         <SelectItem value="MTN" className="font-black">MTN 👑</SelectItem>
                         <SelectItem value="Telecel" className="font-black">Telecel 👑</SelectItem>
                         <SelectItem value="AirtelTigo" className="font-black">AirtelTigo 👑</SelectItem>
-                        <SelectItem value="FCMobile" className="font-black">FC Mobile 👑</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
