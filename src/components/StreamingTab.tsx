@@ -27,7 +27,7 @@ function getTabCategory(b: Bundle): SubTabId | null {
   const networkLower = (b.network || '').toLowerCase();
 
   // Exclude standard telecom data bundles (MTN, Telecel, AirtelTigo) unless explicitly categorized
-  if (['mtn', 'telecel', 'airteltigo', 'vodafone', 'tigo'].includes(networkLower) && !categoryLower && !nameLower.includes('checker') && !nameLower.includes('coin') && !nameLower.includes('points') && !nameLower.includes('silver') && !nameLower.includes('uc') && !nameLower.includes('diamonds')) {
+  if (['mtn', 'telecel', 'airteltigo', 'vodafone', 'tigo'].includes(networkLower) && !categoryLower && !nameLower.includes('checker') && !nameLower.includes('coin') && !nameLower.includes('points') && !nameLower.includes('uc') && !nameLower.includes('diamonds')) {
     return null;
   }
 
@@ -52,8 +52,6 @@ function getTabCategory(b: Bundle): SubTabId | null {
 }
 
 const ProductCard: React.FC<{ bundle: Bundle; onSelect: (bundle: Bundle) => void }> = ({ bundle, onSelect }) => {
-  const displayImage = getProductImage(bundle);
-
   return (
     <motion.div 
       initial={{ opacity: 0, y: 15 }}
@@ -62,21 +60,6 @@ const ProductCard: React.FC<{ bundle: Bundle; onSelect: (bundle: Bundle) => void
       transition={{ duration: 0.25 }}
       className="hover:border-primary hover:shadow-[0_10px_30px_rgba(245,158,11,0.15)] transition-all duration-300 group border-2 rounded-[2rem] overflow-hidden bg-card border-border flex flex-col h-full shadow-md"
     >
-      <div className="relative h-48 md:h-56 w-full overflow-hidden border-b-2 border-border shrink-0 bg-slate-950">
-        <img 
-          src={displayImage} 
-          alt={bundle.name} 
-          className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
-          referrerPolicy="no-referrer"
-        />
-        <div className="absolute top-4 left-4 bg-background/90 backdrop-blur-md border border-primary/30 text-primary text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full shadow-sm">
-          {bundle.category || bundle.network || 'Deal👑'}
-        </div>
-        <div className="absolute top-4 right-4 bg-primary text-secondary text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shadow-md flex items-center gap-1">
-          <Zap className="w-3 h-3 fill-secondary" />
-          <span>Instant</span>
-        </div>
-      </div>
 
       <div className="p-6 md:p-8 flex flex-col flex-1">
         <div className="mb-6">

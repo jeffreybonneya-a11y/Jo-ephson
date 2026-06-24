@@ -175,20 +175,47 @@ export default function AdminDashboard() {
         }
       }
 
-      // FCMobile removed from here.
+      // Purge any FC Mobile / Game Coins bundles from Firestore
+      const snapsAll = await getDocs(collection(db, 'bundles'));
+      for (const d of snapsAll.docs) {
+        const bd = d.data();
+        if (bd.network === 'FCMobile' || bd.category === 'Game Coins' || String(bd.name).toLowerCase().includes('fc points') || String(bd.name).toLowerCase().includes('fc silver')) {
+          await deleteDoc(d.ref);
+        }
+      }
     };
     seed().catch(console.error);
   }, []);
 
   const handleSaveBundle = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingBundle) return;
     try {
-      await updateDoc(doc(db, 'bundles', editingBundle.id), {
+      const data: any = {
+        name: bundleForm.name,
+        dataAmount: bundleForm.dataAmount,
         price: Number(bundleForm.price),
+        category: bundleForm.category,
+        description: bundleForm.description,
+        active: bundleForm.active,
         updatedAt: serverTimestamp(),
-      });
-      toast.success("Price updated successfully!");
+      };
+
+      if (['MTN', 'Telecel', 'AirtelTigo'].includes(data.category)) {
+        data.network = data.category;
+      } else {
+        data.network = data.category;
+      }
+
+      if (editingBundle) {
+        await updateDoc(doc(db, 'bundles', editingBundle.id), data);
+        toast.success("Product updated successfully!");
+      } else {
+        await addDoc(collection(db, 'bundles'), {
+          ...data,
+          createdAt: serverTimestamp(),
+        });
+        toast.success("Product created successfully!");
+      }
       setEditingBundle(null);
       setBundleForm({ 
         name: '', 
@@ -602,34 +629,53 @@ export default function AdminDashboard() {
            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <Card className="lg:col-span-1 rounded-3xl border-2 bg-white dark:bg-slate-950 dark:border-slate-800 h-fit">
                 <CardHeader className="p-8">
-                  <CardTitle className="text-xl font-black text-slate-900 dark:text-white">UPDATE PRICE</CardTitle>
+                  <CardTitle className="text-xl font-black text-slate-900 dark:text-white">{editingBundle ? 'EDIT DATA BUNDLE' : 'ADD NEW DATA BUNDLE'}</CardTitle>
                 </CardHeader>
                 <CardContent className="p-8 pt-0">
-                  {editingBundle ? (
-                    <form onSubmit={handleSaveBundle} className="space-y-4">
-                      <div className="space-y-1">
-                        <Label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Product Name</Label>
-                        <Input value={bundleForm.name} disabled className="rounded-xl border-2 dark:bg-slate-900/50 dark:border-slate-800 dark:text-slate-400 cursor-not-allowed" />
-                      </div>
+                  <form onSubmit={handleSaveBundle} className="space-y-4">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Bundle Name</Label>
+                      <Input value={bundleForm.name} onChange={e => setBundleForm({...bundleForm, name: e.target.value})} placeholder="e.g. MTN Royal 10GB" required className="rounded-xl border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white" />
+                    </div>
 
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Network</Label>
+                      <Select value={bundleForm.category} onValueChange={(v: any) => setBundleForm({...bundleForm, category: v})}>
+                        <SelectTrigger className="rounded-xl border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white"><SelectValue /></SelectTrigger>
+                        <SelectContent className="dark:bg-slate-900 dark:border-slate-800">
+                          <SelectItem value="MTN">MTN Data</SelectItem>
+                          <SelectItem value="Telecel">Telecel Data</SelectItem>
+                          <SelectItem value="AirtelTigo">AirtelTigo Data</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-300">Amount / Vol</Label>
+                        <Input value={bundleForm.dataAmount} onChange={e => setBundleForm({...bundleForm, dataAmount: e.target.value})} placeholder="e.g. 10GB" className="rounded-xl border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white" />
+                      </div>
                       <div className="space-y-1">
                         <Label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-300">Price (GHS)</Label>
                         <Input type="number" step="0.01" value={bundleForm.price} onChange={e => setBundleForm({...bundleForm, price: e.target.value})} placeholder="20" required className="rounded-xl border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white" />
                       </div>
-
-                      <Button 
-                        type="submit" 
-                        className="w-full h-12 rounded-xl font-black bg-secondary text-white hover:bg-primary uppercase shadow-lg cursor-pointer"
-                      >
-                         Save New Price
-                      </Button>
-                      <Button type="button" variant="ghost" onClick={() => setEditingBundle(null)} className="w-full dark:text-slate-400 cursor-pointer">Cancel</Button>
-                    </form>
-                  ) : (
-                    <div className="text-center py-8 text-slate-500 dark:text-slate-400 font-bold text-sm">
-                      Select a product from the list to update its price.
                     </div>
-                  )}
+
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Validity Description</Label>
+                      <Input value={bundleForm.description} onChange={e => setBundleForm({...bundleForm, description: e.target.value})} placeholder="e.g. Valid for 30 days" className="rounded-xl border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white" />
+                    </div>
+
+                    <Button 
+                      type="submit" 
+                      className="w-full h-12 rounded-xl font-black bg-secondary text-white hover:bg-primary uppercase shadow-lg cursor-pointer"
+                    >
+                       {editingBundle ? 'Save Changes' : 'Create Data Bundle'}
+                    </Button>
+                    {editingBundle && (
+                      <Button type="button" variant="ghost" onClick={() => { setEditingBundle(null); setBundleForm({name:'',dataAmount:'',price:'',network:'MTN' as Network,active:true,offerSlug:'',volume:'',category:'MTN',description:'',imageUrl:''})}} className="w-full dark:text-slate-400 cursor-pointer">Cancel</Button>
+                    )}
+                  </form>
                 </CardContent>
               </Card>
 
@@ -651,13 +697,10 @@ export default function AdminDashboard() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {bundles.map(b => (
+                      {bundles.filter(b => ['MTN', 'Telecel', 'AirtelTigo'].includes(b.category || b.network || '')).map(b => (
                         <TableRow key={b.id} className="dark:border-slate-800">
                           <TableCell className="p-6">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 shrink-0 flex items-center justify-center">
-                                <img src={getProductImage(b)} alt={b.name} className="w-full h-full object-cover" />
-                              </div>
                               <div className="flex flex-col min-w-[120px]">
                                 <span className="font-black text-slate-900 dark:text-slate-100">{b.name}</span>
                                 <span className="text-xs text-slate-400 font-bold">{b.dataAmount || 'No specific amount'}</span>
@@ -672,8 +715,11 @@ export default function AdminDashboard() {
                           <TableCell className="text-right font-black text-secondary font-mono">GHS {b.price.toFixed(2)}</TableCell>
                           <TableCell className="text-right p-6">
                             <div className="flex justify-end gap-2">
-                              <Button size="sm" variant="outline" className="h-8 px-4 rounded-xl font-bold uppercase text-[10px] dark:border-slate-800 dark:text-slate-400 cursor-pointer flex items-center gap-1.5" onClick={() => startEditBundle(b)}>
-                                <RefreshCw className="w-3 h-3" /> Update Price
+                              <Button size="sm" variant="outline" className="h-8 px-3 rounded-xl font-bold uppercase text-[10px] dark:border-slate-800 dark:text-slate-400 cursor-pointer flex items-center gap-1.5" onClick={() => startEditBundle(b)}>
+                                <RefreshCw className="w-3 h-3" /> Edit
+                              </Button>
+                              <Button size="sm" variant="outline" className="h-8 px-3 rounded-xl font-bold uppercase text-[10px] border-red-200 text-red-500 hover:bg-red-50 dark:border-red-900/40 dark:hover:bg-red-950/30 cursor-pointer flex items-center gap-1.5" onClick={() => deleteDoc(doc(db, 'bundles', b.id))}>
+                                <Trash2 className="w-3 h-3" /> Delete
                               </Button>
                             </div>
                           </TableCell>

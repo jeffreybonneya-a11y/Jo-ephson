@@ -155,7 +155,7 @@ export default function BundleList({ onSelectBundle, isAgentMode = false, isAgen
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full max-w-6xl mx-auto" id="bundle-tabs">
           <div className="overflow-x-auto pb-4 mb-8 no-scrollbar">
             <TabsList className="flex w-max md:grid md:w-full md:grid-cols-4 h-auto gap-4 bg-transparent p-0">
-              {['MTN', 'Telecel', 'AirtelTigo', 'streaming'].map((tab) => (
+              {['MTN', 'Telecel', 'AirtelTigo'].map((tab) => (
                 <TabsTrigger 
                   key={tab}
                   value={tab} 
@@ -163,17 +163,11 @@ export default function BundleList({ onSelectBundle, isAgentMode = false, isAgen
                     tab === activeTab ? getNetworkColor(tab) : 'border-border bg-card text-muted-foreground'
                   }`}
                 >
-                  {tab === 'streaming' ? "MORE👑" : tab}
+                  {tab}
                 </TabsTrigger>
               ))}
             </TabsList>
           </div>
-
-          <TabsContent value="streaming" className="mt-0">
-             <div className="bg-card rounded-[2rem] border-4 border-dashed border-primary/10 p-4 md:p-8">
-                <StreamingTab onSelectBundle={onSelectBundle} bundles={processedBundles} />
-             </div>
-          </TabsContent>
 
           {['MTN', 'Telecel', 'AirtelTigo'].map((network) => (
             <TabsContent key={network} value={network} className="mt-0">
