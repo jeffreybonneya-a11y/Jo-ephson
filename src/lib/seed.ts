@@ -1,5 +1,5 @@
 import { db } from '@/src/lib/firebase';
-import { collection, getDocs, query, where, addDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where, addDoc, deleteDoc } from 'firebase/firestore';
 
 export async function seedFC() {
   const q = query(collection(db, 'bundles'), where('category', '==', 'FC Mobile Points'));
@@ -35,5 +35,37 @@ export async function seedFC() {
 
   const q2 = query(collection(db, 'bundles'), where('category', '==', 'FC Mobile Silver'));
   const snapshot2 = await getDocs(q2);
-  // We no longer seed silver automatically, admin will provide exact packages.
+  let hasExactPackages = false;
+  for (const doc of snapshot2.docs) {
+    if (doc.data().dataAmount === '39 FC Silver') hasExactPackages = true;
+  }
+
+  if (!hasExactPackages) {
+    // delete old ones
+    for (const d of snapshot2.docs) {
+      await deleteDoc(d.ref);
+    }
+
+    const newSilverPackages = [
+      { dataAmount: '39 FC Silver', price: 8.00 },
+      { dataAmount: '99 FC Silver', price: 17.00 },
+      { dataAmount: '499 FC Silver', price: 80.00 },
+      { dataAmount: '999 FC Silver', price: 155.00 },
+      { dataAmount: '1999 FC Silver', price: 310.00 },
+      { dataAmount: '4999 FC Silver', price: 770.00 },
+      { dataAmount: '9999 FC Silver', price: 1530.00 }
+    ];
+
+    for (const b of newSilverPackages) {
+      await addDoc(collection(db, 'bundles'), {
+        network: 'FC Mobile Silver',
+        category: 'FC Mobile Silver',
+        dataAmount: b.dataAmount,
+        name: b.dataAmount,
+        price: b.price,
+        active: true,
+        createdAt: new Date()
+      });
+    }
+  }
 }

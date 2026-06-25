@@ -896,18 +896,44 @@ export default function AdminDashboard() {
                                         </Button>
                                       )}
                                     </div>
-                                    {order.fcUserId && order.fcUsername && (
-                                      <div className="bg-[#00FF87]/10 p-2 rounded-md border border-[#00FF87]/20 flex flex-col gap-0.5 mt-1">
+                                  {order.fcUserId && order.fcUsername && (
+                                      <div className="bg-[#00FF87]/10 p-2 rounded-md border border-[#00FF87]/20 flex flex-col gap-1 mt-1">
                                         <span className="text-[10px] font-black text-[#00FF87] uppercase tracking-tighter">
                                           FC Details:
                                         </span>
-                                        <div className="flex gap-2 items-center">
-                                          <span className="text-[10px] font-bold text-white">
-                                            ID: {order.fcUserId}
-                                          </span>
-                                          <span className="text-[10px] font-bold text-white">
-                                            User: {order.fcUsername}
-                                          </span>
+                                        <div className="flex gap-4 items-center">
+                                          <div className="flex items-center gap-1">
+                                            <span className="text-[10px] font-bold text-white">
+                                              ID: {order.fcUserId}
+                                            </span>
+                                            <Button
+                                              size="sm"
+                                              variant="ghost"
+                                              className="h-5 w-5 p-0 hover:bg-[#00FF87]/20 hover:text-[#00FF87] text-white transition-all rounded-sm"
+                                              onClick={() => {
+                                                navigator.clipboard.writeText(order.fcUserId);
+                                                toast.success(`Copied ID: ${order.fcUserId}`);
+                                              }}
+                                            >
+                                              <Copy className="w-3 h-3" />
+                                            </Button>
+                                          </div>
+                                          <div className="flex items-center gap-1">
+                                            <span className="text-[10px] font-bold text-white">
+                                              User: {order.fcUsername}
+                                            </span>
+                                            <Button
+                                              size="sm"
+                                              variant="ghost"
+                                              className="h-5 w-5 p-0 hover:bg-[#00FF87]/20 hover:text-[#00FF87] text-white transition-all rounded-sm"
+                                              onClick={() => {
+                                                navigator.clipboard.writeText(order.fcUsername);
+                                                toast.success(`Copied User: ${order.fcUsername}`);
+                                              }}
+                                            >
+                                              <Copy className="w-3 h-3" />
+                                            </Button>
+                                          </div>
                                         </div>
                                       </div>
                                     )}
@@ -1800,17 +1826,43 @@ export default function AdminDashboard() {
                                       )}
                                     </div>
                                     {o.fcUserId && o.fcUsername && (
-                                      <div className="bg-[#00FF87]/10 p-2 rounded-md border border-[#00FF87]/20 flex flex-col gap-0.5 mt-2 max-w-xs">
+                                      <div className="bg-[#00FF87]/10 p-2 rounded-md border border-[#00FF87]/20 flex flex-col gap-1 mt-2 max-w-xs">
                                         <span className="text-[10px] font-black text-[#00FF87] uppercase tracking-tighter">
                                           FC Details:
                                         </span>
-                                        <div className="flex flex-col gap-1">
-                                          <span className="text-[10px] font-bold text-white">
-                                            ID: {o.fcUserId}
-                                          </span>
-                                          <span className="text-[10px] font-bold text-white">
-                                            User: {o.fcUsername}
-                                          </span>
+                                        <div className="flex flex-col gap-2">
+                                          <div className="flex items-center justify-between">
+                                            <span className="text-[10px] font-bold text-white">
+                                              ID: {o.fcUserId}
+                                            </span>
+                                            <Button
+                                              size="sm"
+                                              variant="ghost"
+                                              className="h-5 w-5 p-0 hover:bg-[#00FF87]/20 hover:text-[#00FF87] text-white transition-all rounded-sm"
+                                              onClick={() => {
+                                                navigator.clipboard.writeText(o.fcUserId);
+                                                toast.success(`Copied ID: ${o.fcUserId}`);
+                                              }}
+                                            >
+                                              <Copy className="w-3 h-3" />
+                                            </Button>
+                                          </div>
+                                          <div className="flex items-center justify-between">
+                                            <span className="text-[10px] font-bold text-white">
+                                              User: {o.fcUsername}
+                                            </span>
+                                            <Button
+                                              size="sm"
+                                              variant="ghost"
+                                              className="h-5 w-5 p-0 hover:bg-[#00FF87]/20 hover:text-[#00FF87] text-white transition-all rounded-sm"
+                                              onClick={() => {
+                                                navigator.clipboard.writeText(o.fcUsername);
+                                                toast.success(`Copied User: ${o.fcUsername}`);
+                                              }}
+                                            >
+                                              <Copy className="w-3 h-3" />
+                                            </Button>
+                                          </div>
                                         </div>
                                       </div>
                                     )}

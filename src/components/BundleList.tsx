@@ -133,7 +133,9 @@ export default function BundleList({
 
   const processedBundles = bundles.map((b) => {
     const originalPrice = b.price;
-    const wholesalePrice = Math.max(0, originalPrice - 2.0);
+    const isFCPackage = b.category === 'FC Mobile Points' || b.category === 'FC Mobile Silver' || b.network === 'FC Mobile Points' || b.network === 'FC Mobile Silver';
+    const wholesaleDeduction = isFCPackage ? 1.00 : 2.00;
+    const wholesalePrice = Math.max(0, originalPrice - wholesaleDeduction);
     let discountedPrice = originalPrice;
 
     if (agentContext) {

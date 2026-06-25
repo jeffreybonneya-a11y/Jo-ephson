@@ -170,7 +170,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
         phone: profile?.phoneNumber || "0000000000",
         network: "SYSTEM",
         bundle: "AGENT ACCESS UNLOCK",
-        amount: 40,
+        amount: 100,
         status: "pending",
         createdAt: serverTimestamp(),
         userId: auth.currentUser.uid,
@@ -183,7 +183,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
       paystack.newTransaction({
         key: publicKey,
         email: auth.currentUser.email || '',
-        amount: 4000, // 40 GHS
+        amount: 10000, // 100 GHS
         currency: 'GHS',
         metadata: {
            custom_fields: [
@@ -466,7 +466,7 @@ Reference Code: ${refCode}
                onClick={handlePayForAccess}
                disabled={isPaying}
              >
-                {isPaying ? <Loader2 className="w-6 h-6 animate-spin" /> : <><Crown className="w-5 h-5 sm:w-6 sm:h-6 text-primary" /> UNLOCK ACCESS FOR 40 GHS</>}
+                {isPaying ? <Loader2 className="w-6 h-6 animate-spin" /> : <><Crown className="w-5 h-5 sm:w-6 sm:h-6 text-primary" /> UNLOCK ACCESS FOR 100 GHS</>}
              </Button>
           </div>
       </div>
@@ -633,9 +633,9 @@ Reference Code: ${refCode}
                   </div>
                 ) : (
                   <div className="space-y-8">
-                    {['MTN', 'Telecel', 'AirtelTigo'].map(net => {
+                    {['MTN', 'Telecel', 'AirtelTigo', 'FC Mobile Points', 'FC Mobile Silver'].map(net => {
                       const networkBundles = bundles
-                        .filter(b => b.network === net)
+                        .filter(b => b.network === net || b.category === net)
                         .sort((a, b) => {
                           const mbA = parseDataAmountToMB(a.dataAmount);
                           const mbB = parseDataAmountToMB(b.dataAmount);
@@ -661,6 +661,13 @@ Reference Code: ${refCode}
                           button: 'bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-600 dark:hover:bg-blue-700',
                           disabledBtn: 'bg-blue-500/50 text-white'
                         };
+                        if (n === 'FC Mobile Points' || n === 'FC Mobile Silver') return {
+                          text: 'text-[#00FF87] dark:text-[#00FF87]',
+                          border: 'border-[#00FF87]/20 dark:border-[#00FF87]/20',
+                          ring: 'focus-visible:ring-[#00FF87]',
+                          button: 'bg-[#00FF87] hover:bg-[#00CC6A] text-black dark:bg-[#00FF87] dark:hover:bg-[#00CC6A]',
+                          disabledBtn: 'bg-[#00FF87]/50 text-black'
+                        };
                         return {
                           text: 'text-primary',
                           border: 'border-primary/20',
@@ -671,16 +678,20 @@ Reference Code: ${refCode}
                       };
 
                       const theme = getNetworkTheme(net);
+                      
+                      const displayName = net === 'FC Mobile Points' ? 'FC ™ MOBILE Points' : net === 'FC Mobile Silver' ? 'FC ™ MOBILE Silver' : net;
 
                       return (
                         <div key={net} className="space-y-4">
                           <h3 className={`text-lg font-black tracking-widest uppercase border-b pb-2 flex items-center gap-2 ${theme.text} ${theme.border}`}>
-                            <span>{net} Packages</span>
+                            <span>{displayName} Packages</span>
                             <span className="text-[10px] font-bold text-slate-400 not-italic">({networkBundles.length} active)</span>
                           </h3>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {networkBundles.map(bundle => {
-                              const wholesale = Math.max(0, Number(bundle.price) - 2.00);
+                              const isFCPackage = bundle.category === 'FC Mobile Points' || bundle.category === 'FC Mobile Silver' || bundle.network === 'FC Mobile Points' || bundle.network === 'FC Mobile Silver';
+                              const wholesaleDeduction = isFCPackage ? 1.00 : 2.00;
+                              const wholesale = Math.max(0, Number(bundle.price) - wholesaleDeduction);
                               const currentVal = customPrices[bundle.id] ?? String(wholesale);
                               const sellingPrice = customPrices[bundle.id] ? Number(customPrices[bundle.id]) : wholesale;
                               const profit = sellingPrice - wholesale;

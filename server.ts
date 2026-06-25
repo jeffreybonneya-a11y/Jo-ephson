@@ -153,6 +153,36 @@ app.post('/api/paystack-webhook', express.raw({ type: '*/*' }), async (req: any,
   res.sendStatus(200);
 });
 
+// REST Endpoint: Seed Silver
+app.get('/api/seed-silver', async (req, res) => {
+    try {
+        const newSilverPackages = [
+          { dataAmount: '39 FC Silver', price: 8.00 },
+          { dataAmount: '99 FC Silver', price: 17.00 },
+          { dataAmount: '499 FC Silver', price: 80.00 },
+          { dataAmount: '999 FC Silver', price: 155.00 },
+          { dataAmount: '1999 FC Silver', price: 310.00 },
+          { dataAmount: '4999 FC Silver', price: 770.00 },
+          { dataAmount: '9999 FC Silver', price: 1530.00 }
+        ];
+        
+        for (const b of newSilverPackages) {
+            await db.collection('bundles').add({
+              network: 'FC Mobile Silver',
+              category: 'FC Mobile Silver',
+              dataAmount: b.dataAmount,
+              name: b.dataAmount,
+              price: b.price,
+              active: true,
+              createdAt: new Date()
+            });
+        }
+        res.json({ success: true, message: 'Silver seeded' });
+    } catch (err: any) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 // REST Endpoint: Stream Player (Secure Viewer)
 app.get('/api/stream/player/:orderId', async (req, res) => {
     const { orderId } = req.params;

@@ -184,7 +184,7 @@ export default function CheckoutForm({
       // Create pre-order record
       const preOrderData = {
         email: auth.currentUser.email || "no-email@example.com",
-        phone: data.recipientPhone || null,
+        phone: data.recipientPhone || "",
         network: data.recipientNetwork,
         bundle: `${data.recipientNetwork} ${bundle.dataAmount}`,
         amount: Number(bundle.price),
@@ -227,7 +227,7 @@ export default function CheckoutForm({
               auth.currentUser.displayName ||
               "Royal Customer",
             email: auth.currentUser.email || "no-email@example.com",
-            phone: data.recipientPhone,
+            phone: data.recipientPhone || "",
             network: data.recipientNetwork,
           },
           wholesale_price: wsPrice,
@@ -241,12 +241,18 @@ export default function CheckoutForm({
       }
 
       // 1. Initiate Payment with Paystack Pop
+      const isFC =
+        data.recipientNetwork === "FC Mobile Points" ||
+        data.recipientNetwork === "FC Mobile Silver" ||
+        data.recipientNetwork === "FC Mobile";
+
       const isAgentBuyingFromOwnStore =
         agentContext && auth.currentUser?.uid === agentContext.id;
       const isAgentBuyingOnHomePage = !agentContext && isAgentUser;
       const paystackFee =
         isAgentBuyingFromOwnStore || isAgentBuyingOnHomePage ? 1.0 : 0.0;
-      const finalAmountToCharge = Number(bundle.price) + paystackFee;
+      const hiddenFCCharge = isFC ? 1.0 : 0.0;
+      const finalAmountToCharge = Number(bundle.price) + paystackFee + hiddenFCCharge;
 
       const mod = await import("@paystack/inline-js");
       let PaystackCtor: any = mod.default || mod;
@@ -256,10 +262,6 @@ export default function CheckoutForm({
 
       const paystack = new PaystackCtor();
 
-      const isFC =
-        data.recipientNetwork === "FC Mobile Points" ||
-        data.recipientNetwork === "FC Mobile Silver" ||
-        data.recipientNetwork === "FC Mobile";
       const customFields = isFC
         ? [
             {

@@ -74,7 +74,7 @@ service cloud.firestore {
              (!('customerName' in data) || data.customerName is string) &&
              (!('paymentStatus' in data) || data.paymentStatus is string) &&
              (!('paymentMethod' in data) || data.paymentMethod is string) &&
-             (!('type' in data) || data.type in ['data', 'stream']) &&
+             (!('type' in data) || data.type in ['data', 'stream', 'system']) &&
              (!('streamType' in data) || data.streamType in ['live', 'onetime']) &&
              (!('streamStatus' in data) || data.streamStatus in ['pending', 'pending_approval', 'approved', 'rejected']) &&
              (!('metadata' in data) || data.metadata is map) &&
@@ -92,7 +92,9 @@ service cloud.firestore {
              (!('profit_credited' in data) || data.profit_credited is bool) &&
              (!('reportedToAdmin' in data) || data.reportedToAdmin is bool) &&
              (!('agentReportReason' in data) || data.agentReportReason is string) &&
-             (!('recipientUsername' in data) || data.recipientUsername is string);
+             (!('recipientUsername' in data) || data.recipientUsername is string) &&
+             (!('fcUserId' in data) || data.fcUserId is string) &&
+             (!('fcUsername' in data) || data.fcUsername is string);
     }
 
     function isValidUser(data) {
