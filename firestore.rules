@@ -55,8 +55,9 @@ service cloud.firestore {
              data.name is string && data.name.size() < 200 &&
              data.dataAmount is string && data.dataAmount.size() < 100 &&
              data.price is number && data.price > 0 &&
-             data.network in ['MTN', 'Telecel', 'AirtelTigo', 'FCMobile'] &&
-             (!('externalPlanId' in data) || data.externalPlanId == null || data.externalPlanId is string);
+             data.network in ['MTN', 'Telecel', 'AirtelTigo', 'FC Mobile', 'FC Mobile Points', 'FC Mobile Silver'] &&
+             (!('externalPlanId' in data) || data.externalPlanId == null || data.externalPlanId is string) &&
+             (!('category' in data) || data.category is string);
     }
 
     function isValidOrder(data) {

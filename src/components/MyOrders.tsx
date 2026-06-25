@@ -1,14 +1,36 @@
-import { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db, auth } from '../lib/firebase';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Loader2, Package, Calendar, Tag, CreditCard, ChevronRight, AlertTriangle } from 'lucide-react';
-import { motion } from 'motion/react';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
-import { toast } from 'sonner';
+import { useState, useEffect } from "react";
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  orderBy,
+  addDoc,
+  serverTimestamp,
+} from "firebase/firestore";
+import { db, auth } from "../lib/firebase";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Loader2,
+  Package,
+  Calendar,
+  Tag,
+  CreditCard,
+  ChevronRight,
+  AlertTriangle,
+} from "lucide-react";
+import { motion } from "motion/react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 
 export default function MyOrders() {
   const [orders, setOrders] = useState<any[]>([]);
@@ -24,35 +46,50 @@ export default function MyOrders() {
     }
 
     const q = query(
-      collection(db, 'orders'),
-      where('email', '==', auth.currentUser.email),
-      orderBy('createdAt', 'desc')
+      collection(db, "orders"),
+      where("email", "==", auth.currentUser.email),
+      orderBy("createdAt", "desc"),
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setOrders(fetchedOrders);
-      setLoading(false);
-    }, (error) => {
-      console.error("Firestore Query Error:", error);
-      setLoading(false);
-    });
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const fetchedOrders = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setOrders(fetchedOrders);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Firestore Query Error:", error);
+        setLoading(false);
+      },
+    );
 
     return () => unsubscribe();
   }, []);
 
   const handleReportAdmin = (order: any) => {
-    const phone = '233535884851';
-    const refNumber = order.phone || order.reference?.slice(-8).toUpperCase() || order.id.slice(-6).toUpperCase();
+    const phone = "233535884851";
+    const refNumber =
+      order.phone ||
+      order.reference?.slice(-8).toUpperCase() ||
+      order.id.slice(-6).toUpperCase();
     const text = `Hello King J, I have an issue with my order! 👑\n\nOrder Bundle: ${order.bundle}\nRef (Number): ${refNumber}\n\nPlease check this for me.`;
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
+    window.open(
+      `https://wa.me/${phone}?text=${encodeURIComponent(text)}`,
+      "_blank",
+    );
   };
 
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
         <Loader2 className="animate-spin w-12 h-12 text-primary mb-4" />
-        <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Fetching your royal history...</p>
+        <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">
+          Fetching your royal history...
+        </p>
       </div>
     );
   }
@@ -70,9 +107,14 @@ export default function MyOrders() {
               <Package className="w-8 h-8 text-primary" />
               MY ROYAL ORDERS 👑
             </h1>
-            <p className="text-slate-500 dark:text-slate-400 font-medium">Tracking your data bundle purchases</p>
+            <p className="text-slate-500 dark:text-slate-400 font-medium">
+              Tracking your data bundle purchases
+            </p>
           </div>
-          <Badge variant="outline" className="border-2 border-primary/20 text-primary font-black px-4 py-1.5 rounded-xl">
+          <Badge
+            variant="outline"
+            className="border-2 border-primary/20 text-primary font-black px-4 py-1.5 rounded-xl"
+          >
             {orders.length} TOTAL
           </Badge>
         </div>
@@ -82,15 +124,17 @@ export default function MyOrders() {
             <div className="w-20 h-20 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
               <Package className="w-10 h-10 text-slate-300 dark:text-slate-600" />
             </div>
-            <h2 className="text-xl font-black text-slate-900 dark:text-white mb-2">NO ORDERS YET 👑</h2>
+            <h2 className="text-xl font-black text-slate-900 dark:text-white mb-2">
+              NO ORDERS YET 👑
+            </h2>
             <p className="text-slate-500 dark:text-slate-400 max-w-xs mx-auto mb-8 font-medium">
               You haven't placed any orders. Start saving on data today!
             </p>
-            <Button 
-                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-                className="bg-primary hover:bg-primary/90 text-secondary font-black rounded-xl px-8"
+            <Button
+              onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+              className="bg-primary hover:bg-primary/90 text-secondary font-black rounded-xl px-8"
             >
-                SHOP NOW 👑
+              SHOP NOW 👑
             </Button>
           </Card>
         ) : (
@@ -115,32 +159,59 @@ export default function MyOrders() {
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-slate-500 dark:text-slate-400 text-xs font-semibold">
                           <span className="flex items-center gap-1">
                             <Calendar className="w-3.5 h-3.5" />
-                            {order.createdAt?.toDate ? new Date(order.createdAt.toDate()).toLocaleDateString('en-GB') : 'Recent'}
+                            {order.createdAt?.toDate
+                              ? new Date(
+                                  order.createdAt.toDate(),
+                                ).toLocaleDateString("en-GB")
+                              : "Recent"}
                           </span>
                           <span className="flex items-center gap-1">
                             <CreditCard className="w-3.5 h-3.5" />
-                            Ref: {order.phone || order.reference?.slice(-8).toUpperCase() || order.id.slice(-6).toUpperCase()}
+                            Ref:{" "}
+                            {order.phone ||
+                              order.reference?.slice(-8).toUpperCase() ||
+                              order.id.slice(-6).toUpperCase()}
                           </span>
                         </div>
+                        {order.fcUserId && order.fcUsername && (
+                          <div className="flex items-center gap-4 text-[10px] font-black text-[#00FF87] uppercase tracking-wider mt-2 bg-[#00FF87]/10 w-fit px-2 py-1 rounded-md border border-[#00FF87]/20">
+                            <span>ID: {order.fcUserId}</span>
+                            <span>User: {order.fcUsername}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
                     <div className="flex flex-col items-end gap-2 border-t md:border-t-0 dark:border-slate-800 pt-4 md:pt-0">
-                      <p className="text-xl font-black text-primary">GHS {Number(order.amount).toFixed(2)}</p>
+                      <p className="text-xl font-black text-primary">
+                        GHS {Number(order.amount).toFixed(2)}
+                      </p>
                       <div className="flex items-center gap-2">
-                        <Badge 
+                        <Badge
                           className={`
                             font-black text-[10px] uppercase px-3 py-0.5 rounded-lg
-                            ${(order.status === 'delivered' || order.status === 'paid') ? 'bg-green-100 text-green-700' : 
-                              order.status === 'processing' ? 'bg-blue-100 text-blue-700 animate-pulse' : 
-                              (order.status === 'failed' || order.status === 'unpaid') ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}
+                            ${
+                              order.status === "delivered" ||
+                              order.status === "paid"
+                                ? "bg-green-100 text-green-700"
+                                : order.status === "processing"
+                                  ? "bg-blue-100 text-blue-700 animate-pulse"
+                                  : order.status === "failed" ||
+                                      order.status === "unpaid"
+                                    ? "bg-red-100 text-red-700"
+                                    : "bg-amber-100 text-amber-700"
+                            }
                           `}
                         >
-                          {order.status === 'unpaid' ? 'UNPAID' : order.status === 'pending' ? 'PENDING' : order.status}
+                          {order.status === "unpaid"
+                            ? "UNPAID"
+                            : order.status === "pending"
+                              ? "PENDING"
+                              : order.status}
                         </Badge>
-                        <Button 
-                          size="sm" 
-                          variant="ghost" 
+                        <Button
+                          size="sm"
+                          variant="ghost"
                           className="h-6 px-2 text-[10px] font-black uppercase text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
                           onClick={() => handleReportAdmin(order)}
                         >

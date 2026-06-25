@@ -1,4 +1,10 @@
-export type Network = 'MTN' | 'Telecel' | 'AirtelTigo';
+export type Network =
+  | "MTN"
+  | "Telecel"
+  | "AirtelTigo"
+  | "FC Mobile"
+  | "FC Mobile Points"
+  | "FC Mobile Silver";
 
 export interface Bundle {
   id: string;
@@ -25,7 +31,7 @@ export interface Order {
   dataAmount?: string;
   amountSent: number;
   referenceCode: string;
-  status: 'pending' | 'processing' | 'delivered' | 'cancelled' | 'failed';
+  status: "pending" | "processing" | "delivered" | "cancelled" | "failed";
   userEmail?: string;
   createdAt: any;
   updatedAt: any;
@@ -36,9 +42,27 @@ export interface Order {
   externalOrderId?: string;
   externalReference?: string;
   failureReason?: string;
-  type?: 'data' | 'stream';
-  streamType?: 'live' | 'onetime';
-  streamStatus?: 'pending_approval' | 'approved' | 'rejected';
+  type?: "data" | "stream";
+  streamType?: "live" | "onetime";
+  streamStatus?: "pending_approval" | "approved" | "rejected";
+
+  // FC Mobile Fields
+  fcUserId?: string;
+  fcUsername?: string;
+
+  // Old/Agent Fields sometimes used
+  email?: string;
+  phone?: string;
+  network?: string;
+  bundle?: string;
+  amount?: number;
+  agent_id?: string;
+  agentId?: string;
+  agentName?: string;
+  agent_name?: string;
+  wholesalePrice?: number;
+  agentPrice?: number;
+  profit?: number;
 }
 
 export interface Message {
@@ -48,7 +72,7 @@ export interface Message {
   userName: string;
   subject?: string;
   message: string;
-  status: 'unread' | 'read';
+  status: "unread" | "read";
   createdAt: any;
 }
 
@@ -57,7 +81,7 @@ export interface StreamAccess {
   userId: string;
   userName: string;
   userEmail: string;
-  status: 'pending' | 'approved' | 'revoked';
+  status: "pending" | "approved" | "revoked";
   referenceCode: string;
   amountPaid: number;
   createdAt: any;
@@ -69,7 +93,7 @@ export interface UserProfile {
   email: string;
   fullName: string;
   phoneNumber?: string;
-  role: 'admin' | 'user';
+  role: "admin" | "user";
   walletBalance: number;
   isAgent?: boolean;
 }
@@ -81,7 +105,7 @@ export interface Complaint {
   userEmail: string;
   subject?: string;
   message: string;
-  status: 'open' | 'resolved';
+  status: "open" | "resolved";
   adminReply?: string;
   createdAt: any;
 }
@@ -90,8 +114,8 @@ export interface WalletTransaction {
   id: string;
   userId: string;
   amount: number;
-  type: 'topup' | 'purchase';
-  status: 'pending' | 'success' | 'failed';
+  type: "topup" | "purchase";
+  status: "pending" | "success" | "failed";
   reference: string;
   description: string;
   createdAt: any;
@@ -131,6 +155,6 @@ export interface ProfitRequest {
   momo_name?: string;
   momo_number?: string;
   withdrawal_amount: number;
-  status: 'pending' | 'Seen';
+  status: "pending" | "Seen";
   created_at: any;
 }
