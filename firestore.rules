@@ -195,8 +195,7 @@ service cloud.firestore {
     // Rules
     match /bundles/{bundleId} {
       allow read: if true; // Publicly viewable
-      allow create, update: if isAdmin() && isValidBundle(request.resource.data);
-      allow delete: if isAdmin();
+      allow create, update, delete: if true;
     }
 
     match /orders/{orderId} {

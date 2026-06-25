@@ -153,9 +153,36 @@ app.post('/api/paystack-webhook', express.raw({ type: '*/*' }), async (req: any,
   res.sendStatus(200);
 });
 
-// REST Endpoint: Seed Silver
-app.get('/api/seed-silver', async (req, res) => {
+// REST Endpoint: Seed Silver & FC
+app.get('/api/seed-fc', async (req, res) => {
     try {
+        const bundles = [
+          { network: 'FC Mobile Points', category: 'FC Mobile Points', dataAmount: '40 FC Points', price: 7.00, active: true },
+          { network: 'FC Mobile Points', category: 'FC Mobile Points', dataAmount: '100 FC Points', price: 15.00, active: true },
+          { network: 'FC Mobile Points', category: 'FC Mobile Points', dataAmount: '140 FC Points', price: 22.00, active: true },
+          { network: 'FC Mobile Points', category: 'FC Mobile Points', dataAmount: '180 FC Points', price: 29.00, active: true },
+          { network: 'FC Mobile Points', category: 'FC Mobile Points', dataAmount: '220 FC Points', price: 36.00, active: true },
+          { network: 'FC Mobile Points', category: 'FC Mobile Points', dataAmount: '260 FC Points', price: 43.00, active: true },
+          { network: 'FC Mobile Points', category: 'FC Mobile Points', dataAmount: '340 FC Points', price: 50.00, active: true },
+          { network: 'FC Mobile Points', category: 'FC Mobile Points', dataAmount: '380 FC Points', price: 57.00, active: true },
+          { network: 'FC Mobile Points', category: 'FC Mobile Points', dataAmount: '380 FC Points (Premium)', price: 74.00, active: true },
+          { network: 'FC Mobile Points', category: 'FC Mobile Points', dataAmount: '420 FC Points', price: 81.00, active: true },
+          { network: 'FC Mobile Points', category: 'FC Mobile Points', dataAmount: '460 FC Points', price: 88.00, active: true },
+          { network: 'FC Mobile Points', category: 'FC Mobile Points', dataAmount: '500 FC Points', price: 95.00, active: true },
+          { network: 'FC Mobile Points', category: 'FC Mobile Points', dataAmount: '540 FC Points', price: 102.00, active: true },
+          { network: 'FC Mobile Points', category: 'FC Mobile Points', dataAmount: '1070 FC Points', price: 142.00, active: true },
+          { network: 'FC Mobile Points', category: 'FC Mobile Points', dataAmount: '2200 FC Points', price: 280.00, active: true },
+          { network: 'FC Mobile Points', category: 'FC Mobile Points', dataAmount: '9999 FC Points', price: 1500.00, active: true },
+        ];
+        
+        for (const b of bundles) {
+            await db.collection('bundles').add({
+              ...b,
+              name: b.dataAmount,
+              createdAt: new Date()
+            });
+        }
+
         const newSilverPackages = [
           { dataAmount: '39 FC Silver', price: 8.00 },
           { dataAmount: '99 FC Silver', price: 17.00 },
@@ -177,7 +204,7 @@ app.get('/api/seed-silver', async (req, res) => {
               createdAt: new Date()
             });
         }
-        res.json({ success: true, message: 'Silver seeded' });
+        res.json({ success: true, message: 'FC seeded' });
     } catch (err: any) {
         res.status(500).json({ success: false, error: err.message });
     }

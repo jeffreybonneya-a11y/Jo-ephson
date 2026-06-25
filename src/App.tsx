@@ -20,6 +20,7 @@ import { UserProfile } from './types';
 import AgentStore from './components/AgentStore';
 import ThemeCustomizer from './components/ThemeCustomizer';
 import { useTheme } from './hooks/useTheme';
+import { seedFC } from './lib/seed';
 
 export default function App() {
   const [selectedBundle, setSelectedBundle] = useState<Bundle | null>(null);
@@ -41,6 +42,7 @@ export default function App() {
   const { settings } = useTheme();
 
   useEffect(() => {
+    seedFC();
     // 1. Check for Paystack Reference in URL
     const params = new URLSearchParams(window.location.search);
     const reference = params.get('reference') || params.get('trxref');
