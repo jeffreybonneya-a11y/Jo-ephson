@@ -149,17 +149,24 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
   const handlePayForAccess = async () => {
     if (!auth.currentUser) return toast.error("Please login to access the Agent Store.");
     
-    // Check if configuration exists or process direct unlocked path (just in case they already paid)
-    // Actually as we saw, the unlocking mechanism checks if they have `isAgent` = true in their profile.
-    // If they already have `isAgent = true`, they enter this view.
-    // If they don't, we prompt them to pay 40 GHS. Let's keep the existing pay logic intact!
-    const publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
+    setIsPaying(true);
+
+    let publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
     if (!publicKey) {
-      toast.error("Paystack configuration is missing.");
-      return;
+      try {
+        const res = await fetch("/api/paystack-public-key");
+        const resData = await res.json();
+        publicKey = resData.publicKey;
+      } catch (err) {
+        console.error("Failed to fetch Paystack Public Key:", err);
+      }
     }
 
-    setIsPaying(true);
+    if (!publicKey) {
+      toast.error("Paystack configuration is missing.");
+      setIsPaying(false);
+      return;
+    }
 
     try {
       const preOrderRef = doc(collection(db, 'orders'));
@@ -633,7 +640,7 @@ Reference Code: ${refCode}
                   </div>
                 ) : (
                   <div className="space-y-8">
-                    {['MTN', 'Telecel', 'AirtelTigo', 'FC Mobile Points', 'FC Mobile Silver'].map(net => {
+                    {['MTN', 'Telecel', 'AirtelTigo', 'FC Mobile Points', 'FC Mobile Silver', 'PUBG Mobile UC'].map(net => {
                       const networkBundles = bundles
                         .filter(b => b.network === net || b.category === net)
                         .sort((a, b) => {
@@ -667,6 +674,13 @@ Reference Code: ${refCode}
                           ring: 'focus-visible:ring-[#00FF87]',
                           button: 'bg-[#00FF87] hover:bg-[#00CC6A] text-black dark:bg-[#00FF87] dark:hover:bg-[#00CC6A]',
                           disabledBtn: 'bg-[#00FF87]/50 text-black'
+                        };
+                        if (n === 'PUBG Mobile UC') return {
+                          text: 'text-amber-500 dark:text-amber-400',
+                          border: 'border-amber-500/20 dark:border-amber-400/20',
+                          ring: 'focus-visible:ring-amber-500',
+                          button: 'bg-amber-500 hover:bg-amber-600 text-black dark:bg-amber-500 dark:hover:bg-amber-600',
+                          disabledBtn: 'bg-amber-500/50 text-black'
                         };
                         return {
                           text: 'text-primary',

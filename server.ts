@@ -30,6 +30,11 @@ const db = getFirestore(firebaseConfig.firestoreDatabaseId);
 
 const app = express();
 
+// Endpoint to retrieve Paystack Public Key dynamically at runtime
+app.get('/api/paystack-public-key', (req, res) => {
+    res.json({ publicKey: process.env.VITE_PAYSTACK_PUBLIC_KEY || process.env.PAYSTACK_PUBLIC_KEY || "" });
+});
+
 async function verifyPaystackReference(reference: string) {
     const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
         headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` }

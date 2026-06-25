@@ -37,7 +37,7 @@ export default function SupportModal({ isOpen, onClose, profile, agentContext }:
     try {
       await addDoc(collection(db, 'complaints'), {
         userId: profile?.uid || 'anonymous',
-        userEmail: profile?.email || 'anonymous',
+        userEmail: profile?.email || 'anonymous@example.com',
         userName: profile?.fullName || 'Anonymous User',
         subject: data.subject,
         message: data.message,

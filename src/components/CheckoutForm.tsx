@@ -51,11 +51,13 @@ const formSchema = z
     fcUsername: z.string().optional(),
   })
   .superRefine((data, ctx) => {
-    const isFC =
+    const isGame =
       data.recipientNetwork === "FC Mobile Points" ||
       data.recipientNetwork === "FC Mobile Silver" ||
-      data.recipientNetwork === "FC Mobile";
-    if (!isFC) {
+      data.recipientNetwork === "FC Mobile" ||
+      data.recipientNetwork === "PUBG Mobile UC" ||
+      data.recipientNetwork === "PUBG Mobile";
+    if (!isGame) {
       if (!data.recipientPhone || !/^0\d{9}$/.test(data.recipientPhone)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -68,14 +70,14 @@ const formSchema = z
       if (!data.fcUserId || data.fcUserId.trim() === "") {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "User ID is required",
+          message: "User/Player ID is required",
           path: ["fcUserId"],
         });
       }
       if (!data.fcUsername || data.fcUsername.trim() === "") {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "Username is required",
+          message: "Username/Nickname is required",
           path: ["fcUsername"],
         });
       }
@@ -121,6 +123,8 @@ export default function CheckoutForm({
           "FC Mobile",
           "FC Mobile Points",
           "FC Mobile Silver",
+          "PUBG Mobile",
+          "PUBG Mobile UC",
         ].includes(bundle.network)
           ? bundle.network
           : "MTN",
@@ -140,6 +144,8 @@ export default function CheckoutForm({
         "FC Mobile",
         "FC Mobile Points",
         "FC Mobile Silver",
+        "PUBG Mobile",
+        "PUBG Mobile UC",
       ].includes(bundle.network)
     ) {
       setValue("recipientNetwork", bundle.network);
@@ -159,18 +165,29 @@ export default function CheckoutForm({
       return;
     }
 
-    const publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
+    setIsSubmitting(true);
+
+    let publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
+    if (!publicKey) {
+      try {
+        const res = await fetch("/api/paystack-public-key");
+        const resData = await res.json();
+        publicKey = resData.publicKey;
+      } catch (err) {
+        console.error("Failed to fetch Paystack Public Key:", err);
+      }
+    }
+
     if (!publicKey) {
       toast.error(
         "Paystack Public Key is missing! Please set VITE_PAYSTACK_PUBLIC_KEY in settings. 👑",
       );
       console.error(
-        "Paystack Public Key (VITE_PAYSTACK_PUBLIC_KEY) is not defined in environment variables.",
+        "Paystack Public Key is not defined in environment variables or fetched from server.",
       );
+      setIsSubmitting(false);
       return;
     }
-
-    setIsSubmitting(true);
 
     try {
       // 0. Generate ID synchronously
@@ -241,6 +258,13 @@ export default function CheckoutForm({
       }
 
       // 1. Initiate Payment with Paystack Pop
+      const isGame =
+        data.recipientNetwork === "FC Mobile Points" ||
+        data.recipientNetwork === "FC Mobile Silver" ||
+        data.recipientNetwork === "FC Mobile" ||
+        data.recipientNetwork === "PUBG Mobile" ||
+        data.recipientNetwork === "PUBG Mobile UC";
+
       const isFC =
         data.recipientNetwork === "FC Mobile Points" ||
         data.recipientNetwork === "FC Mobile Silver" ||
@@ -251,8 +275,8 @@ export default function CheckoutForm({
       const isAgentBuyingOnHomePage = !agentContext && isAgentUser;
       const paystackFee =
         isAgentBuyingFromOwnStore || isAgentBuyingOnHomePage ? 1.0 : 0.0;
-      const hiddenFCCharge = isFC ? 1.0 : 0.0;
-      const finalAmountToCharge = Number(bundle.price) + paystackFee + hiddenFCCharge;
+      const hiddenGameCharge = isFC ? 0.0 : (isGame ? 1.0 : 0.0);
+      const finalAmountToCharge = Number(bundle.price) + paystackFee + hiddenGameCharge;
 
       const mod = await import("@paystack/inline-js");
       let PaystackCtor: any = mod.default || mod;
@@ -262,7 +286,7 @@ export default function CheckoutForm({
 
       const paystack = new PaystackCtor();
 
-      const customFields = isFC
+      const customFields = isGame
         ? [
             {
               display_name: "Order ID",
@@ -461,20 +485,22 @@ export default function CheckoutForm({
                 <div className="grid grid-cols-1 gap-3 sm:gap-6">
                   {watchNetwork === "FC Mobile Points" ||
                   watchNetwork === "FC Mobile Silver" ||
-                  watchNetwork === "FC Mobile" ? (
+                  watchNetwork === "FC Mobile" ||
+                  watchNetwork === "PUBG Mobile" ||
+                  watchNetwork === "PUBG Mobile UC" ? (
                     <>
                       <div className="space-y-1">
                         <Label
                           htmlFor="fcUserId"
                           className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 ml-1"
                         >
-                          User ID (e.g. 1034714769079812097)
+                          User ID / Player ID (e.g. 1034714769079812097)
                         </Label>
                         <div className="relative">
                           <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                           <Input
                             id="fcUserId"
-                            placeholder="Enter User ID"
+                            placeholder="Enter User / Player ID"
                             {...register("fcUserId")}
                             className="rounded-lg sm:rounded-[1.25rem] h-11 sm:h-14 pl-10 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 focus:border-[#00FF87] font-black text-sm sm:text-lg tracking-wider text-foreground"
                           />
@@ -491,13 +517,13 @@ export default function CheckoutForm({
                           htmlFor="fcUsername"
                           className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 ml-1"
                         >
-                          Username
+                          Username / Character Nickname
                         </Label>
                         <div className="relative">
                           <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                           <Input
                             id="fcUsername"
-                            placeholder="Enter Accurate Username"
+                            placeholder="Enter Accurate Username / Nickname"
                             {...register("fcUsername")}
                             className="rounded-lg sm:rounded-[1.25rem] h-11 sm:h-14 pl-10 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 focus:border-[#00FF87] font-black text-sm sm:text-lg tracking-wider text-foreground"
                           />

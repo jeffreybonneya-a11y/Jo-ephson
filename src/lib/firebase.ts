@@ -24,8 +24,9 @@ const storageBucketUrl = firebaseConfig.storageBucket
 
 export const storage = getStorage(app, storageBucketUrl);
 
-// Use initializeFirestore with experimentalForceLongPolling to prevent iframe connection blocks
+// Use initializeFirestore with experimentalForceLongPolling and useFetchStreams to prevent iframe connection blocks
 export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
-}, firebaseConfig.firestoreDatabaseId);
+  useFetchStreams: false,
+} as any, firebaseConfig.firestoreDatabaseId);
 

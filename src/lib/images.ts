@@ -1,4 +1,5 @@
 import { Bundle } from '../types';
+import pubgMobileCover from '../assets/images/pubg_mobile_cover_1782399506286.jpg';
 
 /**
  * Automatically maps a bundle/product to its actual, high-quality product image URL online.
@@ -39,7 +40,7 @@ export function getProductImage(bundle: { name: string; category?: string; netwo
       return 'https://upload.wikimedia.org/wikipedia/commons/4/4b/EA_Sports_FC_Mobile_logo.png'; // Official FC Mobile Logo
     }
     if (nameLower.includes('pubg') || nameLower.includes('uc')) {
-      return 'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=800&auto=format&fit=crop'; // PUBG-like game setup
+      return pubgMobileCover;
     }
     if (nameLower.includes('free fire') || nameLower.includes('diamond')) {
       return 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?q=80&w=800&auto=format&fit=crop'; // Cyberpunk action setup

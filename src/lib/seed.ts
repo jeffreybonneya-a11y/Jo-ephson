@@ -74,6 +74,13 @@ export async function seedFC() {
       });
     }
   }
+
+  const q3 = query(collection(db, 'bundles'), where('category', '==', 'PUBG Mobile UC'));
+  const snapshot3 = await getDocs(q3);
+  // User requested to clear all recent PUBG packages
+  for (const doc of snapshot3.docs) {
+    await deleteDoc(doc.ref);
+  }
   } finally {
     isSeeding = false;
   }

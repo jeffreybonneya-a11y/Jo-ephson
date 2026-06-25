@@ -11,6 +11,7 @@ import { Smartphone, Wifi, Zap, Crown } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import StreamingTab from "./StreamingTab";
 import fcMobileIcon from "@/src/assets/images/fc_mobile_bellingham_1782342862052.jpg";
+import pubgMobileIcon from "@/src/assets/images/pubg_mobile_cover_1782399506286.jpg";
 
 interface BundleListProps {
   onSelectBundle: (bundle: Bundle & { wholesalePrice?: number }) => void;
@@ -18,6 +19,8 @@ interface BundleListProps {
   isAgentUser?: boolean;
   agentContext?: any;
 }
+
+const fallbackPUBGBundles: any[] = [];
 
 export default function BundleList({
   onSelectBundle,
@@ -44,6 +47,7 @@ export default function BundleList({
   ];
   const gameCoinSubTabs = [
     { id: "FC_MOBILE", label: "FC ™ MOBILE points and silver" },
+    { id: "PUBG_MOBILE", label: "PUBG Mobile UC" },
   ];
 
   const getNetworkColor = (tab: string) => {
@@ -634,6 +638,106 @@ export default function BundleList({
                               )}
                             </>
                           )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {activeGameCoinSubTab === "PUBG_MOBILE" && (
+                    <div className="space-y-8">
+                      <div className="flex flex-col md:flex-row items-center gap-8 bg-card rounded-[2rem] border-2 border-border p-8">
+                        <img
+                          src={pubgMobileIcon}
+                          alt="PUBG Mobile"
+                          className="rounded-3xl w-48 h-48 object-cover shadow-lg"
+                        />
+                        <div className="text-center md:text-left flex-1">
+                          <h2 className="text-3xl font-black text-foreground uppercase tracking-tight mb-2">
+                            PUBG Mobile UC
+                          </h2>
+                          <p className="text-muted-foreground font-medium mb-6">
+                            Top up PUBG Mobile Unknown Cash (UC) instantly. Select from our discount packages below and conquer the battleground!
+                          </p>
+                        </div>
+                      </div>
+
+                      {processedBundles.filter(
+                        (b) => b.category === "PUBG Mobile UC" || b.network === "PUBG Mobile UC",
+                      ).length > 0 || fallbackPUBGBundles.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                          {(processedBundles.filter(
+                            (b) => b.category === "PUBG Mobile UC" || b.network === "PUBG Mobile UC",
+                          ).length > 0
+                            ? processedBundles
+                                .filter(
+                                  (b) => b.category === "PUBG Mobile UC" || b.network === "PUBG Mobile UC",
+                                )
+                                .sort((a, b) => a.price - b.price)
+                            : fallbackPUBGBundles
+                          ).map((bundle, index) => (
+                            <motion.div
+                              key={bundle.id}
+                              initial={{ opacity: 0, y: 20 }}
+                              whileInView={{ opacity: 1, y: 0 }}
+                              viewport={{ once: true }}
+                              transition={{
+                                duration: 0.4,
+                                delay: index * 0.05,
+                              }}
+                            >
+                              <Card
+                                className={`hover:shadow-xl transition-all border-2 rounded-[2rem] overflow-hidden group bg-card hover:border-amber-500 border-border shadow-sm`}
+                              >
+                                <CardHeader
+                                  className={`bg-amber-500/10 border-b-2 border-border p-8`}
+                                >
+                                  <div className="flex justify-between items-start">
+                                    <Badge
+                                      className={`bg-amber-500 text-black font-black`}
+                                    >
+                                      PUBG UC
+                                    </Badge>
+                                    <Zap className="w-6 h-6 text-amber-500 fill-amber-500" />
+                                  </div>
+                                  <CardTitle
+                                    className={`text-4xl font-black mt-4 text-foreground dark:text-white`}
+                                  >
+                                    {bundle.dataAmount}
+                                  </CardTitle>
+                                </CardHeader>
+                                <CardContent className="p-8">
+                                  <div className="flex items-center justify-between mb-8">
+                                    <div className="flex flex-col">
+                                      <span className="text-xs font-black text-muted-foreground uppercase">
+                                        Price
+                                      </span>
+                                      <span className="text-4xl font-black text-foreground dark:text-white">
+                                        GH₵ {bundle.price.toFixed(2)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <Button
+                                    className="w-full h-16 text-xl font-black rounded-2xl bg-black text-amber-500 hover:bg-amber-500 hover:text-black transition-all shadow-lg"
+                                    onClick={() =>
+                                      onSelectBundle(bundle as any)
+                                    }
+                                  >
+                                    BUY NOW 👑
+                                  </Button>
+                                </CardContent>
+                              </Card>
+                            </motion.div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-24 bg-card rounded-[2rem] border-4 border-dashed border-amber-500/10">
+                          <Zap className="w-16 h-16 text-amber-500/50 mx-auto mb-6" />
+                          <h3 className="text-2xl font-black text-foreground mb-2 dark:text-white">
+                            RESTOCKING SOON 👑
+                          </h3>
+                          <p className="text-muted-foreground">
+                            The King is preparing more PUBG Mobile UC deals. Stay tuned!
+                          </p>
                         </div>
                       )}
                     </div>
