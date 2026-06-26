@@ -926,30 +926,26 @@ export default function BundleList({
 
                   {activePCGamesSubTab === "FC_26" && (
                     <div className="space-y-4">
-                      <div className="relative w-full rounded-2xl overflow-hidden shadow-md border border-border group bg-slate-950 flex flex-col md:flex-row items-center p-6 md:p-8 gap-6">
-                        {/* Blurred ambient background behind the text (using the official cover image blurred) */}
-                        <div className="absolute inset-0 z-0 overflow-hidden opacity-20 pointer-events-none">
-                          <img
-                            src={fc26Icon}
-                            alt=""
-                            className="w-full h-full object-cover blur-xl scale-110"
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-slate-950"></div>
-                        </div>
-
-                        {/* Text and controls section */}
-                        <div className="relative z-10 flex-1 text-left order-2 md:order-1">
+                      <div className="relative w-full aspect-video rounded-[2rem] overflow-hidden shadow-xl border-2 border-border group bg-black flex items-end md:items-center">
+                        <img
+                          src={fc26Icon}
+                          alt="Official EA SPORTS FC 26 Cover"
+                          className="absolute inset-0 w-full h-full object-cover z-0"
+                        />
+                        {/* 40% dark overlay so text remains easy to read */}
+                        <div className="absolute inset-0 bg-black/40 z-10 pointer-events-none"></div>
+                        <div className="relative z-20 w-full flex flex-col justify-end md:justify-center items-center md:items-start text-center md:text-left p-6 md:p-12 h-full">
                           <Badge className="bg-primary text-black font-black mb-2 rounded uppercase text-[9px] tracking-wider px-2 py-0.5">
                             Hot PC Title 👑
                           </Badge>
-                          <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-white uppercase tracking-tight mb-2">
+                          <h2 className="text-3xl sm:text-4xl md:text-6xl font-black text-white uppercase tracking-tight mb-2 sm:mb-4 drop-shadow-lg">
                             FC 26 PC GAME
                           </h2>
-                          <p className="text-white/80 font-medium text-xs sm:text-sm mb-4 max-w-lg">
+                          <p className="text-white/90 font-medium text-sm sm:text-lg md:text-xl mb-4 sm:mb-8 max-w-2xl drop-shadow-md line-clamp-2 md:line-clamp-none">
                             Pre-order or purchase the ultimate football experience with FC 26 on PC. Instant delivery!
                           </p>
                           <Button
-                            className="h-10 px-6 text-xs font-black rounded-xl bg-white text-black hover:bg-gray-100 transition-all shadow-md cursor-pointer"
+                            className="w-full sm:w-auto h-12 sm:h-16 px-8 sm:px-12 text-lg sm:text-xl font-black rounded-2xl bg-white text-black hover:bg-primary transition-all shadow-xl uppercase"
                             onClick={() => onSelectBundle({
                               id: "fc_26_pc_game",
                               network: "PC Games",
@@ -962,18 +958,6 @@ export default function BundleList({
                           >
                             BUY NOW FOR 50 GHC 👑
                           </Button>
-                        </div>
-                        
-                        {/* Game Cover Showcase with exact aspect ratio & overlay */}
-                        <div className="relative z-10 w-full max-w-[200px] md:w-44 lg:w-48 aspect-[3/4] rounded-xl overflow-hidden shrink-0 order-1 md:order-2 shadow-lg border border-white/10 bg-black/40">
-                          <img
-                            src={fc26Icon}
-                            alt="Official EA SPORTS FC 26 Cover"
-                            loading="lazy"
-                            className="w-full h-full object-contain"
-                          />
-                          {/* 40% dark overlay to preserve aesthetic and readability */}
-                          <div className="absolute inset-0 bg-black/40 pointer-events-none"></div>
                         </div>
                       </div>
                     </div>
