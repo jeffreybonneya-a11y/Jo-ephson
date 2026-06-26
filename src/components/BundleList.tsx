@@ -524,12 +524,12 @@ export default function BundleList({
                     ))
                   ) : (
                     <div className="col-span-full text-center py-12 bg-card rounded-2xl border border-dashed border-primary/20">
-                      <Smartphone className="w-10 h-10 text-muted-foreground/20 mx-auto mb-4" />
-                      <h3 className="text-lg font-black text-foreground mb-1 dark:text-white">
-                        NO PRODUCTS FOUND 👑
+                      <Smartphone className="w-10 h-10 text-muted-foreground/20 mx-auto mb-4 animate-pulse" />
+                      <h3 className="text-lg font-black text-foreground mb-1 dark:text-white uppercase">
+                        The King 👑 is preparing, expect soon
                       </h3>
                       <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                        We couldn't find any products matching your search query or none are active for {tab} right now.
+                        We are currently restocking packages for {tab}. Please check back shortly!
                       </p>
                     </div>
                   )}
@@ -648,12 +648,12 @@ export default function BundleList({
                                 if (filteredPoints.length === 0) {
                                   return (
                                     <div className="col-span-full text-center py-12 bg-card rounded-2xl border border-dashed border-[#00FF87]/20">
-                                      <Smartphone className="w-10 h-10 text-muted-foreground/20 mx-auto mb-4" />
-                                      <h3 className="text-lg font-black text-foreground mb-1 dark:text-white">
-                                        NO POINTS BUNDLES FOUND 👑
+                                      <Smartphone className="w-10 h-10 text-muted-foreground/20 mx-auto mb-4 animate-pulse" />
+                                      <h3 className="text-lg font-black text-foreground mb-1 dark:text-white uppercase">
+                                        The King 👑 is preparing, expect soon
                                       </h3>
                                       <p className="text-xs text-muted-foreground">
-                                        We couldn't find any FC points matching your search query.
+                                        FC points bundles are currently being prepared. Check back shortly!
                                       </p>
                                     </div>
                                   );
@@ -733,12 +733,12 @@ export default function BundleList({
                                 if (filteredSilver.length === 0) {
                                   return (
                                     <div className="col-span-full text-center py-12 bg-card rounded-2xl border border-dashed border-[#00FF87]/20">
-                                      <Smartphone className="w-10 h-10 text-muted-foreground/20 mx-auto mb-4" />
-                                      <h3 className="text-lg font-black text-foreground mb-1 dark:text-white">
-                                        NO SILVER BUNDLES FOUND 👑
+                                      <Smartphone className="w-10 h-10 text-muted-foreground/20 mx-auto mb-4 animate-pulse" />
+                                      <h3 className="text-lg font-black text-foreground mb-1 dark:text-white uppercase">
+                                        The King 👑 is preparing, expect soon
                                       </h3>
                                       <p className="text-xs text-muted-foreground">
-                                        We couldn't find any FC Mobile Silver packages matching your search query or none are currently available.
+                                        FC Mobile Silver packages are currently being prepared. Check back shortly!
                                       </p>
                                     </div>
                                   );
@@ -841,12 +841,12 @@ export default function BundleList({
                         if (filteredPubg.length === 0) {
                           return (
                             <div className="col-span-full text-center py-12 bg-card rounded-2xl border border-dashed border-amber-500/20">
-                              <Zap className="w-10 h-10 text-amber-500/20 mx-auto mb-4" />
-                              <h3 className="text-lg font-black text-foreground mb-1 dark:text-white">
-                                NO PACKAGES FOUND 👑
+                              <Zap className="w-10 h-10 text-amber-500/20 mx-auto mb-4 animate-pulse" />
+                              <h3 className="text-lg font-black text-foreground mb-1 dark:text-white uppercase">
+                                The King 👑 is preparing, expect soon
                               </h3>
                               <p className="text-xs text-muted-foreground">
-                                We couldn't find any PUBG UC packages matching your search query.
+                                PUBG Mobile UC packages are currently being prepared. Check back shortly!
                               </p>
                             </div>
                           );
@@ -964,10 +964,14 @@ export default function BundleList({
                   )}
                 </div>
               ) : (
-                <div className="min-h-[50vh] flex items-center justify-center p-8 bg-card rounded-[2rem] border-2 border-border">
-                  <h2 className="text-xl font-black text-muted-foreground uppercase tracking-widest">
-                    {tab} Coming Soon
+                <div className="min-h-[40vh] flex flex-col items-center justify-center p-8 bg-card rounded-[2rem] border-2 border-border text-center">
+                  <Crown className="w-12 h-12 text-primary/30 mb-4 animate-bounce" />
+                  <h2 className="text-xl md:text-2xl font-black text-foreground uppercase tracking-tight mb-2 dark:text-white">
+                    The King 👑 is preparing, expect soon
                   </h2>
+                  <p className="text-xs text-muted-foreground max-w-xs">
+                    We're preparing premium deals for {tab}. Check back shortly!
+                  </p>
                 </div>
               )}
             </TabsContent>
