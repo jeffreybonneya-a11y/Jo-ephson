@@ -220,6 +220,14 @@ export default function App() {
   const [activeService, setActiveService] = useState('data');
 
   const handleSelectBundle = (bundle: Bundle) => {
+    if (!user) {
+      toast.warning("Please login or sign up first to purchase a service! 👑", {
+        description: "Verify your identity with your Google account to secure your royal wallet.",
+        duration: 5000
+      });
+      window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
+      return;
+    }
     setSelectedBundle(bundle);
   };
 

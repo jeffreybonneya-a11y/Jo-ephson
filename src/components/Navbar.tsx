@@ -89,6 +89,16 @@ export default function Navbar({
     }
   }, [user, profile, isAdmin]);
 
+  useEffect(() => {
+    const handleOpenAuth = () => {
+      setIsAuthModalOpen(true);
+    };
+    window.addEventListener('OPEN_AUTH_MODAL', handleOpenAuth);
+    return () => {
+      window.removeEventListener('OPEN_AUTH_MODAL', handleOpenAuth);
+    };
+  }, []);
+
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -280,7 +290,7 @@ export default function Navbar({
       )}
 
       <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
-      <SupportModal isOpen={isSupportOpen} onClose={() => setIsSupportOpen(false)} userEmail={user?.email} />
+      <SupportModal isOpen={isSupportOpen} onClose={() => setIsSupportOpen(false)} profile={profile} agentContext={agentContext} />
     </>
   );
 }

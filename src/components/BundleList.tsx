@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { motion } from "motion/react";
-import { Smartphone, Wifi, Zap, Crown } from "lucide-react";
+import { Smartphone, Wifi, Zap, Crown, Search } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import StreamingTab from "./StreamingTab";
 import fcMobileIcon from "@/src/assets/images/ea_sports_fc_mobile_cover_fixed_1782486697588.jpg";
@@ -37,6 +37,7 @@ export default function BundleList({
   const [showFCOptions, setShowFCOptions] = useState(false);
   const [fcOptionTab, setFcOptionTab] = useState("points");
   const [announcement, setAnnouncement] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const tabs = [
     "MTN",
@@ -61,7 +62,14 @@ export default function BundleList({
       case "AirtelTigo":
         return "bg-blue-600 text-white border-blue-600";
       case "Game Coins":
+      case "FC Mobile":
         return "bg-[#00FF87] text-black border-[#00FF87]";
+      case "PC Games":
+        return "bg-amber-500 text-black border-amber-500";
+      case "Result Checker":
+        return "bg-indigo-600 text-white border-indigo-600";
+      case "Premium Apps":
+        return "bg-purple-600 text-white border-purple-600";
       default:
         return "bg-slate-700 text-white border-slate-700";
     }
@@ -76,7 +84,14 @@ export default function BundleList({
       case "AirtelTigo":
         return "bg-blue-600 text-white";
       case "Game Coins":
+      case "FC Mobile":
         return "bg-[#00FF87] text-black";
+      case "PC Games":
+        return "bg-amber-500 text-black";
+      case "Result Checker":
+        return "bg-indigo-600 text-white";
+      case "Premium Apps":
+        return "bg-purple-600 text-white";
       default:
         return "bg-slate-700 text-white";
     }
@@ -170,32 +185,93 @@ export default function BundleList({
 
   const filteredBundles = processedBundles
     .filter((b) => b.network === activeTab)
+    .filter((b) => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        b.dataAmount.toLowerCase().includes(q) ||
+        (b.name && b.name.toLowerCase().includes(q)) ||
+        b.price.toString().includes(q)
+      );
+    })
     .sort((a, b) => a.price - b.price);
+
+  const fcPointsFallback = [
+    { id: "fc_40", network: "FC Mobile", category: "FC Mobile Points", dataAmount: "40 FC Points", price: 7.0, originalPrice: 7.0, isDiscounted: false, active: true },
+    { id: "fc_100", network: "FC Mobile", category: "FC Mobile Points", dataAmount: "100 FC Points", price: 15.0, originalPrice: 15.0, isDiscounted: false, active: true },
+    { id: "fc_140", network: "FC Mobile", category: "FC Mobile Points", dataAmount: "140 FC Points", price: 22.0, originalPrice: 22.0, isDiscounted: false, active: true },
+    { id: "fc_180", network: "FC Mobile", category: "FC Mobile Points", dataAmount: "180 FC Points", price: 29.0, originalPrice: 29.0, isDiscounted: false, active: true },
+    { id: "fc_220", network: "FC Mobile", category: "FC Mobile Points", dataAmount: "220 FC Points", price: 36.0, originalPrice: 36.0, isDiscounted: false, active: true },
+    { id: "fc_260", network: "FC Mobile", category: "FC Mobile Points", dataAmount: "260 FC Points", price: 43.0, originalPrice: 43.0, isDiscounted: false, active: true },
+    { id: "fc_340", network: "FC Mobile", category: "FC Mobile Points", dataAmount: "340 FC Points", price: 50.0, originalPrice: 50.0, isDiscounted: false, active: true },
+    { id: "fc_380", network: "FC Mobile", category: "FC Mobile Points", dataAmount: "380 FC Points", price: 57.0, originalPrice: 57.0, isDiscounted: false, active: true },
+    { id: "fc_380_premium", network: "FC Mobile", category: "FC Mobile Points", dataAmount: "380 FC Points (Premium)", price: 74.0, originalPrice: 74.0, isDiscounted: false, active: true },
+    { id: "fc_420", network: "FC Mobile", category: "FC Mobile Points", dataAmount: "420 FC Points", price: 81.0, originalPrice: 81.0, isDiscounted: false, active: true },
+    { id: "fc_460", network: "FC Mobile", category: "FC Mobile Points", dataAmount: "460 FC Points", price: 88.0, originalPrice: 88.0, isDiscounted: false, active: true },
+    { id: "fc_500", network: "FC Mobile", category: "FC Mobile Points", dataAmount: "500 FC Points", price: 95.0, originalPrice: 95.0, isDiscounted: false, active: true },
+    { id: "fc_540", network: "FC Mobile", category: "FC Mobile Points", dataAmount: "540 FC Points", price: 102.0, originalPrice: 102.0, isDiscounted: false, active: true },
+    { id: "fc_1070", network: "FC Mobile", category: "FC Mobile Points", dataAmount: "1070 FC Points", price: 142.0, originalPrice: 142.0, isDiscounted: false, active: true },
+    { id: "fc_2200", network: "FC Mobile", category: "FC Mobile Points", dataAmount: "2200 FC Points", price: 280.0, originalPrice: 280.0, isDiscounted: false, active: true },
+    { id: "fc_9999", network: "FC Mobile", category: "FC Mobile Points", dataAmount: "9999 FC Points", price: 1500.0, originalPrice: 1500.0, isDiscounted: false, active: true }
+  ];
+
+  const pcGameItem = {
+    id: "fc_26_pc_game",
+    network: "PC Games",
+    category: "FC 26",
+    dataAmount: "FC 26 PC Game",
+    price: 50.00,
+    originalPrice: 50.00,
+    isDiscounted: false,
+    active: true,
+    name: "FC 26 PC Game"
+  };
+
+  const hasFCPointsInDB = processedBundles.some((b) => b.category === "FC Mobile Points");
+
+  const allSearchableProducts = [
+    ...processedBundles,
+    ...(hasFCPointsInDB ? [] : fcPointsFallback),
+    pcGameItem
+  ];
+
+  const globalSearchResults = searchQuery.trim() !== ""
+    ? allSearchableProducts.filter((b) => {
+        const q = searchQuery.toLowerCase();
+        const matchesDataAmount = b.dataAmount && b.dataAmount.toLowerCase().includes(q);
+        const matchesName = b.name && b.name.toLowerCase().includes(q);
+        const matchesNetwork = b.network && b.network.toLowerCase().includes(q);
+        const matchesCategory = b.category && b.category.toLowerCase().includes(q);
+        const matchesPrice = b.price && b.price.toString().includes(q);
+        
+        return matchesDataAmount || matchesName || matchesNetwork || matchesCategory || matchesPrice;
+      }).sort((a, b) => a.price - b.price)
+    : [];
 
   return (
     <section
       id="pricing"
-      className="py-24 bg-background relative overflow-hidden"
+      className="py-12 md:py-16 bg-background relative overflow-hidden"
     >
       <div className="absolute top-0 left-0 w-64 h-64 bg-primary/5 blur-3xl rounded-full -translate-x-1/2 -translate-y-1/2" />
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-primary/5 blur-3xl rounded-full translate-x-1/3 translate-y-1/3" />
 
       <div className="container relative mx-auto px-4">
         {!isAgentMode && (
-          <div className="text-center mb-16">
+          <div className="text-center mb-8">
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 15 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-primary/10 text-primary text-sm font-black uppercase tracking-tighter mb-4"
+              className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-black uppercase tracking-tighter mb-3"
             >
-              <Crown className="w-4 h-4" />
+              <Crown className="w-3.5 h-3.5" />
               Royal Selection 👑
             </motion.div>
-            <h2 className="text-4xl md:text-6xl font-black mb-6 tracking-tight text-foreground dark:text-white">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black mb-3 tracking-tight text-foreground dark:text-white">
               CHOOSE YOUR <span className="text-primary">DEAL</span> 👑
             </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto text-lg leading-relaxed font-medium">
+            <p className="text-muted-foreground max-w-2xl mx-auto text-sm sm:text-base leading-relaxed font-medium">
               Experience the{" "}
               <span className="text-primary font-bold">Royal Treatment</span>.
               Select your network and let our automated system deliver your data
@@ -205,9 +281,9 @@ export default function BundleList({
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mt-6 inline-flex items-center gap-2 px-6 py-2.5 rounded-2xl bg-primary/10 border border-primary/20 text-primary text-sm font-black uppercase tracking-tight shadow-md"
+                className="mt-4 inline-flex items-center gap-2 px-4 py-1.5 rounded-xl bg-primary/10 border border-primary/20 text-primary text-xs font-black uppercase tracking-tight shadow-md"
               >
-                <div className="w-2 h-2 rounded-full bg-primary animate-ping" />
+                <div className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
                 <span>Verified Agent Wholesale Pricing Active 👑</span>
               </motion.div>
             )}
@@ -220,106 +296,219 @@ export default function BundleList({
           className="w-full max-w-6xl mx-auto"
           id="bundle-tabs"
         >
-          <div className="overflow-x-auto pb-4 mb-8 no-scrollbar">
-            <TabsList className="flex w-max md:grid md:w-full md:grid-cols-6 h-auto gap-4 bg-transparent p-0">
-              {tabs.map((tab) => (
-                <TabsTrigger
-                  key={tab}
-                  value={tab}
-                  className={`text-lg md:text-xl font-black h-14 md:h-16 px-6 md:px-0 min-w-[140px] md:min-w-0 border-2 rounded-2xl transition-all hover:border-primary/50 shadow-sm data-[state=active]:shadow-xl data-[state=active]:scale-105 ${
-                    tab === activeTab
-                      ? getNetworkColor(tab)
-                      : "border-border bg-card text-muted-foreground"
-                  }`}
-                >
-                  {tab}
-                </TabsTrigger>
-              ))}
-            </TabsList>
+          <div className="w-full mb-8 flex flex-col lg:flex-row gap-4 justify-between items-stretch lg:items-center bg-card p-3 rounded-2xl border border-border shadow-sm">
+            <div className="overflow-x-auto pb-2 lg:pb-0 scrollbar-hide">
+              <TabsList className="flex w-max gap-2 bg-slate-100/60 dark:bg-slate-800/60 p-1 rounded-xl border border-slate-200/40 dark:border-slate-700/40 h-auto">
+                {tabs.map((tab) => (
+                  <TabsTrigger
+                    key={tab}
+                    value={tab}
+                    className={`text-xs sm:text-sm font-bold h-9 md:h-10 px-4 rounded-lg transition-all cursor-pointer select-none border border-transparent ${
+                      tab === activeTab
+                        ? getNetworkColor(tab) + " shadow-sm font-extrabold border-primary"
+                        : "text-muted-foreground hover:text-foreground dark:hover:text-white hover:bg-slate-200/20"
+                    }`}
+                  >
+                    {tab}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
+
+            <div className="relative w-full lg:w-72 shrink-0">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search products..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 rounded-xl border border-border bg-slate-50 dark:bg-slate-900 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary text-xs transition-all h-9 md:h-10"
+              />
+            </div>
           </div>
 
-          {tabs.map((tab) => (
-            <TabsContent key={tab} value={tab} className="mt-0">
-              {["MTN", "Telecel", "AirtelTigo"].includes(tab) ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {searchQuery.trim() !== "" ? (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-border/60 pb-4">
+                <div>
+                  <h3 className="text-xl font-black text-foreground dark:text-white uppercase tracking-tight flex items-center gap-2">
+                    Search Results 🔍
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Showing products matching <span className="text-primary font-bold">"{searchQuery}"</span> across all categories
+                  </p>
+                </div>
+                <Badge variant="secondary" className="font-bold text-xs bg-primary/10 text-primary border border-primary/20 rounded-full px-3 py-1">
+                  {globalSearchResults.length} {globalSearchResults.length === 1 ? 'product' : 'products'} found
+                </Badge>
+              </div>
+
+              {globalSearchResults.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                  {globalSearchResults.map((bundle, index) => (
+                    <motion.div
+                      key={bundle.id}
+                      initial={{ opacity: 0, y: 15 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.3, delay: index * 0.02 }}
+                    >
+                      <Card
+                        className="hover:shadow-md hover:shadow-primary/5 hover:border-primary/50 transition-all duration-300 border border-border/80 rounded-2xl overflow-hidden group bg-card shadow-sm hover:-translate-y-0.5 flex flex-col h-full"
+                      >
+                        <CardHeader
+                          className={`${getNetworkBadgeColor(bundle.network)}/5 border-b border-border/50 p-4 flex flex-col gap-1`}
+                        >
+                          <div className="flex justify-between items-center">
+                            <Badge
+                              className={`${getNetworkBadgeColor(bundle.network)} text-[10px] px-2 py-0.5 font-black uppercase rounded-md`}
+                            >
+                              {bundle.network}
+                            </Badge>
+                            {bundle.network === "MTN" && (
+                              <span className="text-[9px] bg-red-500/10 text-red-500 border border-red-500/20 font-bold px-1.5 py-0.5 rounded uppercase font-black shrink-0">
+                                Out of Stock
+                              </span>
+                            )}
+                            <Zap className="w-4 h-4 text-primary fill-primary animate-pulse shrink-0" />
+                          </div>
+                          <CardTitle className="text-lg sm:text-xl font-black mt-2 text-foreground dark:text-white tracking-tight leading-none min-h-[2rem] flex items-center">
+                            {bundle.dataAmount}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-4 flex flex-col justify-between flex-1 gap-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex flex-col">
+                              <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">
+                                Royal Price
+                              </span>
+                              <div className="flex flex-col">
+                                {((!isAgentMode && !isAgentUser && (bundle as any).isDiscounted) || isAgentUser) && (
+                                  <span className="text-[10px] font-bold text-red-500 line-through">
+                                    GH₵ {(bundle as any).originalPrice?.toFixed(2) || bundle.price.toFixed(2)}
+                                  </span>
+                                )}
+                                <span className="text-base sm:text-lg font-black text-foreground dark:text-white">
+                                  GH₵ {bundle.price.toFixed(2)}
+                                </span>
+                              </div>
+                              {isAgentUser && (
+                                <Badge
+                                  variant="outline"
+                                  className="mt-1 border-primary/30 text-primary font-black animate-pulse rounded px-1 py-0 text-[8px] uppercase w-fit"
+                                >
+                                  👑 Agent Wholesale
+                                </Badge>
+                              )}
+                            </div>
+                            <Wifi className="w-6 h-6 text-primary/10 group-hover:text-primary transition-colors shrink-0" />
+                          </div>
+                          <Button
+                            disabled={bundle.network === "MTN"}
+                            className={
+                              bundle.network === "MTN"
+                                ? "w-full h-10 text-xs font-black rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed shadow-none"
+                                : "w-full h-10 text-xs font-black rounded-xl bg-secondary text-secondary-foreground hover:bg-primary hover:text-white transition-all shadow-md cursor-pointer"
+                            }
+                            onClick={() => {
+                              if (bundle.network !== "MTN") {
+                                onSelectBundle(bundle);
+                              }
+                            }}
+                          >
+                            {bundle.network === "MTN" ? "OUT OF STOCK 🚫" : "BUY NOW 👑"}
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-16 bg-card rounded-2xl border border-dashed border-primary/20">
+                  <Smartphone className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4 animate-bounce" />
+                  <h3 className="text-lg font-black text-foreground mb-1 dark:text-white uppercase italic">
+                    NO ROYAL DEALS MATCH YOUR SEARCH 👑
+                  </h3>
+                  <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                    We couldn't find any products matching <span className="text-primary font-bold">"{searchQuery}"</span>. Try a different search query like "MTN", "Points", or "UC".
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            tabs.map((tab) => (
+              <TabsContent key={tab} value={tab} className="mt-0">
+              {["MTN", "Telecel", "AirtelTigo", "Result Checker", "Premium Apps"].includes(tab) ? (
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                   {loading ? (
-                    Array.from({ length: 6 }).map((_, i) => (
-                      <Skeleton key={i} className="h-64 rounded-[2rem]" />
+                    Array.from({ length: 10 }).map((_, i) => (
+                      <Skeleton key={i} className="h-44 rounded-2xl" />
                     ))
                   ) : filteredBundles.length > 0 ? (
                     filteredBundles.map((bundle, index) => (
                       <motion.div
                         key={bundle.id}
-                        initial={{ opacity: 0, y: 20 }}
+                        initial={{ opacity: 0, y: 15 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
-                        transition={{ duration: 0.4, delay: index * 0.05 }}
+                        transition={{ duration: 0.3, delay: index * 0.03 }}
                       >
                         <Card
-                          className={`hover:shadow-xl transition-all border-2 rounded-[2rem] overflow-hidden group bg-card hover:border-primary border-border shadow-sm`}
+                          className="hover:shadow-md hover:shadow-primary/5 hover:border-primary/50 transition-all duration-300 border border-border/80 rounded-2xl overflow-hidden group bg-card shadow-sm hover:-translate-y-0.5 flex flex-col h-full"
                         >
                           <CardHeader
-                            className={`${getNetworkBadgeColor(bundle.network)}/5 border-b-2 border-border p-8`}
+                            className={`${getNetworkBadgeColor(bundle.network)}/5 border-b border-border/50 p-4 flex flex-col gap-1`}
                           >
-                            <div className="flex justify-between items-start">
-                              <div className="flex items-center gap-2">
-                                <Badge
-                                  className={`${getNetworkBadgeColor(bundle.network)} font-black`}
-                                >
-                                  {bundle.network}
-                                </Badge>
-                                {bundle.network === "MTN" && (
-                                  <Badge className="bg-red-500/10 text-red-500 border border-red-500/20 font-black uppercase text-[10px] tracking-wider">
-                                    Out of Stock
-                                  </Badge>
-                                )}
-                              </div>
-                              <Zap className="w-6 h-6 text-primary fill-primary animate-pulse" />
+                            <div className="flex justify-between items-center">
+                              <Badge
+                                className={`${getNetworkBadgeColor(bundle.network)} text-[10px] px-2 py-0.5 font-black uppercase rounded-md`}
+                              >
+                                {bundle.network}
+                              </Badge>
+                              {bundle.network === "MTN" && (
+                                <span className="text-[9px] bg-red-500/10 text-red-500 border border-red-500/20 font-bold px-1.5 py-0.5 rounded uppercase font-black shrink-0">
+                                  Out of Stock
+                                </span>
+                              )}
+                              <Zap className="w-4 h-4 text-primary fill-primary animate-pulse shrink-0" />
                             </div>
-                            <CardTitle className="text-4xl font-black mt-4 text-foreground dark:text-white">
+                            <CardTitle className="text-xl sm:text-2xl font-black mt-2 text-foreground dark:text-white tracking-tight leading-none">
                               {bundle.dataAmount}
                             </CardTitle>
                           </CardHeader>
-                          <CardContent className="p-8">
-                            <div className="flex items-center justify-between mb-8">
+                          <CardContent className="p-4 flex flex-col justify-between flex-1 gap-4">
+                            <div className="flex items-center justify-between">
                               <div className="flex flex-col">
-                                <span className="text-xs font-black text-muted-foreground uppercase">
+                                <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">
                                   Royal Price
                                 </span>
-                                {!isAgentMode &&
-                                  !isAgentUser &&
-                                  (bundle as any).isDiscounted && (
-                                    <span className="text-sm font-bold text-red-500 line-through">
-                                      GH₵{" "}
-                                      {(bundle as any).originalPrice.toFixed(2)}
+                                <div className="flex flex-col">
+                                  {((!isAgentMode && !isAgentUser && (bundle as any).isDiscounted) || isAgentUser) && (
+                                    <span className="text-[10px] font-bold text-red-500 line-through">
+                                      GH₵ {(bundle as any).originalPrice.toFixed(2)}
                                     </span>
                                   )}
-                                {isAgentUser && (
-                                  <span className="text-sm font-bold text-red-500 line-through">
-                                    GH₵{" "}
-                                    {(bundle as any).originalPrice.toFixed(2)}
+                                  <span className="text-lg sm:text-xl font-black text-foreground dark:text-white">
+                                    GH₵ {bundle.price.toFixed(2)}
                                   </span>
-                                )}
-                                <span className="text-4xl font-black text-foreground dark:text-white">
-                                  GH₵ {bundle.price.toFixed(2)}
-                                </span>
+                                </div>
                                 {isAgentUser && (
                                   <Badge
                                     variant="outline"
-                                    className="mt-1.5 border-primary/30 text-primary font-black animate-pulse rounded-md text-[10px] uppercase w-fit"
+                                    className="mt-1 border-primary/30 text-primary font-black animate-pulse rounded px-1 py-0 text-[8px] uppercase w-fit"
                                   >
                                     👑 Agent Wholesale
                                   </Badge>
                                 )}
                               </div>
-                              <Wifi className="w-10 h-10 text-primary/20 group-hover:text-primary transition-colors" />
+                              <Wifi className="w-7 h-7 text-primary/10 group-hover:text-primary transition-colors shrink-0" />
                             </div>
                             <Button
                               disabled={bundle.network === "MTN"}
                               className={
                                 bundle.network === "MTN"
-                                  ? "w-full h-16 text-xl font-black rounded-2xl bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed shadow-none"
-                                  : "w-full h-16 text-xl font-black rounded-2xl bg-secondary text-secondary-foreground hover:bg-primary hover:text-white transition-all shadow-lg"
+                                  ? "w-full h-10 text-xs font-black rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed shadow-none"
+                                  : "w-full h-10 text-xs font-black rounded-xl bg-secondary text-secondary-foreground hover:bg-primary hover:text-white transition-all shadow-md cursor-pointer"
                               }
                               onClick={() => {
                                 if (bundle.network !== "MTN") {
@@ -334,13 +523,13 @@ export default function BundleList({
                       </motion.div>
                     ))
                   ) : (
-                    <div className="col-span-full text-center py-24 bg-card rounded-[2rem] border-4 border-dashed border-primary/10">
-                      <Smartphone className="w-16 h-16 text-muted-foreground/20 mx-auto mb-6" />
-                      <h3 className="text-2xl font-black text-foreground mb-2 dark:text-white">
-                        RESTOCKING SOON 👑
+                    <div className="col-span-full text-center py-12 bg-card rounded-2xl border border-dashed border-primary/20">
+                      <Smartphone className="w-10 h-10 text-muted-foreground/20 mx-auto mb-4" />
+                      <h3 className="text-lg font-black text-foreground mb-1 dark:text-white">
+                        NO PRODUCTS FOUND 👑
                       </h3>
-                      <p className="text-muted-foreground">
-                        The King is preparing more deals for {tab}.
+                      <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                        We couldn't find any products matching your search query or none are active for {tab} right now.
                       </p>
                     </div>
                   )}
@@ -425,205 +614,177 @@ export default function BundleList({
                           </div>
 
                           {fcOptionTab === "points" && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                              {(processedBundles.filter(
-                                (b) => b.category === "FC Mobile Points",
-                              ).length > 0
-                                ? processedBundles
-                                    .filter(
-                                      (b) => b.category === "FC Mobile Points",
-                                    )
-                                    .sort((a, b) => a.price - b.price)
-                                : [
-                                    {
-                                      id: "fc_40",
-                                      network: "FC Mobile",
-                                      dataAmount: "40 FC Points",
-                                      price: 7.0,
-                                    },
-                                    {
-                                      id: "fc_100",
-                                      network: "FC Mobile",
-                                      dataAmount: "100 FC Points",
-                                      price: 15.0,
-                                    },
-                                    {
-                                      id: "fc_140",
-                                      network: "FC Mobile",
-                                      dataAmount: "140 FC Points",
-                                      price: 22.0,
-                                    },
-                                    {
-                                      id: "fc_180",
-                                      network: "FC Mobile",
-                                      dataAmount: "180 FC Points",
-                                      price: 29.0,
-                                    },
-                                    {
-                                      id: "fc_220",
-                                      network: "FC Mobile",
-                                      dataAmount: "220 FC Points",
-                                      price: 36.0,
-                                    },
-                                    {
-                                      id: "fc_260",
-                                      network: "FC Mobile",
-                                      dataAmount: "260 FC Points",
-                                      price: 43.0,
-                                    },
-                                    {
-                                      id: "fc_340",
-                                      network: "FC Mobile",
-                                      dataAmount: "340 FC Points",
-                                      price: 50.0,
-                                    },
-                                    {
-                                      id: "fc_380",
-                                      network: "FC Mobile",
-                                      dataAmount: "380 FC Points",
-                                      price: 57.0,
-                                    },
-                                    {
-                                      id: "fc_380_premium",
-                                      network: "FC Mobile",
-                                      dataAmount: "380 FC Points (Premium)",
-                                      price: 74.0,
-                                    },
-                                    {
-                                      id: "fc_420",
-                                      network: "FC Mobile",
-                                      dataAmount: "420 FC Points",
-                                      price: 81.0,
-                                    },
-                                    {
-                                      id: "fc_460",
-                                      network: "FC Mobile",
-                                      dataAmount: "460 FC Points",
-                                      price: 88.0,
-                                    },
-                                    {
-                                      id: "fc_500",
-                                      network: "FC Mobile",
-                                      dataAmount: "500 FC Points",
-                                      price: 95.0,
-                                    },
-                                    {
-                                      id: "fc_540",
-                                      network: "FC Mobile",
-                                      dataAmount: "540 FC Points",
-                                      price: 102.0,
-                                    },
-                                    {
-                                      id: "fc_1070",
-                                      network: "FC Mobile",
-                                      dataAmount: "1070 FC Points",
-                                      price: 142.0,
-                                    },
-                                    {
-                                      id: "fc_2200",
-                                      network: "FC Mobile",
-                                      dataAmount: "2200 FC Points",
-                                      price: 280.0,
-                                    },
-                                    {
-                                      id: "fc_9999",
-                                      network: "FC Mobile",
-                                      dataAmount: "9999 FC Points",
-                                      price: 1500.0,
-                                    },
-                                  ]
-                              ).map((bundle, index) => (
-                                <motion.div
-                                  key={bundle.id}
-                                  initial={{ opacity: 0, y: 20 }}
-                                  whileInView={{ opacity: 1, y: 0 }}
-                                  viewport={{ once: true }}
-                                  transition={{
-                                    duration: 0.4,
-                                    delay: index * 0.05,
-                                  }}
-                                >
-                                  <Card
-                                    className={`hover:shadow-xl transition-all border-2 rounded-[2rem] overflow-hidden group bg-card hover:border-[#00FF87] border-border shadow-sm`}
-                                  >
-                                    <CardHeader
-                                      className={`bg-[#00FF87]/10 border-b-2 border-border p-8`}
-                                    >
-                                      <div className="flex justify-between items-start">
-                                        <Badge
-                                          className={`bg-[#00FF87] text-black font-black`}
+                            <div className="w-full">
+                              {(() => {
+                                const rawPoints = processedBundles.filter((b) => b.category === "FC Mobile Points").length > 0
+                                  ? processedBundles.filter((b) => b.category === "FC Mobile Points")
+                                  : [
+                                      { id: "fc_40", network: "FC Mobile", dataAmount: "40 FC Points", price: 7.0 },
+                                      { id: "fc_100", network: "FC Mobile", dataAmount: "100 FC Points", price: 15.0 },
+                                      { id: "fc_140", network: "FC Mobile", dataAmount: "140 FC Points", price: 22.0 },
+                                      { id: "fc_180", network: "FC Mobile", dataAmount: "180 FC Points", price: 29.0 },
+                                      { id: "fc_220", network: "FC Mobile", dataAmount: "220 FC Points", price: 36.0 },
+                                      { id: "fc_260", network: "FC Mobile", dataAmount: "260 FC Points", price: 43.0 },
+                                      { id: "fc_340", network: "FC Mobile", dataAmount: "340 FC Points", price: 50.0 },
+                                      { id: "fc_380", network: "FC Mobile", dataAmount: "380 FC Points", price: 57.0 },
+                                      { id: "fc_380_premium", network: "FC Mobile", dataAmount: "380 FC Points (Premium)", price: 74.0 },
+                                      { id: "fc_420", network: "FC Mobile", dataAmount: "420 FC Points", price: 81.0 },
+                                      { id: "fc_460", network: "FC Mobile", dataAmount: "460 FC Points", price: 88.0 },
+                                      { id: "fc_500", network: "FC Mobile", dataAmount: "500 FC Points", price: 95.0 },
+                                      { id: "fc_540", network: "FC Mobile", dataAmount: "540 FC Points", price: 102.0 },
+                                      { id: "fc_1070", network: "FC Mobile", dataAmount: "1070 FC Points", price: 142.0 },
+                                      { id: "fc_2200", network: "FC Mobile", dataAmount: "2200 FC Points", price: 280.0 },
+                                      { id: "fc_9999", network: "FC Mobile", dataAmount: "9999 FC Points", price: 1500.0 }
+                                    ];
+
+                                const filteredPoints = rawPoints
+                                  .filter((b) => {
+                                    if (!searchQuery) return true;
+                                    const q = searchQuery.toLowerCase();
+                                    return b.dataAmount.toLowerCase().includes(q) || b.price.toString().includes(q);
+                                  })
+                                  .sort((a, b) => a.price - b.price);
+
+                                if (filteredPoints.length === 0) {
+                                  return (
+                                    <div className="col-span-full text-center py-12 bg-card rounded-2xl border border-dashed border-[#00FF87]/20">
+                                      <Smartphone className="w-10 h-10 text-muted-foreground/20 mx-auto mb-4" />
+                                      <h3 className="text-lg font-black text-foreground mb-1 dark:text-white">
+                                        NO POINTS BUNDLES FOUND 👑
+                                      </h3>
+                                      <p className="text-xs text-muted-foreground">
+                                        We couldn't find any FC points matching your search query.
+                                      </p>
+                                    </div>
+                                  );
+                                }
+
+                                return (
+                                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                                    {filteredPoints.map((bundle, index) => (
+                                      <motion.div
+                                        key={bundle.id}
+                                        initial={{ opacity: 0, y: 15 }}
+                                        whileInView={{ opacity: 1, y: 0 }}
+                                        viewport={{ once: true }}
+                                        transition={{ duration: 0.3, delay: index * 0.03 }}
+                                      >
+                                        <Card
+                                          className="hover:shadow-md hover:shadow-[#00FF87]/5 hover:border-[#00FF87]/50 transition-all duration-300 border border-border/80 rounded-2xl overflow-hidden group bg-card shadow-sm hover:-translate-y-0.5 flex flex-col h-full"
                                         >
-                                          FC Points
-                                        </Badge>
-                                        <Crown className="w-6 h-6 text-[#00FF87] fill-[#00FF87] animate-pulse" />
-                                      </div>
-                                      <CardTitle
-                                        className={`text-4xl font-black mt-4 text-foreground dark:text-white ${bundle.dataAmount.length > 15 ? "text-2xl" : ""}`}
-                                      >
-                                        {bundle.dataAmount}
-                                      </CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="p-8">
-                                      <div className="flex items-center justify-between mb-8">
-                                        <div className="flex flex-col">
-                                          <span className="text-xs font-black text-muted-foreground uppercase">
-                                            Price
-                                          </span>
-                                          <span className="text-4xl font-black text-foreground dark:text-white">
-                                            GH₵ {bundle.price.toFixed(2)}
-                                          </span>
-                                        </div>
-                                      </div>
-                                      <Button
-                                        className="w-full h-16 text-xl font-black rounded-2xl bg-black text-[#00FF87] hover:bg-[#00FF87] hover:text-black transition-all shadow-lg"
-                                        onClick={() =>
-                                          onSelectBundle(bundle as any)
-                                        }
-                                      >
-                                        BUY NOW 👑
-                                      </Button>
-                                    </CardContent>
-                                  </Card>
-                                </motion.div>
-                              ))}
+                                          <CardHeader
+                                            className="bg-[#00FF87]/5 border-b border-border/50 p-4 flex flex-col gap-1"
+                                          >
+                                            <div className="flex justify-between items-center">
+                                              <Badge
+                                                className="bg-[#00FF87] text-black text-[10px] px-2 py-0.5 font-black uppercase rounded-md"
+                                              >
+                                                FC Points
+                                              </Badge>
+                                              <Crown className="w-4 h-4 text-[#00FF87] fill-[#00FF87] animate-pulse shrink-0" />
+                                            </div>
+                                            <CardTitle
+                                              className={`text-lg sm:text-xl font-black mt-2 text-foreground dark:text-white tracking-tight leading-none ${bundle.dataAmount.length > 15 ? "text-base sm:text-lg" : ""}`}
+                                            >
+                                              {bundle.dataAmount}
+                                            </CardTitle>
+                                          </CardHeader>
+                                          <CardContent className="p-4 flex flex-col justify-between flex-1 gap-4">
+                                            <div className="flex items-center justify-between">
+                                              <div className="flex flex-col">
+                                                <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">
+                                                  Price
+                                                </span>
+                                                <span className="text-base sm:text-lg font-black text-foreground dark:text-white">
+                                                  GH₵ {bundle.price.toFixed(2)}
+                                                </span>
+                                              </div>
+                                            </div>
+                                            <Button
+                                              className="w-full h-10 text-xs font-black rounded-xl bg-black text-[#00FF87] hover:bg-[#00FF87] hover:text-black transition-all shadow-md cursor-pointer"
+                                              onClick={() =>
+                                                onSelectBundle(bundle as any)
+                                              }
+                                            >
+                                              BUY NOW 👑
+                                            </Button>
+                                          </CardContent>
+                                        </Card>
+                                      </motion.div>
+                                    ))}
+                                  </div>
+                                );
+                              })()}
                             </div>
                           )}
 
                           {fcOptionTab === "silver" && (
-                            <>
-                              {processedBundles.filter((b) => b.category === "FC Mobile Silver").length > 0 ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                                  {processedBundles
-                                    .filter((b) => b.category === "FC Mobile Silver")
-                                    .sort((a, b) => a.price - b.price)
-                                    .map((bundle, index) => (
+                            <div className="w-full">
+                              {(() => {
+                                const rawSilver = processedBundles.filter((b) => b.category === "FC Mobile Silver");
+                                const filteredSilver = rawSilver
+                                  .filter((b) => {
+                                    if (!searchQuery) return true;
+                                    const q = searchQuery.toLowerCase();
+                                    return b.dataAmount.toLowerCase().includes(q) || b.price.toString().includes(q);
+                                  })
+                                  .sort((a, b) => a.price - b.price);
+
+                                if (filteredSilver.length === 0) {
+                                  return (
+                                    <div className="col-span-full text-center py-12 bg-card rounded-2xl border border-dashed border-[#00FF87]/20">
+                                      <Smartphone className="w-10 h-10 text-muted-foreground/20 mx-auto mb-4" />
+                                      <h3 className="text-lg font-black text-foreground mb-1 dark:text-white">
+                                        NO SILVER BUNDLES FOUND 👑
+                                      </h3>
+                                      <p className="text-xs text-muted-foreground">
+                                        We couldn't find any FC Mobile Silver packages matching your search query or none are currently available.
+                                      </p>
+                                    </div>
+                                  );
+                                }
+
+                                return (
+                                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                                    {filteredSilver.map((bundle, index) => (
                                       <motion.div
                                         key={bundle.id}
-                                        initial={{ opacity: 0, y: 20 }}
+                                        initial={{ opacity: 0, y: 15 }}
                                         whileInView={{ opacity: 1, y: 0 }}
                                         viewport={{ once: true }}
-                                        transition={{
-                                          duration: 0.4,
-                                          delay: index * 0.05,
-                                        }}
+                                        transition={{ duration: 0.3, delay: index * 0.03 }}
                                       >
-                                        <Card className={`hover:shadow-xl transition-all border-2 rounded-[2rem] overflow-hidden group bg-card hover:border-[#00FF87] border-border shadow-sm`}>
-                                          <CardHeader className={`bg-[#00FF87]/10 border-b-2 border-border p-8`}>
-                                            <div className="flex justify-between items-start">
-                                              <Badge className={`bg-[#00FF87] text-black font-black`}>FC Silver</Badge>
-                                              <Zap className="w-6 h-6 text-slate-400 fill-slate-400 animate-pulse" />
+                                        <Card
+                                          className="hover:shadow-md hover:shadow-[#00FF87]/5 hover:border-[#00FF87]/50 transition-all duration-300 border border-border/80 rounded-2xl overflow-hidden group bg-card shadow-sm hover:-translate-y-0.5 flex flex-col h-full"
+                                        >
+                                          <CardHeader
+                                            className="bg-[#00FF87]/5 border-b border-border/50 p-4 flex flex-col gap-1"
+                                          >
+                                            <div className="flex justify-between items-center">
+                                              <Badge
+                                                className="bg-[#00FF87] text-black text-[10px] px-2 py-0.5 font-black uppercase rounded-md"
+                                              >
+                                                FC Silver
+                                              </Badge>
+                                              <Zap className="w-4 h-4 text-slate-400 fill-slate-400 animate-pulse shrink-0" />
                                             </div>
-                                            <CardTitle className="text-4xl font-black mt-4 text-foreground dark:text-white">{bundle.dataAmount}</CardTitle>
+                                            <CardTitle className="text-xl sm:text-2xl font-black mt-2 text-foreground dark:text-white tracking-tight leading-none">
+                                              {bundle.dataAmount}
+                                            </CardTitle>
                                           </CardHeader>
-                                          <CardContent className="p-8">
-                                            <div className="flex items-center justify-between mb-8">
+                                          <CardContent className="p-4 flex flex-col justify-between flex-1 gap-4">
+                                            <div className="flex items-center justify-between">
                                               <div className="flex flex-col">
-                                                <span className="text-xs font-black text-muted-foreground uppercase">Price</span>
-                                                <span className="text-4xl font-black text-foreground dark:text-white">GH₵ {bundle.price.toFixed(2)}</span>
+                                                <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">
+                                                  Price
+                                                </span>
+                                                <span className="text-base sm:text-lg font-black text-foreground dark:text-white">
+                                                  GH₵ {bundle.price.toFixed(2)}
+                                                </span>
                                               </div>
                                             </div>
-                                            <Button 
-                                              className="w-full h-16 text-xl font-black rounded-2xl bg-black text-[#00FF87] hover:bg-[#00FF87] hover:text-black transition-all shadow-lg" 
+                                            <Button
+                                              className="w-full h-10 text-xs font-black rounded-xl bg-black text-[#00FF87] hover:bg-[#00FF87] hover:text-black transition-all shadow-md cursor-pointer"
                                               onClick={() => onSelectBundle(bundle as any)}
                                             >
                                               BUY NOW 👑
@@ -632,14 +793,10 @@ export default function BundleList({
                                         </Card>
                                       </motion.div>
                                     ))}
-                                </div>
-                              ) : (
-                                <div className="min-h-[30vh] flex flex-col items-center justify-center p-8 bg-card rounded-[2rem] border-2 border-dashed border-border gap-4">
-                                  <h2 className="text-xl font-black text-muted-foreground uppercase tracking-widest text-center">Waiting for packages...</h2>
-                                  <p className="text-sm text-slate-500 font-bold text-center">The admin is currently updating the FC Mobile Silver packages.</p>
-                                </div>
-                              )}
-                            </>
+                                  </div>
+                                );
+                              })()}
+                            </div>
                           )}
                         </div>
                       )}
@@ -647,102 +804,106 @@ export default function BundleList({
                   )}
 
                   {activeGameCoinSubTab === "PUBG_MOBILE" && (
-                    <div className="space-y-8">
-                      <div className="flex flex-col md:flex-row items-center gap-8 bg-card rounded-[2rem] border-2 border-border p-8">
+                    <div className="space-y-4">
+                      <div className="flex flex-col sm:flex-row items-center gap-4 bg-card rounded-2xl border border-border p-4">
                         <img
                           src={pubgMobileIcon}
                           alt="PUBG Mobile"
-                          className="rounded-3xl w-48 h-48 object-cover shadow-lg"
+                          className="rounded-xl w-24 h-24 sm:w-32 sm:h-32 object-cover shadow-sm"
                         />
-                        <div className="text-center md:text-left flex-1">
-                          <h2 className="text-3xl font-black text-foreground uppercase tracking-tight mb-2">
+                        <div className="text-center sm:text-left flex-1">
+                          <h2 className="text-xl sm:text-2xl font-black text-foreground uppercase tracking-tight mb-1">
                             PUBG Mobile UC
                           </h2>
-                          <p className="text-muted-foreground font-medium mb-6">
+                          <p className="text-muted-foreground font-medium text-xs sm:text-sm">
                             Top up PUBG Mobile Unknown Cash (UC) instantly. Select from our discount packages below and conquer the battleground!
                           </p>
                         </div>
                       </div>
 
-                      {processedBundles.filter(
-                        (b) => b.category === "PUBG Mobile UC" || b.network === "PUBG Mobile UC",
-                      ).length > 0 || fallbackPUBGBundles.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                          {(processedBundles.filter(
-                            (b) => b.category === "PUBG Mobile UC" || b.network === "PUBG Mobile UC",
-                          ).length > 0
-                            ? processedBundles
-                                .filter(
-                                  (b) => b.category === "PUBG Mobile UC" || b.network === "PUBG Mobile UC",
-                                )
-                                .sort((a, b) => a.price - b.price)
-                            : fallbackPUBGBundles
-                          ).map((bundle, index) => (
-                            <motion.div
-                              key={bundle.id}
-                              initial={{ opacity: 0, y: 20 }}
-                              whileInView={{ opacity: 1, y: 0 }}
-                              viewport={{ once: true }}
-                              transition={{
-                                duration: 0.4,
-                                delay: index * 0.05,
-                              }}
-                            >
-                              <Card
-                                className={`hover:shadow-xl transition-all border-2 rounded-[2rem] overflow-hidden group bg-card hover:border-amber-500 border-border shadow-sm`}
+                      {(() => {
+                        const rawPubg = processedBundles.filter(
+                          (b) => b.category === "PUBG Mobile UC" || b.network === "PUBG Mobile UC",
+                        ).length > 0
+                          ? processedBundles.filter(
+                              (b) => b.category === "PUBG Mobile UC" || b.network === "PUBG Mobile UC",
+                            )
+                          : fallbackPUBGBundles;
+
+                        const filteredPubg = rawPubg
+                          .filter((b) => {
+                            if (!searchQuery) return true;
+                            const q = searchQuery.toLowerCase();
+                            return b.dataAmount.toLowerCase().includes(q) || b.price.toString().includes(q);
+                          })
+                          .sort((a, b) => a.price - b.price);
+
+                        if (filteredPubg.length === 0) {
+                          return (
+                            <div className="col-span-full text-center py-12 bg-card rounded-2xl border border-dashed border-amber-500/20">
+                              <Zap className="w-10 h-10 text-amber-500/20 mx-auto mb-4" />
+                              <h3 className="text-lg font-black text-foreground mb-1 dark:text-white">
+                                NO PACKAGES FOUND 👑
+                              </h3>
+                              <p className="text-xs text-muted-foreground">
+                                We couldn't find any PUBG UC packages matching your search query.
+                              </p>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                            {filteredPubg.map((bundle, index) => (
+                              <motion.div
+                                key={bundle.id}
+                                initial={{ opacity: 0, y: 15 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true }}
+                                transition={{ duration: 0.3, delay: index * 0.03 }}
                               >
-                                <CardHeader
-                                  className={`bg-amber-500/10 border-b-2 border-border p-8`}
+                                <Card
+                                  className="hover:shadow-md hover:shadow-amber-500/5 hover:border-amber-500/50 transition-all duration-300 border border-border/80 rounded-2xl overflow-hidden group bg-card shadow-sm hover:-translate-y-0.5 flex flex-col h-full"
                                 >
-                                  <div className="flex justify-between items-start">
-                                    <Badge
-                                      className={`bg-amber-500 text-black font-black`}
-                                    >
-                                      PUBG UC
-                                    </Badge>
-                                    <Zap className="w-6 h-6 text-amber-500 fill-amber-500" />
-                                  </div>
-                                  <CardTitle
-                                    className={`text-4xl font-black mt-4 text-foreground dark:text-white`}
+                                  <CardHeader
+                                    className="bg-amber-500/5 border-b border-border/50 p-4 flex flex-col gap-1"
                                   >
-                                    {bundle.dataAmount}
-                                  </CardTitle>
-                                </CardHeader>
-                                <CardContent className="p-8">
-                                  <div className="flex items-center justify-between mb-8">
-                                    <div className="flex flex-col">
-                                      <span className="text-xs font-black text-muted-foreground uppercase">
-                                        Price
-                                      </span>
-                                      <span className="text-4xl font-black text-foreground dark:text-white">
-                                        GH₵ {bundle.price.toFixed(2)}
-                                      </span>
+                                    <div className="flex justify-between items-center">
+                                      <Badge
+                                        className="bg-amber-500 text-black text-[10px] px-2 py-0.5 font-black uppercase rounded-md"
+                                      >
+                                        PUBG UC
+                                      </Badge>
+                                      <Zap className="w-4 h-4 text-amber-500 fill-amber-500 shrink-0" />
                                     </div>
-                                  </div>
-                                  <Button
-                                    className="w-full h-16 text-xl font-black rounded-2xl bg-black text-amber-500 hover:bg-amber-500 hover:text-black transition-all shadow-lg"
-                                    onClick={() =>
-                                      onSelectBundle(bundle as any)
-                                    }
-                                  >
-                                    BUY NOW 👑
-                                  </Button>
-                                </CardContent>
-                              </Card>
-                            </motion.div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-center py-24 bg-card rounded-[2rem] border-4 border-dashed border-amber-500/10">
-                          <Zap className="w-16 h-16 text-amber-500/50 mx-auto mb-6" />
-                          <h3 className="text-2xl font-black text-foreground mb-2 dark:text-white">
-                            RESTOCKING SOON 👑
-                          </h3>
-                          <p className="text-muted-foreground">
-                            The King is preparing more PUBG Mobile UC deals. Stay tuned!
-                          </p>
-                        </div>
-                      )}
+                                    <CardTitle className="text-xl sm:text-2xl font-black mt-2 text-foreground dark:text-white tracking-tight leading-none">
+                                      {bundle.dataAmount}
+                                    </CardTitle>
+                                  </CardHeader>
+                                  <CardContent className="p-4 flex flex-col justify-between flex-1 gap-4">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex flex-col">
+                                        <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">
+                                          Price
+                                        </span>
+                                        <span className="text-base sm:text-lg font-black text-foreground dark:text-white">
+                                          GH₵ {bundle.price.toFixed(2)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <Button
+                                      className="w-full h-10 text-xs font-black rounded-xl bg-black text-amber-500 hover:bg-amber-500 hover:text-black transition-all shadow-md cursor-pointer"
+                                      onClick={() => onSelectBundle(bundle as any)}
+                                    >
+                                      BUY NOW 👑
+                                    </Button>
+                                  </CardContent>
+                                </Card>
+                              </motion.div>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
@@ -764,23 +925,31 @@ export default function BundleList({
                   </div>
 
                   {activePCGamesSubTab === "FC_26" && (
-                    <div className="space-y-8">
-                      <div className="relative w-full aspect-video rounded-[2rem] overflow-hidden shadow-xl border-2 border-border group bg-black flex items-end md:items-center">
-                        <img
-                          src={fc26Icon}
-                          alt="Official EA SPORTS FC 26 Cover"
-                          className="absolute inset-0 w-full h-full object-cover z-0"
-                        />
-                        <div className="absolute inset-0 bg-black/40 z-10 pointer-events-none"></div>
-                        <div className="relative z-20 w-full flex flex-col justify-end md:justify-center items-center md:items-start text-center md:text-left p-6 md:p-12 h-full">
-                          <h2 className="text-3xl sm:text-4xl md:text-6xl font-black text-white uppercase tracking-tight mb-2 sm:mb-4 drop-shadow-lg">
+                    <div className="space-y-4">
+                      <div className="relative w-full rounded-2xl overflow-hidden shadow-md border border-border group bg-slate-950 flex flex-col md:flex-row items-center p-6 md:p-8 gap-6">
+                        {/* Blurred ambient background behind the text (using the official cover image blurred) */}
+                        <div className="absolute inset-0 z-0 overflow-hidden opacity-20 pointer-events-none">
+                          <img
+                            src={fc26Icon}
+                            alt=""
+                            className="w-full h-full object-cover blur-xl scale-110"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-slate-950"></div>
+                        </div>
+
+                        {/* Text and controls section */}
+                        <div className="relative z-10 flex-1 text-left order-2 md:order-1">
+                          <Badge className="bg-primary text-black font-black mb-2 rounded uppercase text-[9px] tracking-wider px-2 py-0.5">
+                            Hot PC Title 👑
+                          </Badge>
+                          <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-white uppercase tracking-tight mb-2">
                             FC 26 PC GAME
                           </h2>
-                          <p className="text-white/90 font-medium text-sm sm:text-lg md:text-xl mb-4 sm:mb-8 max-w-2xl drop-shadow-md line-clamp-2 md:line-clamp-none">
+                          <p className="text-white/80 font-medium text-xs sm:text-sm mb-4 max-w-lg">
                             Pre-order or purchase the ultimate football experience with FC 26 on PC. Instant delivery!
                           </p>
                           <Button
-                            className="w-full sm:w-auto h-12 sm:h-16 px-8 sm:px-12 text-lg sm:text-xl font-black rounded-2xl bg-white text-black hover:bg-gray-200 transition-all shadow-xl"
+                            className="h-10 px-6 text-xs font-black rounded-xl bg-white text-black hover:bg-gray-100 transition-all shadow-md cursor-pointer"
                             onClick={() => onSelectBundle({
                               id: "fc_26_pc_game",
                               network: "PC Games",
@@ -791,8 +960,20 @@ export default function BundleList({
                               name: "FC 26 PC Game"
                             } as any)}
                           >
-                            BUY FOR 50GHC 👑
+                            BUY NOW FOR 50 GHC 👑
                           </Button>
+                        </div>
+                        
+                        {/* Game Cover Showcase with exact aspect ratio & overlay */}
+                        <div className="relative z-10 w-full max-w-[200px] md:w-44 lg:w-48 aspect-[3/4] rounded-xl overflow-hidden shrink-0 order-1 md:order-2 shadow-lg border border-white/10 bg-black/40">
+                          <img
+                            src={fc26Icon}
+                            alt="Official EA SPORTS FC 26 Cover"
+                            loading="lazy"
+                            className="w-full h-full object-contain"
+                          />
+                          {/* 40% dark overlay to preserve aesthetic and readability */}
+                          <div className="absolute inset-0 bg-black/40 pointer-events-none"></div>
                         </div>
                       </div>
                     </div>
@@ -806,7 +987,7 @@ export default function BundleList({
                 </div>
               )}
             </TabsContent>
-          ))}
+          )))}
         </Tabs>
       </div>
     </section>
