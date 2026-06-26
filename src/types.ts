@@ -4,7 +4,10 @@ export type Network =
   | "AirtelTigo"
   | "FC Mobile"
   | "FC Mobile Points"
-  | "FC Mobile Silver";
+  | "FC Mobile Silver"
+  | "PC Games"
+  | "PUBG Mobile"
+  | "PUBG Mobile UC";
 
 export interface Bundle {
   id: string;

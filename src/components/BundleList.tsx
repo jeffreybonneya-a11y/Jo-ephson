@@ -10,8 +10,9 @@ import { motion } from "motion/react";
 import { Smartphone, Wifi, Zap, Crown } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import StreamingTab from "./StreamingTab";
-import fcMobileIcon from "@/src/assets/images/fc_mobile_bellingham_1782342862052.jpg";
+import fcMobileIcon from "@/src/assets/images/ea_sports_fc_mobile_cover_fixed_1782486697588.jpg";
 import pubgMobileIcon from "@/src/assets/images/pubg_mobile_cover_1782399506286.jpg";
+import fc26Icon from "@/src/assets/images/ea_sports_fc_26_cover_1782485615642.jpg";
 
 interface BundleListProps {
   onSelectBundle: (bundle: Bundle & { wholesalePrice?: number }) => void;
@@ -32,6 +33,7 @@ export default function BundleList({
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("MTN");
   const [activeGameCoinSubTab, setActiveGameCoinSubTab] = useState("FC_MOBILE");
+  const [activePCGamesSubTab, setActivePCGamesSubTab] = useState("FC_26");
   const [showFCOptions, setShowFCOptions] = useState(false);
   const [fcOptionTab, setFcOptionTab] = useState("points");
   const [announcement, setAnnouncement] = useState<any>(null);
@@ -364,22 +366,23 @@ export default function BundleList({
                   {activeGameCoinSubTab === "FC_MOBILE" && (
                     <div className="space-y-8">
                       {!showFCOptions ? (
-                        <div className="flex flex-col md:flex-row items-center gap-8 bg-card rounded-[2rem] border-2 border-border p-8">
+                        <div className="relative w-full aspect-video rounded-[2rem] overflow-hidden shadow-xl border-2 border-border group bg-black flex items-end md:items-center">
                           <img
                             src={fcMobileIcon}
-                            alt="FC Mobile"
-                            className="rounded-3xl w-48 h-48 object-cover shadow-lg"
+                            alt="Official FC ™ MOBILE Cover"
+                            className="absolute inset-0 w-full h-full object-cover z-0"
                           />
-                          <div className="text-center md:text-left flex-1">
-                            <h2 className="text-3xl font-black text-foreground uppercase tracking-tight mb-2">
+                          <div className="absolute inset-0 bg-black/40 z-10 pointer-events-none"></div>
+                          <div className="relative z-20 w-full flex flex-col justify-end md:justify-center items-center md:items-start text-center md:text-left p-6 md:p-12 h-full">
+                            <h2 className="text-3xl sm:text-4xl md:text-6xl font-black text-white uppercase tracking-tight mb-2 sm:mb-4 drop-shadow-lg">
                               FC ™ MOBILE
                             </h2>
-                            <p className="text-muted-foreground font-medium mb-6">
+                            <p className="text-white/90 font-medium text-sm sm:text-lg md:text-xl mb-4 sm:mb-8 max-w-2xl drop-shadow-md line-clamp-2 md:line-clamp-none">
                               Purchase your FC Points and Silver instantly to
                               upgrade your ultimate team.
                             </p>
                             <Button
-                              className="w-full md:w-auto h-16 px-12 text-xl font-black rounded-2xl bg-[#00FF87] text-black hover:bg-black hover:text-[#00FF87] transition-all shadow-lg"
+                              className="w-full sm:w-auto h-12 sm:h-16 px-8 sm:px-12 text-lg sm:text-xl font-black rounded-2xl bg-[#00FF87] text-black hover:bg-white transition-all shadow-xl"
                               onClick={() => setShowFCOptions(true)}
                             >
                               BUY NOW 👑
@@ -740,6 +743,58 @@ export default function BundleList({
                           </p>
                         </div>
                       )}
+                    </div>
+                  )}
+                </div>
+              ) : tab === "PC Games" ? (
+                <div className="space-y-6">
+                  <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+                    {[
+                      { id: "FC_26", label: "FC 26" },
+                    ].map((subTab) => (
+                      <Button
+                        key={subTab.id}
+                        onClick={() => setActivePCGamesSubTab(subTab.id)}
+                        variant={activePCGamesSubTab === subTab.id ? "default" : "outline"}
+                        className="rounded-full font-black uppercase tracking-wider h-12"
+                      >
+                        {subTab.label}
+                      </Button>
+                    ))}
+                  </div>
+
+                  {activePCGamesSubTab === "FC_26" && (
+                    <div className="space-y-8">
+                      <div className="relative w-full aspect-video rounded-[2rem] overflow-hidden shadow-xl border-2 border-border group bg-black flex items-end md:items-center">
+                        <img
+                          src={fc26Icon}
+                          alt="Official EA SPORTS FC 26 Cover"
+                          className="absolute inset-0 w-full h-full object-cover z-0"
+                        />
+                        <div className="absolute inset-0 bg-black/40 z-10 pointer-events-none"></div>
+                        <div className="relative z-20 w-full flex flex-col justify-end md:justify-center items-center md:items-start text-center md:text-left p-6 md:p-12 h-full">
+                          <h2 className="text-3xl sm:text-4xl md:text-6xl font-black text-white uppercase tracking-tight mb-2 sm:mb-4 drop-shadow-lg">
+                            FC 26 PC GAME
+                          </h2>
+                          <p className="text-white/90 font-medium text-sm sm:text-lg md:text-xl mb-4 sm:mb-8 max-w-2xl drop-shadow-md line-clamp-2 md:line-clamp-none">
+                            Pre-order or purchase the ultimate football experience with FC 26 on PC. Instant delivery!
+                          </p>
+                          <Button
+                            className="w-full sm:w-auto h-12 sm:h-16 px-8 sm:px-12 text-lg sm:text-xl font-black rounded-2xl bg-white text-black hover:bg-gray-200 transition-all shadow-xl"
+                            onClick={() => onSelectBundle({
+                              id: "fc_26_pc_game",
+                              network: "PC Games",
+                              category: "FC 26",
+                              dataAmount: "FC 26 PC Game",
+                              price: 50.00,
+                              active: true,
+                              name: "FC 26 PC Game"
+                            } as any)}
+                          >
+                            BUY FOR 50GHC 👑
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>

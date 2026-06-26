@@ -11,6 +11,7 @@ import {
   doc,
   setDoc,
   updateDoc,
+  onSnapshot
 } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,7 +58,10 @@ const formSchema = z
       data.recipientNetwork === "FC Mobile" ||
       data.recipientNetwork === "PUBG Mobile UC" ||
       data.recipientNetwork === "PUBG Mobile";
-    if (!isGame) {
+      
+    const isPCGame = data.recipientNetwork === "PC Games";
+
+    if (!isGame && !isPCGame) {
       if (!data.recipientPhone || !/^0\d{9}$/.test(data.recipientPhone)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -66,7 +70,7 @@ const formSchema = z
           path: ["recipientPhone"],
         });
       }
-    } else {
+    } else if (isGame) {
       if (!data.fcUserId || data.fcUserId.trim() === "") {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -125,6 +129,7 @@ export default function CheckoutForm({
           "FC Mobile Silver",
           "PUBG Mobile",
           "PUBG Mobile UC",
+          "PC Games",
         ].includes(bundle.network)
           ? bundle.network
           : "MTN",
@@ -146,6 +151,7 @@ export default function CheckoutForm({
         "FC Mobile Silver",
         "PUBG Mobile",
         "PUBG Mobile UC",
+        "PC Games",
       ].includes(bundle.network)
     ) {
       setValue("recipientNetwork", bundle.network);
@@ -158,6 +164,35 @@ export default function CheckoutForm({
       setValue("recipientPhone", profile.phoneNumber);
     }
   }, [profile, bundle, setValue]);
+
+  useEffect(() => {
+    if (bundle?.network === "PC Games" && auth.currentUser && !isSubmitting) {
+      handleSubmit(onSubmit)();
+    }
+  }, [bundle, auth.currentUser]);
+
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    if (orderStatus === "processing" && orderId) {
+      unsubscribe = onSnapshot(doc(db, "orders", orderId), (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.status === "delivered") {
+            setOrderStatus("success");
+            if (data.network === "PC Games") {
+              setTimeout(() => onClose(), 1500);
+            }
+          } else if (data.status === "declined" || data.status === "failed") {
+            toast.error("Order was declined or failed.");
+            onClose();
+          }
+        }
+      });
+    }
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [orderStatus, orderId, onClose]);
 
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
     if (!bundle || !auth.currentUser) {
@@ -232,6 +267,7 @@ export default function CheckoutForm({
 
       console.log("PreOrder Data:", preOrderData);
       await setDoc(preOrderRef, preOrderData);
+      setOrderId(preOrderId);
 
       // If buyer is via an agent store, create agent_orders entry
       if (agentContext) {
@@ -337,9 +373,14 @@ export default function CheckoutForm({
           custom_fields: customFields,
         },
         onSuccess: async (response: any) => {
-          // Immediately close the checkout form (redirect back to home layout)
-          onClose();
-          setIsSubmitting(false);
+          if (bundle.network === "PC Games") {
+            setOrderStatus("processing");
+            setIsSubmitting(false);
+          } else {
+            // Immediately close the checkout form (redirect back to home layout)
+            onClose();
+            setIsSubmitting(false);
+          }
 
           // Silently trigger background payment verification if completed
           try {
@@ -419,7 +460,21 @@ export default function CheckoutForm({
   return (
     <Dialog open={!!bundle} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-[550px] w-[95vw] max-h-[95vh] overflow-y-auto rounded-[2rem] sm:rounded-[2.5rem] border-2 sm:border-4 border-slate-100 dark:border-slate-800 bg-background shadow-2xl p-0">
-        {orderStatus === "processing" ? (
+        {bundle.network === "PC Games" && isSubmitting ? (
+          <div className="py-16 sm:py-24 text-center space-y-6 sm:space-y-8 px-6 bg-slate-50/50 dark:bg-slate-900/50">
+            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-primary/20 animate-pulse">
+              <Loader2 className="w-10 h-10 sm:w-12 sm:h-12 animate-spin" />
+            </div>
+            <div className="space-y-2 sm:space-y-3">
+              <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground dark:text-white uppercase">
+                Redirecting to Payment... 👑
+              </h2>
+              <p className="text-slate-500 dark:text-slate-400 font-bold max-w-xs mx-auto text-xs sm:text-sm leading-relaxed lowercase italic opacity-80">
+                Please complete your payment to get your game.
+              </p>
+            </div>
+          </div>
+        ) : orderStatus === "processing" ? (
           <div className="py-16 sm:py-24 text-center space-y-6 sm:space-y-8 px-6 bg-slate-50/50 dark:bg-slate-900/50">
             <div className="w-20 h-20 sm:w-24 sm:h-24 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-primary/20 animate-pulse">
               <Loader2 className="w-10 h-10 sm:w-12 sm:h-12 animate-spin" />
@@ -430,6 +485,20 @@ export default function CheckoutForm({
               </h2>
               <p className="text-slate-500 dark:text-slate-400 font-bold max-w-xs mx-auto text-xs sm:text-sm leading-relaxed lowercase italic opacity-80">
                 Confirming your payment. Stay on this screen.
+              </p>
+            </div>
+          </div>
+        ) : orderStatus === "success" && bundle.network === "PC Games" ? (
+          <div className="py-16 sm:py-24 text-center space-y-6 sm:space-y-8 px-6 bg-slate-50/50 dark:bg-slate-900/50">
+            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-green-500 text-white rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-green-500/20 shadow-2xl">
+              <CheckCircle2 className="w-10 h-10 sm:w-12 sm:h-12" />
+            </div>
+            <div className="space-y-4">
+              <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground dark:text-white uppercase">
+                Payment Successful! 👑
+              </h2>
+              <p className="text-slate-500 dark:text-slate-400 font-bold max-w-xs mx-auto text-sm leading-relaxed lowercase italic opacity-80">
+                Your game is ready. Redirecting you to the download page...
               </p>
             </div>
           </div>

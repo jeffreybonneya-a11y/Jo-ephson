@@ -83,7 +83,7 @@ export default function OrderHistory() {
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
                           Order #{order.id.slice(-6).toUpperCase()}
                         </p>
-                        <h3 className="text-xl font-bold">{order.bundleName}</h3>
+                        <h3 className="text-xl font-bold">{order.bundleName || order.bundle}</h3>
                       </div>
                       {getStatusBadge(order.status)}
                     </div>
@@ -93,15 +93,15 @@ export default function OrderHistory() {
                         <Smartphone className="w-4 h-4" />
                         <div className="flex flex-col">
                           <span className="text-[10px] uppercase font-bold text-slate-400">Recipient</span>
-                          <span>{order.recipientPhone} ({order.recipientNetwork})</span>
+                          <span>{order.recipientPhone || order.phone} ({order.recipientNetwork || order.network})</span>
                         </div>
                       </div>
-                      {order.dataAmount && (
+                      {(order.dataAmount || order.bundle) && (
                         <div className="flex items-center gap-2 text-slate-600">
                           <Package className="w-4 h-4" />
                           <div className="flex flex-col">
                             <span className="text-[10px] uppercase font-bold text-slate-400">Data Amount</span>
-                            <span>{order.dataAmount}</span>
+                            <span>{order.dataAmount || order.bundle}</span>
                           </div>
                         </div>
                       )}
@@ -116,14 +116,31 @@ export default function OrderHistory() {
                         <Package className="w-4 h-4" />
                         <div className="flex flex-col">
                           <span className="text-[10px] uppercase font-bold text-slate-400">Reference</span>
-                          <span className="font-mono">{order.referenceCode}</span>
+                          <span className="font-mono">{order.referenceCode || order.reference || 'N/A'}</span>
                         </div>
                       </div>
                     </div>
+                    
+                    {order.network === "PC Games" && order.status === "delivered" && (
+                      <div className="mt-6 p-4 bg-primary/10 border border-primary/20 rounded-xl">
+                        <h4 className="font-bold text-primary mb-2 flex items-center gap-2">
+                          <CheckCircle2 className="w-5 h-5" /> Download Your Game
+                        </h4>
+                        <p className="text-sm text-slate-600 mb-3">Your FC 26 PC Game is ready for download!</p>
+                        <a 
+                          href="https://mega.nz/folder/8VxmSKwa#UmP1qPm5PaSvMfGTbBFvCQ" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="inline-block bg-primary text-secondary font-bold py-2 px-4 rounded-lg hover:bg-primary/90 transition-colors uppercase tracking-wider"
+                        >
+                          DOWNLOAD GAME HERE
+                        </a>
+                      </div>
+                    )}
                   </div>
                   <div className="bg-slate-50 p-6 md:w-48 flex flex-col justify-center items-center border-t md:border-t-0 md:border-l">
                     <span className="text-xs text-slate-500 mb-1">Amount Sent</span>
-                    <span className="text-2xl font-bold">GHS {order.amountSent.toFixed(2)}</span>
+                    <span className="text-2xl font-bold">GHS {Number(order.amountSent || order.amount || 0).toFixed(2)}</span>
                   </div>
                 </div>
               </CardContent>

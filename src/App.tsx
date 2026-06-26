@@ -21,6 +21,7 @@ import AgentStore from './components/AgentStore';
 import ThemeCustomizer from './components/ThemeCustomizer';
 import { useTheme } from './hooks/useTheme';
 import { seedFC } from './lib/seed';
+import DownloadPage from './components/DownloadPage';
 
 export default function App() {
   const [selectedBundle, setSelectedBundle] = useState<Bundle | null>(null);
@@ -32,6 +33,9 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [announcement, setAnnouncement] = useState<{text: string, active: boolean, type: string} | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+
+  // Download page state
+  const [downloadReadyUrl, setDownloadReadyUrl] = useState<string | null>(null);
 
   // Agent store context
   const [agentContext, setAgentContext] = useState<any>(null);
@@ -135,6 +139,48 @@ export default function App() {
     };
   }, []);
 
+  // Listen for PC Games delivery
+  useEffect(() => {
+    let ordersUnsub: (() => void) | undefined;
+    if (user && !isAdminView) {
+      const q = query(
+        collection(db, 'orders'),
+        where('userId', '==', user.uid),
+        where('network', '==', 'PC Games'),
+        where('status', '==', 'delivered')
+      );
+      
+      let initialLoad = true;
+      ordersUnsub = onSnapshot(q, (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'modified') {
+            const data = change.doc.data();
+            if (data.bundleName === "FC 26 PC Game" || data.bundle === "FC 26 PC Game" || data.category === "FC 26") {
+              setDownloadReadyUrl("https://mega.nz/folder/8VxmSKwa#UmP1qPm5PaSvMfGTbBFvCQ");
+            }
+          }
+        });
+
+        // Also check if any recent order was delivered and we haven't seen it yet
+        if (initialLoad) {
+           initialLoad = false;
+           snapshot.docs.forEach(doc => {
+             const data = doc.data();
+             if (data.bundleName === "FC 26 PC Game" || data.bundle === "FC 26 PC Game" || data.category === "FC 26") {
+                const isRecent = data.createdAt?.toMillis ? (Date.now() - data.createdAt.toMillis() < 5 * 60 * 1000) : false;
+                if (isRecent) {
+                  setDownloadReadyUrl("https://mega.nz/folder/8VxmSKwa#UmP1qPm5PaSvMfGTbBFvCQ");
+                }
+             }
+           });
+        }
+      });
+    }
+    return () => {
+      if (ordersUnsub) ordersUnsub();
+    };
+  }, [user, isAdminView]);
+
   // Separate effect for Agent Store check
   useEffect(() => {
     const handleAgentStoreNav = () => {
@@ -216,7 +262,12 @@ export default function App() {
       />
       
       <main>
-        {isAgentStoreView ? (
+        {downloadReadyUrl ? (
+          <DownloadPage 
+            url={downloadReadyUrl} 
+            onBack={() => setDownloadReadyUrl(null)} 
+          />
+        ) : isAgentStoreView ? (
           agentContext ? (
             <div className="min-h-screen">
               <div className="pt-24 pb-12 text-center bg-gradient-to-b from-primary/5 to-transparent">
