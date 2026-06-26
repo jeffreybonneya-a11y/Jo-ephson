@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { auth, db } from '@/src/lib/firebase';
-import { signOut, onAuthStateChanged } from 'firebase/auth';
+import { signOut } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
-import { LogIn, LogOut, LayoutDashboard, ShoppingBag, History, User, PlusCircle, Crown, Home, MessageCircle, Trophy, Plus, Zap, Tv, HeadphonesIcon } from 'lucide-react';
-import { doc, getDoc, onSnapshot, updateDoc, collection, query, where } from 'firebase/firestore';
+import { LogIn, LogOut, LayoutDashboard, History, User, Crown, Home, MessageCircle, Download } from 'lucide-react';
+import { onSnapshot, collection, query, where } from 'firebase/firestore';
 import { UserProfile } from '@/src/types';
 import AuthModal from './AuthModal';
 import SupportModal from './SupportModal';
@@ -12,9 +12,12 @@ interface NavbarProps {
   onAdminView: (isAdmin: boolean) => void;
   onHistoryView: (isHistory: boolean) => void;
   onStreamView: (isStream: boolean) => void;
+  onDownloadView: (isDownload: boolean) => void;
   isAdminView: boolean;
   isHistoryView: boolean;
   isStreamView: boolean;
+  isDownloadView: boolean;
+  downloadReady: boolean;
   isAdmin: boolean;
   user: any;
   profile: UserProfile | null;
@@ -26,9 +29,12 @@ export default function Navbar({
   onAdminView, 
   onHistoryView, 
   onStreamView,
+  onDownloadView,
   isAdminView, 
   isHistoryView,
   isStreamView,
+  isDownloadView,
+  downloadReady,
   isAdmin,
   user,
   profile,
@@ -55,21 +61,18 @@ export default function Navbar({
         setUnreadCount(messagesCount + ordersCount + profitRequestsCount);
       };
 
-      // Listen for open complaints (support messages)
       const qMessages = query(collection(db, 'complaints'), where('status', '==', 'open'));
       const unsubMessages = onSnapshot(qMessages, (snapshot) => {
         messagesCount = snapshot.size;
         updateCount();
       });
 
-      // Listen for pending orders
       const qOrders = query(collection(db, 'orders'), where('status', '==', 'pending'));
       const unsubOrders = onSnapshot(qOrders, (snapshot) => {
         ordersCount = snapshot.size;
         updateCount();
       });
 
-      // Listen for pending agent profit / withdrawal requests
       const qProfitRequests = query(collection(db, 'profit_requests'), where('status', '==', 'pending'));
       const unsubProfitRequests = onSnapshot(qProfitRequests, (snapshot) => {
         profitRequestsCount = snapshot.size;
@@ -91,6 +94,8 @@ export default function Navbar({
       await signOut(auth);
       onAdminView(false);
       onHistoryView(false);
+      onStreamView(false);
+      onDownloadView(false);
     } catch (error) {
       console.error('Logout error:', error);
     }
@@ -102,15 +107,14 @@ export default function Navbar({
 
   return (
     <>
-      <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">
-        <div className="container mx-auto px-4 md:px-6">
-          <div className="flex h-16 md:h-20 items-center justify-between">
-            <div 
-              className="flex items-center font-black text-xl md:text-2xl tracking-tighter cursor-pointer group shrink-0" 
-              onClick={() => { if (!agentContext) { onAdminView(false); onHistoryView(false); onStreamView(false); } }}
-            >
-              <div className="relative flex items-center">
-                <Crown className="w-5 h-5 md:w-6 md:h-6 text-primary absolute -top-4 -left-3 -rotate-12 drop-shadow-md group-hover:scale-125 transition-transform z-10" />
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16 sm:h-20">
+            <div className="flex items-center gap-2">
+              <div 
+                className="flex items-center gap-1 font-black text-lg md:text-xl cursor-pointer select-none"
+                onClick={() => { onAdminView(false); onHistoryView(false); onStreamView(false); onDownloadView(false); }}
+              >
                 <span className="bg-primary text-secondary px-3 py-1 rounded-xl shadow-lg">
                   {agentContext ? `${agentContext.agent_name.toUpperCase()} STORE` : "KING J DEALS"}
                 </span>
@@ -122,8 +126,8 @@ export default function Navbar({
             {!agentContext && (
               <div className="hidden md:flex items-center gap-1 bg-slate-100/50 dark:bg-slate-800/50 p-1.5 rounded-2xl border border-slate-200/60 dark:border-slate-700/60">
                  <button 
-                  onClick={() => { onAdminView(false); onHistoryView(false); onStreamView(false); }}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs transition-all ${!isAdminView && !isHistoryView && !isStreamView ? 'bg-primary text-secondary shadow-md scale-105' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-700/50'}`}
+                  onClick={() => { onAdminView(false); onHistoryView(false); onStreamView(false); onDownloadView(false); }}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs transition-all ${!isAdminView && !isHistoryView && !isStreamView && !isDownloadView ? 'bg-primary text-secondary shadow-md scale-105' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-700/50'}`}
                  >
                    <Home className="w-4 h-4" />
                    HOME
@@ -142,6 +146,15 @@ export default function Navbar({
                    <History className="w-4 h-4" />
                    HISTORY
                  </button>
+                 {downloadReady && (
+                   <button 
+                    onClick={() => onDownloadView(!isDownloadView)}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs transition-all animate-pulse ${isDownloadView ? 'bg-green-600 text-white shadow-md scale-105' : 'bg-green-500/10 text-green-600 hover:bg-green-500/20'}`}
+                   >
+                     <Download className="w-4 h-4" />
+                     DOWNLOAD 👑
+                   </button>
+                 )}
                  <button 
                   onClick={() => user ? setIsSupportOpen(true) : openAuth()}
                   className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-700/50 transition-all"
@@ -193,59 +206,57 @@ export default function Navbar({
         </div>
       </nav>
 
-      {/* Mobile Bottom Navigation - Dynamic 4 or 5 Tabs */}
+      {/* Mobile Bottom Navigation */}
       {!agentContext && (
         <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/95 dark:bg-slate-900/95 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.06)] h-20">
-          <div className={`grid ${isAdmin ? 'grid-cols-5' : 'grid-cols-4'} h-full px-2`}>
+          <div className={`grid ${isAdmin && downloadReady ? 'grid-cols-6' : (isAdmin || downloadReady ? 'grid-cols-5' : 'grid-cols-4')} h-full px-2`}>
             <button 
-              className={`flex flex-col items-center justify-center gap-1 transition-all active:scale-95 ${!isAdminView && !isHistoryView && !isStreamView ? 'text-primary' : 'text-slate-400 dark:text-slate-500'}`}
+              className={`flex flex-col items-center justify-center gap-1 transition-all active:scale-95 ${!isAdminView && !isHistoryView && !isStreamView && !isDownloadView ? 'text-primary' : 'text-slate-400 dark:text-slate-500'}`}
               onClick={() => { 
                 onAdminView(false); 
                 onHistoryView(false); 
                 onStreamView(false);
-                setTimeout(() => {
-                  document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' });
-                }, 100);
+                onDownloadView(false);
               }}
             >
-              <Home className={`w-5 h-5 ${!isAdminView && !isHistoryView && !isStreamView ? 'stroke-[3px]' : 'stroke-2'}`} />
+              <Home className={`w-5 h-5 ${!isAdminView && !isHistoryView && !isStreamView && !isDownloadView ? 'stroke-[3px]' : 'stroke-2'}`} />
               <span className="text-[9px] font-black uppercase tracking-tight">Home</span>
             </button>
 
             <button 
               className={`flex flex-col items-center justify-center gap-1 transition-all active:scale-95 ${isStreamView ? 'text-primary' : 'text-slate-400 dark:text-slate-500'}`}
               onClick={() => { 
-                if (user) {
-                  onStreamView(!isStreamView); 
-                } else {
-                  openAuth();
-                }
+                if (user) onStreamView(!isStreamView); else openAuth();
               }}
             >
               <Crown className={`w-5 h-5 ${isStreamView ? 'stroke-[3px]' : 'stroke-2'}`} />
-              <span className="text-[9px] font-black uppercase tracking-tight">Agent Store</span>
+              <span className="text-[9px] font-black uppercase tracking-tight">Agent</span>
             </button>
 
             <button 
               className={`flex flex-col items-center justify-center gap-1 transition-all active:scale-95 ${isHistoryView ? 'text-primary' : 'text-slate-400 dark:text-slate-500'}`}
               onClick={() => { 
-                if (user) {
-                  onHistoryView(!isHistoryView); 
-                } else {
-                  openAuth();
-                }
+                if (user) onHistoryView(!isHistoryView); else openAuth();
               }}
             >
               <History className={`w-5 h-5 ${isHistoryView ? 'stroke-[3px]' : 'stroke-2'}`} />
               <span className="text-[9px] font-black uppercase tracking-tight">History</span>
             </button>
 
+            {downloadReady && (
+              <button 
+                className={`flex flex-col items-center justify-center gap-1 transition-all active:scale-95 animate-pulse ${isDownloadView ? 'text-green-600' : 'text-green-500/60'}`}
+                onClick={() => onDownloadView(!isDownloadView)}
+              >
+                <Download className={`w-5 h-5 ${isDownloadView ? 'stroke-[3px]' : 'stroke-2'}`} />
+                <span className="text-[9px] font-black uppercase tracking-tight">Download</span>
+              </button>
+            )}
+
             {isAdmin && (
               <button 
                 className={`flex flex-col items-center justify-center gap-1 transition-all active:scale-95 relative ${isAdminView ? 'text-primary' : 'text-slate-400 dark:text-slate-500'}`}
-                onClick={() => {
-                  onAdminView(!isAdminView);
-                }}
+                onClick={() => onAdminView(!isAdminView)}
               >
                 <LayoutDashboard className={`w-5 h-5 ${isAdminView ? 'stroke-[3px]' : 'stroke-2'}`} />
                 <span className="text-[9px] font-black uppercase tracking-tight">Admin</span>
@@ -259,32 +270,17 @@ export default function Navbar({
 
             <button 
               className="flex flex-col items-center justify-center gap-1 text-slate-400 dark:text-slate-500 transition-all active:scale-95"
-              onClick={() => {
-                if (user) {
-                  setIsSupportOpen(true);
-                } else {
-                  openAuth();
-                }
-              }}
+              onClick={() => user ? setIsSupportOpen(true) : openAuth()}
             >
-              <HeadphonesIcon className="w-5 h-5 stroke-2" />
+              <MessageCircle className="w-5 h-5" />
               <span className="text-[9px] font-black uppercase tracking-tight">Support</span>
             </button>
           </div>
         </div>
       )}
-      <AuthModal 
-        isOpen={isAuthModalOpen} 
-        onClose={() => setIsAuthModalOpen(false)} 
-      />
-      {profile && (
-        <SupportModal 
-          isOpen={isSupportOpen} 
-          onClose={() => setIsSupportOpen(false)} 
-          profile={profile}
-          agentContext={agentContext}
-        />
-      )}
+
+      <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
+      <SupportModal isOpen={isSupportOpen} onClose={() => setIsSupportOpen(false)} userEmail={user?.email} />
     </>
   );
 }

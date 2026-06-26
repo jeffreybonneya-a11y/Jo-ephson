@@ -36,6 +36,7 @@ export default function App() {
 
   // Download page state
   const [downloadReadyUrl, setDownloadReadyUrl] = useState<string | null>(null);
+  const [isDownloadView, setIsDownloadView] = useState(false);
 
   // Agent store context
   const [agentContext, setAgentContext] = useState<any>(null);
@@ -142,37 +143,34 @@ export default function App() {
   // Listen for PC Games delivery
   useEffect(() => {
     let ordersUnsub: (() => void) | undefined;
-    if (user && !isAdminView) {
+    if (user) {
       const q = query(
         collection(db, 'orders'),
         where('userId', '==', user.uid),
-        where('network', '==', 'PC Games'),
-        where('status', '==', 'delivered')
+        where('network', '==', 'PC Games')
       );
       
-      let initialLoad = true;
       ordersUnsub = onSnapshot(q, (snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-          if (change.type === 'modified') {
-            const data = change.doc.data();
-            if (data.bundleName === "FC 26 PC Game" || data.bundle === "FC 26 PC Game" || data.category === "FC 26") {
-              setDownloadReadyUrl("https://mega.nz/folder/8VxmSKwa#UmP1qPm5PaSvMfGTbBFvCQ");
+        let hasDelivered = false;
+        snapshot.docs.forEach((doc) => {
+          const data = doc.data();
+          if (data.status === 'delivered') {
+            if (data.network === "PC Games" || (data.bundle && data.bundle.includes("FC 26"))) {
+              hasDelivered = true;
             }
           }
         });
-
-        // Also check if any recent order was delivered and we haven't seen it yet
-        if (initialLoad) {
-           initialLoad = false;
-           snapshot.docs.forEach(doc => {
-             const data = doc.data();
-             if (data.bundleName === "FC 26 PC Game" || data.bundle === "FC 26 PC Game" || data.category === "FC 26") {
-                const isRecent = data.createdAt?.toMillis ? (Date.now() - data.createdAt.toMillis() < 5 * 60 * 1000) : false;
-                if (isRecent) {
-                  setDownloadReadyUrl("https://mega.nz/folder/8VxmSKwa#UmP1qPm5PaSvMfGTbBFvCQ");
-                }
-             }
-           });
+        
+        if (hasDelivered) {
+          setDownloadReadyUrl("https://mega.nz/folder/8VxmSKwa#UmP1qPm5PaSvMfGTbBFvCQ");
+          // Only force the view if it wasn't already delivered (e.g. first time it appears)
+          setIsDownloadView(prev => {
+            if (!downloadReadyUrl) return true;
+            return prev;
+          });
+        } else {
+          setDownloadReadyUrl(null);
+          setIsDownloadView(false);
         }
       });
     }
@@ -248,12 +246,15 @@ export default function App() {
       )}
 
       <Navbar 
-        onAdminView={(v) => { setIsAdminView(v); setIsHistoryView(false); setIsStreamView(false); }} 
-        onHistoryView={(v) => { setIsHistoryView(v); setIsAdminView(false); setIsStreamView(false); }}
-        onStreamView={(v) => { setIsStreamView(v); setIsAdminView(false); setIsHistoryView(false); }}
+        onAdminView={(v) => { setIsAdminView(v); setIsHistoryView(false); setIsStreamView(false); setIsDownloadView(false); }} 
+        onHistoryView={(v) => { setIsHistoryView(v); setIsAdminView(false); setIsStreamView(false); setIsDownloadView(false); }}
+        onStreamView={(v) => { setIsStreamView(v); setIsAdminView(false); setIsHistoryView(false); setIsDownloadView(false); }}
+        onDownloadView={(v) => { setIsDownloadView(v); setIsAdminView(false); setIsHistoryView(false); setIsStreamView(false); }}
         isAdminView={isAdminView}
         isHistoryView={isHistoryView}
         isStreamView={isStreamView}
+        isDownloadView={isDownloadView}
+        downloadReady={!!downloadReadyUrl}
         isAdmin={isAdmin}
         user={user}
         profile={profile}
@@ -262,10 +263,10 @@ export default function App() {
       />
       
       <main>
-        {downloadReadyUrl ? (
+        {isDownloadView && downloadReadyUrl ? (
           <DownloadPage 
             url={downloadReadyUrl} 
-            onBack={() => setDownloadReadyUrl(null)} 
+            onBack={() => setIsDownloadView(false)} 
           />
         ) : isAgentStoreView ? (
           agentContext ? (

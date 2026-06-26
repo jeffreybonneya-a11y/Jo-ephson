@@ -627,6 +627,15 @@ export default function AdminDashboard() {
             FAILED
           </Badge>
         );
+      case "completed":
+        return (
+          <Badge
+            variant="outline"
+            className="bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:text-purple-400 dark:border-purple-900/50 font-black tracking-widest"
+          >
+            COMPLETED
+          </Badge>
+        );
       case "declined":
         return (
           <Badge
@@ -1050,6 +1059,16 @@ export default function AdminDashboard() {
                                     >
                                       <CheckCircle className="w-3 h-3" />
                                       Deliver 👑
+                                    </Button>
+                                  )}
+                                  {order.status === "delivered" && order.network === "PC Games" && (
+                                    <Button
+                                      size="sm"
+                                      className="h-9 px-4 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-black uppercase text-[10px] shadow-sm flex items-center gap-2"
+                                      onClick={() => handleUpdateOrderStatus(order.id, "completed", order)}
+                                    >
+                                      <XCircle className="w-3 h-3" />
+                                      Close Download
                                     </Button>
                                   )}
                                   <Button
@@ -1962,11 +1981,20 @@ export default function AdminDashboard() {
                                         </Button>
                                       </>
                                     )}
-                                    {o.status === "delivered" && (
+                                    {o.status === "delivered" && o.network === "PC Games" ? (
+                                      <Button
+                                        size="sm"
+                                        className="h-8 px-3 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-black uppercase text-[9px] shadow-sm flex items-center gap-1 cursor-pointer"
+                                        onClick={() => handleUpdateOrderStatus(o.id, "completed", o)}
+                                      >
+                                        <XCircle className="w-3 h-3" />
+                                        Close Download
+                                      </Button>
+                                    ) : o.status === "delivered" ? (
                                       <Badge className="bg-slate-100 text-slate-500 uppercase text-[8px] font-black tracking-wider py-1">
                                         Delivered
                                       </Badge>
-                                    )}
+                                    ) : null}
                                   </div>
                                 </TableCell>
                               </TableRow>
