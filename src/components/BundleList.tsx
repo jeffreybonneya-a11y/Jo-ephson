@@ -926,24 +926,61 @@ export default function BundleList({
 
                   {activePCGamesSubTab === "FC_26" && (
                     <div className="space-y-4">
-                      <div className="relative w-full aspect-video rounded-[2rem] overflow-hidden shadow-xl border-2 border-border group bg-black flex items-end md:items-center">
+                      <div className="relative w-full min-h-[500px] md:min-h-[600px] rounded-[2rem] overflow-hidden shadow-xl border-2 border-border group bg-black flex items-center">
                         <img
                           src={fc26Icon}
                           alt="Official EA SPORTS FC 26 Cover"
-                          className="absolute inset-0 w-full h-full object-cover z-0"
+                          className="absolute inset-0 w-full h-full object-cover z-0 opacity-60"
                         />
                         {/* 40% dark overlay so text remains easy to read */}
-                        <div className="absolute inset-0 bg-black/40 z-10 pointer-events-none"></div>
-                        <div className="relative z-20 w-full flex flex-col justify-end md:justify-center items-center md:items-start text-center md:text-left p-6 md:p-12 h-full">
+                        <div className="absolute inset-0 bg-black/50 z-10 pointer-events-none"></div>
+                        <div className="relative z-20 w-full flex flex-col justify-center items-center md:items-start text-center md:text-left p-6 md:p-12 h-full">
                           <Badge className="bg-primary text-black font-black mb-2 rounded uppercase text-[9px] tracking-wider px-2 py-0.5">
                             Hot PC Title 👑
                           </Badge>
                           <h2 className="text-3xl sm:text-4xl md:text-6xl font-black text-white uppercase tracking-tight mb-2 sm:mb-4 drop-shadow-lg">
                             FC 26 PC GAME
                           </h2>
-                          <p className="text-white/90 font-medium text-sm sm:text-lg md:text-xl mb-4 sm:mb-8 max-w-2xl drop-shadow-md line-clamp-2 md:line-clamp-none">
+                          <p className="text-white/90 font-medium text-sm sm:text-lg mb-6 max-w-2xl drop-shadow-md">
                             Pre-order or purchase the ultimate football experience with FC 26 on PC. Instant delivery!
                           </p>
+
+                          {/* System Requirements Section */}
+                          <div className="w-full mb-8 text-left bg-black/40 backdrop-blur-sm p-6 rounded-2xl border border-white/10 max-w-4xl">
+                            <h3 className="text-white font-black text-sm uppercase tracking-wider mb-4 border-b border-white/20 pb-2 flex items-center gap-2">
+                              System Requirements (PC)
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                              {/* Minimum */}
+                              <div className="space-y-3">
+                                <h4 className="text-primary font-black text-xs uppercase tracking-widest border-l-2 border-primary pl-2">Minimum Requirements</h4>
+                                <ul className="text-white/80 text-xs space-y-1.5 font-medium">
+                                  <li><span className="text-white/50">OS:</span> Windows 10 64-bit</li>
+                                  <li><span className="text-white/50">Processor:</span> Intel Core i5-6600K OR AMD Ryzen 5 1600</li>
+                                  <li><span className="text-white/50">RAM:</span> 8 GB</li>
+                                  <li><span className="text-white/50">Graphics:</span> NVIDIA GTX 1050 Ti (4GB) OR AMD Radeon RX 570 (4GB)</li>
+                                  <li><span className="text-white/50">DirectX:</span> Version 12</li>
+                                  <li><span className="text-white/50">Storage:</span> 100 GB available space</li>
+                                  <li><span className="text-white/50">Internet:</span> Broadband internet connection required</li>
+                                </ul>
+                              </div>
+                              {/* Recommended */}
+                              <div className="space-y-3">
+                                <h4 className="text-[#00FF87] font-black text-xs uppercase tracking-widest border-l-2 border-[#00FF87] pl-2">Recommended Requirements</h4>
+                                <ul className="text-white/80 text-xs space-y-1.5 font-medium">
+                                  <li><span className="text-white/50">OS:</span> Windows 10/11 64-bit</li>
+                                  <li><span className="text-white/50">Processor:</span> Intel Core i7-6700 OR AMD Ryzen 7 2700X</li>
+                                  <li><span className="text-white/50">RAM:</span> 12 GB</li>
+                                  <li><span className="text-white/50">Graphics:</span> NVIDIA GTX 1660 OR AMD Radeon RX 5600 XT</li>
+                                  <li><span className="text-white/50">Storage:</span> SSD with 100 GB free space recommended</li>
+                                </ul>
+                              </div>
+                            </div>
+                            <p className="mt-6 text-[10px] text-white/40 italic font-medium">
+                              “System requirements are subject to official confirmation from EA Sports and may change.”
+                            </p>
+                          </div>
+
                           <Button
                             className="w-full sm:w-auto h-12 sm:h-16 px-8 sm:px-12 text-lg sm:text-xl font-black rounded-2xl bg-white text-black hover:bg-primary transition-all shadow-xl uppercase"
                             onClick={() => onSelectBundle({
