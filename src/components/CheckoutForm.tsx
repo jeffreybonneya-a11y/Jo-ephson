@@ -324,7 +324,7 @@ export default function CheckoutForm({
         bundle.network === "Telecel" &&
         ((gbValue >= 1 && gbValue <= 5) || (gbValue >= 10 && gbValue <= 100));
 
-      const hiddenTelecelCharge = isTelecelHiddenChargeMain ? 1.0 : 0.0;
+      const hiddenTelecelCharge = isTelecelHiddenChargeMain ? 1.0 : (!!agentContext && isTelecel1to5 ? 2.0 : 0.0);
 
       const finalAmountToCharge = Number(bundle.price) + paystackFee + hiddenGameCharge + hiddenTelecelCharge;
 
