@@ -22,6 +22,7 @@ import ThemeCustomizer from './components/ThemeCustomizer';
 import { useTheme } from './hooks/useTheme';
 import { seedFC } from './lib/seed';
 import DownloadPage from './components/DownloadPage';
+import PriceDropNotifier from './components/PriceDropNotifier';
 
 export default function App() {
   const [selectedBundle, setSelectedBundle] = useState<Bundle | null>(null);
@@ -385,6 +386,7 @@ export default function App() {
           </>
         )}
       </div>
+      <PriceDropNotifier />
     </div>
   );
 }
