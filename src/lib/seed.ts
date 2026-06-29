@@ -81,6 +81,30 @@ export async function seedFC() {
   for (const doc of snapshot3.docs) {
     await deleteDoc(doc.ref);
   }
+  const q4 = query(collection(db, 'bundles'), where('network', '==', 'Telecel'));
+  const snapshot4 = await getDocs(q4);
+  let hasTelecelPlans = false;
+  for (const doc of snapshot4.docs) {
+    if (doc.data().dataAmount === 'Telecel Data 1GB') hasTelecelPlans = true;
+  }
+
+  if (!hasTelecelPlans) {
+    const telecelPlans = [
+      { network: 'Telecel', category: 'Telecel', dataAmount: 'Telecel Data 1GB', price: 6.00, active: true },
+      { network: 'Telecel', category: 'Telecel', dataAmount: 'Telecel Data 2GB', price: 13.00, active: true },
+      { network: 'Telecel', category: 'Telecel', dataAmount: 'Telecel Data 3GB', price: 18.00, active: true },
+      { network: 'Telecel', category: 'Telecel', dataAmount: 'Telecel Data 4GB', price: 21.00, active: true },
+      { network: 'Telecel', category: 'Telecel', dataAmount: 'Telecel Data 5GB', price: 25.00, active: true },
+    ];
+
+    for (const b of telecelPlans) {
+      await addDoc(collection(db, 'bundles'), {
+        ...b,
+        name: b.dataAmount,
+        createdAt: new Date()
+      });
+    }
+  }
   } finally {
     isSeeding = false;
   }
