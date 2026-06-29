@@ -704,7 +704,11 @@ Reference Code: ${refCode}
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {networkBundles.map(bundle => {
                               const isFCPackage = bundle.category === 'FC Mobile Points' || bundle.category === 'FC Mobile Silver' || bundle.network === 'FC Mobile Points' || bundle.network === 'FC Mobile Silver';
-                              const wholesaleDeduction = isFCPackage ? 1.00 : 2.00;
+                              const amountStr = String(bundle.dataAmount || bundle.name || "");
+                              const gbMatch = amountStr.match(/(\d+(?:\.\d+)?)\s*GB/i);
+                              const gbValue = gbMatch ? parseFloat(gbMatch[1]) : 0;
+                              const isTelecelReduced = bundle.network === 'Telecel' && ((gbValue >= 1 && gbValue <= 5) || (gbValue >= 10 && gbValue <= 100));
+                              const wholesaleDeduction = isFCPackage ? 1.00 : (isTelecelReduced ? 1.00 : 2.00);
                               const wholesale = Math.max(0, Number(bundle.price) - wholesaleDeduction);
                               const currentVal = customPrices[bundle.id] ?? String(wholesale);
                               const sellingPrice = customPrices[bundle.id] ? Number(customPrices[bundle.id]) : wholesale;

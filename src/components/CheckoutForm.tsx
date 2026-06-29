@@ -313,10 +313,21 @@ export default function CheckoutForm({
         isAgentBuyingFromOwnStore || isAgentBuyingOnHomePage ? 1.0 : 0.0;
       const hiddenGameCharge = isFC ? 0.0 : (isGame ? 1.0 : 0.0);
       
-      const isTelecelHiddenCharge = 
+      const amountStr = String(bundle.dataAmount || bundle.name || "");
+      const gbMatch = amountStr.match(/(\d+(?:\.\d+)?)\s*GB/i);
+      const gbValue = gbMatch ? parseFloat(gbMatch[1]) : 0;
+      
+      const isTelecelHiddenChargeMain = 
+        !agentContext && 
         bundle.network === "Telecel" &&
-        ["Telecel Data 1GB", "Telecel Data 2GB", "Telecel Data 3GB", "Telecel Data 4GB", "Telecel Data 5GB"].includes(bundle.dataAmount || bundle.name);
-      const hiddenTelecelCharge = isTelecelHiddenCharge ? 1.0 : 0.0;
+        ((gbValue >= 1 && gbValue <= 5) || (gbValue >= 10 && gbValue <= 100));
+        
+      const isTelecelHiddenChargeAgent = 
+        !!agentContext && 
+        bundle.network === "Telecel" &&
+        (gbValue >= 1 && gbValue <= 5);
+
+      const hiddenTelecelCharge = (isTelecelHiddenChargeMain || isTelecelHiddenChargeAgent) ? 1.0 : 0.0;
 
       const finalAmountToCharge = Number(bundle.price) + paystackFee + hiddenGameCharge + hiddenTelecelCharge;
 

@@ -159,7 +159,11 @@ export default function BundleList({
       b.category === "FC Mobile Silver" ||
       b.network === "FC Mobile Points" ||
       b.network === "FC Mobile Silver";
-    const wholesaleDeduction = isFCPackage ? 1.0 : 2.0;
+    const amountStr = String(b.dataAmount || b.name || "");
+    const gbMatch = amountStr.match(/(\d+(?:\.\d+)?)\s*GB/i);
+    const gbValue = gbMatch ? parseFloat(gbMatch[1]) : 0;
+    const isTelecelReduced = b.network === "Telecel" && ((gbValue >= 1 && gbValue <= 5) || (gbValue >= 10 && gbValue <= 100));
+    const wholesaleDeduction = isFCPackage ? 1.0 : (isTelecelReduced ? 1.0 : 2.0);
     const wholesalePrice = Math.max(0, originalPrice - wholesaleDeduction);
     let discountedPrice = originalPrice;
 
