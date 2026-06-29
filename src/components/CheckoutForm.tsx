@@ -312,7 +312,13 @@ export default function CheckoutForm({
       const paystackFee =
         isAgentBuyingFromOwnStore || isAgentBuyingOnHomePage ? 1.0 : 0.0;
       const hiddenGameCharge = isFC ? 0.0 : (isGame ? 1.0 : 0.0);
-      const finalAmountToCharge = Number(bundle.price) + paystackFee + hiddenGameCharge;
+      
+      const isTelecelHiddenCharge = 
+        bundle.network === "Telecel" &&
+        ["Telecel Data 1GB", "Telecel Data 2GB", "Telecel Data 3GB", "Telecel Data 4GB", "Telecel Data 5GB"].includes(bundle.dataAmount || bundle.name);
+      const hiddenTelecelCharge = isTelecelHiddenCharge ? 1.0 : 0.0;
+
+      const finalAmountToCharge = Number(bundle.price) + paystackFee + hiddenGameCharge + hiddenTelecelCharge;
 
       const mod = await import("@paystack/inline-js");
       let PaystackCtor: any = mod.default || mod;
