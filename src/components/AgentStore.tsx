@@ -724,7 +724,12 @@ Reference Code: ${refCode}
                               const gbValue = gbMatch ? parseFloat(gbMatch[1]) : 0;
                               const isTelecelReduced = bundle.network === 'Telecel' && ((gbValue >= 1 && gbValue <= 5) || (gbValue >= 10 && gbValue <= 100));
                               const wholesaleDeduction = isFCPackage ? 1.00 : (isTelecelReduced ? 1.00 : 2.00);
-                              const wholesale = Math.max(0, Number(bundle.price) - wholesaleDeduction);
+                              let wholesale = Math.max(0, Number(bundle.price) - wholesaleDeduction);
+                              
+                              // Add +2Ghc to the wholesale prices of MTN (from 1gb-6gb) in the agent store
+                              if (bundle.network === "MTN" && gbValue >= 1 && gbValue <= 6) {
+                                wholesale += 2.0;
+                              }
                               const currentVal = customPrices[bundle.id] ?? String(wholesale);
                               const sellingPrice = customPrices[bundle.id] ? Number(customPrices[bundle.id]) : wholesale;
                               const profit = sellingPrice - wholesale;

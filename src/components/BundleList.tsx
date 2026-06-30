@@ -153,7 +153,7 @@ export default function BundleList({
     (announcement?.type === "discount" || announcement?.type === "alert");
 
   const processedBundles = bundles.map((b) => {
-    const originalPrice = b.price;
+    let originalPrice = b.price;
     const isFCPackage =
       b.category === "FC Mobile Points" ||
       b.category === "FC Mobile Silver" ||
@@ -164,7 +164,13 @@ export default function BundleList({
     const gbValue = gbMatch ? parseFloat(gbMatch[1]) : 0;
     const isTelecelReduced = b.network === "Telecel" && ((gbValue >= 1 && gbValue <= 5) || (gbValue >= 10 && gbValue <= 100));
     const wholesaleDeduction = isFCPackage ? 1.0 : (isTelecelReduced ? 1.0 : 2.0);
-    const wholesalePrice = Math.max(0, originalPrice - wholesaleDeduction);
+    let wholesalePrice = Math.max(0, originalPrice - wholesaleDeduction);
+    
+    // Add +2Ghc to the wholesale prices of MTN (from 1gb-6gb) in the agent store
+    if (b.network === "MTN" && gbValue >= 1 && gbValue <= 6) {
+      wholesalePrice += 2.0;
+      originalPrice += 2.0;
+    }
     let discountedPrice = originalPrice;
 
     if (agentContext) {
