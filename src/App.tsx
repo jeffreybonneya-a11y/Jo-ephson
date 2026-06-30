@@ -32,7 +32,7 @@ export default function App() {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [announcement, setAnnouncement] = useState<{text: string, active: boolean, type: string} | null>(null);
+  const [announcement, setAnnouncement] = useState<{text: string, active: boolean, type: string, color?: string} | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   // Download page state
@@ -56,9 +56,15 @@ export default function App() {
     if (reference) {
         toast.info("Verifying your payment, please wait...", { duration: 5000 });
         
+        const unlockPremiumAccess = () => {
+            console.log("Payment verified successfully");
+            toast.success("Payment verified! Your order is being processed. 👑");
+            setIsHistoryView(true); // Take them to see their orders
+        };
+
         const verifyPayment = async () => {
             try {
-                const res = await fetch('/api/verifyPayment', {
+                const res = await fetch('https://my-website-backend-6uyj.onrender.com/verify-payment', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ reference })
@@ -66,8 +72,7 @@ export default function App() {
                 const data = await res.json();
                 
                 if (data.success) {
-                    toast.success("Payment verified! Your order is being processed. 👑");
-                    setIsHistoryView(true); // Take them to see their orders
+                    unlockPremiumAccess();
                     // Clean up URL
                     window.history.replaceState({}, document.title, window.location.pathname);
                 } else {
@@ -241,6 +246,11 @@ export default function App() {
           initial={{ height: 0, opacity: 0 }}
           animate={{ height: 'auto', opacity: 1 }}
           className={`py-2 px-4 text-center font-bold text-sm relative z-[60] shadow-sm ${
+            announcement.color === 'red' ? 'bg-red-500 text-white' :
+            announcement.color === 'yellow' ? 'bg-yellow-500 text-black' :
+            announcement.color === 'green' ? 'bg-green-500 text-white' :
+            announcement.color === 'blue' ? 'bg-blue-500 text-white' :
+            announcement.color === 'primary' ? 'bg-primary text-primary-foreground' :
             announcement.type === 'discount' ? 'bg-primary text-white' :
             announcement.type === 'alert' ? 'bg-red-500 text-white' :
             'bg-blue-500 text-white'

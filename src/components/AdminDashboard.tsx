@@ -105,6 +105,7 @@ export default function AdminDashboard() {
     text: "",
     active: false,
     type: "discount" as "discount" | "info" | "alert",
+    color: "primary"
   });
 
   const [bundleForm, setBundleForm] = useState({
@@ -156,7 +157,12 @@ export default function AdminDashboard() {
       orderBy("createdAt", "desc"),
     );
     const unsubOrders = onSnapshot(ordersQuery, (snapshot) => {
-      setOrders(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+      const allOrders = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() as any }));
+      // Show only orders with successful payment or legacy processed orders
+      const completedOrders = allOrders.filter(
+        (o) => o.paymentStatus === "success" || o.status === "delivered" || o.status === "declined"
+      );
+      setOrders(completedOrders);
     });
 
     // 4. Listen for Messages
@@ -1398,6 +1404,25 @@ export default function AdminDashboard() {
                     placeholder="e.g. 👑 MASSIVE DISCOUNT: Get 10GB for only GHS 10 today!"
                     className="rounded-xl h-12 border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white"
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="font-bold underline underline-offset-4 text-slate-700 dark:text-slate-300">
+                    Background Color
+                  </Label>
+                  <select
+                    value={announcement.color || "primary"}
+                    onChange={(e) =>
+                      setAnnouncement({ ...announcement, color: e.target.value })
+                    }
+                    className="flex h-12 w-full items-center justify-between rounded-xl border-2 border-slate-200 bg-white px-3 py-2 text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-950 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:bg-slate-950 dark:ring-offset-slate-950 dark:placeholder:text-slate-400 dark:focus:ring-slate-300"
+                  >
+                    <option value="primary">Primary (Blue/Purple)</option>
+                    <option value="red">Red</option>
+                    <option value="yellow">Yellow</option>
+                    <option value="green">Green</option>
+                    <option value="blue">Blue</option>
+                  </select>
                 </div>
 
                 <div className="flex items-center gap-6 p-6 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border-2 dark:border-slate-800">

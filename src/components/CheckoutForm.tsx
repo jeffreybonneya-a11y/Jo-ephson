@@ -194,6 +194,21 @@ export default function CheckoutForm({
     };
   }, [orderStatus, orderId, onClose]);
 
+  const unlockPremiumAccess = () => {
+    console.log("Payment verified successfully");
+    toast.success("Payment verified successfully! Access unlocked! 👑");
+    if (bundle && bundle.network === "PC Games") {
+      setOrderStatus("processing");
+      setIsSubmitting(false);
+    } else {
+      setOrderStatus("success");
+      setTimeout(() => {
+        onClose();
+      }, 3000);
+      setIsSubmitting(false);
+    }
+  };
+
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
     if (!bundle || !auth.currentUser) {
       toast.error("You must be logged in to purchase.");
@@ -387,36 +402,42 @@ export default function CheckoutForm({
           custom_fields: customFields,
         },
         onSuccess: async (response: any) => {
-          if (bundle.network === "PC Games") {
-            setOrderStatus("processing");
-            setIsSubmitting(false);
-          } else {
-            // Immediately close the checkout form (redirect back to home layout)
-            onClose();
-            setIsSubmitting(false);
-          }
+          // Immediately show completion screen
+          setOrderStatus("success");
+          setIsSubmitting(false);
 
-          // Silently trigger background payment verification if completed
-          try {
-            fetch("/api/verifyPayment", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                reference: response.reference,
-                metadata: {
-                  internalOrderId: preOrderId,
-                  phone: data.recipientPhone || "",
-                  fcUserId: data.fcUserId || "",
-                  fcUsername: data.fcUsername || "",
-                  network: data.recipientNetwork,
-                  bundle: `${data.recipientNetwork} ${bundle.dataAmount}`,
-                  originalAmount: bundle.price,
-                },
-              }),
-            }).catch((err) => console.error("Background verify error:", err));
-          } catch (err) {
-            console.error("Payment verify trigger error:", err);
-          }
+          const bundleName = bundle.network === "PC Games" ? bundle.name : `${bundle.network} ${bundle.dataAmount}`;
+          toast.success(`Payment Completed! 🚀 Your ${bundleName} will be received shortly.`, {
+            duration: 8000
+          });
+
+          // Verify in background
+          fetch("https://my-website-backend-6uyj.onrender.com/verify-payment", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              reference: response.reference
+            })
+          })
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              console.log("Payment verified successfully on backend");
+              // If it's a PC Game, we can redirect them to the download view
+              if (bundle.network === "PC Games") {
+                setTimeout(() => {
+                  window.location.href = `/download?orderId=${preOrderId}`;
+                }, 2000);
+              }
+            } else {
+              console.warn("Backend verification responded unsuccessful");
+            }
+          })
+          .catch(error => {
+            console.error("Verification error:", error);
+          });
         },
         onCancel: () => {
           // Immediately close on cancel as well. No popups or toasts.
@@ -502,18 +523,43 @@ export default function CheckoutForm({
               </p>
             </div>
           </div>
-        ) : orderStatus === "success" && bundle.network === "PC Games" ? (
-          <div className="py-16 sm:py-24 text-center space-y-6 sm:space-y-8 px-6 bg-slate-50/50 dark:bg-slate-900/50">
-            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-green-500 text-white rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-green-500/20 shadow-2xl">
+        ) : orderStatus === "success" ? (
+          <div className="py-12 sm:py-16 text-center space-y-6 px-6 bg-slate-50/50 dark:bg-slate-900/50">
+            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-green-500 text-white rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-green-500/20 shadow-2xl animate-bounce">
               <CheckCircle2 className="w-10 h-10 sm:w-12 sm:h-12" />
             </div>
             <div className="space-y-4">
               <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground dark:text-white uppercase">
-                Payment Successful! 👑
+                Payment Completed! 🚀
               </h2>
-              <p className="text-slate-500 dark:text-slate-400 font-bold max-w-xs mx-auto text-sm leading-relaxed lowercase italic opacity-80">
-                Your game is ready. Redirecting you to the download page...
-              </p>
+              <div className="space-y-3 max-w-md mx-auto">
+                <p className="text-slate-700 dark:text-slate-200 font-bold text-sm sm:text-base leading-relaxed">
+                  {bundle.network === "PC Games" ? (
+                    <span>Your game <strong>{bundle.name}</strong> is ready. Redirecting you to the download page...</span>
+                  ) : (
+                    <span><strong>{bundle.network} {bundle.dataAmount}</strong> will be received shortly. If the order delays, please contact the admin on support. 👑</span>
+                  )}
+                </p>
+                {orderId && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-mono font-medium">
+                    Order ID: #{orderId.slice(-6).toUpperCase()}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="pt-4 flex flex-col sm:flex-row gap-3 justify-center items-center">
+              <button
+                onClick={() => onClose()}
+                className="w-full sm:w-auto px-6 py-2.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all"
+              >
+                Close Window
+              </button>
+              <button
+                onClick={() => handleWhatsApp("kingj")}
+                className="w-full sm:w-auto px-6 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
+              >
+                Contact Support
+              </button>
             </div>
           </div>
         ) : orderStatus === "idle" ? (

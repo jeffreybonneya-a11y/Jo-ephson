@@ -184,6 +184,12 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
         customerName: profile?.fullName || auth.currentUser.displayName || 'Aspiring Agent'
       });
 
+      const unlockPremiumAccess = () => {
+        console.log("Payment verified successfully");
+        toast.success("Payment successful! The King will review your request shortly. 👑");
+        setIsPaying(false);
+      };
+
       const PaystackPop = (await import('@paystack/inline-js')).default;
       const paystack = new (PaystackPop as any)();
       
@@ -199,23 +205,29 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
            ]
         },
         onSuccess: async (response: any) => {
-          try {
-            await fetch('/api/verifyPayment', {
-               method: 'POST',
-               headers: { 'Content-Type': 'application/json' },
-               body: JSON.stringify({ 
-                  reference: response.reference,
-                  metadata: { purpose: "Agent Access Unlock", email: auth.currentUser!.email, internalOrderId: preOrderId }
-               })
-            });
-            
-            toast.success("Payment successful! The King will review your request shortly. 👑");
-          } catch (err) {
-            console.error("Agent verification error:", err);
-            toast.error("An error occurred. If you were charged, contact King J.");
-          } finally {
+          fetch("https://my-website-backend-6uyj.onrender.com/verify-payment", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              reference: response.reference
+            })
+          })
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              console.log("Payment verified successfully");
+              unlockPremiumAccess();
+            } else {
+              alert("Payment verification failed");
+              setIsPaying(false);
+            }
+          })
+          .catch(error => {
+            console.error("Verification error:", error);
             setIsPaying(false);
-          }
+          });
         },
         onCancel: () => setIsPaying(false)
       });
