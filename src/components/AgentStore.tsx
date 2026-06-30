@@ -169,23 +169,27 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
     }
 
     try {
-      const preOrderRef = doc(collection(db, 'orders'));
-      const preOrderId = preOrderRef.id;
+      // 0. Generate ID synchronously client-side WITHOUT saving to Firestore yet
+      const finalOrderId = doc(collection(db, 'orders')).id;
 
-      await setDoc(preOrderRef, {
-        email: auth.currentUser.email,
-        phone: profile?.phoneNumber || "0000000000",
-        network: "SYSTEM",
-        bundle: "AGENT ACCESS UNLOCK",
-        amount: 100,
-        status: "pending",
-        createdAt: serverTimestamp(),
-        userId: auth.currentUser.uid,
-        customerName: profile?.fullName || auth.currentUser.displayName || 'Aspiring Agent'
-      });
+      const unlockPremiumAccess = async (reference: string) => {
+        console.log("Payment verified successfully, creating agent access order");
+        
+        // Save order details properly in Firestore only after verification is successful
+        await setDoc(doc(db, 'orders', finalOrderId), {
+          email: auth.currentUser?.email || 'no-email@example.com',
+          phone: profile?.phoneNumber || "0000000000",
+          network: "SYSTEM",
+          bundle: "AGENT ACCESS UNLOCK",
+          amount: 100,
+          status: "pending",
+          createdAt: serverTimestamp(),
+          userId: auth.currentUser?.uid,
+          customerName: profile?.fullName || auth.currentUser?.displayName || 'Aspiring Agent',
+          reference: reference,
+          paymentStatus: "success"
+        });
 
-      const unlockPremiumAccess = () => {
-        console.log("Payment verified successfully");
         toast.success("Payment successful! The King will review your request shortly. 👑");
         setIsPaying(false);
       };
@@ -201,33 +205,32 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
         metadata: {
            custom_fields: [
               { display_name: "Purpose", variable_name: "purpose", value: "Agent Access Unlock" },
-              { display_name: "Order ID", variable_name: "order_id", value: preOrderId }
+              { display_name: "Order ID", variable_name: "order_id", value: finalOrderId }
            ]
         },
         onSuccess: async (response: any) => {
-          fetch("https://my-website-backend-6uyj.onrender.com/verify-payment", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              reference: response.reference
-            })
-          })
-          .then(res => res.json())
-          .then(data => {
+          try {
+            const res = await fetch("https://my-website-backend-6uyj.onrender.com/verify-payment", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                reference: response.reference
+              })
+            });
+            const data = await res.json();
             if (data.success) {
-              console.log("Payment verified successfully");
-              unlockPremiumAccess();
+              await unlockPremiumAccess(response.reference);
             } else {
-              alert("Payment verification failed");
+              toast.error("Payment verification failed! If you were charged, please contact support with reference: " + response.reference, { duration: 10000 });
               setIsPaying(false);
             }
-          })
-          .catch(error => {
+          } catch (error) {
             console.error("Verification error:", error);
+            toast.error("An error occurred during payment verification. Please contact support with reference: " + response.reference, { duration: 10000 });
             setIsPaying(false);
-          });
+          }
         },
         onCancel: () => setIsPaying(false)
       });

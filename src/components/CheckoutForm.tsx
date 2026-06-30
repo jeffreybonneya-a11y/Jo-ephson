@@ -240,73 +240,13 @@ export default function CheckoutForm({
     }
 
     try {
-      // 0. Generate ID synchronously
-      const preOrderRef = doc(collection(db, "orders"));
-      const preOrderId = preOrderRef.id;
+      // 0. Generate ID synchronously client-side WITHOUT saving to Firestore yet
+      const finalOrderId = doc(collection(db, "orders")).id;
+      setOrderId(finalOrderId);
 
       const wsPrice = Number(bundle.wholesalePrice || bundle.price);
       const agPrice = Number(bundle.price);
       const calculatedProfit = agPrice - wsPrice;
-
-      // Create pre-order record
-      const preOrderData = {
-        email: auth.currentUser.email || "no-email@example.com",
-        phone: data.recipientPhone || "",
-        network: data.recipientNetwork,
-        bundle: `${data.recipientNetwork} ${bundle.dataAmount}`,
-        amount: Number(bundle.price),
-        status: "pending",
-        createdAt: serverTimestamp(),
-        userId: auth.currentUser.uid,
-        customerName:
-          profile?.fullName || auth.currentUser.displayName || "Royal Customer",
-        ...(data.fcUserId ? { fcUserId: data.fcUserId } : {}),
-        ...(data.fcUsername ? { fcUsername: data.fcUsername } : {}),
-        ...(agentContext
-          ? {
-              agentId: agentContext.id,
-              agent_id: agentContext.id,
-              agentName: agentContext.agent_name,
-              agent_name: agentContext.agent_name,
-              wholesalePrice: wsPrice,
-              wholesale_price: wsPrice,
-              agentPrice: agPrice,
-              agent_price: agPrice,
-              profit: calculatedProfit,
-              agent_profit: calculatedProfit,
-              profitAwarded: false,
-              profit_credited: false,
-            }
-          : {}),
-      };
-
-      console.log("PreOrder Data:", preOrderData);
-      await setDoc(preOrderRef, preOrderData);
-      setOrderId(preOrderId);
-
-      // If buyer is via an agent store, create agent_orders entry
-      if (agentContext) {
-        const agentOrderData = {
-          id: preOrderId,
-          agent_id: agentContext.id,
-          customer_details: {
-            name:
-              profile?.fullName ||
-              auth.currentUser.displayName ||
-              "Royal Customer",
-            email: auth.currentUser.email || "no-email@example.com",
-            phone: data.recipientPhone || "",
-            network: data.recipientNetwork,
-          },
-          wholesale_price: wsPrice,
-          agent_price: agPrice,
-          profit: calculatedProfit,
-          status: "pending",
-          created_at: serverTimestamp(),
-        };
-        console.log("AgentOrder Data:", agentOrderData);
-        await setDoc(doc(db, "agent_orders", preOrderId), agentOrderData);
-      }
 
       // 1. Initiate Payment with Paystack Pop
       const isGame =
@@ -356,7 +296,7 @@ export default function CheckoutForm({
             {
               display_name: "Order ID",
               variable_name: "order_id",
-              value: preOrderId,
+              value: finalOrderId,
             },
             {
               display_name: "User ID",
@@ -378,7 +318,7 @@ export default function CheckoutForm({
             {
               display_name: "Order ID",
               variable_name: "order_id",
-              value: preOrderId,
+              value: finalOrderId,
             },
             {
               display_name: "Recipient Phone",
@@ -402,45 +342,110 @@ export default function CheckoutForm({
           custom_fields: customFields,
         },
         onSuccess: async (response: any) => {
-          // Immediately show completion screen
-          setOrderStatus("success");
+          // Immediately show verifying/processing loader screen
+          setOrderStatus("processing");
           setIsSubmitting(false);
 
-          const bundleName = bundle.network === "PC Games" ? bundle.name : `${bundle.network} ${bundle.dataAmount}`;
-          toast.success(`Payment Completed! 🚀 Your ${bundleName} will be received shortly.`, {
-            duration: 8000
-          });
+          try {
+            // Verify reference in background with active backend system
+            const res = await fetch("https://my-website-backend-6uyj.onrender.com/verify-payment", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                reference: response.reference
+              })
+            });
+            const verifyData = await res.json();
 
-          // Verify in background
-          fetch("https://my-website-backend-6uyj.onrender.com/verify-payment", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              reference: response.reference
-            })
-          })
-          .then(res => res.json())
-          .then(data => {
-            if (data.success) {
-              console.log("Payment verified successfully on backend");
-              // If it's a PC Game, we can redirect them to the download view
+            if (verifyData.success) {
+              console.log("Payment verified successfully on backend, creating order");
+
+              // Save order details properly in Firestore only after verification is successful
+              const orderData = {
+                email: auth.currentUser.email || "no-email@example.com",
+                phone: data.recipientPhone || "",
+                network: data.recipientNetwork,
+                bundle: bundle.network === "PC Games" ? bundle.name : `${data.recipientNetwork} ${bundle.dataAmount}`,
+                amount: Number(bundle.price),
+                status: "pending",
+                createdAt: serverTimestamp(),
+                userId: auth.currentUser.uid,
+                customerName: profile?.fullName || auth.currentUser.displayName || "Royal Customer",
+                reference: response.reference,
+                paymentStatus: "success",
+                ...(data.fcUserId ? { fcUserId: data.fcUserId } : {}),
+                ...(data.fcUsername ? { fcUsername: data.fcUsername } : {}),
+                ...(agentContext
+                  ? {
+                      agentId: agentContext.id,
+                      agent_id: agentContext.id,
+                      agentName: agentContext.agent_name,
+                      agent_name: agentContext.agent_name,
+                      wholesalePrice: wsPrice,
+                      wholesale_price: wsPrice,
+                      agentPrice: agPrice,
+                      agent_price: agPrice,
+                      profit: calculatedProfit,
+                      agent_profit: calculatedProfit,
+                      profitAwarded: false,
+                      profit_credited: false,
+                    }
+                  : {}),
+              };
+
+              await setDoc(doc(db, "orders", finalOrderId), orderData);
+
+              // If buyer is via an agent store, create agent_orders entry
+              if (agentContext) {
+                const agentOrderData = {
+                  id: finalOrderId,
+                  agent_id: agentContext.id,
+                  customer_details: {
+                    name: profile?.fullName || auth.currentUser.displayName || "Royal Customer",
+                    email: auth.currentUser.email || "no-email@example.com",
+                    phone: data.recipientPhone || "",
+                    network: data.recipientNetwork,
+                  },
+                  wholesale_price: wsPrice,
+                  agent_price: agPrice,
+                  profit: calculatedProfit,
+                  status: "pending",
+                  created_at: serverTimestamp(),
+                  paymentReference: response.reference,
+                };
+                await setDoc(doc(db, "agent_orders", finalOrderId), agentOrderData);
+              }
+
+              // Unlock customer access & update statuses
+              unlockPremiumAccess();
+
+              const bundleName = bundle.network === "PC Games" ? bundle.name : `${bundle.network} ${bundle.dataAmount}`;
+              toast.success(`Payment Verified! 🚀 Your ${bundleName} will be received shortly.`, {
+                duration: 8000
+              });
+
               if (bundle.network === "PC Games") {
                 setTimeout(() => {
-                  window.location.href = `/download?orderId=${preOrderId}`;
+                  window.location.href = `/download?orderId=${finalOrderId}`;
                 }, 2000);
               }
             } else {
               console.warn("Backend verification responded unsuccessful");
+              toast.error("Payment verification failed! If you were charged, please contact support with reference: " + response.reference, { duration: 10000 });
+              setOrderStatus("idle");
+              onClose();
             }
-          })
-          .catch(error => {
+          } catch (error) {
             console.error("Verification error:", error);
-          });
+            toast.error("An error occurred during payment verification. Please contact support with reference: " + response.reference, { duration: 10000 });
+            setOrderStatus("idle");
+            onClose();
+          }
         },
         onCancel: () => {
-          // Immediately close on cancel as well. No popups or toasts.
+          // Cancelled: return to idle with no order created
           onClose();
           setIsSubmitting(false);
         },

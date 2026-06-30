@@ -42,7 +42,7 @@ service cloud.firestore {
     }
 
     function isValidEmail(email) {
-      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+      return email is string && email.size() >= 3 && email.matches("^[^@]+@[^@]+\\.[^@]+$");
     }
 
     function isValidPhone(phone) {
@@ -67,7 +67,7 @@ service cloud.firestore {
              data.network is string &&
              data.bundle is string &&
              data.amount is number && data.amount > 0 &&
-             data.status in ['paid', 'completed', 'failed', 'pending', 'processing', 'delivered', 'pending_payment', 'unpaid', 'accepted', 'declined'] &&
+             data.status in ['paid', 'completed', 'failed', 'pending', 'processing', 'delivered', 'pending_payment', 'unpaid', 'accepted', 'declined', 'checkout_unpaid'] &&
              data.createdAt is timestamp &&
              (!('reference' in data) || data.reference is string) &&
              (!('userId' in data) || data.userId is string) &&
