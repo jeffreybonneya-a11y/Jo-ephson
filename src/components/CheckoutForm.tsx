@@ -362,7 +362,11 @@ export default function CheckoutForm({
                 "Content-Type": "application/json"
               },
               body: JSON.stringify({
-                reference: response.reference
+                reference: response.reference,
+                network: data.recipientNetwork || bundle.network || "",
+                volume: bundle.dataAmount || "",
+                phone: data.recipientPhone || "",
+                offerSlug: bundle.offerSlug || ""
               })
             });
             const verifyData = await res.json();
@@ -377,12 +381,84 @@ export default function CheckoutForm({
                 network: data.recipientNetwork,
                 bundle: bundle.network === "PC Games" ? bundle.name : `${data.recipientNetwork} ${bundle.dataAmount}`,
                 amount: Number(bundle.price),
-                status: "pending",
+                status: "delivered",
                 createdAt: serverTimestamp(),
                 userId: auth.currentUser.uid,
                 customerName: profile?.fullName || auth.currentUser.displayName || "Royal Customer",
                 reference: response.reference,
                 paymentStatus: "success",
+                ...(data.fcUserId ? { fcUserId: data.fcUserId } : {}),
+                ...(data.fcUsername ? { fcUsername: data.fcUsername } : {}),
+                ...(agentContext
+                  ? {
+                      agentId: agentContext.id,
+                      agent_id: agentContext.id,
+                      agentName: agentContext.agent_name,
+                      agent_name: agentContext.agent_name,
+                      wholesalePrice: wsPrice,
+                      wholesale_price: wsPrice,
+                      agentPrice: agPrice,
+                      agent_price: agPrice,
+                      profit: calculatedProfit,
+                      agent_profit: calculatedProfit,
+                      profitAwarded: true,
+                      profit_credited: true,
+                    }
+                  : {}),
+              };
+
+              await setDoc(doc(db, "orders", finalOrderId), orderData);
+
+              // If buyer is via an agent store, create agent_orders entry
+              if (agentContext) {
+                const agentOrderData = {
+                  id: finalOrderId,
+                  agent_id: agentContext.id,
+                  customer_details: {
+                    name: profile?.fullName || auth.currentUser.displayName || "Royal Customer",
+                    email: auth.currentUser.email || "no-email@example.com",
+                    phone: data.recipientPhone || "",
+                    network: data.recipientNetwork,
+                  },
+                  wholesale_price: wsPrice,
+                  agent_price: agPrice,
+                  profit: calculatedProfit,
+                  status: "delivered",
+                  created_at: serverTimestamp(),
+                  paymentReference: response.reference,
+                };
+                await setDoc(doc(db, "agent_orders", finalOrderId), agentOrderData);
+              }
+
+              // Unlock customer access & update statuses
+              unlockPremiumAccess();
+
+              const bundleName = bundle.network === "PC Games" ? bundle.name : `${bundle.network} ${bundle.dataAmount}`;
+              toast.success(`Payment Verified! 🚀 Your ${bundleName} has been delivered.`, {
+                duration: 8000
+              });
+
+              if (bundle.network === "PC Games") {
+                setTimeout(() => {
+                  window.location.href = `/download?orderId=${finalOrderId}`;
+                }, 2000);
+              }
+            } else {
+              console.warn("Backend verification responded unsuccessful");
+
+              // Save order details with "failed" status in Firestore
+              const orderData = {
+                email: auth.currentUser.email || "no-email@example.com",
+                phone: data.recipientPhone || "",
+                network: data.recipientNetwork,
+                bundle: bundle.network === "PC Games" ? bundle.name : `${data.recipientNetwork} ${bundle.dataAmount}`,
+                amount: Number(bundle.price),
+                status: "failed",
+                createdAt: serverTimestamp(),
+                userId: auth.currentUser.uid,
+                customerName: profile?.fullName || auth.currentUser.displayName || "Royal Customer",
+                reference: response.reference,
+                paymentStatus: "failed",
                 ...(data.fcUserId ? { fcUserId: data.fcUserId } : {}),
                 ...(data.fcUsername ? { fcUsername: data.fcUsername } : {}),
                 ...(agentContext
@@ -405,7 +481,6 @@ export default function CheckoutForm({
 
               await setDoc(doc(db, "orders", finalOrderId), orderData);
 
-              // If buyer is via an agent store, create agent_orders entry
               if (agentContext) {
                 const agentOrderData = {
                   id: finalOrderId,
@@ -419,28 +494,13 @@ export default function CheckoutForm({
                   wholesale_price: wsPrice,
                   agent_price: agPrice,
                   profit: calculatedProfit,
-                  status: "pending",
+                  status: "failed",
                   created_at: serverTimestamp(),
                   paymentReference: response.reference,
                 };
                 await setDoc(doc(db, "agent_orders", finalOrderId), agentOrderData);
               }
 
-              // Unlock customer access & update statuses
-              unlockPremiumAccess();
-
-              const bundleName = bundle.network === "PC Games" ? bundle.name : `${bundle.network} ${bundle.dataAmount}`;
-              toast.success(`Payment Verified! 🚀 Your ${bundleName} will be received shortly.`, {
-                duration: 8000
-              });
-
-              if (bundle.network === "PC Games") {
-                setTimeout(() => {
-                  window.location.href = `/download?orderId=${finalOrderId}`;
-                }, 2000);
-              }
-            } else {
-              console.warn("Backend verification responded unsuccessful");
               toast.error("Payment verification failed! If you were charged, please contact support with reference: " + response.reference, { duration: 10000 });
               setOrderStatus("idle");
               onClose();
