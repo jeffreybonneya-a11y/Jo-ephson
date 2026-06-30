@@ -58,7 +58,11 @@ export default function MyOrders() {
           id: doc.id,
           ...doc.data(),
         }));
-        setOrders(fetchedOrders);
+        // Show only orders with successful payment or legacy processed/paid/declined orders
+        const completedOrders = fetchedOrders.filter(
+          (o: any) => o.paymentStatus === "success" || o.status === "delivered" || o.status === "declined" || o.status === "paid"
+        );
+        setOrders(completedOrders);
         setLoading(false);
       },
       (error) => {
