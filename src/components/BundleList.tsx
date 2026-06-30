@@ -31,7 +31,7 @@ export default function BundleList({
 }: BundleListProps) {
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("MTN");
+  const [activeTab, setActiveTab] = useState("Telecel");
   const [activeGameCoinSubTab, setActiveGameCoinSubTab] = useState("FC_MOBILE");
   const [activePCGamesSubTab, setActivePCGamesSubTab] = useState("FC_26");
   const [showFCOptions, setShowFCOptions] = useState(false);
@@ -471,20 +471,33 @@ export default function BundleList({
           <div className="w-full mb-8 flex flex-col lg:flex-row gap-4 justify-between items-stretch lg:items-center bg-card p-3 rounded-2xl border border-border shadow-sm">
             <div className="overflow-x-auto pb-2 lg:pb-0 scrollbar-hide">
               <TabsList className="flex w-max gap-2 bg-slate-100/60 dark:bg-slate-800/60 p-1 rounded-xl border border-slate-200/40 dark:border-slate-700/40 h-auto">
-                {tabs.map((tab) => (
-                  <TabsTrigger
-                    key={tab}
-                    value={tab}
-                    className={`text-xs sm:text-sm font-bold h-9 md:h-10 px-4 rounded-lg transition-all cursor-pointer select-none border border-transparent ${
-                      tab === activeTab
-                        ? getNetworkColor(tab) +
-                          " shadow-sm font-extrabold border-primary"
-                        : "text-muted-foreground hover:text-foreground dark:hover:text-white hover:bg-slate-200/20"
-                    }`}
-                  >
-                    {tab}
-                  </TabsTrigger>
-                ))}
+                {tabs.map((tab) => {
+                  const isMTN = tab === "MTN";
+                  return (
+                    <TabsTrigger
+                      key={tab}
+                      value={tab}
+                      disabled={isMTN}
+                      className={`text-xs sm:text-sm font-bold h-9 md:h-11 px-4 rounded-lg transition-all select-none border border-transparent ${
+                        isMTN
+                          ? "opacity-50 cursor-not-allowed bg-slate-200/40 dark:bg-slate-800/40 text-muted-foreground/60"
+                          : tab === activeTab
+                          ? getNetworkColor(tab) +
+                            " shadow-sm font-extrabold border-primary cursor-pointer"
+                          : "text-muted-foreground hover:text-foreground dark:hover:text-white hover:bg-slate-200/20 cursor-pointer"
+                      }`}
+                    >
+                      <div className="flex flex-col items-center justify-center leading-tight">
+                        <span>{tab}</span>
+                        {isMTN && (
+                          <span className="text-[7px] font-black text-red-500 uppercase tracking-tight leading-none mt-0.5">
+                            Currently unavailable
+                          </span>
+                        )}
+                      </div>
+                    </TabsTrigger>
+                  );
+                })}
               </TabsList>
             </div>
 
@@ -610,7 +623,7 @@ export default function BundleList({
                             }}
                           >
                             {bundle.network === "MTN"
-                              ? "OUT OF STOCK 🚫"
+                              ? "Currently unavailable"
                               : "BUY NOW 👑"}
                           </Button>
                         </CardContent>
@@ -734,7 +747,7 @@ export default function BundleList({
                                 }}
                               >
                                 {bundle.network === "MTN"
-                                  ? "OUT OF STOCK 🚫"
+                                  ? "Currently unavailable"
                                   : "BUY NOW 👑"}
                               </Button>
                             </CardContent>
