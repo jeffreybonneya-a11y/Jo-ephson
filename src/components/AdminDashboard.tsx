@@ -73,7 +73,7 @@ import { toast } from "sonner";
 const parseDataAmountToMB = (amountStr: string): number => {
   if (!amountStr) return 0;
   const norm = amountStr.trim().toLowerCase();
-  const numMatch = norm.match(/^([\d.,]+)/);
+  const numMatch = norm.match(/([\d.,]+)/);
   if (!numMatch) return 0;
   const val = parseFloat(numMatch[1].replace(/,/g, ""));
   if (norm.includes("m")) {

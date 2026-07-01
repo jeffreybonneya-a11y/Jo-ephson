@@ -23,6 +23,22 @@ interface BundleListProps {
 
 const fallbackPUBGBundles: any[] = [];
 
+const parseDataAmountToMB = (amountStr: string): number => {
+  if (!amountStr) return 0;
+  const norm = amountStr.trim().toLowerCase();
+  const numMatch = norm.match(/([\d.,]+)/);
+  if (!numMatch) return 0;
+  const val = parseFloat(numMatch[1].replace(/,/g, ""));
+  if (norm.includes("m")) {
+    return val;
+  }
+  if (norm.includes("t")) {
+    return val * 1024 * 1024;
+  }
+  // Default to GB
+  return val * 1024;
+};
+
 export default function BundleList({
   onSelectBundle,
   isAgentMode = false,
@@ -200,15 +216,6 @@ export default function BundleList({
   const filteredBundles = processedBundles
     .filter((b) => b.network === activeTab)
     .filter((b) => {
-      // Telecel Bundles Should Start From 10GB Only
-      if (b.network === "Telecel") {
-        const amountStr = b.dataAmount || b.name || "";
-        const gbMatch = amountStr.match(/(\d+(?:\.\d+)?)\s*GB/i);
-        const gbValue = gbMatch ? parseFloat(gbMatch[1]) : 0;
-        if (gbValue < 10 || amountStr.toLowerCase().includes("mb")) {
-          return false;
-        }
-      }
       return true;
     })
     .filter((b) => {
@@ -220,7 +227,14 @@ export default function BundleList({
         b.price.toString().includes(q)
       );
     })
-    .sort((a, b) => a.price - b.price);
+    .sort((a, b) => {
+      if (a.network === "Telecel" && b.network === "Telecel") {
+        const mbA = parseDataAmountToMB(a.dataAmount || a.name || "");
+        const mbB = parseDataAmountToMB(b.dataAmount || b.name || "");
+        if (mbA !== mbB) return mbA - mbB;
+      }
+      return a.price - b.price;
+    });
 
   const fcPointsFallback = [
     {
@@ -429,7 +443,14 @@ export default function BundleList({
               matchesPrice
             );
           })
-          .sort((a, b) => a.price - b.price)
+          .sort((a, b) => {
+            if (a.network === "Telecel" && b.network === "Telecel") {
+              const mbA = parseDataAmountToMB(a.dataAmount || a.name || "");
+              const mbB = parseDataAmountToMB(b.dataAmount || b.name || "");
+              if (mbA !== mbB) return mbA - mbB;
+            }
+            return a.price - b.price;
+          })
       : [];
 
   return (
