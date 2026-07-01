@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { auth, db } from '../lib/firebase';
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, onSnapshot, serverTimestamp, addDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
-import { Crown, Key, Loader2, Store, Activity, Settings, DollarSign, Wallet, Copy, Save, User, UserCheck, AlertTriangle, Check, ArrowRight, FileText, Send, Search, MessageSquare } from 'lucide-react';
+import { Crown, Key, Loader2, Store, Activity, Settings, DollarSign, Wallet, Copy, Save, User, UserCheck, AlertTriangle, Check, ArrowRight, FileText, Send, Search, MessageSquare, GraduationCap } from 'lucide-react';
 import MyOrders from './MyOrders';
 import { Bundle } from '../types';
 
@@ -795,6 +795,68 @@ Reference Code: ${refCode}
                         </div>
                       );
                     })}
+
+                    {/* Results Checker Section */}
+                    <div className="space-y-4 pt-6 border-t-2 border-dashed border-slate-100 dark:border-slate-800">
+                      <h3 className="text-lg font-black tracking-widest uppercase border-b pb-2 flex items-center gap-2 text-indigo-600 dark:text-indigo-400 border-indigo-500/20">
+                        <GraduationCap className="w-5 h-5 text-indigo-500" />
+                        <span>Results Checker</span>
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {(() => {
+                          const wholesale = 19.0;
+                          const currentVal = customPrices['results_checker'] ?? String(wholesale);
+                          const sellingPrice = customPrices['results_checker'] ? Number(customPrices['results_checker']) : wholesale;
+                          const profit = sellingPrice - wholesale;
+                          const isBelowWholesale = sellingPrice < wholesale;
+
+                          return (
+                            <div className="bg-white dark:bg-slate-950 p-4 sm:p-6 rounded-3xl border border-slate-100 dark:border-slate-800 flex flex-col justify-between shadow-sm relative overflow-hidden">
+                              <div>
+                                <div className="flex justify-between items-start mb-4">
+                                  <span className="font-extrabold text-lg text-indigo-600 dark:text-indigo-400">WAEC Results Checker (WASSCE, BECE, NOVDEC)</span>
+                                  <span className="text-[10px] font-black uppercase px-2 py-1 bg-slate-100 dark:bg-slate-900 border text-slate-500 rounded-lg">wholesale: GHS {wholesale.toFixed(2)}</span>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3 mb-4">
+                                  <div className="space-y-1">
+                                    <Label className="text-[9px] font-black uppercase tracking-wider text-slate-400">Selling Price (GHS)</Label>
+                                    <Input
+                                      type="number"
+                                      step="0.1"
+                                      value={currentVal}
+                                      onChange={(e) => setCustomPrices(prev => ({ ...prev, results_checker: e.target.value }))}
+                                      className={`rounded-xl font-extrabold text-foreground ${isBelowWholesale ? 'border-red-500 focus-visible:ring-red-500' : 'focus-visible:ring-indigo-500 border-slate-200'}`}
+                                    />
+                                  </div>
+                                  <div className="bg-slate-50 dark:bg-slate-900 rounded-2xl p-3 flex flex-col justify-center">
+                                    <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Accrued Profit</span>
+                                    <span className={`text-base font-black ${isBelowWholesale ? 'text-red-500' : 'text-indigo-600 dark:text-indigo-400'}`}>
+                                      GHS {Math.max(0, profit).toFixed(2)}
+                                    </span>
+                                  </div>
+                                </div>
+                                {isBelowWholesale && (
+                                  <p className="text-[10px] font-bold text-red-500 mb-4 flex items-center gap-1">
+                                    <AlertTriangle className="w-3.5 h-3.5" /> Price cannot be lower than wholesale price.
+                                  </p>
+                                )}
+                              </div>
+
+                              <Button
+                                size="sm"
+                                className={`w-full text-xs font-black uppercase tracking-wider gap-1.5 h-10 rounded-xl ${isBelowWholesale ? 'bg-red-500/50 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}
+                                disabled={isBelowWholesale}
+                                onClick={() => handleSavePrice('results_checker', wholesale)}
+                              >
+                                <Save className="w-3.5 h-3.5" />
+                                Update Price 👑
+                              </Button>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
                   </div>
                 )}
               </CardContent>

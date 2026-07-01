@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../lib/firebase';
-import { doc, onSnapshot, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, collection, addDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,11 @@ import { Badge } from '@/components/ui/badge';
 import { GraduationCap, CheckCircle2, AlertTriangle, Loader2, Minus, Plus, ChevronRight, Play } from 'lucide-react';
 import waecBannerBg from '../assets/images/waec_banner_bg_1782934507804.jpg';
 
-export default function ResultCheckerSection() {
+interface ResultCheckerSectionProps {
+  agentContext?: any;
+}
+
+export default function ResultCheckerSection({ agentContext }: ResultCheckerSectionProps) {
   const [activeCheckerTab, setActiveCheckerTab] = useState<'WASSCE' | 'BECE' | 'NOVDEC'>('WASSCE');
   const [quantity, setQuantity] = useState<number>(1);
   const [pricePerChecker, setPricePerChecker] = useState<number>(25);
@@ -24,6 +28,17 @@ export default function ResultCheckerSection() {
 
   // Real-time listener for Results Checker price settings
   useEffect(() => {
+    if (agentContext) {
+      if (agentContext.prices && typeof agentContext.prices.results_checker === 'number') {
+        setPricePerChecker(agentContext.prices.results_checker);
+      } else {
+        // Fallback to the wholesale price of 19 GHC if the agent hasn't set one yet
+        setPricePerChecker(19);
+      }
+      setLoadingPrice(false);
+      return;
+    }
+
     const unsub = onSnapshot(doc(db, 'settings', 'results_checker'), (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
@@ -38,7 +53,7 @@ export default function ResultCheckerSection() {
     });
 
     return () => unsub();
-  }, []);
+  }, [agentContext]);
 
   const totalAmount = quantity * pricePerChecker;
 
@@ -121,7 +136,7 @@ export default function ResultCheckerSection() {
 
           try {
             // Create Firestore order
-            await addDoc(collection(db, "orders"), {
+            const orderData = {
               email: auth.currentUser?.email || "no-email@example.com",
               serviceType: "Results Checker",
               examType: activeCheckerTab,
@@ -136,8 +151,45 @@ export default function ResultCheckerSection() {
               createdAt: serverTimestamp(),
               userId: auth.currentUser?.uid || "anonymous",
               customerName: auth.currentUser?.displayName || "Royal Customer",
-              reference: response.reference
-            });
+              reference: response.reference,
+              ...(agentContext ? {
+                agentId: agentContext.id,
+                agent_id: agentContext.id,
+                agentName: agentContext.agent_name,
+                agent_name: agentContext.agent_name,
+                wholesalePrice: 19 * quantity,
+                wholesale_price: 19 * quantity,
+                agentPrice: pricePerChecker * quantity,
+                agent_price: pricePerChecker * quantity,
+                profit: (pricePerChecker - 19) * quantity,
+                agent_profit: (pricePerChecker - 19) * quantity,
+                profit_credited: false,
+                profitAwarded: false,
+              } : {})
+            };
+
+            const docRef = await addDoc(collection(db, "orders"), orderData);
+
+            // If buyer is via an agent store, create agent_orders entry
+            if (agentContext) {
+              const agentOrderData = {
+                id: docRef.id,
+                agent_id: agentContext.id,
+                customer_details: {
+                  name: auth.currentUser?.displayName || "Royal Customer",
+                  email: auth.currentUser?.email || "no-email@example.com",
+                  phone: phoneClean,
+                  network: "Result Checker",
+                },
+                wholesale_price: 19 * quantity,
+                agent_price: pricePerChecker * quantity,
+                profit: (pricePerChecker - 19) * quantity,
+                status: "pending",
+                created_at: serverTimestamp(),
+                paymentReference: response.reference,
+              };
+              await setDoc(doc(db, "agent_orders", docRef.id), agentOrderData);
+            }
 
             // Trigger success screen for 4 seconds
             setShowSuccessScreen(true);
