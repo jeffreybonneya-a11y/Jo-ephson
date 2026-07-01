@@ -11,6 +11,7 @@ import {
   doc,
   deleteDoc,
   getDoc,
+  setDoc,
   serverTimestamp,
   increment,
   getDocs,
@@ -99,6 +100,9 @@ export default function AdminDashboard() {
   // Agents Hub
   const [agents, setAgents] = useState<any[]>([]);
   const [profitRequests, setProfitRequests] = useState<any[]>([]);
+
+  const [pricePerChecker, setPricePerChecker] = useState<number>(25);
+  const [isUpdatingPrice, setIsUpdatingPrice] = useState<boolean>(false);
 
   const [announcement, setAnnouncement] = useState({
     id: "discount-bar",
@@ -217,6 +221,19 @@ export default function AdminDashboard() {
       },
     );
 
+    // 9. Listen for Results Checker Settings
+    const unsubResultsChecker = onSnapshot(
+      doc(db, "settings", "results_checker"),
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          if (typeof data.pricePerChecker === "number") {
+            setPricePerChecker(data.pricePerChecker);
+          }
+        }
+      }
+    );
+
     return () => {
       unsubAnnouncement();
       unsubBundles();
@@ -226,6 +243,7 @@ export default function AdminDashboard() {
       unsubComplaints();
       unsubAgents();
       unsubProfitRequests();
+      unsubResultsChecker();
     };
   }, []);
 
@@ -737,6 +755,21 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleUpdatePricePerChecker = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsUpdatingPrice(true);
+    try {
+      await setDoc(doc(db, "settings", "results_checker"), {
+        pricePerChecker: Number(pricePerChecker)
+      }, { merge: true });
+      toast.success("Results Checker price updated ✅");
+    } catch (error: any) {
+      toast.error(`Failed to update price: ${error.message}`);
+    } finally {
+      setIsUpdatingPrice(false);
+    }
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
@@ -784,6 +817,12 @@ export default function AdminDashboard() {
               className="h-9 px-4 rounded-lg font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all focus-visible:ring-0"
             >
               NOTIFY
+            </TabsTrigger>
+            <TabsTrigger
+              value="results_checker"
+              className="h-9 px-4 rounded-lg font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all focus-visible:ring-0"
+            >
+              RESULTS CHECKER
             </TabsTrigger>
             <TabsTrigger
               value="users"
@@ -1489,6 +1528,48 @@ export default function AdminDashboard() {
                   className="h-14 px-10 rounded-2xl font-black text-lg bg-secondary text-white shadow-lg hover:bg-primary transition-all"
                 >
                   SAVE ROYAL STATUS 👑
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="results_checker" className="mt-0 outline-none">
+          <Card className="rounded-3xl border-2 bg-white dark:bg-slate-950 dark:border-slate-800 overflow-hidden shadow-sm">
+            <CardHeader className="p-8 border-b dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+              <CardTitle className="text-2xl font-black text-slate-900 dark:text-white">
+                Results Checker Settings 👑
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-8 pt-6">
+              <form
+                onSubmit={handleUpdatePricePerChecker}
+                className="space-y-6 max-w-2xl"
+              >
+                <div className="space-y-2">
+                  <Label className="font-bold underline underline-offset-4 text-slate-700 dark:text-slate-300">
+                    Price per Voucher (GHS)
+                  </Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    step="0.01"
+                    value={pricePerChecker}
+                    onChange={(e) => setPricePerChecker(Number(e.target.value))}
+                    placeholder="e.g. 25"
+                    className="rounded-xl h-12 border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white"
+                  />
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                    This price is applied to WASSCE, BECE, and NOVDEC checkers dynamically.
+                  </p>
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={isUpdatingPrice}
+                  className="h-14 px-10 rounded-2xl font-black text-lg bg-secondary text-white shadow-lg hover:bg-primary transition-all flex items-center gap-2"
+                >
+                  {isUpdatingPrice ? "UPDATING... 👑" : "SAVE PRICE SETTING 👑"}
                 </Button>
               </form>
             </CardContent>

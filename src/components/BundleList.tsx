@@ -10,6 +10,7 @@ import { motion } from "motion/react";
 import { Smartphone, Wifi, Zap, Crown, Search } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import StreamingTab from "./StreamingTab";
+import ResultCheckerSection from "./ResultCheckerSection";
 import fcMobileIcon from "@/src/assets/images/ea_sports_fc_mobile_cover_fixed_1782486697588.jpg";
 import pubgMobileIcon from "@/src/assets/images/pubg_mobile_cover_1782399506286.jpg";
 import fc26Icon from "@/src/assets/images/ea_sports_fc_26_cover_1782485615642.jpg";
@@ -688,7 +689,6 @@ export default function BundleList({
                   "MTN",
                   "Telecel",
                   "AirtelTigo",
-                  "Result Checker",
                   "Premium Apps",
                 ].includes(tab) ? (
                   <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
@@ -800,6 +800,8 @@ export default function BundleList({
                       </div>
                     )}
                   </div>
+                ) : tab === "Result Checker" ? (
+                  <ResultCheckerSection />
                 ) : tab === "Game Coins" ? (
                   <div className="space-y-6">
                     <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
