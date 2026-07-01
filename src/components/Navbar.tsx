@@ -58,7 +58,11 @@ export default function Navbar({
       let profitRequestsCount = 0;
 
       const updateCount = () => {
-        setUnreadCount(messagesCount + ordersCount + profitRequestsCount);
+        if (isAdminView) {
+          setUnreadCount(0);
+        } else {
+          setUnreadCount(messagesCount + ordersCount + profitRequestsCount);
+        }
       };
 
       const qMessages = query(collection(db, 'complaints'), where('status', '==', 'open'));
@@ -87,7 +91,7 @@ export default function Navbar({
     } else {
       setUnreadCount(0);
     }
-  }, [user, profile, isAdmin]);
+  }, [user, profile, isAdmin, isAdminView]);
 
   useEffect(() => {
     const handleOpenAuth = () => {
