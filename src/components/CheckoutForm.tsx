@@ -311,18 +311,17 @@ export default function CheckoutForm({
 
           try {
             // Verify reference in background with active backend system
-            const res = await fetch("https://king-j-deals-awzz.onrender.com/verify-payment", {
+            const res = await fetch("https://kingj-backend.onrender.com/verify-payment", {
               method: "POST",
-              headers: {
-                "Content-Type": "application/json"
-              },
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 reference: response.reference
               })
             });
+
             const verifyData = await res.json();
 
-            if (verifyData.success) {
+            if (verifyData.success === true) {
               console.log("Payment verified successfully on backend, creating order");
 
               // Save order details properly in Firestore only after verification is successful
@@ -332,7 +331,7 @@ export default function CheckoutForm({
                 network: data.recipientNetwork,
                 bundle: bundle.network === "PC Games" ? bundle.name : `${data.recipientNetwork} ${bundle.dataAmount}`,
                 amount: Number(bundle.price),
-                status: "success",
+                status: "pending",
                 createdAt: serverTimestamp(),
                 userId: auth.currentUser.uid,
                 customerName: profile?.fullName || auth.currentUser.displayName || "Royal Customer",
@@ -374,7 +373,7 @@ export default function CheckoutForm({
                   wholesale_price: wsPrice,
                   agent_price: agPrice,
                   profit: calculatedProfit,
-                  status: "success",
+                  status: "pending",
                   created_at: serverTimestamp(),
                   paymentReference: response.reference,
                 };
@@ -384,61 +383,30 @@ export default function CheckoutForm({
               // Unlock customer access & update statuses
               unlockPremiumAccess();
 
-              const bundleName = bundle.network === "PC Games" ? bundle.name : `${bundle.network} ${bundle.dataAmount}`;
-              toast.success(`Payment Verified! 🚀 Your ${bundleName} has been delivered.`, {
-                duration: 8000
-              });
+              toast.success("Payment verified successfully ✅");
+              setOrderStatus("success");
 
+              // If PC Games, redirect after a short while, otherwise handle 4 second timeout
               if (bundle.network === "PC Games") {
                 setTimeout(() => {
                   window.location.href = `/download?orderId=${finalOrderId}`;
                 }, 2000);
+              } else {
+                setTimeout(() => {
+                  setOrderStatus("idle");
+                  setIsSubmitting(false);
+                  onClose();
+                }, 4000);
               }
             } else {
               console.warn("Backend verification responded unsuccessful");
-
-              // Save order details with "failed" status in Firestore as requested
-              const orderData = {
-                email: auth.currentUser.email || "no-email@example.com",
-                phone: data.recipientPhone || "",
-                network: data.recipientNetwork,
-                bundle: bundle.network === "PC Games" ? bundle.name : `${data.recipientNetwork} ${bundle.dataAmount}`,
-                amount: Number(bundle.price),
-                status: "failed",
-                createdAt: serverTimestamp(),
-                userId: auth.currentUser.uid,
-                customerName: profile?.fullName || auth.currentUser.displayName || "Royal Customer",
-                reference: response.reference,
-                paymentStatus: "failed",
-                ...(data.fcUserId ? { fcUserId: data.fcUserId } : {}),
-                ...(data.fcUsername ? { fcUsername: data.fcUsername } : {}),
-                ...(agentContext
-                  ? {
-                      agentId: agentContext.id,
-                      agent_id: agentContext.id,
-                      agentName: agentContext.agent_name,
-                      agent_name: agentContext.agent_name,
-                      wholesalePrice: wsPrice,
-                      wholesale_price: wsPrice,
-                      agentPrice: agPrice,
-                      agent_price: agPrice,
-                      profit: calculatedProfit,
-                      agent_profit: calculatedProfit,
-                      profitAwarded: false,
-                      profit_credited: false,
-                    }
-                  : {}),
-              };
-
-              await setDoc(doc(db, "orders", finalOrderId), orderData);
-
-              toast.error("Payment verification failed! If you were charged, please contact support with reference: " + response.reference, { duration: 10000 });
+              toast.error("Payment verification failed ❌");
               setOrderStatus("idle");
               onClose();
             }
           } catch (error) {
             console.error("Verification error:", error);
-            toast.error("An error occurred during payment verification. Please contact support with reference: " + response.reference, { duration: 10000 });
+            toast.error("Payment verification failed ❌");
             setOrderStatus("idle");
             onClose();
           }

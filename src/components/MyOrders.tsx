@@ -47,7 +47,7 @@ export default function MyOrders() {
 
     const q = query(
       collection(db, "orders"),
-      where("email", "==", auth.currentUser.email),
+      where("userId", "==", auth.currentUser.uid),
       orderBy("createdAt", "desc"),
     );
 
@@ -58,9 +58,9 @@ export default function MyOrders() {
           id: doc.id,
           ...doc.data(),
         }));
-        // Show only orders with successful payment or legacy processed/paid/declined orders
+        // Show only orders with successful payment
         const completedOrders = fetchedOrders.filter(
-          (o: any) => o.paymentStatus === "success" || o.status === "delivered" || o.status === "declined" || o.status === "paid"
+          (o: any) => o.paymentStatus === "success" || o.status === "success"
         );
         setOrders(completedOrders);
         setLoading(false);

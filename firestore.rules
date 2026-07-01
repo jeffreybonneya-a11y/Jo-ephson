@@ -67,7 +67,7 @@ service cloud.firestore {
              data.network is string &&
              data.bundle is string &&
              data.amount is number && data.amount > 0 &&
-             data.status in ['paid', 'completed', 'failed', 'pending', 'processing', 'delivered', 'pending_payment', 'unpaid', 'accepted', 'declined', 'checkout_unpaid'] &&
+             data.status in ['paid', 'completed', 'failed', 'pending', 'processing', 'delivered', 'pending_payment', 'unpaid', 'accepted', 'declined', 'checkout_unpaid', 'success'] &&
              data.createdAt is timestamp &&
              (!('reference' in data) || data.reference is string) &&
              (!('userId' in data) || data.userId is string) &&
@@ -203,11 +203,11 @@ service cloud.firestore {
         ('userId' in resource.data && resource.data.userId == request.auth.uid) || 
         ('agent_id' in resource.data && resource.data.agent_id == request.auth.uid) || 
         ('agentId' in resource.data && resource.data.agentId == request.auth.uid) || 
-        (getAuthEmail() != "" && 'email' in resource.data && resource.data.email.lower() == getAuthEmail().lower())
+        (getAuthEmail() != "" && 'email' in resource.data && (resource.data.email == getAuthEmail() || resource.data.email.lower() == getAuthEmail().lower()))
       ));
       allow create: if isAuthenticated() && isValidOrder(request.resource.data) && (
         ('userId' in request.resource.data && request.resource.data.userId == request.auth.uid) || 
-        (getAuthEmail() != "" && 'email' in request.resource.data && request.resource.data.email.lower() == getAuthEmail().lower())
+        (getAuthEmail() != "" && 'email' in request.resource.data && (request.resource.data.email == getAuthEmail() || request.resource.data.email.lower() == getAuthEmail().lower()))
       );
       allow update: if isAdmin() || (
         isAuthenticated() && 

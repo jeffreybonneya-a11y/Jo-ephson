@@ -160,9 +160,9 @@ export default function AdminDashboard() {
     );
     const unsubOrders = onSnapshot(ordersQuery, (snapshot) => {
       const allOrders = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() as any }));
-      // Show only orders with successful payment or legacy processed orders
+      // Show only orders with successful payment
       const completedOrders = allOrders.filter(
-        (o) => o.paymentStatus === "success" || o.status === "delivered" || o.status === "declined"
+        (o) => o.paymentStatus === "success" || o.status === "success"
       );
       setOrders(completedOrders);
     });
@@ -504,7 +504,15 @@ export default function AdminDashboard() {
         );
       }
 
-      toast.success(`Order marked as ${status}!`);
+      if (status === "accepted") {
+        toast.success("Order Accepted ✅");
+      } else if (status === "delivered") {
+        toast.success("Order Delivered ✅");
+      } else if (status === "declined") {
+        toast.success("Order Declined ❌");
+      } else {
+        toast.success(`Order marked as ${status}!`);
+      }
     } catch (error: any) {
       toast.error(`Update failed: ${error.message}`);
     }
@@ -606,6 +614,15 @@ export default function AdminDashboard() {
             className="bg-green-50 text-green-700 border-green-200 font-black dark:bg-green-900/20 dark:text-green-400 dark:border-green-900/50"
           >
             APPROVED
+          </Badge>
+        );
+      case "accepted":
+        return (
+          <Badge
+            variant="outline"
+            className="bg-indigo-50 text-indigo-700 border-indigo-200 font-bold dark:bg-indigo-900/20 dark:text-indigo-400 dark:border-indigo-900/50"
+          >
+            ACCEPTED
           </Badge>
         );
       case "processing":
@@ -1026,22 +1043,22 @@ export default function AdminDashboard() {
                                     <>
                                       <Button
                                         size="sm"
-                                        className="h-9 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black uppercase text-[10px] shadow-sm flex items-center gap-2"
+                                        className="h-9 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black uppercase text-[10px] shadow-sm flex items-center gap-2 cursor-pointer"
                                         onClick={() =>
                                           handleUpdateOrderStatus(
                                             order.id,
-                                            "processing",
+                                            "accepted",
                                             order,
                                           )
                                         }
                                       >
                                         <Check className="w-3 h-3" />
-                                        Accept 👑
+                                        Accept ✅
                                       </Button>
                                       <Button
                                         size="sm"
                                         variant="destructive"
-                                        className="h-9 px-4 rounded-xl font-black uppercase text-[10px] shadow-sm flex items-center gap-2"
+                                        className="h-9 px-4 rounded-xl font-black uppercase text-[10px] shadow-sm flex items-center gap-2 cursor-pointer"
                                         onClick={() =>
                                           handleUpdateOrderStatus(
                                             order.id,
@@ -1051,25 +1068,37 @@ export default function AdminDashboard() {
                                         }
                                       >
                                         <XCircle className="w-3 h-3" />
-                                        Decline
+                                        Decline ❌
                                       </Button>
                                     </>
                                   )}
-                                  {order.status === "processing" && (
+                                  {(order.status === "accepted" || order.status === "processing") && (
                                     <Button
                                       size="sm"
-                                      className="h-9 px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-black uppercase text-[10px] shadow-sm flex items-center gap-2"
-                                      onClick={() =>
-                                        handleUpdateOrderStatus(
-                                          order.id,
-                                          "delivered",
-                                          order,
-                                        )
-                                      }
+                                      className="h-9 px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-black uppercase text-[10px] shadow-sm flex items-center gap-2 cursor-pointer"
+                                      onClick={() => {
+                                        if (window.confirm("Deliver this order? 🚚")) {
+                                          handleUpdateOrderStatus(
+                                            order.id,
+                                            "delivered",
+                                            order,
+                                          );
+                                        }
+                                      }}
                                     >
                                       <CheckCircle className="w-3 h-3" />
-                                      Deliver 👑
+                                      Deliver 🚚
                                     </Button>
+                                  )}
+                                  {order.status === "delivered" && (
+                                    <Badge className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-900/50 opacity-60 pointer-events-none px-3 py-1.5 rounded-xl font-black uppercase text-[10px]">
+                                      Delivered ✅
+                                    </Badge>
+                                  )}
+                                  {order.status === "declined" && (
+                                    <Badge className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/50 opacity-60 pointer-events-none px-3 py-1.5 rounded-xl font-black uppercase text-[10px]">
+                                      Declined ❌
+                                    </Badge>
                                   )}
                                   {order.status === "delivered" && order.network === "PC Games" && (
                                     <Button
@@ -1952,13 +1981,13 @@ export default function AdminDashboard() {
                                           onClick={() =>
                                             handleUpdateOrderStatus(
                                               o.id,
-                                              "processing",
+                                              "accepted",
                                               o,
                                             )
                                           }
                                         >
                                           <Check className="w-3 h-3" />
-                                          Accept 👑
+                                          Accept ✅
                                         </Button>
                                         <Button
                                           size="sm"
@@ -1973,57 +2002,38 @@ export default function AdminDashboard() {
                                           }
                                         >
                                           <XCircle className="w-3 h-3" />
-                                          Decline
+                                          Decline ❌
                                         </Button>
                                       </>
                                     )}
-                                    {o.status === "processing" && (
-                                      <>
-                                        <Button
-                                          size="sm"
-                                          className="h-8 px-3 rounded-lg bg-green-600 hover:bg-green-700 text-white font-black uppercase text-[9px] shadow-sm flex items-center gap-1 cursor-pointer"
-                                          onClick={() =>
+                                    {(o.status === "accepted" || o.status === "processing") && (
+                                      <Button
+                                        size="sm"
+                                        className="h-8 px-3 rounded-lg bg-green-600 hover:bg-green-700 text-white font-black uppercase text-[9px] shadow-sm flex items-center gap-1 cursor-pointer"
+                                        onClick={() => {
+                                          if (window.confirm("Deliver this order? 🚚")) {
                                             handleUpdateOrderStatus(
                                               o.id,
                                               "delivered",
                                               o,
-                                            )
+                                            );
                                           }
-                                        >
-                                          <CheckCircle className="w-3 h-3" />
-                                          Deliver 👑
-                                        </Button>
-                                        <Button
-                                          size="sm"
-                                          variant="destructive"
-                                          className="h-8 px-3 rounded-lg font-black uppercase text-[9px] shadow-sm flex items-center gap-1 cursor-pointer"
-                                          onClick={() =>
-                                            handleUpdateOrderStatus(
-                                              o.id,
-                                              "declined",
-                                              o,
-                                            )
-                                          }
-                                        >
-                                          <XCircle className="w-3 h-3" />
-                                          Decline
-                                        </Button>
-                                      </>
-                                    )}
-                                    {o.status === "delivered" && o.network === "PC Games" ? (
-                                      <Button
-                                        size="sm"
-                                        className="h-8 px-3 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-black uppercase text-[9px] shadow-sm flex items-center gap-1 cursor-pointer"
-                                        onClick={() => handleUpdateOrderStatus(o.id, "completed", o)}
+                                        }}
                                       >
-                                        <XCircle className="w-3 h-3" />
-                                        Close Download
+                                        <CheckCircle className="w-3 h-3" />
+                                        Deliver 🚚
                                       </Button>
-                                    ) : o.status === "delivered" ? (
-                                      <Badge className="bg-slate-100 text-slate-500 uppercase text-[8px] font-black tracking-wider py-1">
-                                        Delivered
+                                    )}
+                                    {o.status === "delivered" && (
+                                      <Badge className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-900/50 opacity-60 pointer-events-none text-[9px]">
+                                        Delivered ✅
                                       </Badge>
-                                    ) : null}
+                                    )}
+                                    {o.status === "declined" && (
+                                      <Badge className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/50 opacity-60 pointer-events-none text-[9px]">
+                                        Declined ❌
+                                      </Badge>
+                                    )}
                                   </div>
                                 </TableCell>
                               </TableRow>
