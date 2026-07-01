@@ -64,7 +64,7 @@ export default function App() {
 
         const verifyPayment = async () => {
             try {
-                const res = await fetch('https://my-website-backend-6uyj.onrender.com/verify-payment', {
+                const res = await fetch('/api/verify-payment', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ reference })

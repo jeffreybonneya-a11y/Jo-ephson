@@ -177,7 +177,7 @@ export default function CheckoutForm({
       unsubscribe = onSnapshot(doc(db, "orders", orderId), (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
-          if (data.status === "delivered") {
+          if (data.status === "delivered" || data.status === "success") {
             setOrderStatus("success");
             if (data.network === "PC Games") {
               setTimeout(() => onClose(), 1500);
@@ -298,57 +298,12 @@ export default function CheckoutForm({
       }
 
       const paystack = new PaystackCtor();
-
-      const customFields = isGame
-        ? [
-            {
-              display_name: "Order ID",
-              variable_name: "order_id",
-              value: finalOrderId,
-            },
-            {
-              display_name: "User ID",
-              variable_name: "fc_user_id",
-              value: data.fcUserId,
-            },
-            {
-              display_name: "Username",
-              variable_name: "fc_username",
-              value: data.fcUsername,
-            },
-            {
-              display_name: "Network",
-              variable_name: "network",
-              value: data.recipientNetwork,
-            },
-          ]
-        : [
-            {
-              display_name: "Order ID",
-              variable_name: "order_id",
-              value: finalOrderId,
-            },
-            {
-              display_name: "Recipient Phone",
-              variable_name: "phone",
-              value: data.recipientPhone,
-            },
-            {
-              display_name: "Network",
-              variable_name: "network",
-              value: data.recipientNetwork,
-            },
-          ];
-
-      paystack.newTransaction({
+ 
+       paystack.newTransaction({
         key: publicKey,
         email: auth.currentUser.email || "no-email@example.com",
         amount: Math.round(finalAmountToCharge * 100),
         currency: "GHS",
-        metadata: {
-          originalAmount: bundle.price,
-          custom_fields: customFields,
-        },
         onSuccess: async (response: any) => {
           // Immediately show verifying/processing loader screen
           setOrderStatus("processing");
@@ -356,17 +311,13 @@ export default function CheckoutForm({
 
           try {
             // Verify reference in background with active backend system
-            const res = await fetch("https://my-website-backend-6uyj.onrender.com/verify-payment", {
+            const res = await fetch("https://king-j-deals-awzz.onrender.com/verify-payment", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json"
               },
               body: JSON.stringify({
-                reference: response.reference,
-                network: data.recipientNetwork || bundle.network || "",
-                volume: bundle.dataAmount || "",
-                phone: data.recipientPhone || "",
-                offerSlug: bundle.offerSlug || ""
+                reference: response.reference
               })
             });
             const verifyData = await res.json();
@@ -381,7 +332,7 @@ export default function CheckoutForm({
                 network: data.recipientNetwork,
                 bundle: bundle.network === "PC Games" ? bundle.name : `${data.recipientNetwork} ${bundle.dataAmount}`,
                 amount: Number(bundle.price),
-                status: "delivered",
+                status: "success",
                 createdAt: serverTimestamp(),
                 userId: auth.currentUser.uid,
                 customerName: profile?.fullName || auth.currentUser.displayName || "Royal Customer",
@@ -423,7 +374,7 @@ export default function CheckoutForm({
                   wholesale_price: wsPrice,
                   agent_price: agPrice,
                   profit: calculatedProfit,
-                  status: "delivered",
+                  status: "success",
                   created_at: serverTimestamp(),
                   paymentReference: response.reference,
                 };
@@ -446,7 +397,7 @@ export default function CheckoutForm({
             } else {
               console.warn("Backend verification responded unsuccessful");
 
-              // Save order details with "failed" status in Firestore
+              // Save order details with "failed" status in Firestore as requested
               const orderData = {
                 email: auth.currentUser.email || "no-email@example.com",
                 phone: data.recipientPhone || "",
@@ -480,26 +431,6 @@ export default function CheckoutForm({
               };
 
               await setDoc(doc(db, "orders", finalOrderId), orderData);
-
-              if (agentContext) {
-                const agentOrderData = {
-                  id: finalOrderId,
-                  agent_id: agentContext.id,
-                  customer_details: {
-                    name: profile?.fullName || auth.currentUser.displayName || "Royal Customer",
-                    email: auth.currentUser.email || "no-email@example.com",
-                    phone: data.recipientPhone || "",
-                    network: data.recipientNetwork,
-                  },
-                  wholesale_price: wsPrice,
-                  agent_price: agPrice,
-                  profit: calculatedProfit,
-                  status: "failed",
-                  created_at: serverTimestamp(),
-                  paymentReference: response.reference,
-                };
-                await setDoc(doc(db, "agent_orders", finalOrderId), agentOrderData);
-              }
 
               toast.error("Payment verification failed! If you were charged, please contact support with reference: " + response.reference, { duration: 10000 });
               setOrderStatus("idle");

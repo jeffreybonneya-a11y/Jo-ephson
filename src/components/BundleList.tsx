@@ -200,6 +200,18 @@ export default function BundleList({
   const filteredBundles = processedBundles
     .filter((b) => b.network === activeTab)
     .filter((b) => {
+      // Telecel Bundles Should Start From 10GB Only
+      if (b.network === "Telecel") {
+        const amountStr = b.dataAmount || b.name || "";
+        const gbMatch = amountStr.match(/(\d+(?:\.\d+)?)\s*GB/i);
+        const gbValue = gbMatch ? parseFloat(gbMatch[1]) : 0;
+        if (gbValue < 10 || amountStr.toLowerCase().includes("mb")) {
+          return false;
+        }
+      }
+      return true;
+    })
+    .filter((b) => {
       if (!searchQuery) return true;
       const q = searchQuery.toLowerCase();
       return (

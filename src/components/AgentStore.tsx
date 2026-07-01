@@ -210,7 +210,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
         },
         onSuccess: async (response: any) => {
           try {
-            const res = await fetch("https://my-website-backend-6uyj.onrender.com/verify-payment", {
+            const res = await fetch("/api/verify-payment", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json"
@@ -658,6 +658,17 @@ Reference Code: ${refCode}
                     {['MTN', 'Telecel', 'AirtelTigo', 'FC Mobile Points', 'FC Mobile Silver', 'PUBG Mobile UC'].map(net => {
                       const networkBundles = bundles
                         .filter(b => b.network === net || b.category === net)
+                        .filter(b => {
+                          if (b.network === 'Telecel') {
+                            const amountStr = b.dataAmount || b.name || "";
+                            const gbMatch = amountStr.match(/(\d+(?:\.\d+)?)\s*GB/i);
+                            const gbValue = gbMatch ? parseFloat(gbMatch[1]) : 0;
+                            if (gbValue < 10 || amountStr.toLowerCase().includes("mb")) {
+                              return false;
+                            }
+                          }
+                          return true;
+                        })
                         .sort((a, b) => {
                           const mbA = parseDataAmountToMB(a.dataAmount);
                           const mbB = parseDataAmountToMB(b.dataAmount);

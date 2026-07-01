@@ -1,0 +1,34 @@
+import axios from "axios";
+
+const apiKey = process.env.GIGZHUB_API_KEY;
+
+async function testDirectNetworks() {
+  const networks = [
+    "/airteltigo",
+    "/AirtelTigo",
+    "/telecel",
+    "/Telecel",
+    "/mtn",
+    "/MTN",
+    "/at",
+    "/AT"
+  ];
+
+  for (const path of networks) {
+    try {
+      console.log(`POST to https://gigzhub.net/api/v1${path}...`);
+      const res = await axios.post(`https://gigzhub.net/api/v1${path}`, {}, {
+        headers: {
+          "x-api-key": apiKey || "",
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        }
+      });
+      console.log(`POST ${path} SUCCESS:`, res.status, res.data);
+    } catch (e: any) {
+      console.log(`POST ${path} FAILED:`, e.response?.status, JSON.stringify(e.response?.data || e.message));
+    }
+  }
+}
+
+testDirectNetworks();

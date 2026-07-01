@@ -94,7 +94,7 @@ export default function AdminDashboard() {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingBundle, setEditingBundle] = useState<Bundle | null>(null);
-  const [ghBalance, setGhBalance] = useState<number | null>(null);
+
 
   // Agents Hub
   const [agents, setAgents] = useState<any[]>([]);
@@ -120,6 +120,8 @@ export default function AdminDashboard() {
     description: "",
     imageUrl: "",
   });
+
+
 
   useEffect(() => {
     seedFC();
@@ -729,6 +731,8 @@ export default function AdminDashboard() {
             Order Fulfillment Dashboard
           </p>
         </div>
+
+
       </div>
 
       <Tabs defaultValue="tracking" className="space-y-6">
