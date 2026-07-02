@@ -41,6 +41,42 @@ async function handlePaymentVerification(reference: string, metadata: any) {
   return { success: true };
 }
 
+app.post('/verify-payment', async (req, res) => {
+    try {
+        const { reference } = req.body;
+        if (!reference) {
+            return res.status(400).json({ success: false, error: 'Reference is required' });
+        }
+        const data = await verifyPaystackReference(reference);
+        if (data && (data.status === 'success' || data.gateway_response === 'Successful')) {
+            return res.json({ success: true, data });
+        } else {
+            return res.json({ success: false, error: 'Transaction unsuccessful' });
+        }
+    } catch (err: any) {
+        console.error('Payment verification failed:', err);
+        return res.json({ success: false, error: err.message });
+    }
+});
+
+app.post('/api/verify-payment', async (req, res) => {
+    try {
+        const { reference } = req.body;
+        if (!reference) {
+            return res.status(400).json({ success: false, error: 'Reference is required' });
+        }
+        const data = await verifyPaystackReference(reference);
+        if (data && (data.status === 'success' || data.gateway_response === 'Successful')) {
+            return res.json({ success: true, data });
+        } else {
+            return res.json({ success: false, error: 'Transaction unsuccessful' });
+        }
+    } catch (err: any) {
+        console.error('Payment verification failed:', err);
+        return res.json({ success: false, error: err.message });
+    }
+});
+
 // REST Endpoint: Seed Silver & FC
 app.get('/api/seed-fc', (req, res) => {
     res.json({ success: true, message: 'Seeding is now handled client-side.' });

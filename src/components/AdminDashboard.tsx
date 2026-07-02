@@ -1111,7 +1111,7 @@ export default function AdminDashboard() {
                                       </Button>
                                     </>
                                   )}
-                                  {(order.status === "accepted" || order.status === "processing") && (
+                                  {order.status === "accepted" && (
                                     <Button
                                       size="sm"
                                       className="h-9 px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-black uppercase text-[10px] shadow-sm flex items-center gap-2 cursor-pointer"
@@ -2087,7 +2087,7 @@ export default function AdminDashboard() {
                                         </Button>
                                       </>
                                     )}
-                                    {(o.status === "accepted" || o.status === "processing") && (
+                                    {o.status === "accepted" && (
                                       <Button
                                         size="sm"
                                         className="h-8 px-3 rounded-lg bg-green-600 hover:bg-green-700 text-white font-black uppercase text-[9px] shadow-sm flex items-center gap-1 cursor-pointer"

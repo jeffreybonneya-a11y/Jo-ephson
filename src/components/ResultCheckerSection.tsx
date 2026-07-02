@@ -122,7 +122,7 @@ export default function ResultCheckerSection({ agentContext }: ResultCheckerSect
           setIsSubmitting(true);
           try {
             // Verify payment
-            const verifyRes = await fetch("https://kingj-backend.onrender.com/verify-payment", {
+            const verifyRes = await fetch("/api/verify-payment", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ reference: response.reference })

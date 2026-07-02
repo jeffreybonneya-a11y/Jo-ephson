@@ -296,7 +296,7 @@ export default function CheckoutForm({
 
           try {
             // Verify reference in background with active backend system
-            const res = await fetch("https://kingj-backend.onrender.com/verify-payment", {
+            const res = await fetch("/api/verify-payment", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({

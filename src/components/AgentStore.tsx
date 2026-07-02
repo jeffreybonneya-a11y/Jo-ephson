@@ -210,7 +210,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
         },
         onSuccess: async (response: any) => {
           try {
-            const res = await fetch("https://kingj-backend.onrender.com/verify-payment", {
+            const res = await fetch("/api/verify-payment", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json"
