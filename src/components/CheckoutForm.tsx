@@ -194,21 +194,6 @@ export default function CheckoutForm({
     };
   }, [orderStatus, orderId, onClose]);
 
-  const unlockPremiumAccess = () => {
-    console.log("Payment verified successfully");
-    toast.success("Payment verified successfully! Access unlocked! 👑");
-    if (bundle && bundle.network === "PC Games") {
-      setOrderStatus("processing");
-      setIsSubmitting(false);
-    } else {
-      setOrderStatus("success");
-      setTimeout(() => {
-        onClose();
-      }, 3000);
-      setIsSubmitting(false);
-    }
-  };
-
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
     if (!bundle || !auth.currentUser) {
       toast.error("You must be logged in to purchase.");
@@ -380,11 +365,9 @@ export default function CheckoutForm({
                 await setDoc(doc(db, "agent_orders", finalOrderId), agentOrderData);
               }
 
-              // Unlock customer access & update statuses
-              unlockPremiumAccess();
-
               toast.success("Payment verified successfully ✅");
               setOrderStatus("success");
+              setIsSubmitting(false);
 
               // If PC Games, redirect after a short while, otherwise handle 4 second timeout
               if (bundle.network === "PC Games") {
@@ -394,8 +377,7 @@ export default function CheckoutForm({
               } else {
                 setTimeout(() => {
                   setOrderStatus("idle");
-                  setIsSubmitting(false);
-                  onClose();
+                  onClose?.();
                 }, 4000);
               }
             } else {

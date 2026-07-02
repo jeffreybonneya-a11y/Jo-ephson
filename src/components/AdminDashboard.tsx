@@ -164,9 +164,9 @@ export default function AdminDashboard() {
     );
     const unsubOrders = onSnapshot(ordersQuery, (snapshot) => {
       const allOrders = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() as any }));
-      // Show only orders with successful payment
+      // Show only orders that are not purely unpaid checkout sessions
       const completedOrders = allOrders.filter(
-        (o) => o.paymentStatus === "success" || o.status === "success"
+        (o) => o.status !== "unpaid" && o.status !== "checkout_unpaid"
       );
       setOrders(completedOrders);
     });
