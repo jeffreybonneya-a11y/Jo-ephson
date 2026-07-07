@@ -48,7 +48,7 @@ export default function BundleList({
 }: BundleListProps) {
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("Telecel");
+  const [activeTab, setActiveTab] = useState("MTN");
   const [activeGameCoinSubTab, setActiveGameCoinSubTab] = useState("FC_MOBILE");
   const [activePCGamesSubTab, setActivePCGamesSubTab] = useState("FC_26");
   const [showFCOptions, setShowFCOptions] = useState(false);
@@ -506,16 +506,12 @@ export default function BundleList({
             <div className="overflow-x-auto pb-2 lg:pb-0 scrollbar-hide">
               <TabsList className="flex w-max gap-2 bg-slate-100/60 dark:bg-slate-800/60 p-1 rounded-xl border border-slate-200/40 dark:border-slate-700/40 h-auto">
                 {tabs.map((tab) => {
-                  const isMTN = tab === "MTN";
                   return (
                     <TabsTrigger
                       key={tab}
                       value={tab}
-                      disabled={isMTN}
                       className={`text-xs sm:text-sm font-bold h-9 md:h-11 px-4 rounded-lg transition-all select-none border border-transparent ${
-                        isMTN
-                          ? "opacity-50 cursor-not-allowed bg-slate-200/40 dark:bg-slate-800/40 text-muted-foreground/60"
-                          : tab === activeTab
+                        tab === activeTab
                           ? getNetworkColor(tab) +
                             " shadow-sm font-extrabold border-primary cursor-pointer"
                           : "text-muted-foreground hover:text-foreground dark:hover:text-white hover:bg-slate-200/20 cursor-pointer"
@@ -523,11 +519,6 @@ export default function BundleList({
                     >
                       <div className="flex flex-col items-center justify-center leading-tight">
                         <span>{tab}</span>
-                        {isMTN && (
-                          <span className="text-[7px] font-black text-red-500 uppercase tracking-tight leading-none mt-0.5">
-                            Currently unavailable
-                          </span>
-                        )}
                       </div>
                     </TabsTrigger>
                   );
@@ -592,11 +583,6 @@ export default function BundleList({
                             >
                               {bundle.network}
                             </Badge>
-                            {bundle.network === "MTN" && (
-                              <span className="text-[9px] bg-red-500/10 text-red-500 border border-red-500/20 font-bold px-1.5 py-0.5 rounded uppercase font-black shrink-0">
-                                Out of Stock
-                              </span>
-                            )}
                             <Zap className="w-4 h-4 text-primary fill-primary animate-pulse shrink-0" />
                           </div>
                           <CardTitle className="text-lg sm:text-xl font-black mt-2 text-foreground dark:text-white tracking-tight leading-none min-h-[2rem] flex items-center">
@@ -644,21 +630,12 @@ export default function BundleList({
                             <Wifi className="w-6 h-6 text-primary/10 group-hover:text-primary transition-colors shrink-0" />
                           </div>
                           <Button
-                            disabled={bundle.network === "MTN"}
-                            className={
-                              bundle.network === "MTN"
-                                ? "w-full h-10 text-xs font-black rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed shadow-none"
-                                : "w-full h-10 text-xs font-black rounded-xl bg-secondary text-secondary-foreground hover:bg-primary hover:text-white transition-all shadow-md cursor-pointer"
-                            }
+                            className="w-full h-10 text-xs font-black rounded-xl bg-secondary text-secondary-foreground hover:bg-primary hover:text-white transition-all shadow-md cursor-pointer"
                             onClick={() => {
-                              if (bundle.network !== "MTN") {
-                                onSelectBundle(bundle);
-                              }
+                              onSelectBundle(bundle);
                             }}
                           >
-                            {bundle.network === "MTN"
-                              ? "Currently unavailable"
-                              : "BUY NOW 👑"}
+                            BUY NOW 👑
                           </Button>
                         </CardContent>
                       </Card>
@@ -715,11 +692,6 @@ export default function BundleList({
                                 >
                                   {bundle.network}
                                 </Badge>
-                                {bundle.network === "MTN" && (
-                                  <span className="text-[9px] bg-red-500/10 text-red-500 border border-red-500/20 font-bold px-1.5 py-0.5 rounded uppercase font-black shrink-0">
-                                    Out of Stock
-                                  </span>
-                                )}
                                 <Zap className="w-4 h-4 text-primary fill-primary animate-pulse shrink-0" />
                               </div>
                               <CardTitle className="text-xl sm:text-2xl font-black mt-2 text-foreground dark:text-white tracking-tight leading-none">
@@ -767,21 +739,12 @@ export default function BundleList({
                                 <Wifi className="w-7 h-7 text-primary/10 group-hover:text-primary transition-colors shrink-0" />
                               </div>
                               <Button
-                                disabled={bundle.network === "MTN"}
-                                className={
-                                  bundle.network === "MTN"
-                                    ? "w-full h-10 text-xs font-black rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed shadow-none"
-                                    : "w-full h-10 text-xs font-black rounded-xl bg-secondary text-secondary-foreground hover:bg-primary hover:text-white transition-all shadow-md cursor-pointer"
-                                }
+                                className="w-full h-10 text-xs font-black rounded-xl bg-secondary text-secondary-foreground hover:bg-primary hover:text-white transition-all shadow-md cursor-pointer"
                                 onClick={() => {
-                                  if (bundle.network !== "MTN") {
-                                    onSelectBundle(bundle);
-                                  }
+                                  onSelectBundle(bundle);
                                 }}
                               >
-                                {bundle.network === "MTN"
-                                  ? "Currently unavailable"
-                                  : "BUY NOW 👑"}
+                                BUY NOW 👑
                               </Button>
                             </CardContent>
                           </Card>

@@ -200,14 +200,6 @@ export default function CheckoutForm({
       return;
     }
 
-    if (bundle.network === "MTN" || data.recipientNetwork === "MTN") {
-      toast.error(
-        "MTN bundles are currently unavailable due to network issues. Please try Telecel or AirtelTigo.",
-        { duration: 6000 }
-      );
-      return;
-    }
-
     setIsSubmitting(true);
 
     let publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
@@ -664,8 +656,8 @@ export default function CheckoutForm({
                             <SelectValue placeholder="Network" />
                           </SelectTrigger>
                           <SelectContent className="rounded-xl border-2 dark:bg-slate-950 dark:border-slate-800">
-                            <SelectItem value="MTN" className="font-black" disabled>
-                              MTN 👑 (Currently unavailable)
+                            <SelectItem value="MTN" className="font-black">
+                              MTN 👑
                             </SelectItem>
                             <SelectItem value="Telecel" className="font-black">
                               Telecel 👑
