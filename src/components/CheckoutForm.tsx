@@ -249,6 +249,7 @@ export default function CheckoutForm({
       const isAgentBuyingFromOwnStore =
         agentContext && auth.currentUser?.uid === agentContext.id;
       const isAgentBuyingOnHomePage = !agentContext && isAgentUser;
+      const isAgentActive = !!(isAgentBuyingFromOwnStore || isAgentBuyingOnHomePage || isAgentUser);
       
       const amountStr = String(bundle.dataAmount || bundle.name || "");
       const gbMatch = amountStr.match(/(\d+(?:\.\d+)?)\s*GB/i);
@@ -256,7 +257,7 @@ export default function CheckoutForm({
       const isTelecel1to5 = bundle.network === "Telecel" && gbValue >= 1 && gbValue <= 5;
 
       const paystackFee =
-        (isAgentBuyingFromOwnStore || isAgentBuyingOnHomePage) && !(!!agentContext && isTelecel1to5) ? 1.0 : 0.0;
+        (isAgentBuyingFromOwnStore || isAgentBuyingOnHomePage) && !(!!agentContext && isTelecel1to5) && !(bundle.network === "MTN" && isAgentActive) ? 1.0 : 0.0;
       const hiddenGameCharge = isFC ? 0.0 : (isGame ? 1.0 : 0.0);
       
       const isTelecelHiddenChargeMain = 
@@ -266,7 +267,9 @@ export default function CheckoutForm({
 
       const hiddenTelecelCharge = isTelecelHiddenChargeMain ? 1.0 : (!!agentContext && isTelecel1to5 ? 2.0 : 0.0);
 
-      const finalAmountToCharge = Number(bundle.price) + paystackFee + hiddenGameCharge + hiddenTelecelCharge;
+      const hiddenMTNCharge = bundle.network === "MTN" ? (isAgentActive ? 1.0 : (agentContext ? 0.0 : 1.0)) : 0.0;
+
+      const finalAmountToCharge = Number(bundle.price) + paystackFee + hiddenGameCharge + hiddenTelecelCharge + hiddenMTNCharge;
 
       const mod = await import("@paystack/inline-js");
       let PaystackCtor: any = mod.default || mod;

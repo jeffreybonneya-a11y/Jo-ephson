@@ -202,6 +202,12 @@ export default function BundleList({
       discountedPrice = Math.max(0, originalPrice - deduction);
     }
 
+    // Deduct 2ghc from MTN prices for standard site visitors
+    if (b.network === "MTN" && !agentContext && !isAgentMode && !isAgentUser) {
+      discountedPrice = Math.max(0, discountedPrice - 2.0);
+      originalPrice = Math.max(0, originalPrice - 2.0);
+    }
+
     return {
       ...b,
       originalPrice,
