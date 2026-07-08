@@ -181,7 +181,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
           phone: profile?.phoneNumber || "0000000000",
           network: "SYSTEM",
           bundle: "AGENT ACCESS UNLOCK",
-          amount: 100,
+          amount: 50,
           status: "pending",
           createdAt: serverTimestamp(),
           userId: auth.currentUser?.uid,
@@ -200,7 +200,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
       paystack.newTransaction({
         key: publicKey,
         email: auth.currentUser.email || '',
-        amount: 10000, // 100 GHS
+        amount: 5000, // 50 GHS
         currency: 'GHS',
         metadata: {
            custom_fields: [
@@ -488,7 +488,7 @@ Reference Code: ${refCode}
                onClick={handlePayForAccess}
                disabled={isPaying}
              >
-                {isPaying ? <Loader2 className="w-6 h-6 animate-spin" /> : <><Crown className="w-5 h-5 sm:w-6 sm:h-6 text-primary" /> UNLOCK ACCESS FOR 100 GHS</>}
+                {isPaying ? <Loader2 className="w-6 h-6 animate-spin" /> : <><Crown className="w-5 h-5 sm:w-6 sm:h-6 text-primary" /> UNLOCK ACCESS: <span className="line-through text-slate-400 mr-1 sm:mr-2">GHS 100</span> <span className="text-primary font-black">GHS 50</span></>}
              </Button>
           </div>
       </div>
@@ -1216,9 +1216,25 @@ Reference Code: ${refCode}
                                   <p className="text-xs font-black text-slate-800 dark:text-white uppercase">
                                     {order.customerName || 'Royal Customer'}
                                   </p>
-                                  <p className="text-[10px] font-mono font-bold text-slate-400 truncate">
-                                    {order.email || 'No email provided'}
-                                  </p>
+                                  <div className="flex items-center gap-1.5">
+                                    <p className="text-[10px] font-mono font-bold text-slate-400 truncate max-w-[150px]" title={order.email}>
+                                      {order.email || 'No email provided'}
+                                    </p>
+                                    {order.email && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        title="Copy Email"
+                                        className="h-4 w-4 p-0 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded cursor-pointer"
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(order.email);
+                                          toast.success("Customer email copied! 👑");
+                                        }}
+                                      >
+                                        <Copy className="w-2.5 h-2.5" />
+                                      </Button>
+                                    )}
+                                  </div>
                                   {order.createdAt && (
                                     <p className="text-[9px] font-bold text-slate-400 italic">
                                       Sale registered: {new Date(order.createdAt?.seconds * 1000).toLocaleString()}

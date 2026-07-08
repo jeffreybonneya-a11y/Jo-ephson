@@ -917,11 +917,27 @@ export default function AdminDashboard() {
                           <TableCell className="p-4">
                             <div className="flex flex-col min-w-[150px]">
                               <span className="font-bold text-slate-900 dark:text-slate-100 leading-tight">
-                                {order.customerName || order.email}
+                                {order.customerName || "Royal Customer"}
                               </span>
-                              <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold tracking-tight">
-                                {order.email}
-                              </span>
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono font-bold tracking-tight truncate max-w-[180px]" title={order.email}>
+                                  {order.email || "No email"}
+                                </span>
+                                {order.email && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    title="Copy Customer Email"
+                                    className="h-5 w-5 p-0 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded cursor-pointer"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(order.email);
+                                      toast.success(`Copied Email: ${order.email} 👑`);
+                                    }}
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                  </Button>
+                                )}
+                              </div>
                             </div>
                           </TableCell>
                           <TableCell>
@@ -1982,6 +1998,31 @@ export default function AdminDashboard() {
                                           <Copy className="w-3 h-3" />
                                         </Button>
                                       )}
+                                    </div>
+                                    <div className="mt-2 pt-1.5 border-t border-dashed border-slate-200 dark:border-slate-800 flex flex-col gap-0.5">
+                                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Customer Detail:</p>
+                                      <p className="text-[11px] font-extrabold text-slate-700 dark:text-slate-200 uppercase leading-none">
+                                        {o.customerName || "Royal Customer"}
+                                      </p>
+                                      <div className="flex items-center gap-1.5 mt-0.5">
+                                        <p className="text-[10px] font-mono font-bold text-slate-400 truncate max-w-[180px]" title={o.email}>
+                                          {o.email || "No email provided"}
+                                        </p>
+                                        {o.email && (
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            title="Copy Customer Email"
+                                            className="h-4 w-4 p-0 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded cursor-pointer"
+                                            onClick={() => {
+                                              navigator.clipboard.writeText(o.email);
+                                              toast.success(`Copied Email: ${o.email} 👑`);
+                                            }}
+                                          >
+                                            <Copy className="w-2.5 h-2.5" />
+                                          </Button>
+                                        )}
+                                      </div>
                                     </div>
                                     {o.fcUserId && o.fcUsername && (
                                       <div className="bg-[#00FF87]/10 p-2 rounded-md border border-[#00FF87]/20 flex flex-col gap-1 mt-2 max-w-xs">
