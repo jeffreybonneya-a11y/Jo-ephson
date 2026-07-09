@@ -111,7 +111,21 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
         id: doc.id,
         ...doc.data()
       })) as Bundle[];
-      setBundles(allBundles.filter(b => b.active));
+       const filtered = allBundles.filter((b) => {
+        if (!b.active) return false;
+        if (b.network === "Telecel") {
+          const amountStr = String(b.dataAmount || b.name || "");
+          const gbMatch = amountStr.match(/(\d+(?:\.\d+)?)\s*GB/i);
+          if (gbMatch) {
+            const gbValue = parseFloat(gbMatch[1]);
+            if (gbValue >= 1 && gbValue <= 5) {
+              return false;
+            }
+          }
+        }
+        return true;
+      });
+      setBundles(filtered);
       setLoadingBundles(false);
     });
 
