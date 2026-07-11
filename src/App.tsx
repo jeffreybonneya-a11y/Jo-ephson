@@ -118,38 +118,9 @@ export default function App() {
         profileUnsubscribe = onSnapshot(doc(db, 'users', user.uid), async (docSnapshot) => {
           if (docSnapshot.exists()) {
             const data = docSnapshot.data() as UserProfile;
-            const isTargetEmail = user.email?.toLowerCase() === 'festusnortey684@gmail.com';
-            if (isTargetEmail && !data.isAgent) {
-              try {
-                await updateDoc(doc(db, 'users', user.uid), { isAgent: true });
-                data.isAgent = true;
-              } catch (err) {
-                console.error("Auto-agent update failed:", err);
-                data.isAgent = true;
-              }
-            }
             setProfile(data);
             const isEmailAdmin = adminEmails.includes(user.email?.toLowerCase() || '');
             setIsAdmin(isEmailAdmin);
-          } else {
-            const isTargetEmail = user.email?.toLowerCase() === 'festusnortey684@gmail.com';
-            if (isTargetEmail) {
-              try {
-                const initialProfile = {
-                  uid: user.uid,
-                  email: user.email,
-                  fullName: user.displayName || "Festus Nortey",
-                  role: 'user',
-                  walletBalance: 0,
-                  isAgent: true,
-                  topupReference: 'KJ-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
-                };
-                await setDoc(doc(db, 'users', user.uid), initialProfile);
-                setProfile(initialProfile as UserProfile);
-              } catch (err) {
-                console.error("Auto-agent create failed:", err);
-              }
-            }
           }
         });
 

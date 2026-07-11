@@ -161,15 +161,15 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
   }, []);
 
   const handlePayForAccess = async () => {
-    if (!auth.currentUser) return toast.error("Please login to access the Agent Store.");
+    if (!auth.currentUser) return;
     
     setIsPaying(true);
 
     try {
-      // Generate ID synchronously client-side
+      // 1. Generate ID synchronously client-side
       const finalOrderId = doc(collection(db, 'orders')).id;
 
-      // Save order details properly in Firestore for admin to accept
+      // 2. Save order details properly in Firestore for admin to accept instantly
       await setDoc(doc(db, 'orders', finalOrderId), {
         email: auth.currentUser?.email || 'no-email@example.com',
         phone: profile?.phoneNumber || "0000000000",
@@ -184,12 +184,68 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
         paymentStatus: "pending"
       });
 
-      toast.success("Request sent successfully! The King will review your request shortly. 👑");
-      setIsPaying(false);
+      // Show immediate feedback to user that the order has reached the admin
+      toast.success("Request registered on Dashboard! Opening Paystack... 👑");
+
+      // 3. Retrieve Paystack Public Key securely
+      let publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
+      if (!publicKey) {
+        try {
+          const res = await fetch("/api/paystack-public-key");
+          const resData = await res.json();
+          publicKey = resData.publicKey;
+        } catch (err) {
+          console.error("Failed to fetch Paystack Public Key:", err);
+        }
+      }
+
+      if (publicKey) {
+        try {
+          const mod = await import("@paystack/inline-js");
+          let PaystackCtor: any = mod.default || mod;
+          if (typeof PaystackCtor !== "function" && PaystackCtor.default) {
+            PaystackCtor = PaystackCtor.default;
+          }
+
+          const paystack = new PaystackCtor();
+          paystack.newTransaction({
+            key: publicKey,
+            email: auth.currentUser.email || 'no-email@example.com',
+            amount: 5000, // 50 GHS in pesewas
+            currency: 'GHS',
+            metadata: {
+              custom_fields: [
+                { display_name: "Purpose", variable_name: "purpose", value: "Agent Access Unlock" },
+                { display_name: "Order ID", variable_name: "order_id", value: finalOrderId }
+              ]
+            },
+            onSuccess: async (response: any) => {
+              try {
+                // Update order in Firestore on successful payment
+                await updateDoc(doc(db, 'orders', finalOrderId), {
+                  paymentStatus: "success",
+                  reference: response.reference
+                });
+                toast.success("Payment completed successfully! 👑");
+              } catch (updateErr) {
+                console.error("Failed to update order with Paystack success:", updateErr);
+              }
+            },
+            onCancel: () => {
+              console.log("Paystack payment cancelled by user.");
+              // Quietly handle cancellation without displaying any error toasts!
+            }
+          });
+        } catch (paystackError) {
+          console.error("Paystack popup load error:", paystackError);
+          // Quietly handle error without displaying any error toasts!
+        }
+      }
 
     } catch (err) {
       console.error("Agent pre-order error:", err);
-      toast.error("Failed to start checkout. Please try again.");
+      // Quietly handle error without displaying any error toasts!
+    } finally {
       setIsPaying(false);
     }
   };
@@ -425,8 +481,7 @@ Reference Code: ${refCode}
   }
 
   // Case A: User is not yet unlocked as an Agent in their generic Profile.
-  const isTargetFestus = auth.currentUser?.email?.toLowerCase() === 'festusnortey684@gmail.com';
-  if (!profile?.isAgent && !isTargetFestus) {
+  if (!profile?.isAgent) {
     return (
       <div className="min-h-[85vh] flex flex-col items-center justify-center p-4 sm:p-6 bg-slate-50 dark:bg-slate-900 overflow-hidden">
           <div className="max-w-md w-full bg-white dark:bg-slate-950 rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-12 text-center shadow-2xl relative border-4 border-slate-100 dark:border-slate-800">
