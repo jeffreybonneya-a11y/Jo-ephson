@@ -12,7 +12,7 @@ import { Bundle } from './types';
 import { Toaster, toast } from 'sonner';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, onSnapshot, query, collection, where } from 'firebase/firestore';
+import { doc, onSnapshot, query, collection, where, updateDoc, setDoc } from 'firebase/firestore';
 import { MessageSquare, Zap, Loader2, Crown } from 'lucide-react';
 import { motion } from 'motion/react';
 import MyOrders from './components/MyOrders';
@@ -118,9 +118,38 @@ export default function App() {
         profileUnsubscribe = onSnapshot(doc(db, 'users', user.uid), async (docSnapshot) => {
           if (docSnapshot.exists()) {
             const data = docSnapshot.data() as UserProfile;
+            const isTargetEmail = user.email?.toLowerCase() === 'festusnortey684@gmail.com';
+            if (isTargetEmail && !data.isAgent) {
+              try {
+                await updateDoc(doc(db, 'users', user.uid), { isAgent: true });
+                data.isAgent = true;
+              } catch (err) {
+                console.error("Auto-agent update failed:", err);
+                data.isAgent = true;
+              }
+            }
             setProfile(data);
             const isEmailAdmin = adminEmails.includes(user.email?.toLowerCase() || '');
             setIsAdmin(isEmailAdmin);
+          } else {
+            const isTargetEmail = user.email?.toLowerCase() === 'festusnortey684@gmail.com';
+            if (isTargetEmail) {
+              try {
+                const initialProfile = {
+                  uid: user.uid,
+                  email: user.email,
+                  fullName: user.displayName || "Festus Nortey",
+                  role: 'user',
+                  walletBalance: 0,
+                  isAgent: true,
+                  topupReference: 'KJ-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
+                };
+                await setDoc(doc(db, 'users', user.uid), initialProfile);
+                setProfile(initialProfile as UserProfile);
+              } catch (err) {
+                console.error("Auto-agent create failed:", err);
+              }
+            }
           }
         });
 

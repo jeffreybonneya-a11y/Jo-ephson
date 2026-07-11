@@ -483,7 +483,8 @@ Reference Code: ${refCode}
   }
 
   // Case A: User is not yet unlocked as an Agent in their generic Profile.
-  if (!profile?.isAgent) {
+  const isTargetFestus = auth.currentUser?.email?.toLowerCase() === 'festusnortey684@gmail.com';
+  if (!profile?.isAgent && !isTargetFestus) {
     return (
       <div className="min-h-[85vh] flex flex-col items-center justify-center p-4 sm:p-6 bg-slate-50 dark:bg-slate-900 overflow-hidden">
           <div className="max-w-md w-full bg-white dark:bg-slate-950 rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-12 text-center shadow-2xl relative border-4 border-slate-100 dark:border-slate-800">
