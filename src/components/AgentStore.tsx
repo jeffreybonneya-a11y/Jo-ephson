@@ -302,6 +302,9 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
         prices: {}
       });
 
+      // Also ensure the user document reflects isAgent: true
+      await updateDoc(doc(db, 'users', auth.currentUser.uid), { isAgent: true });
+
       toast.success(`Welcome Agent ${regName.trim()} 🎉! Your store is now active.`);
     } catch (err) {
       console.error("Agent registration error:", err);
