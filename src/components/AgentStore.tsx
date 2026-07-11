@@ -165,88 +165,27 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
     
     setIsPaying(true);
 
-    let publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
-    if (!publicKey) {
-      try {
-        const res = await fetch("/api/paystack-public-key");
-        const resData = await res.json();
-        publicKey = resData.publicKey;
-      } catch (err) {
-        console.error("Failed to fetch Paystack Public Key:", err);
-      }
-    }
-
-    if (!publicKey) {
-      toast.error("Paystack configuration is missing.");
-      setIsPaying(false);
-      return;
-    }
-
     try {
-      // 0. Generate ID synchronously client-side WITHOUT saving to Firestore yet
+      // Generate ID synchronously client-side
       const finalOrderId = doc(collection(db, 'orders')).id;
 
-      const unlockPremiumAccess = async (reference: string) => {
-        console.log("Payment verified successfully, creating agent access order");
-        
-        // Save order details properly in Firestore only after verification is successful
-        await setDoc(doc(db, 'orders', finalOrderId), {
-          email: auth.currentUser?.email || 'no-email@example.com',
-          phone: profile?.phoneNumber || "0000000000",
-          network: "SYSTEM",
-          bundle: "AGENT ACCESS UNLOCK",
-          amount: 50,
-          status: "pending",
-          createdAt: serverTimestamp(),
-          userId: auth.currentUser?.uid,
-          customerName: profile?.fullName || auth.currentUser?.displayName || 'Aspiring Agent',
-          reference: reference,
-          paymentStatus: "success"
-        });
-
-        toast.success("Payment successful! The King will review your request shortly. 👑");
-        setIsPaying(false);
-      };
-
-      const PaystackPop = (await import('@paystack/inline-js')).default;
-      const paystack = new (PaystackPop as any)();
-      
-      paystack.newTransaction({
-        key: publicKey,
-        email: auth.currentUser.email || '',
-        amount: 5000, // 50 GHS
-        currency: 'GHS',
-        metadata: {
-           custom_fields: [
-              { display_name: "Purpose", variable_name: "purpose", value: "Agent Access Unlock" },
-              { display_name: "Order ID", variable_name: "order_id", value: finalOrderId }
-           ]
-        },
-        onSuccess: async (response: any) => {
-          try {
-            const res = await fetch("/api/verify-payment", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({
-                reference: response.reference
-              })
-            });
-            const data = await res.json();
-            if (data.success) {
-              await unlockPremiumAccess(response.reference);
-            } else {
-              console.warn("Backend verification responded unsuccessful, but Paystack client-side succeeded");
-              await unlockPremiumAccess(response.reference);
-            }
-          } catch (error) {
-            console.error("Verification error:", error);
-            await unlockPremiumAccess(response.reference);
-          }
-        },
-        onCancel: () => setIsPaying(false)
+      // Save order details properly in Firestore for admin to accept
+      await setDoc(doc(db, 'orders', finalOrderId), {
+        email: auth.currentUser?.email || 'no-email@example.com',
+        phone: profile?.phoneNumber || "0000000000",
+        network: "SYSTEM",
+        bundle: "AGENT ACCESS UNLOCK",
+        amount: 50,
+        status: "pending",
+        createdAt: serverTimestamp(),
+        userId: auth.currentUser?.uid,
+        customerName: profile?.fullName || auth.currentUser?.displayName || 'Aspiring Agent',
+        reference: "MANUAL-" + Math.random().toString(36).substring(2, 8).toUpperCase(),
+        paymentStatus: "pending"
       });
+
+      toast.success("Request sent successfully! The King will review your request shortly. 👑");
+      setIsPaying(false);
 
     } catch (err) {
       console.error("Agent pre-order error:", err);
