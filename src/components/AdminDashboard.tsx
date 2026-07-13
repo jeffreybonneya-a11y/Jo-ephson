@@ -68,6 +68,7 @@ import {
   Copy,
   Lock,
   LockOpen,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -534,6 +535,51 @@ export default function AdminDashboard() {
       }
     } catch (error: any) {
       toast.error(`Update failed: ${error.message}`);
+    }
+  };
+
+  const handleRevertAgentProfit = async (orderId: string, orderData: any) => {
+    try {
+      const agentIdVal = orderData?.agent_id || orderData?.agentId;
+      const agentProfitVal = Number(
+        orderData?.agent_profit || orderData?.profit || 0,
+      );
+
+      if (!agentIdVal) {
+        toast.error("No Agent ID found for this order.");
+        return;
+      }
+      if (agentProfitVal <= 0) {
+        toast.error("No profit recorded to revert.");
+        return;
+      }
+
+      const confirmRevert = window.confirm(
+        `Are you sure you want to revert this agent profit of GHS ${agentProfitVal.toFixed(
+          2,
+        )}? This will deduct the amount from their balance and mark the order status back to Accepted.`,
+      );
+      if (!confirmRevert) return;
+
+      // 1. Deduct profit from agent's balance
+      await updateDoc(doc(db, "agents", agentIdVal), {
+        profit_balance: increment(-agentProfitVal),
+      });
+
+      // 2. Mark the order profit as NOT credited/awarded and revert status to accepted
+      await updateDoc(doc(db, "orders", orderId), {
+        profit_credited: false,
+        profitAwarded: false,
+        status: "accepted",
+      });
+
+      toast.success(
+        `Agent profit of GHS ${agentProfitVal.toFixed(
+          2,
+        )} reverted successfully! Order status set back to Accepted. ↩️`,
+      );
+    } catch (error: any) {
+      toast.error(`Revert failed: ${error.message}`);
     }
   };
 
@@ -1204,9 +1250,22 @@ export default function AdminDashboard() {
                                     </Button>
                                   )}
                                   {order.status === "delivered" && (
-                                    <Badge className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-900/50 opacity-60 pointer-events-none px-3 py-1.5 rounded-xl font-black uppercase text-[10px]">
-                                      Delivered ✅
-                                    </Badge>
+                                    <div className="flex flex-col gap-1.5 items-end">
+                                      <Badge className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-900/50 opacity-60 pointer-events-none px-3 py-1.5 rounded-xl font-black uppercase text-[10px]">
+                                        Delivered ✅
+                                      </Badge>
+                                      {(order.agent_id || order.agentId) && (order.profit_credited === true || order.profitAwarded === true) && (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-8 px-2.5 rounded-lg border-amber-200 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/20 dark:border-amber-900/50 text-amber-700 dark:text-amber-400 font-black uppercase text-[9px] shadow-sm flex items-center gap-1 cursor-pointer transition-all hover:scale-105"
+                                          onClick={() => handleRevertAgentProfit(order.id, order)}
+                                        >
+                                          <RotateCcw className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                                          Revert Profit ↩️
+                                        </Button>
+                                      )}
+                                    </div>
                                   )}
                                   {order.status === "declined" && (
                                     <Badge className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/50 opacity-60 pointer-events-none px-3 py-1.5 rounded-xl font-black uppercase text-[10px]">
@@ -2205,9 +2264,22 @@ export default function AdminDashboard() {
                                       </Button>
                                     )}
                                     {o.status === "delivered" && (
-                                      <Badge className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-900/50 opacity-60 pointer-events-none text-[9px]">
-                                        Delivered ✅
-                                      </Badge>
+                                      <div className="flex flex-col gap-1.5 items-end">
+                                        <Badge className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-900/50 opacity-60 pointer-events-none text-[9px]">
+                                          Delivered ✅
+                                        </Badge>
+                                        {(o.profit_credited === true || o.profitAwarded === true) && (
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="h-8 px-2.5 rounded-lg border-amber-200 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/20 dark:border-amber-900/50 text-amber-700 dark:text-amber-400 font-black uppercase text-[9px] shadow-sm flex items-center gap-1 cursor-pointer transition-all hover:scale-105"
+                                            onClick={() => handleRevertAgentProfit(o.id, o)}
+                                          >
+                                            <RotateCcw className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                                            Revert Profit ↩️
+                                          </Button>
+                                        )}
+                                      </div>
                                     )}
                                     {o.status === "declined" && (
                                       <Badge className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/50 opacity-60 pointer-events-none text-[9px]">
