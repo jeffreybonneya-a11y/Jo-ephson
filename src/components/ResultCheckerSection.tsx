@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { GraduationCap, CheckCircle2, AlertTriangle, Loader2, Minus, Plus, ChevronRight, Play } from 'lucide-react';
 import waecBannerBg from '../assets/images/waec_banner_bg_1782934507804.jpg';
+import { getApiUrl } from '../lib/api';
 
 interface ResultCheckerSectionProps {
   agentContext?: any;
@@ -88,7 +89,7 @@ export default function ResultCheckerSection({ agentContext }: ResultCheckerSect
     let publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
     if (!publicKey) {
       try {
-        const res = await fetch("/api/paystack-public-key");
+        const res = await fetch(getApiUrl("/api/paystack-public-key"));
         const resData = await res.json();
         publicKey = resData.publicKey;
       } catch (err) {

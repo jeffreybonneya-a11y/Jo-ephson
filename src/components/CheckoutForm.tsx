@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Bundle, Network, UserProfile } from "@/src/types";
 import { auth, db } from "@/src/lib/firebase";
+import { getApiUrl } from "@/src/lib/api";
 import {
   collection,
   addDoc,
@@ -206,7 +207,7 @@ export default function CheckoutForm({
     let publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
     if (!publicKey) {
       try {
-        const res = await fetch("/api/paystack-public-key");
+        const res = await fetch(getApiUrl("/api/paystack-public-key"));
         const resData = await res.json();
         publicKey = resData.publicKey;
       } catch (err) {

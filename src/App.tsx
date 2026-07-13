@@ -23,6 +23,7 @@ import { useTheme } from './hooks/useTheme';
 import { seedFC } from './lib/seed';
 import DownloadPage from './components/DownloadPage';
 import PriceDropNotifier from './components/PriceDropNotifier';
+import { getApiUrl } from './lib/api';
 
 export default function App() {
   const [selectedBundle, setSelectedBundle] = useState<Bundle | null>(null);
@@ -65,7 +66,7 @@ export default function App() {
         const verifyPayment = async () => {
             try {
                 // 1. Call verify-payment endpoint (which always returns success: true)
-                await fetch('/api/verify-payment', {
+                await fetch(getApiUrl('/api/verify-payment'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ reference })

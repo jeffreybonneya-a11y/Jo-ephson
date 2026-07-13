@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { Crown, Key, Loader2, Store, Activity, Settings, DollarSign, Wallet, Copy, Save, User, UserCheck, AlertTriangle, Check, ArrowRight, FileText, Send, Search, MessageSquare, GraduationCap } from 'lucide-react';
 import MyOrders from './MyOrders';
 import { Bundle } from '../types';
+import { getApiUrl } from '../lib/api';
 
 interface AgentStoreProps {
   profile: any;
@@ -191,7 +192,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
       let publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
       if (!publicKey) {
         try {
-          const res = await fetch("/api/paystack-public-key");
+          const res = await fetch(getApiUrl("/api/paystack-public-key"));
           const resData = await res.json();
           publicKey = resData.publicKey;
         } catch (err) {

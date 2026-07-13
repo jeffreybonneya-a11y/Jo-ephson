@@ -100,6 +100,7 @@ export default function AdminDashboard() {
   // Agents Hub
   const [agents, setAgents] = useState<any[]>([]);
   const [profitRequests, setProfitRequests] = useState<any[]>([]);
+  const [orderSourceFilter, setOrderSourceFilter] = useState<'all' | 'direct' | 'agent'>('all');
 
   const [pricePerChecker, setPricePerChecker] = useState<number>(25);
   const [isUpdatingPrice, setIsUpdatingPrice] = useState<boolean>(false);
@@ -866,11 +867,48 @@ export default function AdminDashboard() {
         <TabsContent value="tracking" className="mt-0 outline-none">
           <Card className="rounded-3xl border-2 overflow-hidden bg-white dark:bg-slate-950 dark:border-slate-800 shadow-sm">
             <CardHeader className="bg-slate-50 dark:bg-slate-900/50 border-b dark:border-slate-800 p-6">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <CardTitle className="text-xl font-black flex items-center gap-2 text-slate-900 dark:text-white">
                   <Trophy className="w-5 h-5 text-primary" />
                   Orders Activity👑
                 </CardTitle>
+                
+                {/* Unified Filter Pills */}
+                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setOrderSourceFilter('all')}
+                    className={`px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-wider transition-all cursor-pointer ${
+                      orderSourceFilter === 'all'
+                        ? 'bg-primary text-secondary shadow-sm'
+                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    All ({orders.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOrderSourceFilter('direct')}
+                    className={`px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-wider transition-all cursor-pointer ${
+                      orderSourceFilter === 'direct'
+                        ? 'bg-primary text-secondary shadow-sm'
+                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    Direct Shop ({orders.filter(o => !o.agent_id && !o.agentId).length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOrderSourceFilter('agent')}
+                    className={`px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-wider transition-all cursor-pointer ${
+                      orderSourceFilter === 'agent'
+                        ? 'bg-primary text-secondary shadow-sm'
+                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    Agent Stores ({orders.filter(o => o.agent_id || o.agentId).length})
+                  </button>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="p-0 overflow-x-auto">
@@ -895,20 +933,28 @@ export default function AdminDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {orders.filter((o) => !o.agent_id && !o.agentId).length ===
-                  0 ? (
+                  {orders.filter((o) => {
+                    if (orderSourceFilter === 'all') return true;
+                    if (orderSourceFilter === 'direct') return !o.agent_id && !o.agentId;
+                    if (orderSourceFilter === 'agent') return !!(o.agent_id || o.agentId);
+                    return true;
+                  }).length === 0 ? (
                     <TableRow>
                       <TableCell
                         colSpan={5}
                         className="h-32 text-center text-slate-400 font-bold dark:bg-slate-950"
                       >
-                        No orders yet. They show up here immediately on "BUY
-                        NOW" 👑
+                        No matching orders found. They show up here immediately on "BUY NOW" 👑
                       </TableCell>
                     </TableRow>
                   ) : (
                     orders
-                      .filter((o) => !o.agent_id && !o.agentId)
+                      .filter((o) => {
+                        if (orderSourceFilter === 'all') return true;
+                        if (orderSourceFilter === 'direct') return !o.agent_id && !o.agentId;
+                        if (orderSourceFilter === 'agent') return !!(o.agent_id || o.agentId);
+                        return true;
+                      })
                       .map((order) => (
                         <TableRow
                           key={order.id}
@@ -916,9 +962,16 @@ export default function AdminDashboard() {
                         >
                           <TableCell className="p-4">
                             <div className="flex flex-col min-w-[150px]">
-                              <span className="font-bold text-slate-900 dark:text-slate-100 leading-tight">
-                                {order.customerName || "Royal Customer"}
-                              </span>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-bold text-slate-900 dark:text-slate-100 leading-tight">
+                                  {order.customerName || "Royal Customer"}
+                                </span>
+                                {(order.agent_id || order.agentId) && (
+                                  <Badge className="bg-amber-500 hover:bg-amber-600 text-white font-black text-[8px] uppercase px-1.5 py-0.5 rounded-md leading-none h-4">
+                                    Agent Store
+                                  </Badge>
+                                )}
+                              </div>
                               <div className="flex items-center gap-1.5 mt-1">
                                 <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono font-bold tracking-tight truncate max-w-[180px]" title={order.email}>
                                   {order.email || "No email"}
@@ -938,6 +991,11 @@ export default function AdminDashboard() {
                                   </Button>
                                 )}
                               </div>
+                              {(order.agentName || order.agent_name) && (
+                                <span className="text-[9px] text-amber-600 dark:text-amber-500 font-black mt-1 uppercase tracking-tighter">
+                                  Agent: {order.agentName || order.agent_name}
+                                </span>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell>
