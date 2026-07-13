@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { auth, db } from '../lib/firebase';
-import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, onSnapshot, serverTimestamp, addDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, onSnapshot, serverTimestamp, addDoc, deleteDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { Crown, Key, Loader2, Store, Activity, Settings, DollarSign, Wallet, Copy, Save, User, UserCheck, AlertTriangle, Check, ArrowRight, FileText, Send, Search, MessageSquare, GraduationCap } from 'lucide-react';
 import MyOrders from './MyOrders';
@@ -213,6 +213,8 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
             email: auth.currentUser.email || 'no-email@example.com',
             amount: 5000, // 50 GHS in pesewas
             currency: 'GHS',
+            reference: finalOrderId,
+            callback_url: window.location.origin + "/?reference=" + finalOrderId,
             metadata: {
               custom_fields: [
                 { display_name: "Purpose", variable_name: "purpose", value: "Agent Access Unlock" },
@@ -231,9 +233,13 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
                 console.error("Failed to update order with Paystack success:", updateErr);
               }
             },
-            onCancel: () => {
-              console.log("Paystack payment cancelled by user.");
-              // Quietly handle cancellation without displaying any error toasts!
+            onCancel: async () => {
+              console.log("Paystack payment cancelled by user. Cleaning up pending order.");
+              try {
+                await deleteDoc(doc(db, 'orders', finalOrderId));
+              } catch (err) {
+                console.error("Failed to delete cancelled agent order doc:", err);
+              }
             }
           });
         } catch (paystackError) {

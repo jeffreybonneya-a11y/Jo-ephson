@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../lib/firebase';
-import { doc, onSnapshot, collection, addDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot, collection, addDoc, serverTimestamp, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -103,6 +103,64 @@ export default function ResultCheckerSection({ agentContext }: ResultCheckerSect
     }
 
     try {
+      const finalOrderId = doc(collection(db, "orders")).id;
+
+      // Pre-save order to Firestore with paymentStatus "pending" and status "pending" so the Admin can see it immediately!
+      const initialOrderData = {
+        email: auth.currentUser?.email || "no-email@example.com",
+        serviceType: "Results Checker",
+        examType: activeCheckerTab,
+        quantity: quantity,
+        amount: totalAmount,
+        customerPhone: phoneClean,
+        phone: phoneClean, // standard field
+        network: "Result Checker", // standard field
+        bundle: `Results Checker (${activeCheckerTab}) x${quantity}`, // standard field
+        status: "pending",
+        paymentStatus: "pending",
+        createdAt: serverTimestamp(),
+        userId: auth.currentUser?.uid || "anonymous",
+        customerName: auth.currentUser?.displayName || "Royal Customer",
+        reference: finalOrderId,
+        ...(agentContext ? {
+          agentId: agentContext.id,
+          agent_id: agentContext.id,
+          agentName: agentContext.agent_name,
+          agent_name: agentContext.agent_name,
+          wholesalePrice: 19 * quantity,
+          wholesale_price: 19 * quantity,
+          agentPrice: pricePerChecker * quantity,
+          agent_price: pricePerChecker * quantity,
+          profit: (pricePerChecker - 19) * quantity,
+          agent_profit: (pricePerChecker - 19) * quantity,
+          profit_credited: false,
+          profitAwarded: false,
+        } : {})
+      };
+
+      await setDoc(doc(db, "orders", finalOrderId), initialOrderData);
+
+      // If buyer is via an agent store, pre-create agent_orders entry too
+      if (agentContext) {
+        const initialAgentOrderData = {
+          id: finalOrderId,
+          agent_id: agentContext.id,
+          customer_details: {
+            name: auth.currentUser?.displayName || "Royal Customer",
+            email: auth.currentUser?.email || "no-email@example.com",
+            phone: phoneClean,
+            network: "Result Checker",
+          },
+          wholesale_price: 19 * quantity,
+          agent_price: pricePerChecker * quantity,
+          profit: (pricePerChecker - 19) * quantity,
+          status: "pending",
+          created_at: serverTimestamp(),
+          paymentReference: finalOrderId,
+        };
+        await setDoc(doc(db, "agent_orders", finalOrderId), initialAgentOrderData);
+      }
+
       const mod = await import("@paystack/inline-js");
       let PaystackCtor: any = mod.default || mod;
       if (typeof PaystackCtor !== "function" && PaystackCtor.default) {
@@ -118,78 +176,21 @@ export default function ResultCheckerSection({ agentContext }: ResultCheckerSect
         email: userEmail,
         amount: Math.round(totalAmount * 100), // GHS to pesewas
         currency: "GHS",
+        reference: finalOrderId,
+        callback_url: window.location.origin + "/?reference=" + finalOrderId,
         onSuccess: async (response: any) => {
           setIsSubmitting(true);
           try {
-            // Verify payment
-            const verifyRes = await fetch("/api/verify-payment", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ reference: response.reference })
-            });
-
-            const verifyData = await verifyRes.json();
-            console.log("Results Checker Payment verification response:", verifyData);
-          } catch (verifyErr) {
-            console.error("Verification endpoint failed/offline, creating order directly:", verifyErr);
-          }
-
-          try {
-            // Create Firestore order
-            const orderData = {
-              email: auth.currentUser?.email || "no-email@example.com",
-              serviceType: "Results Checker",
-              examType: activeCheckerTab,
-              quantity: quantity,
-              amount: totalAmount,
-              customerPhone: phoneClean,
-              phone: phoneClean, // standard field
-              network: "Result Checker", // standard field
-              bundle: `Results Checker (${activeCheckerTab}) x${quantity}`, // standard field
-              status: "pending",
+            // Update the existing order's paymentStatus and references
+            const updateFields: any = {
               paymentStatus: "success",
-              createdAt: serverTimestamp(),
-              userId: auth.currentUser?.uid || "anonymous",
-              customerName: auth.currentUser?.displayName || "Royal Customer",
-              reference: response.reference,
-              ...(agentContext ? {
-                agentId: agentContext.id,
-                agent_id: agentContext.id,
-                agentName: agentContext.agent_name,
-                agent_name: agentContext.agent_name,
-                wholesalePrice: 19 * quantity,
-                wholesale_price: 19 * quantity,
-                agentPrice: pricePerChecker * quantity,
-                agent_price: pricePerChecker * quantity,
-                profit: (pricePerChecker - 19) * quantity,
-                agent_profit: (pricePerChecker - 19) * quantity,
-                profit_credited: false,
-                profitAwarded: false,
-              } : {})
+              reference: response.reference
             };
-
-            const docRef = await addDoc(collection(db, "orders"), orderData);
-
-            // If buyer is via an agent store, create agent_orders entry
             if (agentContext) {
-              const agentOrderData = {
-                id: docRef.id,
-                agent_id: agentContext.id,
-                customer_details: {
-                  name: auth.currentUser?.displayName || "Royal Customer",
-                  email: auth.currentUser?.email || "no-email@example.com",
-                  phone: phoneClean,
-                  network: "Result Checker",
-                },
-                wholesale_price: 19 * quantity,
-                agent_price: pricePerChecker * quantity,
-                profit: (pricePerChecker - 19) * quantity,
-                status: "pending",
-                created_at: serverTimestamp(),
-                paymentReference: response.reference,
-              };
-              await setDoc(doc(db, "agent_orders", docRef.id), agentOrderData);
+              updateFields.profitAwarded = true;
+              updateFields.profit_credited = true;
             }
+            await updateDoc(doc(db, "orders", finalOrderId), updateFields);
 
             // Trigger success screen for 4 seconds
             setShowSuccessScreen(true);
@@ -204,12 +205,21 @@ export default function ResultCheckerSection({ agentContext }: ResultCheckerSect
             }, 4000);
 
           } catch (orderErr: any) {
-            console.error("Failed to save order in Firestore:", orderErr);
+            console.error("Failed to update order in Firestore:", orderErr);
             toast.error(`Order saved locally but Firestore error: ${orderErr.message}`);
             setIsSubmitting(false);
           }
         },
-        onClose: () => {
+        onClose: async () => {
+          console.log("Paystack payment cancelled by user. Cleaning up pending order.");
+          try {
+            await deleteDoc(doc(db, "orders", finalOrderId));
+            if (agentContext) {
+              await deleteDoc(doc(db, "agent_orders", finalOrderId));
+            }
+          } catch (err) {
+            console.error("Failed to delete cancelled order:", err);
+          }
           toast.error("Payment session closed.");
           setIsSubmitting(false);
         }

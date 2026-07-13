@@ -11,7 +11,8 @@ import {
   doc,
   setDoc,
   updateDoc,
-  onSnapshot
+  onSnapshot,
+  deleteDoc
 } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -271,6 +272,62 @@ export default function CheckoutForm({
 
       const finalAmountToCharge = Number(bundle.price) + paystackFee + hiddenGameCharge + hiddenTelecelCharge + hiddenMTNCharge;
 
+      // PRE-SAVE the order in Firestore with paymentStatus "pending" and status "pending" so the Admin can see it immediately!
+      const initialOrderData = {
+        email: auth.currentUser.email || "no-email@example.com",
+        phone: data.recipientPhone || "",
+        network: data.recipientNetwork,
+        bundle: bundle.network === "PC Games" ? bundle.name : `${data.recipientNetwork} ${bundle.dataAmount}`,
+        amount: Number(bundle.price),
+        status: "pending",
+        createdAt: serverTimestamp(),
+        userId: auth.currentUser.uid,
+        customerName: profile?.fullName || auth.currentUser.displayName || "Royal Customer",
+        reference: finalOrderId,
+        paymentStatus: "pending",
+        ...(data.fcUserId ? { fcUserId: data.fcUserId } : {}),
+        ...(data.fcUsername ? { fcUsername: data.fcUsername } : {}),
+        ...(agentContext
+          ? {
+              agentId: agentContext.id,
+              agent_id: agentContext.id,
+              agentName: agentContext.agent_name,
+              agent_name: agentContext.agent_name,
+              wholesalePrice: wsPrice,
+              wholesale_price: wsPrice,
+              agentPrice: agPrice,
+              agent_price: agPrice,
+              profit: calculatedProfit,
+              agent_profit: calculatedProfit,
+              profitAwarded: false,
+              profit_credited: false,
+            }
+          : {}),
+      };
+
+      await setDoc(doc(db, "orders", finalOrderId), initialOrderData);
+
+      // If buyer is via an agent store, pre-create agent_orders entry too
+      if (agentContext) {
+        const initialAgentOrderData = {
+          id: finalOrderId,
+          agent_id: agentContext.id,
+          customer_details: {
+            name: profile?.fullName || auth.currentUser.displayName || "Royal Customer",
+            email: auth.currentUser.email || "no-email@example.com",
+            phone: data.recipientPhone || "",
+            network: data.recipientNetwork,
+          },
+          wholesale_price: wsPrice,
+          agent_price: agPrice,
+          profit: calculatedProfit,
+          status: "pending",
+          created_at: serverTimestamp(),
+          paymentReference: finalOrderId,
+        };
+        await setDoc(doc(db, "agent_orders", finalOrderId), initialAgentOrderData);
+      }
+
       const mod = await import("@paystack/inline-js");
       let PaystackCtor: any = mod.default || mod;
       if (typeof PaystackCtor !== "function" && PaystackCtor.default) {
@@ -284,98 +341,27 @@ export default function CheckoutForm({
         email: auth.currentUser.email || "no-email@example.com",
         amount: Math.round(finalAmountToCharge * 100),
         currency: "GHS",
+        reference: finalOrderId,
+        callback_url: window.location.origin + "/?reference=" + finalOrderId,
         onSuccess: async (response: any) => {
           // Immediately show verifying/processing loader screen
           setOrderStatus("processing");
           setIsSubmitting(false);
 
-          let isVerified = false;
           try {
-            // Verify reference in background with active backend system
-            const res = await fetch("/api/verify-payment", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                reference: response.reference
-              })
-            });
-
-            const verifyData = await res.json();
-
-            if (verifyData.success === true) {
-              isVerified = true;
-              console.log("Payment verified successfully on backend");
-            } else {
-              console.warn("Backend verification responded unsuccessful, using client success status");
-            }
-          } catch (error) {
-            console.error("Verification error:", error);
-          }
-
-          try {
-            // Save order details properly in Firestore (always do this since Paystack client-side succeeded)
-            const orderData = {
-              email: auth.currentUser.email || "no-email@example.com",
-              phone: data.recipientPhone || "",
-              network: data.recipientNetwork,
-              bundle: bundle.network === "PC Games" ? bundle.name : `${data.recipientNetwork} ${bundle.dataAmount}`,
-              amount: Number(bundle.price),
-              status: "pending",
-              createdAt: serverTimestamp(),
-              userId: auth.currentUser.uid,
-              customerName: profile?.fullName || auth.currentUser.displayName || "Royal Customer",
-              reference: response.reference,
+            // Update the existing order's paymentStatus and references
+            const updateFields: any = {
               paymentStatus: "success",
-              ...(data.fcUserId ? { fcUserId: data.fcUserId } : {}),
-              ...(data.fcUsername ? { fcUsername: data.fcUsername } : {}),
-              ...(agentContext
-                ? {
-                    agentId: agentContext.id,
-                    agent_id: agentContext.id,
-                    agentName: agentContext.agent_name,
-                    agent_name: agentContext.agent_name,
-                    wholesalePrice: wsPrice,
-                    wholesale_price: wsPrice,
-                    agentPrice: agPrice,
-                    agent_price: agPrice,
-                    profit: calculatedProfit,
-                    agent_profit: calculatedProfit,
-                    profitAwarded: true,
-                    profit_credited: true,
-                  }
-                : {}),
+              reference: response.reference
             };
-
-            await setDoc(doc(db, "orders", finalOrderId), orderData);
-
-            // If buyer is via an agent store, create agent_orders entry
             if (agentContext) {
-              const agentOrderData = {
-                id: finalOrderId,
-                agent_id: agentContext.id,
-                customer_details: {
-                  name: profile?.fullName || auth.currentUser.displayName || "Royal Customer",
-                  email: auth.currentUser.email || "no-email@example.com",
-                  phone: data.recipientPhone || "",
-                  network: data.recipientNetwork,
-                },
-                wholesale_price: wsPrice,
-                agent_price: agPrice,
-                profit: calculatedProfit,
-                status: "pending",
-                created_at: serverTimestamp(),
-                paymentReference: response.reference,
-              };
-              await setDoc(doc(db, "agent_orders", finalOrderId), agentOrderData);
+              updateFields.profitAwarded = true;
+              updateFields.profit_credited = true;
             }
+            await updateDoc(doc(db, "orders", finalOrderId), updateFields);
 
-            if (isVerified) {
-              toast.success("Payment verified successfully ✅");
-            } else {
-              toast.success("Payment successful! Order logged in Admin Dashboard 👑");
-            }
+            toast.success("Payment successful! Order logged in Admin Dashboard 👑");
             setOrderStatus("success");
-            setIsSubmitting(false);
 
             // If PC Games, redirect after a short while, otherwise handle 4 second timeout
             if (bundle.network === "PC Games") {
@@ -389,14 +375,22 @@ export default function CheckoutForm({
               }, 4000);
             }
           } catch (error) {
-            console.error("Firestore order creation error:", error);
-            toast.error("An error occurred logging your order. Please contact support with reference: " + response.reference, { duration: 10000 });
+            console.error("Firestore order update error:", error);
+            toast.error("An error occurred updating your order. Please contact support with reference: " + response.reference, { duration: 10000 });
             setOrderStatus("idle");
             onClose();
           }
         },
-        onCancel: () => {
-          // Cancelled: return to idle with no order created
+        onCancel: async () => {
+          console.log("Paystack payment cancelled by user. Cleaning up pending order.");
+          try {
+            await deleteDoc(doc(db, "orders", finalOrderId));
+            if (agentContext) {
+              await deleteDoc(doc(db, "agent_orders", finalOrderId));
+            }
+          } catch (err) {
+            console.error("Failed to delete cancelled order:", err);
+          }
           onClose();
           setIsSubmitting(false);
         },
