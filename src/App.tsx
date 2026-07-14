@@ -350,7 +350,7 @@ export default function App() {
         ) : (
           <>
             <Hero />
-            <BundleList onSelectBundle={handleSelectBundle} isAgentUser={hasRegisteredAgent} />
+            <BundleList onSelectBundle={handleSelectBundle} isAgentUser={hasRegisteredAgent || !!profile?.isAgent} />
           </>
         )}
       </main>
@@ -360,7 +360,7 @@ export default function App() {
         onClose={() => setSelectedBundle(null)} 
         profile={profile}
         agentContext={agentContext}
-        isAgentUser={hasRegisteredAgent}
+        isAgentUser={hasRegisteredAgent || !!profile?.isAgent}
       />
       
       <Footer />

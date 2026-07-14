@@ -73,7 +73,14 @@ export default function Navbar({
 
       const qOrders = query(collection(db, 'orders'), where('status', '==', 'pending'));
       const unsubOrders = onSnapshot(qOrders, (snapshot) => {
-        ordersCount = snapshot.size;
+        const visibleOrders = snapshot.docs.filter((doc) => {
+          const o = doc.data();
+          if (o.agent_id || o.agentId || o.isAgentOrder) {
+            return o.paymentStatus === "success";
+          }
+          return true;
+        });
+        ordersCount = visibleOrders.length;
         updateCount();
       });
 

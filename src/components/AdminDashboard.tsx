@@ -69,6 +69,7 @@ import {
   Lock,
   LockOpen,
   RotateCcw,
+  Search,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -102,6 +103,7 @@ export default function AdminDashboard() {
   const [agents, setAgents] = useState<any[]>([]);
   const [profitRequests, setProfitRequests] = useState<any[]>([]);
   const [orderSourceFilter, setOrderSourceFilter] = useState<'all' | 'direct' | 'agent'>('all');
+  const [deleteSearchQuery, setDeleteSearchQuery] = useState("");
 
   const [pricePerChecker, setPricePerChecker] = useState<number>(25);
   const [isUpdatingPrice, setIsUpdatingPrice] = useState<boolean>(false);
@@ -166,10 +168,14 @@ export default function AdminDashboard() {
     );
     const unsubOrders = onSnapshot(ordersQuery, (snapshot) => {
       const allOrders = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() as any }));
-      // Show only orders that are not purely unpaid checkout sessions
-      const completedOrders = allOrders.filter(
-        (o) => o.status !== "unpaid" && o.status !== "checkout_unpaid"
-      );
+      // Show only orders that are not purely unpaid checkout sessions,
+      // and for agent store orders, show only if payment was successful.
+      const completedOrders = allOrders.filter((o) => {
+        if (o.agent_id || o.agentId || o.isAgentOrder) {
+          return o.paymentStatus === "success";
+        }
+        return o.status !== "unpaid" && o.status !== "checkout_unpaid";
+      });
       setOrders(completedOrders);
     });
 
@@ -580,6 +586,20 @@ export default function AdminDashboard() {
       );
     } catch (error: any) {
       toast.error(`Revert failed: ${error.message}`);
+    }
+  };
+
+  const handleDeleteAgentOrder = async (orderId: string) => {
+    try {
+      const confirmDelete = window.confirm(
+        "Royal Command: Are you sure you want to permanently delete this agent order? This action is permanent and cannot be undone. 🚨"
+      );
+      if (!confirmDelete) return;
+
+      await deleteDoc(doc(db, "orders", orderId));
+      toast.success("Agent order deleted permanently! 🗑️");
+    } catch (error: any) {
+      toast.error(`Delete failed: ${error.message}`);
     }
   };
 
@@ -1809,6 +1829,12 @@ export default function AdminDashboard() {
                       </span>
                     )}
                   </TabsTrigger>
+                  <TabsTrigger
+                    value="delete"
+                    className="flex-1 rounded-lg py-2 font-black text-[10px] uppercase relative flex items-center justify-center gap-1.5 transition-all text-red-500 hover:text-red-600 dark:hover:text-red-400"
+                  >
+                    <span>Delete Orders 🗑️</span>
+                  </TabsTrigger>
                 </TabsList>
 
                 {/* 1. Profit Requests Tab Content */}
@@ -2286,6 +2312,166 @@ export default function AdminDashboard() {
                                         Declined ❌
                                       </Badge>
                                     )}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </TabsContent>
+
+                {/* 4. Delete Agent Orders Tab Content */}
+                <TabsContent value="delete" className="outline-none">
+                  <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border dark:border-slate-800">
+                    <div className="flex-1 w-full max-w-md relative">
+                      <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                      <Input
+                        placeholder="Search orders by ID, Phone, Customer or Agent..."
+                        className="pl-9 h-10 rounded-xl"
+                        value={deleteSearchQuery}
+                        onChange={(e) => setDeleteSearchQuery(e.target.value)}
+                      />
+                    </div>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      Showing {
+                        orders.filter((o) => o.agent_id || o.agentId)
+                          .filter((o) => {
+                            const query = deleteSearchQuery.toLowerCase().trim();
+                            if (!query) return true;
+                            return (
+                              o.id?.toLowerCase().includes(query) ||
+                              o.phone?.toLowerCase().includes(query) ||
+                              o.customerName?.toLowerCase().includes(query) ||
+                              o.agent_name?.toLowerCase().includes(query) ||
+                              o.agentName?.toLowerCase().includes(query) ||
+                              o.bundle?.toLowerCase().includes(query)
+                            );
+                          }).length
+                      } agent orders
+                    </p>
+                  </div>
+
+                  <div className="overflow-x-auto border rounded-2xl">
+                    <Table>
+                      <TableHeader className="bg-slate-50 dark:bg-slate-900">
+                        <TableRow className="border-b">
+                          <TableHead className="p-4 font-bold text-[10px] uppercase">
+                            Order ID / Date
+                          </TableHead>
+                          <TableHead className="font-bold text-[10px] uppercase">
+                            Package & Number
+                          </TableHead>
+                          <TableHead className="font-bold text-[10px] uppercase">
+                            Agent Origin
+                          </TableHead>
+                          <TableHead className="font-bold text-[10px] uppercase">
+                            Agent Profit
+                          </TableHead>
+                          <TableHead className="font-bold text-[10px] uppercase">
+                            Status
+                          </TableHead>
+                          <TableHead className="font-bold text-[10px] uppercase text-right p-4">
+                            Actions
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {orders.filter((o) => o.agent_id || o.agentId)
+                          .filter((o) => {
+                            const query = deleteSearchQuery.toLowerCase().trim();
+                            if (!query) return true;
+                            return (
+                              o.id?.toLowerCase().includes(query) ||
+                              o.phone?.toLowerCase().includes(query) ||
+                              o.customerName?.toLowerCase().includes(query) ||
+                              o.agent_name?.toLowerCase().includes(query) ||
+                              o.agentName?.toLowerCase().includes(query) ||
+                              o.bundle?.toLowerCase().includes(query)
+                            );
+                          }).length === 0 ? (
+                          <TableRow>
+                            <TableCell
+                              colSpan={6}
+                              className="h-32 text-center text-slate-400 font-bold"
+                            >
+                              No matching agent orders found to delete.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          orders
+                            .filter((o) => o.agent_id || o.agentId)
+                            .filter((o) => {
+                              const query = deleteSearchQuery.toLowerCase().trim();
+                              if (!query) return true;
+                              return (
+                                o.id?.toLowerCase().includes(query) ||
+                                o.phone?.toLowerCase().includes(query) ||
+                                o.customerName?.toLowerCase().includes(query) ||
+                                o.agent_name?.toLowerCase().includes(query) ||
+                                o.agentName?.toLowerCase().includes(query) ||
+                                o.bundle?.toLowerCase().includes(query)
+                              );
+                            })
+                            .map((o) => (
+                              <TableRow
+                                key={o.id}
+                                className="hover:bg-red-50/10 dark:border-slate-800"
+                              >
+                                <TableCell className="p-4">
+                                  <span className="font-mono text-xs font-bold uppercase">
+                                    {o.id.slice(-8)}
+                                  </span>
+                                  <p className="text-[9px] text-slate-400 font-medium">
+                                    {o.createdAt
+                                      ? new Date(
+                                          o.createdAt.seconds * 1000,
+                                        ).toLocaleString()
+                                      : "Just now"}
+                                  </p>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="text-xs">
+                                    <p className="font-extrabold">{o.bundle}</p>
+                                    <p className="font-mono text-primary font-black bg-primary/10 px-2 py-0.5 rounded-md w-fit mt-1">
+                                      {o.phone || "NO PHONE"}
+                                    </p>
+                                    <p className="text-[10px] text-slate-500 mt-1 uppercase font-bold">
+                                      {o.customerName || "Royal Customer"}
+                                    </p>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <span className="font-extrabold text-foreground text-xs">
+                                    {o.agent_name || o.agentName || "N/A"}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="font-mono text-xs font-black text-green-600">
+                                  GHS{" "}
+                                  {Number(
+                                    o.agent_profit || o.profit || 0,
+                                  ).toFixed(2)}
+                                </TableCell>
+                                <TableCell>
+                                  {getStatusBadge(o.status)}
+                                </TableCell>
+                                <TableCell className="text-right p-4">
+                                  <div className="flex justify-end gap-2 items-center">
+                                    {(o.profit_credited === true || o.profitAwarded === true) && (
+                                      <span className="text-[10px] text-amber-600 dark:text-amber-400 font-black uppercase bg-amber-500/10 px-2 py-1 rounded-md mr-1 border border-amber-500/20">
+                                        Profit Awarded ⚠️
+                                      </span>
+                                    )}
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      className="h-8 px-3 rounded-lg font-black uppercase text-[10px] shadow-sm flex items-center gap-1 cursor-pointer hover:scale-105 transition-all"
+                                      onClick={() => handleDeleteAgentOrder(o.id)}
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                      Delete Order 🗑️
+                                    </Button>
                                   </div>
                                 </TableCell>
                               </TableRow>

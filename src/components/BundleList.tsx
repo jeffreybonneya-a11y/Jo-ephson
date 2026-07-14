@@ -784,7 +784,7 @@ export default function BundleList({
                     )}
                   </div>
                 ) : tab === "Result Checker" ? (
-                  <ResultCheckerSection agentContext={agentContext} />
+                  <ResultCheckerSection agentContext={agentContext} isAgentUser={isAgentUser} />
                 ) : tab === "Game Coins" ? (
                   <div className="space-y-6">
                     <div className="flex gap-2 mb-4 overflow-x-auto pb-2">

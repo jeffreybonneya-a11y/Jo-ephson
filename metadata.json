@@ -2,5 +2,7 @@
   "name": "King J Deals — Automated 👑",
   "description": "Full-stack automated data reseller site for King J Deals. Instant delivery, real-time pricing, and royal service.",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

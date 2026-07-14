@@ -218,7 +218,14 @@ service cloud.firestore {
         ) &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportedToAdmin', 'agentReportReason'])
       );
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() || (
+        isAuthenticated() && (
+          ('userId' in resource.data && resource.data.userId == request.auth.uid) || 
+          ('agent_id' in resource.data && resource.data.agent_id == request.auth.uid) || 
+          ('agentId' in resource.data && resource.data.agentId == request.auth.uid) || 
+          (getAuthEmail() != "" && 'email' in resource.data && (resource.data.email == getAuthEmail() || resource.data.email.lower() == getAuthEmail().lower()))
+        )
+      );
     }
 
     match /users/{userId} {
@@ -264,7 +271,8 @@ service cloud.firestore {
     match /agent_orders/{orderId} {
       allow read: if isAdmin() || (isAuthenticated() && 'agent_id' in resource.data && resource.data.agent_id == request.auth.uid);
       allow create: if isValidAgentOrder(request.resource.data);
-      allow update, delete: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin() || (isAuthenticated() && 'agent_id' in resource.data && resource.data.agent_id == request.auth.uid);
     }
 
     match /profit_requests/{requestId} {

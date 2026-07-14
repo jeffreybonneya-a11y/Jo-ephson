@@ -141,6 +141,46 @@ export default function CheckoutForm({
 
   const watchNetwork = watch("recipientNetwork");
 
+  const isAgentBuyingFromOwnStore =
+    !!(agentContext && auth.currentUser?.uid === agentContext.id);
+  const isAgentBuyingOnHomePage = !agentContext && isAgentUser;
+  const isAgentActive = !!(isAgentBuyingFromOwnStore || isAgentBuyingOnHomePage || isAgentUser);
+
+  const amountStr = String(bundle?.dataAmount || bundle?.name || "");
+  const gbMatch = amountStr.match(/(\d+(?:\.\d+)?)\s*GB/i);
+  const gbValue = gbMatch ? parseFloat(gbMatch[1]) : 0;
+  const isTelecel1to5 = bundle?.network === "Telecel" && gbValue >= 1 && gbValue <= 5;
+
+  const isGame =
+    watchNetwork === "FC Mobile Points" ||
+    watchNetwork === "FC Mobile Silver" ||
+    watchNetwork === "FC Mobile" ||
+    watchNetwork === "PUBG Mobile" ||
+    watchNetwork === "PUBG Mobile UC";
+
+  const isFC =
+    watchNetwork === "FC Mobile Points" ||
+    watchNetwork === "FC Mobile Silver" ||
+    watchNetwork === "FC Mobile";
+
+  const paystackFee =
+    (isAgentBuyingFromOwnStore || isAgentBuyingOnHomePage) && !(!!agentContext && isTelecel1to5) && !(bundle?.network === "MTN" && isAgentActive) ? 1.0 : 0.0;
+  const hiddenGameCharge = isFC ? 0.0 : (isGame ? 1.0 : 0.0);
+
+  const isTelecelHiddenChargeMain = 
+    !agentContext && 
+    bundle?.network === "Telecel" &&
+    ((gbValue >= 1 && gbValue <= 5) || (gbValue >= 10 && gbValue <= 100));
+
+  const hiddenTelecelCharge = isTelecelHiddenChargeMain ? 1.0 : (!!agentContext && isTelecel1to5 ? 2.0 : 0.0);
+
+  const isMTN1to5 = bundle?.network === "MTN" && gbValue >= 1 && gbValue <= 5;
+  const hiddenMTNCharge = isMTN1to5
+    ? 1.0
+    : (bundle?.network === "MTN" ? (isAgentActive ? 1.0 : (agentContext ? 0.0 : 1.0)) : 0.0);
+
+  const finalAmountToCharge = Number(bundle?.price || 0) + paystackFee + hiddenGameCharge + hiddenTelecelCharge + hiddenMTNCharge;
+
   useEffect(() => {
     if (
       bundle &&
@@ -235,43 +275,7 @@ export default function CheckoutForm({
       const agPrice = Number(bundle.price);
       const calculatedProfit = agPrice - wsPrice;
 
-      // 1. Initiate Payment with Paystack Pop
-      const isGame =
-        data.recipientNetwork === "FC Mobile Points" ||
-        data.recipientNetwork === "FC Mobile Silver" ||
-        data.recipientNetwork === "FC Mobile" ||
-        data.recipientNetwork === "PUBG Mobile" ||
-        data.recipientNetwork === "PUBG Mobile UC";
-
-      const isFC =
-        data.recipientNetwork === "FC Mobile Points" ||
-        data.recipientNetwork === "FC Mobile Silver" ||
-        data.recipientNetwork === "FC Mobile";
-
-      const isAgentBuyingFromOwnStore =
-        agentContext && auth.currentUser?.uid === agentContext.id;
-      const isAgentBuyingOnHomePage = !agentContext && isAgentUser;
-      const isAgentActive = !!(isAgentBuyingFromOwnStore || isAgentBuyingOnHomePage || isAgentUser);
-      
-      const amountStr = String(bundle.dataAmount || bundle.name || "");
-      const gbMatch = amountStr.match(/(\d+(?:\.\d+)?)\s*GB/i);
-      const gbValue = gbMatch ? parseFloat(gbMatch[1]) : 0;
-      const isTelecel1to5 = bundle.network === "Telecel" && gbValue >= 1 && gbValue <= 5;
-
-      const paystackFee =
-        (isAgentBuyingFromOwnStore || isAgentBuyingOnHomePage) && !(!!agentContext && isTelecel1to5) && !(bundle.network === "MTN" && isAgentActive) ? 1.0 : 0.0;
-      const hiddenGameCharge = isFC ? 0.0 : (isGame ? 1.0 : 0.0);
-      
-      const isTelecelHiddenChargeMain = 
-        !agentContext && 
-        bundle.network === "Telecel" &&
-        ((gbValue >= 1 && gbValue <= 5) || (gbValue >= 10 && gbValue <= 100));
-
-      const hiddenTelecelCharge = isTelecelHiddenChargeMain ? 1.0 : (!!agentContext && isTelecel1to5 ? 2.0 : 0.0);
-
-      const hiddenMTNCharge = bundle.network === "MTN" ? (isAgentActive ? 1.0 : (agentContext ? 0.0 : 1.0)) : 0.0;
-
-      const finalAmountToCharge = Number(bundle.price) + paystackFee + hiddenGameCharge + hiddenTelecelCharge + hiddenMTNCharge;
+      // 1. Initiate Payment with Paystack Pop (using the top-level reactive fee calculations)
 
       // PRE-SAVE the order in Firestore with paymentStatus "pending" and status "pending" so the Admin can see it immediately!
       const initialOrderData = {
@@ -288,6 +292,7 @@ export default function CheckoutForm({
         paymentStatus: "pending",
         ...(data.fcUserId ? { fcUserId: data.fcUserId } : {}),
         ...(data.fcUsername ? { fcUsername: data.fcUsername } : {}),
+        ...(isAgentUser || profile?.isAgent ? { isAgentOrder: true } : {}),
         ...(agentContext
           ? {
               agentId: agentContext.id,
@@ -557,9 +562,68 @@ export default function CheckoutForm({
                       Total
                     </p>
                     <p className="text-lg sm:text-2xl font-black text-primary">
-                      GHS {Number(bundle.price).toFixed(2)}
+                      GHS {finalAmountToCharge.toFixed(2)}
                     </p>
                   </div>
+                </div>
+
+                {/* Pricing Breakdown & Notification */}
+                <div className="bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 space-y-2 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-16 h-16 bg-primary/5 rounded-full -mr-8 -mt-8" />
+                  <div className="flex justify-between items-center text-xs font-bold text-slate-500">
+                    <span>Base Bundle Price</span>
+                    <span className="font-mono">GHS {Number(bundle.price).toFixed(2)}</span>
+                  </div>
+                  
+                  {isMTN1to5 && (
+                    <div className="flex justify-between items-center text-xs font-black text-amber-600 dark:text-amber-400">
+                      <span className="flex items-center gap-1">
+                        Charges
+                      </span>
+                      <span className="font-mono">+ GHS 1.00</span>
+                    </div>
+                  )}
+
+                  {!isMTN1to5 && hiddenMTNCharge > 0 && (
+                    <div className="flex justify-between items-center text-xs font-black text-amber-600 dark:text-amber-400">
+                      <span>Charges</span>
+                      <span className="font-mono">+ GHS {hiddenMTNCharge.toFixed(2)}</span>
+                    </div>
+                  )}
+
+                  {hiddenTelecelCharge > 0 && (
+                    <div className="flex justify-between items-center text-xs font-black text-amber-600 dark:text-amber-400">
+                      <span>Charges</span>
+                      <span className="font-mono">+ GHS {hiddenTelecelCharge.toFixed(2)}</span>
+                    </div>
+                  )}
+
+                  {hiddenGameCharge > 0 && (
+                    <div className="flex justify-between items-center text-xs font-black text-amber-600 dark:text-amber-400">
+                      <span>Processing Fee</span>
+                      <span className="font-mono">+ GHS {hiddenGameCharge.toFixed(2)}</span>
+                    </div>
+                  )}
+
+                  {paystackFee > 0 && (
+                    <div className="flex justify-between items-center text-xs font-black text-amber-600 dark:text-amber-400">
+                      <span>Gateway Fee</span>
+                      <span className="font-mono">+ GHS {paystackFee.toFixed(2)}</span>
+                    </div>
+                  )}
+
+                  <div className="border-t border-slate-200 dark:border-slate-800 pt-2 flex justify-between items-center font-black text-sm text-foreground dark:text-white">
+                    <span>Final Amount to Pay</span>
+                    <span className="text-primary font-black text-base sm:text-lg font-mono">
+                      GHS {finalAmountToCharge.toFixed(2)}
+                    </span>
+                  </div>
+
+                  {isMTN1to5 && (
+                    <p className="text-[10px] sm:text-[11px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-tight text-center pt-1 leading-snug animate-pulse">
+                      ⚠️ Charges of GHS 1.00 will be charged.
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:gap-6">

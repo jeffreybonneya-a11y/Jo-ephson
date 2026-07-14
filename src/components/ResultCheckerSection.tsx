@@ -13,9 +13,10 @@ import { getApiUrl } from '../lib/api';
 
 interface ResultCheckerSectionProps {
   agentContext?: any;
+  isAgentUser?: boolean;
 }
 
-export default function ResultCheckerSection({ agentContext }: ResultCheckerSectionProps) {
+export default function ResultCheckerSection({ agentContext, isAgentUser }: ResultCheckerSectionProps) {
   const [activeCheckerTab, setActiveCheckerTab] = useState<'WASSCE' | 'BECE' | 'NOVDEC'>('WASSCE');
   const [quantity, setQuantity] = useState<number>(1);
   const [pricePerChecker, setPricePerChecker] = useState<number>(25);
@@ -123,6 +124,7 @@ export default function ResultCheckerSection({ agentContext }: ResultCheckerSect
         userId: auth.currentUser?.uid || "anonymous",
         customerName: auth.currentUser?.displayName || "Royal Customer",
         reference: finalOrderId,
+        ...(isAgentUser ? { isAgentOrder: true } : {}),
         ...(agentContext ? {
           agentId: agentContext.id,
           agent_id: agentContext.id,
