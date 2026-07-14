@@ -211,12 +211,24 @@ service cloud.firestore {
       );
       allow update: if isAdmin() || (
         isAuthenticated() && 
-        isValidOrder(request.resource.data) &&
-        (
-          ('agent_id' in resource.data && resource.data.agent_id == request.auth.uid) || 
-          ('agentId' in resource.data && resource.data.agentId == request.auth.uid)
-        ) &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportedToAdmin', 'agentReportReason'])
+        isValidOrder(request.resource.data) && (
+          // EITHER: An agent updating reporting fields
+          (
+            (('agent_id' in resource.data && resource.data.agent_id == request.auth.uid) || 
+             ('agentId' in resource.data && resource.data.agentId == request.auth.uid)) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportedToAdmin', 'agentReportReason'])
+          ) ||
+          // OR: The buyer/agent updating payment status upon successful Paystack completion
+          (
+            (
+              ('userId' in resource.data && resource.data.userId == request.auth.uid) || 
+              ('agent_id' in resource.data && resource.data.agent_id == request.auth.uid) || 
+              ('agentId' in resource.data && resource.data.agentId == request.auth.uid) || 
+              (getAuthEmail() != "" && 'email' in resource.data && (resource.data.email == getAuthEmail() || resource.data.email.lower() == getAuthEmail().lower()))
+            ) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentStatus', 'reference', 'profitAwarded', 'profit_credited', 'status'])
+          )
+        )
       );
       allow delete: if isAdmin() || (
         isAuthenticated() && (

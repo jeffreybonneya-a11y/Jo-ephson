@@ -66,11 +66,15 @@ export default function App() {
         const verifyPayment = async () => {
             try {
                 // 1. Call verify-payment endpoint (which always returns success: true)
-                await fetch(getApiUrl('/api/verify-payment'), {
+                const response = await fetch(getApiUrl('/api/verify-payment'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ reference })
                 });
+
+                if (!response.ok) {
+                    throw new Error(`Server payment verification returned status ${response.status}`);
+                }
 
                 // 2. Query and update the order in Firestore directly
                 const orderDocRef = doc(db, 'orders', reference);
