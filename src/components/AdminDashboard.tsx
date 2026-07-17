@@ -105,6 +105,12 @@ export default function AdminDashboard() {
   const [orderSourceFilter, setOrderSourceFilter] = useState<'all' | 'direct' | 'agent'>('all');
   const [deleteSearchQuery, setDeleteSearchQuery] = useState("");
 
+  // Customer Management States
+  const [customerSearchQuery, setCustomerSearchQuery] = useState("");
+  const [customerRoleFilter, setCustomerRoleFilter] = useState<'all' | 'user' | 'agent' | 'admin'>('all');
+  const [editingBalanceUserId, setEditingBalanceUserId] = useState<string | null>(null);
+  const [tempBalanceValue, setTempBalanceValue] = useState("");
+
   const [pricePerChecker, setPricePerChecker] = useState<number>(25);
   const [isUpdatingPrice, setIsUpdatingPrice] = useState<boolean>(false);
 
@@ -627,6 +633,29 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleUpdateBalance = async (userId: string, newBalance: number) => {
+    if (isNaN(newBalance) || newBalance < 0) {
+      toast.error("Please enter a valid positive number for wallet balance!");
+      return;
+    }
+    try {
+      await updateDoc(doc(db, "users", userId), { walletBalance: newBalance });
+      toast.success("Wallet balance updated successfully! 🪙");
+      setEditingBalanceUserId(null);
+    } catch (e: any) {
+      toast.error(`Update failed: ${e.message}`);
+    }
+  };
+
+  const handleToggleAgentStatus = async (userId: string, currentIsAgent: boolean) => {
+    try {
+      await updateDoc(doc(db, "users", userId), { isAgent: !currentIsAgent });
+      toast.success(`Agent status ${!currentIsAgent ? "enabled" : "disabled"} successfully! 👑`);
+    } catch (e: any) {
+      toast.error(`Toggle agent failed: ${e.message}`);
+    }
+  };
+
   const handleApproveStream = async (orderId: string) => {
     try {
       await updateDoc(doc(db, "orders", orderId), {
@@ -836,6 +865,25 @@ export default function AdminDashboard() {
       setIsUpdatingPrice(false);
     }
   };
+
+  // Customers tab statistics and filtering
+  const totalRegistered = users.length;
+  const totalAgents = users.filter((u) => u.isAgent).length;
+  const totalWalletBalances = users.reduce((sum, u) => sum + (u.walletBalance || 0), 0);
+  const totalCompletedOrders = orders.filter((o) => o.status === "completed" || o.status === "delivered" || o.status === "paid" || o.status === "success").length;
+
+  const filteredUsers = users.filter((u) => {
+    const matchesSearch =
+      (u.fullName || "").toLowerCase().includes(customerSearchQuery.toLowerCase()) ||
+      (u.email || "").toLowerCase().includes(customerSearchQuery.toLowerCase()) ||
+      (u.phoneNumber || "").toLowerCase().includes(customerSearchQuery.toLowerCase());
+
+    if (customerRoleFilter === "all") return matchesSearch;
+    if (customerRoleFilter === "admin") return matchesSearch && u.role === "admin";
+    if (customerRoleFilter === "agent") return matchesSearch && !!u.isAgent;
+    if (customerRoleFilter === "user") return matchesSearch && u.role === "user" && !u.isAgent;
+    return matchesSearch;
+  });
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -1730,6 +1778,78 @@ export default function AdminDashboard() {
         </TabsContent>
 
         <TabsContent value="users" className="mt-0 outline-none">
+          {/* Customer Stats Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <Card className="rounded-2xl border bg-white dark:bg-slate-900 shadow-sm p-6 flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-primary/10 text-primary">
+                <Users className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Customers</p>
+                <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">{totalRegistered}</h3>
+              </div>
+            </Card>
+
+            <Card className="rounded-2xl border bg-white dark:bg-slate-900 shadow-sm p-6 flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-amber-500/10 text-amber-500">
+                <Crown className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Active Agents</p>
+                <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">{totalAgents}</h3>
+              </div>
+            </Card>
+
+            <Card className="rounded-2xl border bg-white dark:bg-slate-900 shadow-sm p-6 flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-500">
+                <Wallet className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Wallet Balances</p>
+                <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">GHS {totalWalletBalances.toFixed(2)}</h3>
+              </div>
+            </Card>
+
+            <Card className="rounded-2xl border bg-white dark:bg-slate-900 shadow-sm p-6 flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-indigo-500/10 text-indigo-500">
+                <ShoppingBag className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Successful Orders</p>
+                <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">{totalCompletedOrders}</h3>
+              </div>
+            </Card>
+          </div>
+
+          {/* Search & Filter Controls */}
+          <div className="flex flex-col md:flex-row gap-4 mb-6 p-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border dark:border-slate-800">
+            <div className="relative flex-1">
+              <Search className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" />
+              <Input
+                placeholder="Search by name, email or phone..."
+                value={customerSearchQuery}
+                onChange={(e) => setCustomerSearchQuery(e.target.value)}
+                className="pl-10 h-11 rounded-xl bg-white dark:bg-slate-950 focus-visible:ring-primary border-slate-200 dark:border-slate-800 font-medium"
+              />
+            </div>
+            <div className="w-full md:w-56">
+              <Select
+                value={customerRoleFilter}
+                onValueChange={(val: any) => setCustomerRoleFilter(val)}
+              >
+                <SelectTrigger className="h-11 rounded-xl bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 font-bold text-xs uppercase tracking-wider">
+                  <SelectValue placeholder="Filter Role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Roles</SelectItem>
+                  <SelectItem value="user">Regular Customers</SelectItem>
+                  <SelectItem value="agent">Agents Only</SelectItem>
+                  <SelectItem value="admin">Admins Only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           <Card className="rounded-3xl border-2 bg-white dark:bg-slate-950 dark:border-slate-800 shadow-sm overflow-hidden">
             <CardHeader className="p-8 bg-slate-50 dark:bg-slate-900/50 border-b dark:border-slate-800">
               <CardTitle className="text-xl font-black flex items-center gap-2 text-slate-900 dark:text-white">
@@ -1747,30 +1867,178 @@ export default function AdminDashboard() {
                     <TableHead className="font-black text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-200">
                       Email Address
                     </TableHead>
-                    <TableHead className="font-black text-[10px] uppercase tracking-wider text-right p-6 text-slate-600 dark:text-slate-200">
+                    <TableHead className="font-black text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-200">
+                      Activity
+                    </TableHead>
+                    <TableHead className="font-black text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-200">
                       Balance
+                    </TableHead>
+                    <TableHead className="font-black text-[10px] uppercase tracking-wider text-right p-6 text-slate-600 dark:text-slate-200">
+                      Actions
                     </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {users.map((u) => (
-                    <TableRow
-                      key={u.id}
-                      className="hover:bg-slate-50/50 transition-colors dark:border-slate-800"
-                    >
-                      <TableCell className="p-6 min-w-[150px]">
-                        <span className="font-bold text-slate-900 dark:text-slate-100">
-                          {u.fullName}
-                        </span>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-slate-500 dark:text-slate-400 min-w-[200px]">
-                        {u.email}
-                      </TableCell>
-                      <TableCell className="text-right p-6 font-black text-primary">
-                        GHS {u.walletBalance?.toFixed(2) || "0.00"}
+                  {filteredUsers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="p-12 text-center text-sm font-bold text-slate-400">
+                        No customers found matching the search criteria. 👑
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    filteredUsers.map((u) => {
+                      const userOrders = orders.filter(
+                        (o) => o.userId === u.id || (o.email && o.email.toLowerCase() === u.email.toLowerCase())
+                      );
+                      const ordersCount = userOrders.length;
+                      const totalSpent = userOrders
+                        .filter((o) => o.status === "paid" || o.status === "completed" || o.status === "success" || o.status === "delivered")
+                        .reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
+
+                      const isEditingBalance = editingBalanceUserId === u.id;
+
+                      return (
+                        <TableRow
+                          key={u.id}
+                          className="hover:bg-slate-50/50 transition-colors dark:border-slate-800 animate-fade-in"
+                        >
+                          {/* Name & Badge */}
+                          <TableCell className="p-6 min-w-[200px]">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-black text-sm">
+                                {(u.fullName || "U").split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase()}
+                              </div>
+                              <div>
+                                <div className="font-black text-slate-900 dark:text-slate-100 flex items-center gap-1.5 flex-wrap">
+                                  {u.fullName}
+                                  {u.role === "admin" && (
+                                    <Badge className="bg-red-500 hover:bg-red-600 text-white font-black text-[8px] tracking-widest px-1.5 py-0.5 rounded-md uppercase">
+                                      Admin
+                                    </Badge>
+                                  )}
+                                  {u.isAgent && (
+                                    <Badge className="bg-primary text-secondary font-black text-[8px] tracking-widest px-1.5 py-0.5 rounded-md uppercase flex items-center gap-0.5">
+                                      <Crown className="w-2.5 h-2.5" /> Agent
+                                    </Badge>
+                                  )}
+                                </div>
+                                <span className="text-[10px] text-slate-400 font-mono block">ID: {u.id}</span>
+                              </div>
+                            </div>
+                          </TableCell>
+
+                          {/* Contact Details */}
+                          <TableCell className="min-w-[180px]">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-mono text-xs text-slate-700 dark:text-slate-300">
+                                {u.email}
+                              </span>
+                              {u.phoneNumber && (
+                                <span className="text-[10px] font-bold text-slate-400">
+                                  {u.phoneNumber}
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+
+                          {/* Orders Stats */}
+                          <TableCell className="min-w-[120px]">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                                {ordersCount} {ordersCount === 1 ? "order" : "orders"}
+                              </span>
+                              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                Spent: GHS {totalSpent.toFixed(2)}
+                              </span>
+                            </div>
+                          </TableCell>
+
+                          {/* Wallet Balance (with Inline Editing) */}
+                          <TableCell className="p-6 min-w-[200px]">
+                            <div className="flex items-center gap-2">
+                              {isEditingBalance ? (
+                                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border dark:border-slate-800">
+                                  <span className="text-xs font-bold pl-2 text-slate-500">GHS</span>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={tempBalanceValue}
+                                    onChange={(e) => setTempBalanceValue(e.target.value)}
+                                    className="h-8 w-20 bg-white dark:bg-slate-950 font-bold text-xs rounded-lg px-2 py-0 border-0 focus-visible:ring-0"
+                                    autoFocus
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") {
+                                        handleUpdateBalance(u.id, parseFloat(tempBalanceValue));
+                                      } else if (e.key === "Escape") {
+                                        setEditingBalanceUserId(null);
+                                      }
+                                    }}
+                                  />
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => handleUpdateBalance(u.id, parseFloat(tempBalanceValue))}
+                                    className="w-7 h-7 rounded-lg text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                  </Button>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => setEditingBalanceUserId(null)}
+                                    className="w-7 h-7 rounded-lg text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
+                                  >
+                                    <XCircle className="w-3.5 h-3.5" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <>
+                                  <span className="font-black text-sm text-primary">
+                                    GHS {(u.walletBalance || 0).toFixed(2)}
+                                  </span>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => {
+                                      setEditingBalanceUserId(u.id);
+                                      setTempBalanceValue((u.walletBalance || 0).toString());
+                                    }}
+                                    className="w-7 h-7 rounded-lg text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800"
+                                    title="Edit Balance"
+                                  >
+                                    <Wallet className="w-3.5 h-3.5" />
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
+
+                          {/* Action Controls */}
+                          <TableCell className="p-6 text-right min-w-[150px]">
+                            {u.role !== "admin" && (
+                              <Button
+                                size="sm"
+                                variant={u.isAgent ? "destructive" : "outline"}
+                                onClick={() => handleToggleAgentStatus(u.id, !!u.isAgent)}
+                                className="h-8 font-black text-[9px] uppercase tracking-wider rounded-xl px-3 flex items-center gap-1 ml-auto cursor-pointer"
+                              >
+                                {u.isAgent ? (
+                                  <>
+                                    <Lock className="w-3 h-3" /> Relock Store
+                                  </>
+                                ) : (
+                                  <>
+                                    <LockOpen className="w-3 h-3" /> Unlock Store
+                                  </>
+                                )}
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
