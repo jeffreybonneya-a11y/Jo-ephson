@@ -75,10 +75,12 @@ export default function Navbar({
       const unsubOrders = onSnapshot(qOrders, (snapshot) => {
         const visibleOrders = snapshot.docs.filter((doc) => {
           const o = doc.data();
-          if (o.agent_id || o.agentId || o.isAgentOrder) {
-            return o.paymentStatus === "success";
-          }
-          return true;
+          return o.paymentStatus === "success" || 
+                 o.status === "success" || 
+                 o.status === "delivered" || 
+                 o.status === "processing" || 
+                 o.status === "completed" || 
+                 o.status === "paid";
         });
         ordersCount = visibleOrders.length;
         updateCount();
@@ -202,7 +204,7 @@ export default function Navbar({
                   className="px-2 h-9 relative"
                 >
                   <LayoutDashboard className="w-4 h-4" />
-                  {unreadCount >= 0 && (
+                  {unreadCount > 0 && (
                     <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[8px] font-bold text-white shadow-lg">
                       {unreadCount}
                     </span>
@@ -281,7 +283,7 @@ export default function Navbar({
               >
                 <LayoutDashboard className={`w-5 h-5 ${isAdminView ? 'stroke-[3px]' : 'stroke-2'}`} />
                 <span className="text-[9px] font-black uppercase tracking-tight">Admin</span>
-                {unreadCount >= 0 && (
+                {unreadCount > 0 && (
                   <span className="absolute top-1 right-2 h-4 w-4 bg-red-600 rounded-full border-2 border-white flex items-center justify-center text-[8px] text-white font-black shadow-lg">
                     {unreadCount}
                   </span>
