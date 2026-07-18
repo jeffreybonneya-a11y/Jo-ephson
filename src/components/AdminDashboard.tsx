@@ -174,13 +174,15 @@ export default function AdminDashboard() {
     );
     const unsubOrders = onSnapshot(ordersQuery, (snapshot) => {
       const allOrders = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() as any }));
-      // Show only orders that are not purely unpaid checkout sessions,
-      // and for agent store orders, show only if payment was successful.
+      // Show only orders with successful payment to satisfy user constraint:
+      // "all successful payment orders must show in my admin dashboard too. only successful payment orders should show."
       const completedOrders = allOrders.filter((o) => {
-        if (o.agent_id || o.agentId || o.isAgentOrder) {
-          return o.paymentStatus === "success";
-        }
-        return o.status !== "unpaid" && o.status !== "checkout_unpaid";
+        return o.paymentStatus === "success" || 
+               o.status === "success" || 
+               o.status === "delivered" || 
+               o.status === "processing" || 
+               o.status === "completed" || 
+               o.status === "paid";
       });
       setOrders(completedOrders);
     });
