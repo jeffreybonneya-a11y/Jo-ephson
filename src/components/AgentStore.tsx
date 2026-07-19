@@ -200,58 +200,55 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
         }
       }
 
+      if (!publicKey) {
+        toast.error("Paystack configuration is currently missing. Please set VITE_PAYSTACK_PUBLIC_KEY.");
+        return;
+      }
+
       if (publicKey) {
         try {
-          const mod = await import("@paystack/inline-js");
-          let PaystackCtor: any = mod.default || mod;
-          if (typeof PaystackCtor !== "function" && PaystackCtor.default) {
-            PaystackCtor = PaystackCtor.default;
-          }
-
-          const paystack = new PaystackCtor();
           const paystackEmail = (profile?.email && profile.email.includes("@")) 
             ? profile.email 
             : ((auth.currentUser?.email && auth.currentUser.email.includes("@")) 
                 ? auth.currentUser.email 
                 : "customer@kingjdeals.com");
 
-          paystack.newTransaction({
-            key: publicKey,
-            email: paystackEmail,
-            amount: 5000, // 50 GHS in pesewas
-            currency: 'GHS',
-            reference: finalOrderId,
-            callback_url: window.location.origin + "/?reference=" + finalOrderId,
-            metadata: {
-              custom_fields: [
-                { display_name: "Purpose", variable_name: "purpose", value: "Agent Access Unlock" },
-                { display_name: "Order ID", variable_name: "order_id", value: finalOrderId }
-              ]
-            },
-            onSuccess: async (response: any) => {
-              try {
-                // Update order in Firestore on successful payment
-                await updateDoc(doc(db, 'orders', finalOrderId), {
-                  paymentStatus: "success",
-                  reference: response.reference
-                });
-                toast.success("Payment completed successfully! 👑");
-              } catch (updateErr) {
-                console.error("Failed to update order with Paystack success:", updateErr);
-              }
-            },
-            onCancel: async () => {
-              console.log("Paystack payment cancelled by user. Cleaning up pending order.");
-              try {
-                await deleteDoc(doc(db, 'orders', finalOrderId));
-              } catch (err) {
-                console.error("Failed to delete cancelled agent order doc:", err);
-              }
-            }
-          });
+          // Try to open a popup window immediately within the user-interaction thread to bypass popup blockers
+      const initResponse = await fetch(getApiUrl("/api/paystack-initialize"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: paystackEmail,
+          amount: 5000,
+          reference: finalOrderId,
+          callback_url: window.location.origin + "/?reference=" + finalOrderId,
+          currency: "GHS",
+        }),
+      });
+
+      if (!initResponse.ok) {
+        throw new Error("Failed to initialize payment gateway on server");
+      }
+
+      const initData = await initResponse.json();
+      if (initData.success && initData.authorization_url) {
+        toast.success("Redirecting to Paystack secure payment page... 👑");
+        if (window.self !== window.top) {
+          try {
+            window.top.location.href = initData.authorization_url;
+          } catch (redirectError) {
+            console.warn("Top-level redirection blocked. Falling back to iframe navigation:", redirectError);
+            window.location.href = initData.authorization_url;
+          }
+        } else {
+          window.location.href = initData.authorization_url;
+        }
+      } else {
+        throw new Error(initData.error || "Failed to retrieve redirection URL");
+      }
         } catch (paystackError) {
-          console.error("Paystack popup load error:", paystackError);
-          // Quietly handle error without displaying any error toasts!
+          console.error("Paystack initialization error:", paystackError);
+          throw paystackError;
         }
       }
 

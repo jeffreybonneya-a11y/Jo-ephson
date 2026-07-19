@@ -164,73 +164,47 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
         await setDoc(doc(db, "agent_orders", finalOrderId), initialAgentOrderData);
       }
 
-      const mod = await import("@paystack/inline-js");
-      let PaystackCtor: any = mod.default || mod;
-      if (typeof PaystackCtor !== "function" && PaystackCtor.default) {
-        PaystackCtor = PaystackCtor.default;
-      }
+      const userEmail = (auth.currentUser?.email && auth.currentUser.email.includes("@"))
+        ? auth.currentUser.email
+        : "customer@kingjdeals.com";
 
-      const paystack = new PaystackCtor();
-
-      const userEmail = auth.currentUser?.email || "royal-results-checker@kingjdeals.com";
-
-      paystack.newTransaction({
-        key: publicKey,
-        email: userEmail,
-        amount: Math.round(totalAmount * 100), // GHS to pesewas
-        currency: "GHS",
-        reference: finalOrderId,
-        callback_url: window.location.origin + "/?reference=" + finalOrderId,
-        onSuccess: async (response: any) => {
-          setIsSubmitting(true);
-          try {
-            // Update the existing order's paymentStatus and references
-            const updateFields: any = {
-              paymentStatus: "success",
-              reference: response.reference
-            };
-            if (agentContext) {
-              updateFields.profitAwarded = true;
-              updateFields.profit_credited = true;
-            }
-            await updateDoc(doc(db, "orders", finalOrderId), updateFields);
-
-            // Trigger success screen for 4 seconds
-            setShowSuccessScreen(true);
-            setIsSubmitting(false);
-
-            setTimeout(() => {
-              // State Reset after 4 seconds
-              setShowSuccessScreen(false);
-              setIsModalOpen(false);
-              setQuantity(1);
-              setMobileNumber('');
-            }, 4000);
-
-          } catch (orderErr: any) {
-            console.error("Failed to update order in Firestore:", orderErr);
-            toast.error(`Order saved locally but Firestore error: ${orderErr.message}`);
-            setIsSubmitting(false);
-          }
-        },
-        onClose: async () => {
-          console.log("Paystack payment cancelled by user. Cleaning up pending order.");
-          try {
-            await deleteDoc(doc(db, "orders", finalOrderId));
-            if (agentContext) {
-              await deleteDoc(doc(db, "agent_orders", finalOrderId));
-            }
-          } catch (err) {
-            console.error("Failed to delete cancelled order:", err);
-          }
-          toast.error("Payment session closed.");
-          setIsSubmitting(false);
-        }
+      // Try to open a popup window immediately within the user-interaction thread to bypass popup blockers
+      const initResponse = await fetch(getApiUrl("/api/paystack-initialize"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: userEmail,
+          amount: Math.round(totalAmount * 100),
+          reference: finalOrderId,
+          callback_url: window.location.origin + "/?reference=" + finalOrderId,
+          currency: "GHS",
+        }),
       });
 
+      if (!initResponse.ok) {
+        throw new Error("Failed to initialize payment gateway on server");
+      }
+
+      const initData = await initResponse.json();
+      if (initData.success && initData.authorization_url) {
+        toast.success("Redirecting to Paystack secure payment page... 👑");
+        if (window.self !== window.top) {
+          try {
+            window.top.location.href = initData.authorization_url;
+          } catch (redirectError) {
+            console.warn("Top-level redirection blocked. Falling back to iframe navigation:", redirectError);
+            window.location.href = initData.authorization_url;
+          }
+        } else {
+          window.location.href = initData.authorization_url;
+        }
+      } else {
+        throw new Error(initData.error || "Failed to retrieve redirection URL");
+      }
     } catch (error: any) {
       console.error("Failed to launch payment flow:", error);
       toast.error(`Payment initiation error: ${error.message}`);
+    } finally {
       setIsSubmitting(false);
     }
   };

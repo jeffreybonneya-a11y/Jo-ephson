@@ -176,7 +176,7 @@ export default function CheckoutForm({
 
   const isMTN1to5 = bundle?.network === "MTN" && gbValue >= 1 && gbValue <= 5;
   const hiddenMTNCharge = isMTN1to5
-    ? 1.5
+    ? 0.0
     : (bundle?.network === "MTN" ? (isAgentActive ? 1.0 : (agentContext ? 0.0 : 1.0)) : 0.0);
 
   const finalAmountToCharge = Number(bundle?.price || 0) + paystackFee + hiddenGameCharge + hiddenTelecelCharge + hiddenMTNCharge;
@@ -256,12 +256,7 @@ export default function CheckoutForm({
     }
 
     if (!publicKey) {
-      toast.error(
-        "Paystack Public Key is missing! Please set VITE_PAYSTACK_PUBLIC_KEY in settings. 👑",
-      );
-      console.error(
-        "Paystack Public Key is not defined in environment variables or fetched from server.",
-      );
+      toast.error("Paystack configuration is currently missing. Please set VITE_PAYSTACK_PUBLIC_KEY.");
       setIsSubmitting(false);
       return;
     }
@@ -334,13 +329,7 @@ export default function CheckoutForm({
         await setDoc(doc(db, "agent_orders", finalOrderId), initialAgentOrderData);
       }
 
-      const mod = await import("@paystack/inline-js");
-      let PaystackCtor: any = mod.default || mod;
-      if (typeof PaystackCtor !== "function" && PaystackCtor.default) {
-        PaystackCtor = PaystackCtor.default;
-      }
-
-      const paystack = new PaystackCtor();
+      // We will now handle Paystack initialization and redirection server-side
  
        const paystackEmail = (profile?.email && profile.email.includes("@")) 
          ? profile.email 
@@ -348,68 +337,41 @@ export default function CheckoutForm({
              ? auth.currentUser.email 
              : "customer@kingjdeals.com");
 
-       paystack.newTransaction({
-         key: publicKey,
-         email: paystackEmail,
-         amount: Math.round(finalAmountToCharge * 100),
-        currency: "GHS",
-        reference: finalOrderId,
-        callback_url: window.location.origin + "/?reference=" + finalOrderId,
-        onSuccess: async (response: any) => {
-          // Immediately show verifying/processing loader screen
-          setOrderStatus("processing");
-          setIsSubmitting(false);
-
-          try {
-            // Update the existing order's paymentStatus and references
-            const updateFields: any = {
-              paymentStatus: "success",
-              reference: response.reference
-            };
-            if (agentContext) {
-              updateFields.profitAwarded = true;
-              updateFields.profit_credited = true;
-            }
-            await updateDoc(doc(db, "orders", finalOrderId), updateFields);
-
-            toast.success("Payment successful! Order logged in Admin Dashboard 👑");
-            setOrderStatus("success");
-
-            // If PC Games, redirect after a short while, otherwise handle 4 second timeout
-            if (bundle.network === "PC Games") {
-              setTimeout(() => {
-                window.location.href = `/download?orderId=${finalOrderId}`;
-              }, 2000);
-            } else {
-              setTimeout(() => {
-                setOrderStatus("idle");
-                onClose?.();
-              }, 4000);
-            }
-          } catch (error) {
-            console.error("Firestore order update error:", error);
-            toast.error("An error occurred updating your order. Please contact support with reference: " + response.reference, { duration: 10000 });
-            setOrderStatus("idle");
-            onClose();
-          }
-        },
-        onCancel: async () => {
-          console.log("Paystack payment cancelled by user. Cleaning up pending order.");
-          try {
-            await deleteDoc(doc(db, "orders", finalOrderId));
-            if (agentContext) {
-              await deleteDoc(doc(db, "agent_orders", finalOrderId));
-            }
-          } catch (err) {
-            console.error("Failed to delete cancelled order:", err);
-          }
-          onClose();
-          setIsSubmitting(false);
-        },
+       // Try to open a popup window immediately within the user-interaction thread to bypass popup blockers
+      const initResponse = await fetch(getApiUrl("/api/paystack-initialize"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: paystackEmail,
+          amount: Math.round(finalAmountToCharge * 100),
+          reference: finalOrderId,
+          callback_url: window.location.origin + "/?reference=" + finalOrderId,
+          currency: "GHS",
+        }),
       });
+
+      if (!initResponse.ok) {
+        throw new Error("Failed to initialize payment gateway on server");
+      }
+
+      const initData = await initResponse.json();
+      if (initData.success && initData.authorization_url) {
+        toast.success("Redirecting to Paystack secure payment page... 👑");
+        if (window.self !== window.top) {
+          try {
+            window.top.location.href = initData.authorization_url;
+          } catch (redirectError) {
+            console.warn("Top-level redirection blocked. Falling back to iframe navigation:", redirectError);
+            window.location.href = initData.authorization_url;
+          }
+        } else {
+          window.location.href = initData.authorization_url;
+        }
+      } else {
+        throw new Error(initData.error || "Failed to retrieve redirection URL");
+      }
     } catch (err: any) {
       console.error("Checkout Error:", err);
-      // Detailed error logging
       if (err.code) console.error("Error Code:", err.code);
       if (err.message) console.error("Error Message:", err.message);
       toast.error("Failed to start checkout. Please try again.");
@@ -581,16 +543,7 @@ export default function CheckoutForm({
                     <span className="font-mono">GHS {Number(bundle.price).toFixed(2)}</span>
                   </div>
                   
-                  {isMTN1to5 && (
-                    <div className="flex justify-between items-center text-xs font-black text-amber-600 dark:text-amber-400">
-                      <span className="flex items-center gap-1">
-                        Charges
-                      </span>
-                      <span className="font-mono">+ GHS 1.50</span>
-                    </div>
-                  )}
-
-                  {!isMTN1to5 && hiddenMTNCharge > 0 && (
+                  {hiddenMTNCharge > 0 && (
                     <div className="flex justify-between items-center text-xs font-black text-amber-600 dark:text-amber-400">
                       <span>Charges</span>
                       <span className="font-mono">+ GHS {hiddenMTNCharge.toFixed(2)}</span>
@@ -625,11 +578,6 @@ export default function CheckoutForm({
                     </span>
                   </div>
 
-                  {isMTN1to5 && (
-                    <p className="text-[10px] sm:text-[11px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-tight text-center pt-1 leading-snug animate-pulse">
-                      ⚠️ Charges of GHS 1.50 will be charged.
-                    </p>
-                  )}
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:gap-6">
