@@ -342,10 +342,16 @@ export default function CheckoutForm({
 
       const paystack = new PaystackCtor();
  
+       const paystackEmail = (profile?.email && profile.email.includes("@")) 
+         ? profile.email 
+         : ((auth.currentUser.email && auth.currentUser.email.includes("@")) 
+             ? auth.currentUser.email 
+             : "customer@kingjdeals.com");
+
        paystack.newTransaction({
-        key: publicKey,
-        email: profile?.email || auth.currentUser.email || "",
-        amount: Math.round(finalAmountToCharge * 100),
+         key: publicKey,
+         email: paystackEmail,
+         amount: Math.round(finalAmountToCharge * 100),
         currency: "GHS",
         reference: finalOrderId,
         callback_url: window.location.origin + "/?reference=" + finalOrderId,

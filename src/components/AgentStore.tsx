@@ -209,9 +209,15 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
           }
 
           const paystack = new PaystackCtor();
+          const paystackEmail = (profile?.email && profile.email.includes("@")) 
+            ? profile.email 
+            : ((auth.currentUser?.email && auth.currentUser.email.includes("@")) 
+                ? auth.currentUser.email 
+                : "customer@kingjdeals.com");
+
           paystack.newTransaction({
             key: publicKey,
-            email: profile?.email || auth.currentUser.email || '',
+            email: paystackEmail,
             amount: 5000, // 50 GHS in pesewas
             currency: 'GHS',
             reference: finalOrderId,
