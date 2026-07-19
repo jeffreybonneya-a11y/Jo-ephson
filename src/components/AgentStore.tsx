@@ -172,7 +172,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
 
       // 2. Save order details properly in Firestore for admin to accept instantly
       await setDoc(doc(db, 'orders', finalOrderId), {
-        email: auth.currentUser?.email || 'no-email@example.com',
+        email: profile?.email || auth.currentUser?.email || '',
         phone: profile?.phoneNumber || "0000000000",
         network: "SYSTEM",
         bundle: "AGENT ACCESS UNLOCK",
@@ -211,7 +211,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
           const paystack = new PaystackCtor();
           paystack.newTransaction({
             key: publicKey,
-            email: auth.currentUser.email || 'no-email@example.com',
+            email: profile?.email || auth.currentUser.email || '',
             amount: 5000, // 50 GHS in pesewas
             currency: 'GHS',
             reference: finalOrderId,

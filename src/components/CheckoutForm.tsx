@@ -176,7 +176,7 @@ export default function CheckoutForm({
 
   const isMTN1to5 = bundle?.network === "MTN" && gbValue >= 1 && gbValue <= 5;
   const hiddenMTNCharge = isMTN1to5
-    ? 1.0
+    ? 1.5
     : (bundle?.network === "MTN" ? (isAgentActive ? 1.0 : (agentContext ? 0.0 : 1.0)) : 0.0);
 
   const finalAmountToCharge = Number(bundle?.price || 0) + paystackFee + hiddenGameCharge + hiddenTelecelCharge + hiddenMTNCharge;
@@ -279,7 +279,7 @@ export default function CheckoutForm({
 
       // PRE-SAVE the order in Firestore with paymentStatus "pending" and status "pending" so the Admin can see it immediately!
       const initialOrderData = {
-        email: auth.currentUser.email || "no-email@example.com",
+        email: profile?.email || auth.currentUser.email || "",
         phone: data.recipientPhone || "",
         network: data.recipientNetwork,
         bundle: bundle.network === "PC Games" ? bundle.name : `${data.recipientNetwork} ${bundle.dataAmount}`,
@@ -320,7 +320,7 @@ export default function CheckoutForm({
           agent_id: agentContext.id,
           customer_details: {
             name: profile?.fullName || auth.currentUser.displayName || "Royal Customer",
-            email: auth.currentUser.email || "no-email@example.com",
+            email: profile?.email || auth.currentUser.email || "",
             phone: data.recipientPhone || "",
             network: data.recipientNetwork,
           },
@@ -344,7 +344,7 @@ export default function CheckoutForm({
  
        paystack.newTransaction({
         key: publicKey,
-        email: auth.currentUser.email || "no-email@example.com",
+        email: profile?.email || auth.currentUser.email || "",
         amount: Math.round(finalAmountToCharge * 100),
         currency: "GHS",
         reference: finalOrderId,
@@ -580,7 +580,7 @@ export default function CheckoutForm({
                       <span className="flex items-center gap-1">
                         Charges
                       </span>
-                      <span className="font-mono">+ GHS 1.00</span>
+                      <span className="font-mono">+ GHS 1.50</span>
                     </div>
                   )}
 
@@ -621,7 +621,7 @@ export default function CheckoutForm({
 
                   {isMTN1to5 && (
                     <p className="text-[10px] sm:text-[11px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-tight text-center pt-1 leading-snug animate-pulse">
-                      ⚠️ Charges of GHS 1.00 will be charged.
+                      ⚠️ Charges of GHS 1.50 will be charged.
                     </p>
                   )}
                 </div>

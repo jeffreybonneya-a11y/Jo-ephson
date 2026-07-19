@@ -109,7 +109,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
 
       // Pre-save order to Firestore with paymentStatus "pending" and status "pending" so the Admin can see it immediately!
       const initialOrderData = {
-        email: auth.currentUser?.email || "no-email@example.com",
+        email: auth.currentUser?.email || "",
         serviceType: "Results Checker",
         examType: activeCheckerTab,
         quantity: quantity,
@@ -150,7 +150,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
           agent_id: agentContext.id,
           customer_details: {
             name: auth.currentUser?.displayName || "Royal Customer",
-            email: auth.currentUser?.email || "no-email@example.com",
+            email: auth.currentUser?.email || "",
             phone: phoneClean,
             network: "Result Checker",
           },
