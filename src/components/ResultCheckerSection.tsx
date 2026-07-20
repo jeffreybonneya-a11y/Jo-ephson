@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { GraduationCap, CheckCircle2, AlertTriangle, Loader2, Minus, Plus, ChevronRight, Play } from 'lucide-react';
 import waecBannerBg from '../assets/images/waec_banner_bg_1782934507804.jpg';
 import { getApiUrl } from '../lib/api';
+import { openPaystackPopup } from "../lib/paystack";
 
 interface ResultCheckerSectionProps {
   agentContext?: any;
@@ -86,23 +87,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
     }
 
     setIsSubmitting(true);
-
-    let publicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
-    if (!publicKey) {
-      try {
-        const res = await fetch(getApiUrl("/api/paystack-public-key"));
-        const resData = await res.json();
-        publicKey = resData.publicKey;
-      } catch (err) {
-        console.error("Failed to fetch Paystack Public Key:", err);
-      }
-    }
-
-    if (!publicKey) {
-      toast.error("Paystack configuration is currently missing. Please contact support.");
-      setIsSubmitting(false);
-      return;
-    }
+    // Client-side public key check removed to support mock fallback
 
     try {
       const finalOrderId = doc(collection(db, "orders")).id;
@@ -168,38 +153,74 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
         ? auth.currentUser.email
         : "customer@kingjdeals.com";
 
-      // Try to open a popup window immediately within the user-interaction thread to bypass popup blockers
-      const initResponse = await fetch(getApiUrl("/api/paystack-initialize"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: userEmail,
-          amount: Math.round(totalAmount * 100),
-          reference: finalOrderId,
-          callback_url: window.location.origin + "/?reference=" + finalOrderId,
-          currency: "GHS",
-        }),
-      });
-
-      if (!initResponse.ok) {
-        throw new Error("Failed to initialize payment gateway on server");
+      // Dynamic Public Key retrieval
+      let publicKey = "pk_live_1a324af248d2bb1e2f784e7c27981f58f7d66b2c";
+      try {
+        const pkRes = await fetch(getApiUrl("/api/paystack-public-key"));
+        if (pkRes.ok) {
+          const pkData = await pkRes.json();
+          if (pkData.publicKey) {
+            publicKey = pkData.publicKey;
+          }
+        }
+      } catch (pkErr) {
+        console.warn("Could not retrieve Paystack public key dynamically:", pkErr);
       }
 
-      const initData = await initResponse.json();
-      if (initData.success && initData.authorization_url) {
-        toast.success("Redirecting to Paystack secure payment page... 👑");
-        if (window.self !== window.top) {
-          try {
-            window.top.location.href = initData.authorization_url;
-          } catch (redirectError) {
-            console.warn("Top-level redirection blocked. Falling back to iframe navigation:", redirectError);
+      try {
+        toast.info("Launching secure checkout... 👑");
+        await openPaystackPopup({
+          key: publicKey,
+          email: userEmail,
+          amount: Math.round(totalAmount * 100),
+          currency: "GHS",
+          ref: finalOrderId,
+          onSuccess: (ref) => {
+            toast.success("Payment completed successfully! Verifying... 👑");
+            // Redirect to callback URL to trigger uniform verification & success handling in App.tsx
+            window.location.href = window.location.origin + "/?reference=" + ref;
+          },
+          onClose: () => {
+            toast.warning("Payment window closed.");
+            setIsSubmitting(false);
+          }
+        });
+      } catch (popError) {
+        console.warn("Paystack Inline popup failed or blocked. Falling back to secure redirect mode:", popError);
+
+        // Fallback to server-side redirect initialization
+        const initResponse = await fetch(getApiUrl("/api/paystack-initialize"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: userEmail,
+            amount: Math.round(totalAmount * 100),
+            reference: finalOrderId,
+            callback_url: window.location.origin + "/?reference=" + finalOrderId,
+            currency: "GHS",
+          }),
+        });
+
+        if (!initResponse.ok) {
+          throw new Error("Failed to initialize payment gateway on server");
+        }
+
+        const initData = await initResponse.json();
+        if (initData.success && initData.authorization_url) {
+          toast.success("Redirecting to secure payment page... 👑");
+          if (window.self !== window.top) {
+            try {
+              window.top.location.href = initData.authorization_url;
+            } catch (redirectError) {
+              console.warn("Top-level redirection blocked. Falling back to iframe navigation:", redirectError);
+              window.location.href = initData.authorization_url;
+            }
+          } else {
             window.location.href = initData.authorization_url;
           }
         } else {
-          window.location.href = initData.authorization_url;
+          throw new Error(initData.error || "Failed to retrieve redirection URL");
         }
-      } else {
-        throw new Error(initData.error || "Failed to retrieve redirection URL");
       }
     } catch (error: any) {
       console.error("Failed to launch payment flow:", error);
