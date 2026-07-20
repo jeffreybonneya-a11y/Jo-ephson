@@ -56,6 +56,14 @@ export default function BundleList({
   const [announcement, setAnnouncement] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Temporarily hide features: Result Checker, PC Games, Premium Apps, Game Coins
+  const hiddenTabs = [
+    "Result Checker",
+    "PC Games",
+    "Premium Apps",
+    "Game Coins",
+  ];
+
   const tabs = [
     "MTN",
     "Telecel",
@@ -64,7 +72,7 @@ export default function BundleList({
     "PC Games",
     "Premium Apps",
     "Game Coins",
-  ];
+  ].filter((tab) => !hiddenTabs.includes(tab));
   const gameCoinSubTabs = [
     { id: "FC_MOBILE", label: "FC ™ MOBILE points and silver" },
     { id: "PUBG_MOBILE", label: "PUBG Mobile UC" },
@@ -440,7 +448,14 @@ export default function BundleList({
     ...processedBundles,
     ...(hasFCPointsInDB ? [] : fcPointsFallback),
     pcGameItem,
-  ];
+  ].filter((b) => {
+    // If hidden, exclude from search results
+    if (hiddenTabs.includes("PC Games") && b.network === "PC Games") return false;
+    if (hiddenTabs.includes("Premium Apps") && b.network === "Premium Apps") return false;
+    if (hiddenTabs.includes("Game Coins") && (b.network === "FC Mobile" || b.network === "PUBG Mobile" || b.category?.includes("FC Mobile") || b.category?.includes("PUBG"))) return false;
+    if (hiddenTabs.includes("Result Checker") && b.network === "Result Checker") return false;
+    return true;
+  });
 
   const globalSearchResults =
     searchQuery.trim() !== ""
