@@ -62,18 +62,29 @@ export default function Navbar({
         localStorage.setItem('admin_notifier_reset_time', Date.now().toString());
       }
 
+      if (isAdminView) {
+        localStorage.setItem('admin_notifier_reset_time', Date.now().toString());
+      }
+
       const getResetTime = () => {
         const val = localStorage.getItem('admin_notifier_reset_time');
         return val ? parseInt(val, 10) : Date.now();
       };
 
-      const getOrderMillis = (o: any) => {
+      const getOrderMillis = (doc: any) => {
+        const o = doc.data();
+        if (!o) return 0;
         if (o.createdAt?.seconds) return o.createdAt.seconds * 1000;
-        if (o.createdAt?.toMillis) return o.createdAt.toMillis();
+        if (typeof o.createdAt?.toMillis === 'function') return o.createdAt.toMillis();
         if (o.createdAt instanceof Date) return o.createdAt.getTime();
         if (typeof o.createdAt === 'number') return o.createdAt;
+        if (typeof o.createdAt === 'string') {
+          const parsed = Date.parse(o.createdAt);
+          if (!isNaN(parsed) && parsed > 0) return parsed;
+        }
         if (o.userConfirmedAt?.seconds) return o.userConfirmedAt.seconds * 1000;
-        return Date.now();
+        if (doc.metadata?.hasPendingWrites) return Date.now();
+        return 0;
       };
 
       const updateCount = () => {
@@ -106,11 +117,13 @@ export default function Navbar({
           const isPendingStatus =
             o.status === "pending" ||
             o.status === "pending_verification" ||
-            o.paymentStatus === "pending_verification";
+            o.paymentStatus === "pending_verification" ||
+            o.status === "paid" ||
+            o.paymentStatus === "success";
           
           if (!isPendingStatus) return false;
-          const orderTime = getOrderMillis(o);
-          return orderTime > resetTimeMs;
+          const orderTime = getOrderMillis(doc);
+          return orderTime > 0 && orderTime > resetTimeMs;
         });
         ordersCount = visibleOrders.length;
         updateCount();

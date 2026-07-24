@@ -505,11 +505,11 @@ export default function CheckoutForm({
 
   const handleProceedPayment = () => {
     if (!savedFormData) return;
-    if (selectedPaymentMethod === "momo_direct") {
-      processMoMoDirectPayment(savedFormData);
-    } else {
-      processPaystackPayment(savedFormData);
+    if (selectedPaymentMethod === "paystack") {
+      toast.error("Paystack online payment is currently unavailable. Please select Pay Directly with MoMo.");
+      return;
     }
+    processMoMoDirectPayment(savedFormData);
   };
 
   const handleSentPayment = async () => {
@@ -709,25 +709,24 @@ export default function CheckoutForm({
                 </div>
               </div>
 
-              {/* Option 2: Paystack Gateway */}
+              {/* Option 2: Paystack Gateway (Unavailable) */}
               <div
-                onClick={() => setSelectedPaymentMethod("paystack")}
-                className={`cursor-pointer p-4 rounded-2xl border-2 transition-all flex items-start gap-3.5 relative ${
-                  selectedPaymentMethod === "paystack"
-                    ? "border-primary bg-primary/5 dark:bg-primary/10 shadow-md"
-                    : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900"
-                }`}
+                onClick={() => {
+                  toast.error("Paystack online payment is currently unavailable. Please use Pay Directly with MoMo.");
+                }}
+                className="cursor-not-allowed opacity-60 p-4 rounded-2xl border-2 border-slate-200 dark:border-slate-800 bg-slate-100/80 dark:bg-slate-900/40 transition-all flex items-start gap-3.5 relative"
               >
-                <div className={`w-5 h-5 rounded-full border-2 mt-0.5 flex items-center justify-center shrink-0 ${
-                  selectedPaymentMethod === "paystack" ? "border-primary bg-primary text-secondary" : "border-slate-300 dark:border-slate-700"
-                }`}>
+                <div className="w-5 h-5 rounded-full border-2 border-slate-300 dark:border-slate-700 mt-0.5 flex items-center justify-center shrink-0">
                   {selectedPaymentMethod === "paystack" && <Check className="w-3 h-3 stroke-[3]" />}
                 </div>
 
                 <div className="flex-1 space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-black text-sm text-foreground uppercase">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-black text-sm text-foreground/70 uppercase">
                       Paystack Online Gateway
+                    </span>
+                    <span className="bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                      UNAVAILABLE
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">

@@ -138,6 +138,8 @@ export default function AdminDashboard() {
 
 
   useEffect(() => {
+    localStorage.setItem('admin_notifier_reset_time', Date.now().toString());
+    window.dispatchEvent(new Event('RESET_ADMIN_NOTIFIER'));
     seedFC();
     // 1. Fetch Announcement
     const unsubAnnouncement = onSnapshot(
