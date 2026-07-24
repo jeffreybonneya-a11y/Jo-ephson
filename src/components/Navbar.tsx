@@ -57,6 +57,25 @@ export default function Navbar({
       let ordersCount = 0;
       let profitRequestsCount = 0;
 
+      // Initialize reset timestamp if not present
+      if (!localStorage.getItem('admin_notifier_reset_time')) {
+        localStorage.setItem('admin_notifier_reset_time', Date.now().toString());
+      }
+
+      const getResetTime = () => {
+        const val = localStorage.getItem('admin_notifier_reset_time');
+        return val ? parseInt(val, 10) : Date.now();
+      };
+
+      const getOrderMillis = (o: any) => {
+        if (o.createdAt?.seconds) return o.createdAt.seconds * 1000;
+        if (o.createdAt?.toMillis) return o.createdAt.toMillis();
+        if (o.createdAt instanceof Date) return o.createdAt.getTime();
+        if (typeof o.createdAt === 'number') return o.createdAt;
+        if (o.userConfirmedAt?.seconds) return o.userConfirmedAt.seconds * 1000;
+        return Date.now();
+      };
+
       const updateCount = () => {
         if (isAdminView) {
           setUnreadCount(0);
@@ -65,22 +84,33 @@ export default function Navbar({
         }
       };
 
+      const handleResetNotifier = () => {
+        localStorage.setItem('admin_notifier_reset_time', Date.now().toString());
+        ordersCount = 0;
+        setUnreadCount(0);
+      };
+
+      window.addEventListener('RESET_ADMIN_NOTIFIER', handleResetNotifier);
+
       const qMessages = query(collection(db, 'complaints'), where('status', '==', 'open'));
       const unsubMessages = onSnapshot(qMessages, (snapshot) => {
         messagesCount = snapshot.size;
         updateCount();
       });
 
-      const qOrders = query(collection(db, 'orders'), where('status', '==', 'pending'));
+      const qOrders = query(collection(db, 'orders'));
       const unsubOrders = onSnapshot(qOrders, (snapshot) => {
+        const resetTimeMs = getResetTime();
         const visibleOrders = snapshot.docs.filter((doc) => {
           const o = doc.data();
-          return o.paymentStatus === "success" || 
-                 o.status === "success" || 
-                 o.status === "delivered" || 
-                 o.status === "processing" || 
-                 o.status === "completed" || 
-                 o.status === "paid";
+          const isPendingStatus =
+            o.status === "pending" ||
+            o.status === "pending_verification" ||
+            o.paymentStatus === "pending_verification";
+          
+          if (!isPendingStatus) return false;
+          const orderTime = getOrderMillis(o);
+          return orderTime > resetTimeMs;
         });
         ordersCount = visibleOrders.length;
         updateCount();
@@ -93,6 +123,7 @@ export default function Navbar({
       });
 
       return () => {
+        window.removeEventListener('RESET_ADMIN_NOTIFIER', handleResetNotifier);
         unsubMessages();
         unsubOrders();
         unsubProfitRequests();

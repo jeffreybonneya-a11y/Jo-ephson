@@ -58,9 +58,15 @@ export default function MyOrders() {
           id: doc.id,
           ...doc.data(),
         }));
-        // Show only orders with successful payment
+        // Show orders with successful payment or pending MoMo verification
         const completedOrders = fetchedOrders.filter(
-          (o: any) => o.paymentStatus === "success" || o.status === "success"
+          (o: any) =>
+            o.paymentStatus === "success" ||
+            o.status === "success" ||
+            o.status === "pending_verification" ||
+            o.paymentStatus === "pending_verification" ||
+            o.status === "delivered" ||
+            o.status === "processing"
         );
         setOrders(completedOrders);
         setLoading(false);
@@ -211,7 +217,9 @@ export default function MyOrders() {
                             ? "UNPAID"
                             : order.status === "pending"
                               ? "PENDING"
-                              : order.status}
+                              : order.status === "pending_verification"
+                                ? "PENDING VERIFICATION"
+                                : order.status}
                         </Badge>
                         <Button
                           size="sm"

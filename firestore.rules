@@ -67,7 +67,7 @@ service cloud.firestore {
              data.network is string &&
              data.bundle is string &&
              data.amount is number && data.amount > 0 &&
-             data.status in ['paid', 'completed', 'failed', 'pending', 'processing', 'delivered', 'pending_payment', 'unpaid', 'accepted', 'declined', 'checkout_unpaid', 'success'] &&
+             data.status in ['paid', 'completed', 'failed', 'pending', 'processing', 'delivered', 'pending_payment', 'unpaid', 'accepted', 'declined', 'checkout_unpaid', 'success', 'pending_verification'] &&
              data.createdAt is timestamp &&
              (!('reference' in data) || data.reference is string) &&
              (!('userId' in data) || data.userId is string) &&
@@ -94,7 +94,12 @@ service cloud.firestore {
              (!('agentReportReason' in data) || data.agentReportReason is string) &&
              (!('recipientUsername' in data) || data.recipientUsername is string) &&
              (!('fcUserId' in data) || data.fcUserId is string) &&
-             (!('fcUsername' in data) || data.fcUsername is string);
+             (!('fcUsername' in data) || data.fcUsername is string) &&
+             (!('momoRefCode' in data) || data.momoRefCode is string) &&
+             (!('momoNumber' in data) || data.momoNumber is string) &&
+             (!('isAgentOrder' in data) || data.isAgentOrder is bool) &&
+             (!('momoSentClicked' in data) || data.momoSentClicked is bool) &&
+             (!('userConfirmedAt' in data) || data.userConfirmedAt is timestamp);
     }
 
     function isValidUser(data) {
@@ -128,7 +133,8 @@ service cloud.firestore {
              data.agent_price is number && data.agent_price >= 0 &&
              data.profit is number &&
              data.status is string &&
-             data.created_at is timestamp;
+             data.created_at is timestamp &&
+             (!('paymentReference' in data) || data.paymentReference is string);
     }
 
     function isValidProfitRequest(data) {
@@ -226,7 +232,7 @@ service cloud.firestore {
               ('agentId' in resource.data && resource.data.agentId == request.auth.uid) || 
               (getAuthEmail() != "" && 'email' in resource.data && (resource.data.email == getAuthEmail() || resource.data.email.lower() == getAuthEmail().lower()))
             ) &&
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentStatus', 'reference', 'profitAwarded', 'profit_credited', 'status'])
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentStatus', 'reference', 'profitAwarded', 'profit_credited', 'status', 'momoSentClicked', 'userConfirmedAt'])
           )
         )
       );

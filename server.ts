@@ -109,20 +109,20 @@ app.post('/api/paystack-initialize', async (req, res) => {
     }
 });
 
-async function updateFirestoreOrderPaymentSuccess(reference: string) {
+async function updateFirestoreOrderPaymentStatus(reference: string, paymentStatus: "success" | "failed" | "pending" = "success") {
     try {
-        console.log(`[Firebase Admin] Attempting to update order: ${reference}`);
+        console.log(`[Firebase Admin] Attempting to update order ${reference} to paymentStatus: ${paymentStatus}`);
         const orderRef = dbAdmin.collection('orders').doc(reference);
         const orderSnap = await orderRef.get();
         if (orderSnap.exists) {
             const orderData = orderSnap.data();
             await orderRef.update({
-                paymentStatus: "success"
+                paymentStatus
             });
-            console.log(`[Firebase Admin] Successfully updated order ${reference} to paymentStatus: success`);
+            console.log(`[Firebase Admin] Successfully updated order ${reference} to paymentStatus: ${paymentStatus}`);
             
-            // Instantly grant Agent Access if this was an Agent Unlock order
-            if (orderData?.bundle === "AGENT ACCESS UNLOCK" && orderData?.userId) {
+            // Instantly grant Agent Access if this was an Agent Unlock order and payment is successful
+            if (paymentStatus === "success" && orderData?.bundle === "AGENT ACCESS UNLOCK" && orderData?.userId) {
                 await dbAdmin.collection('users').doc(orderData.userId).update({
                     isAgent: true
                 });
@@ -136,13 +136,17 @@ async function updateFirestoreOrderPaymentSuccess(reference: string) {
         const agentOrderSnap = await agentOrderRef.get();
         if (agentOrderSnap.exists) {
             await agentOrderRef.update({
-                status: "success"
+                status: paymentStatus
             });
-            console.log(`[Firebase Admin] Successfully updated agent_orders document ${reference} to status: success`);
+            console.log(`[Firebase Admin] Successfully updated agent_orders document ${reference} to status: ${paymentStatus}`);
         }
     } catch (err: any) {
         console.log('[Firebase Admin] Notice: Update of Firestore status was not completed:', err.message || err);
     }
+}
+
+async function updateFirestoreOrderPaymentSuccess(reference: string) {
+    return updateFirestoreOrderPaymentStatus(reference, "success");
 }
 
 async function verifyPaystackReference(reference: string) {

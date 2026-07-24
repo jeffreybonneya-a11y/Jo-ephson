@@ -182,7 +182,9 @@ export default function AdminDashboard() {
                o.status === "delivered" || 
                o.status === "processing" || 
                o.status === "completed" || 
-               o.status === "paid";
+               o.status === "paid" ||
+               o.status === "pending_verification" ||
+               o.paymentStatus === "pending_verification";
       });
       setOrders(completedOrders);
     });
@@ -723,6 +725,15 @@ export default function AdminDashboard() {
             PENDING
           </Badge>
         );
+      case "pending_verification":
+        return (
+          <Badge
+            variant="outline"
+            className="bg-amber-100 text-amber-800 border-amber-300 font-black dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800"
+          >
+            PENDING VERIFICATION
+          </Badge>
+        );
       case "approved":
         return (
           <Badge
@@ -899,7 +910,19 @@ export default function AdminDashboard() {
           </p>
         </div>
 
-
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={() => {
+              window.dispatchEvent(new Event('RESET_ADMIN_NOTIFIER'));
+              toast.success("Notifier counter reset to zero! 👑");
+            }}
+            variant="outline"
+            className="h-10 px-4 rounded-xl border-amber-400/50 hover:border-amber-500 font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-sm cursor-pointer"
+          >
+            <RotateCcw className="w-4 h-4 text-amber-500" />
+            Reset Notifier (0)
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="tracking" className="space-y-6">
@@ -911,13 +934,13 @@ export default function AdminDashboard() {
             >
               TRACKING 👑
               {orders.filter(
-                (o) => o.status === "pending" && !o.agent_id && !o.agentId,
+                (o) => (o.status === "pending" || o.status === "pending_verification" || o.status === "paid") && !o.agent_id && !o.agentId,
               ).length > 0 && (
                 <span className="absolute -top-1.5 -right-1 bg-red-600 text-white text-[8px] w-4.5 h-4.5 flex items-center justify-center rounded-full font-black shadow-lg">
                   {
                     orders.filter(
                       (o) =>
-                        o.status === "pending" && !o.agent_id && !o.agentId,
+                        (o.status === "pending" || o.status === "pending_verification" || o.status === "paid") && !o.agent_id && !o.agentId,
                     ).length
                   }
                 </span>
@@ -954,14 +977,14 @@ export default function AdminDashboard() {
               AGENTS HUB 👑
               {profitRequests.filter((r) => r.status === "pending").length +
                 orders.filter(
-                  (o) => o.status === "pending" && (o.agent_id || o.agentId),
+                  (o) => (o.status === "pending" || o.status === "pending_verification" || o.status === "paid") && (o.agent_id || o.agentId),
                 ).length >
                 0 && (
                 <span className="absolute -top-1.5 -right-1 bg-primary text-secondary text-[8px] w-4.5 h-4.5 flex items-center justify-center rounded-full font-black shadow-lg">
                   {profitRequests.filter((r) => r.status === "pending").length +
                     orders.filter(
                       (o) =>
-                        o.status === "pending" && (o.agent_id || o.agentId),
+                        (o.status === "pending" || o.status === "pending_verification" || o.status === "paid") && (o.agent_id || o.agentId),
                     ).length}
                 </span>
               )}
@@ -1268,11 +1291,11 @@ export default function AdminDashboard() {
                                 ) : null
                               ) : (
                                 <>
-                                  {order.status === "pending" && (
-                                    <>
+                                  {(order.status === "pending" || order.status === "pending_verification" || order.status === "paid" || order.status === "success") && (
+                                    <div className="flex flex-wrap items-center justify-end gap-1.5">
                                       <Button
                                         size="sm"
-                                        className="h-9 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black uppercase text-[10px] shadow-sm flex items-center gap-2 cursor-pointer"
+                                        className="h-8 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black uppercase text-[10px] shadow-sm flex items-center gap-1.5 cursor-pointer"
                                         onClick={() =>
                                           handleUpdateOrderStatus(
                                             order.id,
@@ -1286,8 +1309,24 @@ export default function AdminDashboard() {
                                       </Button>
                                       <Button
                                         size="sm"
+                                        className="h-8 px-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-black uppercase text-[10px] shadow-sm flex items-center gap-1.5 cursor-pointer"
+                                        onClick={() => {
+                                          if (window.confirm("Deliver this order now? 🚚")) {
+                                            handleUpdateOrderStatus(
+                                              order.id,
+                                              "delivered",
+                                              order,
+                                            );
+                                          }
+                                        }}
+                                      >
+                                        <CheckCircle className="w-3 h-3" />
+                                        Deliver 🚚
+                                      </Button>
+                                      <Button
+                                        size="sm"
                                         variant="destructive"
-                                        className="h-9 px-4 rounded-xl font-black uppercase text-[10px] shadow-sm flex items-center gap-2 cursor-pointer"
+                                        className="h-8 px-3 rounded-xl font-black uppercase text-[10px] shadow-sm flex items-center gap-1.5 cursor-pointer"
                                         onClick={() =>
                                           handleUpdateOrderStatus(
                                             order.id,
@@ -1299,9 +1338,9 @@ export default function AdminDashboard() {
                                         <XCircle className="w-3 h-3" />
                                         Decline ❌
                                       </Button>
-                                    </>
+                                    </div>
                                   )}
-                                  {order.status === "accepted" && (
+                                  {(order.status === "accepted" || order.status === "processing") && (
                                     <Button
                                       size="sm"
                                       className="h-9 px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-black uppercase text-[10px] shadow-sm flex items-center gap-2 cursor-pointer"
@@ -2508,7 +2547,7 @@ export default function AdminDashboard() {
                                 </TableCell>
                                 <TableCell className="text-right p-4">
                                   <div className="flex justify-end gap-2">
-                                    {o.status === "pending" && (
+                                    {(o.status === "pending" || o.status === "pending_verification" || o.status === "paid" || o.status === "success") && (
                                       <>
                                         <Button
                                           size="sm"
@@ -2523,6 +2562,22 @@ export default function AdminDashboard() {
                                         >
                                           <Check className="w-3 h-3" />
                                           Accept ✅
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          className="h-8 px-3 rounded-lg bg-green-600 hover:bg-green-700 text-white font-black uppercase text-[9px] shadow-sm flex items-center gap-1 cursor-pointer"
+                                          onClick={() => {
+                                            if (window.confirm("Deliver this agent order now? 🚚")) {
+                                              handleUpdateOrderStatus(
+                                                o.id,
+                                                "delivered",
+                                                o,
+                                              );
+                                            }
+                                          }}
+                                        >
+                                          <CheckCircle className="w-3 h-3" />
+                                          Deliver 🚚
                                         </Button>
                                         <Button
                                           size="sm"

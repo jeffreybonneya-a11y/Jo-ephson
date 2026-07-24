@@ -43,8 +43,15 @@ import {
   ShieldCheck,
   Crown,
   User,
+  Copy,
+  Check,
+  ArrowLeft,
+  PhoneCall,
+  Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
+
+const MOMO_NUMBER = "0535884851";
 
 const formSchema = z
   .object({
@@ -111,6 +118,19 @@ export default function CheckoutForm({
     "idle" | "processing" | "success"
   >("idle");
   const [orderId, setOrderId] = useState("");
+
+  // MoMo & Payment Method Selection Step States
+  const [checkoutStep, setCheckoutStep] = useState<
+    "form" | "select_method" | "momo_pay" | "momo_sent"
+  >("form");
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<
+    "momo_direct" | "paystack"
+  >("momo_direct");
+  const [savedFormData, setSavedFormData] = useState<z.infer<
+    typeof formSchema
+  > | null>(null);
+  const [momoRefCode, setMomoRefCode] = useState<string>("");
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const {
     register,
@@ -242,12 +262,105 @@ export default function CheckoutForm({
       toast.error("You must be logged in to purchase.");
       return;
     }
+    setSavedFormData(data);
+    setCheckoutStep("select_method");
+  };
 
+  const handleCopy = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(label);
+    toast.success(`${label} copied to clipboard! 📋`);
+    setTimeout(() => setCopiedField(null), 2500);
+  };
+
+  const processMoMoDirectPayment = async (data: z.infer<typeof formSchema>) => {
+    if (!bundle || !auth.currentUser) return;
     setIsSubmitting(true);
-    // Client-side public key check removed to support mock fallback
 
     try {
-      // 0. Generate ID synchronously client-side WITHOUT saving to Firestore yet
+      const finalOrderId = doc(collection(db, "orders")).id;
+      setOrderId(finalOrderId);
+
+      // Use recipient phone number as the payment transfer reference code
+      const generatedRef = data.recipientPhone ? data.recipientPhone.trim() : (profile?.phoneNumber || "0535884851");
+      setMomoRefCode(generatedRef);
+
+      const wsPrice = Number(bundle.wholesalePrice || bundle.price);
+      const agPrice = Number(bundle.price);
+      const calculatedProfit = agPrice - wsPrice;
+
+      const momoOrderData = {
+        email: profile?.email || auth.currentUser.email || "",
+        phone: data.recipientPhone || "",
+        network: data.recipientNetwork,
+        bundle: bundle.network === "PC Games" ? bundle.name : `${data.recipientNetwork} ${bundle.dataAmount}`,
+        amount: finalAmountToCharge,
+        status: "pending_verification",
+        paymentStatus: "pending_verification",
+        paymentMethod: "momo_direct",
+        createdAt: serverTimestamp(),
+        userId: auth.currentUser.uid,
+        customerName: profile?.fullName || auth.currentUser.displayName || "Royal Customer",
+        reference: generatedRef,
+        momoRefCode: generatedRef,
+        momoNumber: MOMO_NUMBER,
+        ...(data.fcUserId ? { fcUserId: data.fcUserId } : {}),
+        ...(data.fcUsername ? { fcUsername: data.fcUsername } : {}),
+        ...(isAgentUser || profile?.isAgent ? { isAgentOrder: true } : {}),
+        ...(agentContext
+          ? {
+              agentId: agentContext.id,
+              agent_id: agentContext.id,
+              agentName: agentContext.agent_name,
+              agent_name: agentContext.agent_name,
+              wholesalePrice: wsPrice,
+              wholesale_price: wsPrice,
+              agentPrice: agPrice,
+              agent_price: agPrice,
+              profit: calculatedProfit,
+              agent_profit: calculatedProfit,
+              profitAwarded: false,
+              profit_credited: false,
+            }
+          : {}),
+      };
+
+      await setDoc(doc(db, "orders", finalOrderId), momoOrderData);
+
+      if (agentContext) {
+        const agentOrderData = {
+          id: finalOrderId,
+          agent_id: agentContext.id,
+          customer_details: {
+            name: profile?.fullName || auth.currentUser.displayName || "Royal Customer",
+            email: profile?.email || auth.currentUser.email || "",
+            phone: data.recipientPhone || "",
+            network: data.recipientNetwork,
+          },
+          wholesale_price: wsPrice,
+          agent_price: agPrice,
+          profit: calculatedProfit,
+          status: "pending_verification",
+          created_at: serverTimestamp(),
+          paymentReference: generatedRef,
+        };
+        await setDoc(doc(db, "agent_orders", finalOrderId), agentOrderData);
+      }
+
+      setIsSubmitting(false);
+      setCheckoutStep("momo_pay");
+    } catch (err: any) {
+      console.error("MoMo Payment Error:", err);
+      toast.error("Could not generate MoMo transfer details. Please try again.");
+      setIsSubmitting(false);
+    }
+  };
+
+  const processPaystackPayment = async (data: z.infer<typeof formSchema>) => {
+    if (!bundle || !auth.currentUser) return;
+    setIsSubmitting(true);
+
+    try {
       const finalOrderId = doc(collection(db, "orders")).id;
       setOrderId(finalOrderId);
 
@@ -255,9 +368,6 @@ export default function CheckoutForm({
       const agPrice = Number(bundle.price);
       const calculatedProfit = agPrice - wsPrice;
 
-      // 1. Initiate Payment with Paystack Pop (using the top-level reactive fee calculations)
-
-      // PRE-SAVE the order in Firestore with paymentStatus "pending" and status "pending" so the Admin can see it immediately!
       const initialOrderData = {
         email: profile?.email || auth.currentUser.email || "",
         phone: data.recipientPhone || "",
@@ -270,6 +380,7 @@ export default function CheckoutForm({
         customerName: profile?.fullName || auth.currentUser.displayName || "Royal Customer",
         reference: finalOrderId,
         paymentStatus: "pending",
+        paymentMethod: "paystack",
         ...(data.fcUserId ? { fcUserId: data.fcUserId } : {}),
         ...(data.fcUsername ? { fcUsername: data.fcUsername } : {}),
         ...(isAgentUser || profile?.isAgent ? { isAgentOrder: true } : {}),
@@ -293,7 +404,6 @@ export default function CheckoutForm({
 
       await setDoc(doc(db, "orders", finalOrderId), initialOrderData);
 
-      // If buyer is via an agent store, pre-create agent_orders entry too
       if (agentContext) {
         const initialAgentOrderData = {
           id: finalOrderId,
@@ -314,14 +424,12 @@ export default function CheckoutForm({
         await setDoc(doc(db, "agent_orders", finalOrderId), initialAgentOrderData);
       }
 
-      // Reintegrate Client-Side Paystack Pop payment method
       const paystackEmail = (profile?.email && profile.email.includes("@")) 
         ? profile.email 
         : ((auth.currentUser.email && auth.currentUser.email.includes("@")) 
             ? auth.currentUser.email 
             : "customer@kingjdeals.com");
 
-      // Dynamic Public Key retrieval
       let publicKey = "pk_live_1a324af248d2bb1e2f784e7c27981f58f7d66b2c";
       try {
         const pkRes = await fetch(getApiUrl("/api/paystack-public-key"));
@@ -345,7 +453,6 @@ export default function CheckoutForm({
           ref: finalOrderId,
           onSuccess: (ref) => {
             toast.success("Payment completed successfully! Verifying... 👑");
-            // Redirect to callback URL to trigger uniform verification & success handling in App.tsx
             window.location.href = window.location.origin + "/?reference=" + ref;
           },
           onClose: () => {
@@ -356,7 +463,6 @@ export default function CheckoutForm({
       } catch (popError) {
         console.warn("Paystack Inline popup failed or blocked. Falling back to secure redirect mode:", popError);
         
-        // Fallback to server-side redirect initialization
         const initResponse = await fetch(getApiUrl("/api/paystack-initialize"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -392,10 +498,32 @@ export default function CheckoutForm({
       }
     } catch (err: any) {
       console.error("Checkout Error:", err);
-      if (err.code) console.error("Error Code:", err.code);
-      if (err.message) console.error("Error Message:", err.message);
       toast.error("Failed to start checkout. Please try again.");
       setIsSubmitting(false);
+    }
+  };
+
+  const handleProceedPayment = () => {
+    if (!savedFormData) return;
+    if (selectedPaymentMethod === "momo_direct") {
+      processMoMoDirectPayment(savedFormData);
+    } else {
+      processPaystackPayment(savedFormData);
+    }
+  };
+
+  const handleSentPayment = async () => {
+    if (!orderId) return;
+    try {
+      await updateDoc(doc(db, "orders", orderId), {
+        momoSentClicked: true,
+        userConfirmedAt: serverTimestamp(),
+      });
+      toast.success("Order logged and awaiting verification. 👑");
+      setCheckoutStep("momo_sent");
+    } catch (e) {
+      console.error("Error confirming payment:", e);
+      setCheckoutStep("momo_sent");
     }
   };
 
@@ -504,6 +632,315 @@ export default function CheckoutForm({
               >
                 Contact Support
               </button>
+            </div>
+          </div>
+        ) : checkoutStep === "select_method" ? (
+          <div className="p-4 sm:p-10 space-y-4 sm:space-y-6">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setCheckoutStep("form")}
+                className="h-8 px-2 font-black text-xs text-slate-500 hover:text-foreground"
+              >
+                <ArrowLeft className="w-4 h-4 mr-1" /> BACK
+              </Button>
+            </div>
+
+            <DialogHeader className="text-center">
+              <div className="mx-auto w-12 h-12 bg-primary/10 text-primary rounded-2xl flex items-center justify-center shadow-md mb-2">
+                <Wallet className="w-6 h-6" />
+              </div>
+              <DialogTitle className="text-xl sm:text-2xl font-black tracking-tighter text-foreground dark:text-white uppercase">
+                CHOOSE PAYMENT METHOD 👑
+              </DialogTitle>
+              <DialogDescription className="text-slate-500 dark:text-slate-400 font-medium text-xs">
+                Select your preferred way to complete this order
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="bg-primary/5 p-4 rounded-2xl border-2 border-primary/20 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-black text-primary uppercase tracking-widest">
+                  Bundle Summary
+                </p>
+                <p className="font-black text-foreground text-sm sm:text-base">
+                  {bundle.name}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  Total
+                </p>
+                <p className="text-lg sm:text-xl font-black text-primary font-mono">
+                  GHS {finalAmountToCharge.toFixed(2)}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {/* Option 1: Pay Directly with MoMo */}
+              <div
+                onClick={() => setSelectedPaymentMethod("momo_direct")}
+                className={`cursor-pointer p-4 rounded-2xl border-2 transition-all flex items-start gap-3.5 relative ${
+                  selectedPaymentMethod === "momo_direct"
+                    ? "border-amber-500 bg-amber-500/5 dark:bg-amber-500/10 shadow-md"
+                    : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900"
+                }`}
+              >
+                <div className={`w-5 h-5 rounded-full border-2 mt-0.5 flex items-center justify-center shrink-0 ${
+                  selectedPaymentMethod === "momo_direct" ? "border-amber-500 bg-amber-500 text-white" : "border-slate-300 dark:border-slate-700"
+                }`}>
+                  {selectedPaymentMethod === "momo_direct" && <Check className="w-3 h-3 stroke-[3]" />}
+                </div>
+
+                <div className="flex-1 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-black text-sm text-foreground uppercase">
+                      Pay Directly with MoMo
+                    </span>
+                    <span className="bg-amber-400/90 text-slate-950 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                      MTN MoMo
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                    Transfer directly to MoMo number <span className="font-mono font-bold text-foreground">0535884851</span> using an auto-generated reference code.
+                  </p>
+                </div>
+              </div>
+
+              {/* Option 2: Paystack Gateway */}
+              <div
+                onClick={() => setSelectedPaymentMethod("paystack")}
+                className={`cursor-pointer p-4 rounded-2xl border-2 transition-all flex items-start gap-3.5 relative ${
+                  selectedPaymentMethod === "paystack"
+                    ? "border-primary bg-primary/5 dark:bg-primary/10 shadow-md"
+                    : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900"
+                }`}
+              >
+                <div className={`w-5 h-5 rounded-full border-2 mt-0.5 flex items-center justify-center shrink-0 ${
+                  selectedPaymentMethod === "paystack" ? "border-primary bg-primary text-secondary" : "border-slate-300 dark:border-slate-700"
+                }`}>
+                  {selectedPaymentMethod === "paystack" && <Check className="w-3 h-3 stroke-[3]" />}
+                </div>
+
+                <div className="flex-1 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-black text-sm text-foreground uppercase">
+                      Paystack Online Gateway
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                    Pay with Debit/Credit Card, Bank Account, or Mobile Money via Paystack checkout window.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <Button
+              onClick={handleProceedPayment}
+              disabled={isSubmitting}
+              className="w-full h-14 text-lg font-black gap-2 rounded-2xl shadow-xl bg-primary text-secondary hover:shadow-2xl transition-all"
+            >
+              {isSubmitting ? (
+                <div className="flex items-center gap-3">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span>PREPARING...</span>
+                </div>
+              ) : (
+                <>
+                  <Crown className="w-5 h-5" />
+                  PROCEED TO PAYMENT 👑
+                </>
+              )}
+            </Button>
+          </div>
+        ) : checkoutStep === "momo_pay" ? (
+          <div className="p-4 sm:p-8 space-y-5">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setCheckoutStep("select_method")}
+                className="h-8 px-2 font-black text-xs text-slate-500 hover:text-foreground cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4 mr-1" /> BACK
+              </Button>
+            </div>
+
+            <DialogHeader className="text-center">
+              <div className="mx-auto w-12 h-12 bg-amber-400/20 text-amber-600 dark:text-amber-400 rounded-2xl flex items-center justify-center shadow-md mb-2">
+                <Smartphone className="w-6 h-6" />
+              </div>
+              <DialogTitle className="text-xl sm:text-2xl font-black tracking-tighter text-foreground dark:text-white uppercase">
+                PAY DIRECTLY WITH MOMO 📱
+              </DialogTitle>
+              <DialogDescription className="text-slate-500 dark:text-slate-400 font-medium text-xs">
+                Transfer exact amount to the MoMo number below with reference code
+              </DialogDescription>
+            </DialogHeader>
+
+            {/* Total Amount, MoMo Number, Reference Code with Copy buttons */}
+            <div className="space-y-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 p-4 sm:p-5 rounded-2xl">
+              {/* 1. Order Total */}
+              <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-950 rounded-xl border border-slate-100 dark:border-slate-800">
+                <div>
+                  <p className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                    Order Total
+                  </p>
+                  <p className="text-lg sm:text-xl font-black text-primary font-mono">
+                    GH₵ {finalAmountToCharge.toFixed(2)}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleCopy(finalAmountToCharge.toFixed(2), "Amount")}
+                  className="h-9 px-3 gap-1.5 font-bold text-xs rounded-lg border-2"
+                >
+                  {copiedField === "Amount" ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-green-600" /> Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" /> Copy
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {/* 2. MoMo Number */}
+              <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-950 rounded-xl border border-slate-100 dark:border-slate-800">
+                <div>
+                  <p className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                    MTN MoMo Number
+                  </p>
+                  <p className="text-base sm:text-lg font-black text-foreground font-mono">
+                    {MOMO_NUMBER}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleCopy(MOMO_NUMBER, "MoMo Number")}
+                  className="h-9 px-3 gap-1.5 font-bold text-xs rounded-lg border-2"
+                >
+                  {copiedField === "MoMo Number" ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-green-600" /> Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" /> Copy
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {/* 3. Generated Reference Code */}
+              <div className="flex items-center justify-between p-3 bg-amber-500/10 dark:bg-amber-500/20 rounded-xl border-2 border-amber-500/30">
+                <div>
+                  <p className="text-[10px] font-black uppercase text-amber-600 dark:text-amber-400 tracking-wider">
+                    Your Transfer Reference
+                  </p>
+                  <p className="text-base sm:text-xl font-black text-amber-700 dark:text-amber-300 font-mono tracking-wider">
+                    {momoRefCode}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={() => handleCopy(momoRefCode, "Reference Code")}
+                  className="h-9 px-3 gap-1.5 font-bold text-xs rounded-lg bg-amber-500 text-slate-950 hover:bg-amber-600"
+                >
+                  {copiedField === "Reference Code" ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" /> Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" /> Copy
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {/* Dial Button */}
+            <a
+              href="tel:*170%23"
+              target="_self"
+              rel="noopener noreferrer"
+              onClick={handleSentPayment}
+              className="w-full h-12 sm:h-14 bg-amber-400 hover:bg-amber-500 text-slate-950 font-black rounded-xl sm:rounded-2xl flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all text-sm sm:text-base border-2 border-amber-500 uppercase tracking-wider"
+            >
+              <PhoneCall className="w-5 h-5" /> DIAL *170#
+            </a>
+
+            {/* Instructions Text */}
+            <div className="bg-slate-100 dark:bg-slate-900/80 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+              <p className="text-[11px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider">
+                Step-by-step Instructions:
+              </p>
+              <ol className="text-xs text-slate-700 dark:text-slate-300 space-y-1.5 font-semibold list-none pl-1">
+                <li>1. Select Transfer Money → MTN User.</li>
+                <li>2. Paste/enter the number above (<span className="font-mono font-bold">{MOMO_NUMBER}</span>).</li>
+                <li>3. Enter GH₵{finalAmountToCharge.toFixed(2)}.</li>
+                <li>4. Enter the reference above (copy it exactly: <span className="font-mono font-bold text-amber-600 dark:text-amber-400">{momoRefCode}</span>) as your transfer reference.</li>
+                <li>5. Confirm with your PIN.</li>
+              </ol>
+            </div>
+          </div>
+        ) : checkoutStep === "momo_sent" ? (
+          <div className="text-center bg-white dark:bg-slate-950 h-full flex flex-col items-center justify-center p-6 sm:p-10 animate-in fade-in zoom-in duration-500 space-y-6">
+            <div className="w-20 h-20 bg-amber-500 text-white rounded-3xl flex items-center justify-center shadow-2xl rotate-6 animate-bounce">
+              <Crown className="w-10 h-10" />
+            </div>
+
+            <div className="space-y-3">
+              <h2 className="text-2xl sm:text-3xl font-black tracking-tighter text-foreground dark:text-white uppercase">
+                ORDER AWAITING VERIFICATION 👑
+              </h2>
+              <p className="text-slate-500 dark:text-slate-400 font-medium text-sm sm:text-base max-w-sm mx-auto leading-relaxed">
+                Thank you! Your payment for reference <span className="font-mono font-black text-amber-600 dark:text-amber-400 uppercase">{momoRefCode}</span> has been logged and marked for verification.
+              </p>
+            </div>
+
+            <div className="w-full bg-slate-50 dark:bg-slate-900 rounded-2xl p-5 border-2 border-slate-100 dark:border-slate-800 text-left space-y-3 font-mono text-xs">
+              <div className="flex justify-between items-center pb-2 border-b border-slate-200 dark:border-slate-800">
+                <span className="text-slate-400 uppercase font-black">Reference</span>
+                <span className="font-black text-amber-600 dark:text-amber-400 text-sm">{momoRefCode}</span>
+              </div>
+              <div className="flex justify-between items-center pb-2 border-b border-slate-200 dark:border-slate-800">
+                <span className="text-slate-400 uppercase font-black">Total Amount</span>
+                <span className="font-black text-primary text-sm">GH₵ {finalAmountToCharge.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400 uppercase font-black">Status</span>
+                <span className="bg-amber-100 text-amber-800 font-black px-2 py-0.5 rounded uppercase text-[10px]">Awaiting Verification</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium italic">
+              Our admin team will cross-check your reference against our MoMo records and deliver your data bundle shortly.
+            </p>
+
+            <div className="w-full flex flex-col gap-3 pt-2">
+              <Button
+                variant="default"
+                className="w-full h-12 text-sm font-black rounded-xl bg-slate-900 dark:bg-primary text-white dark:text-secondary shadow-lg hover:bg-black"
+                onClick={onClose}
+              >
+                CLOSE WINDOW 👑
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full h-12 text-xs font-black rounded-xl border-2 border-[#25D366] text-[#25D366] hover:bg-[#25D366] hover:text-white transition-all gap-2"
+                onClick={() => handleWhatsApp("kingj")}
+              >
+                <MessageSquare className="w-4 h-4" /> CONTACT ADMIN ON WHATSAPP
+              </Button>
             </div>
           </div>
         ) : orderStatus === "idle" ? (
