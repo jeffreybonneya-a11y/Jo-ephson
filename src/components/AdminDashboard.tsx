@@ -112,7 +112,35 @@ export default function AdminDashboard() {
   const [tempBalanceValue, setTempBalanceValue] = useState("");
 
   const [pricePerChecker, setPricePerChecker] = useState<number>(25);
+  const [rcWholesalePrice, setRcWholesalePrice] = useState<number>(19);
   const [isUpdatingPrice, setIsUpdatingPrice] = useState<boolean>(false);
+
+  const [wholesaleInputs, setWholesaleInputs] = useState<Record<string, string>>({});
+  const [wholesaleSearch, setWholesaleSearch] = useState("");
+  const [wholesaleCategoryFilter, setWholesaleCategoryFilter] = useState("ALL");
+  const [isSavingWholesale, setIsSavingWholesale] = useState(false);
+
+  const calculateDefaultWholesale = (bundle: any): number => {
+    const isFCPackage =
+      bundle.category === 'FC Mobile Points' ||
+      bundle.category === 'FC Mobile Silver' ||
+      bundle.network === 'FC Mobile Points' ||
+      bundle.network === 'FC Mobile Silver';
+    const amountStr = String(bundle.dataAmount || bundle.name || "");
+    const gbMatch = amountStr.match(/(\d+(?:\.\d+)?)\s*GB/i);
+    const gbValue = gbMatch ? parseFloat(gbMatch[1]) : 0;
+    const isTelecelReduced = bundle.network === 'Telecel' && ((gbValue >= 1 && gbValue <= 5) || (gbValue >= 10 && gbValue <= 100));
+    const wholesaleDeduction = isFCPackage ? 1.00 : (isTelecelReduced ? 1.00 : 2.00);
+    let wholesale = Math.max(0, Number(bundle.price || 0) - wholesaleDeduction);
+
+    if (bundle.network === "MTN" && gbValue >= 1 && gbValue <= 6) {
+      wholesale += 2.0;
+    }
+    if (bundle.network === "MTN") {
+      wholesale = Math.max(0, wholesale - 0.30);
+    }
+    return wholesale;
+  };
 
   const [announcement, setAnnouncement] = useState({
     id: "discount-bar",
@@ -126,6 +154,7 @@ export default function AdminDashboard() {
     name: "",
     dataAmount: "",
     price: "",
+    wholesalePrice: "",
     network: "MTN" as Network,
     active: true,
     offerSlug: "",
@@ -249,6 +278,9 @@ export default function AdminDashboard() {
           const data = snapshot.data();
           if (typeof data.pricePerChecker === "number") {
             setPricePerChecker(data.pricePerChecker);
+          }
+          if (typeof data.wholesalePrice === "number") {
+            setRcWholesalePrice(data.wholesalePrice);
           }
         }
       }
@@ -428,6 +460,7 @@ export default function AdminDashboard() {
         name: bundleForm.name,
         dataAmount: bundleForm.dataAmount,
         price: Number(bundleForm.price),
+        wholesalePrice: bundleForm.wholesalePrice !== "" ? Number(bundleForm.wholesalePrice) : null,
         category: bundleForm.category,
         description: bundleForm.description,
         active: bundleForm.active,
@@ -455,6 +488,7 @@ export default function AdminDashboard() {
         name: "",
         dataAmount: "",
         price: "",
+        wholesalePrice: "",
         network: "MTN" as Network,
         active: true,
         offerSlug: "",
@@ -474,6 +508,7 @@ export default function AdminDashboard() {
       name: bundle.name,
       dataAmount: bundle.dataAmount || "",
       price: String(bundle.price),
+      wholesalePrice: bundle.wholesalePrice != null ? String(bundle.wholesalePrice) : "",
       network: bundle.network,
       active: bundle.active ?? true,
       offerSlug: bundle.offerSlug || "",
@@ -482,6 +517,81 @@ export default function AdminDashboard() {
       description: bundle.description || "",
       imageUrl: bundle.imageUrl || "",
     });
+  };
+
+  const handleSaveSingleWholesale = async (bundleId: string) => {
+    try {
+      const val = wholesaleInputs[bundleId];
+      const parsed = val !== "" && val !== undefined ? Number(val) : null;
+      if (parsed !== null && (isNaN(parsed) || parsed < 0)) {
+        toast.error("Please enter a valid wholesale price.");
+        return;
+      }
+      await updateDoc(doc(db, "bundles", bundleId), {
+        wholesalePrice: parsed,
+        updatedAt: serverTimestamp(),
+      });
+      toast.success("Wholesale price saved successfully! 🏷️");
+    } catch (err: any) {
+      toast.error(`Failed to update wholesale price: ${err.message}`);
+    }
+  };
+
+  const handleResetSingleWholesale = async (bundleId: string) => {
+    try {
+      await updateDoc(doc(db, "bundles", bundleId), {
+        wholesalePrice: null,
+        updatedAt: serverTimestamp(),
+      });
+      setWholesaleInputs((prev) => {
+        const next = { ...prev };
+        delete next[bundleId];
+        return next;
+      });
+      toast.success("Reset to default formula calculation! 🔄");
+    } catch (err: any) {
+      toast.error(`Failed to reset wholesale price: ${err.message}`);
+    }
+  };
+
+  const handleSaveAllWholesale = async () => {
+    setIsSavingWholesale(true);
+    try {
+      let count = 0;
+      for (const b of bundles) {
+        const val = wholesaleInputs[b.id];
+        if (val !== undefined) {
+          const parsed = val !== "" ? Number(val) : null;
+          if (parsed === null || (!isNaN(parsed) && parsed >= 0)) {
+            await updateDoc(doc(db, "bundles", b.id), {
+              wholesalePrice: parsed,
+              updatedAt: serverTimestamp(),
+            });
+            count++;
+          }
+        }
+      }
+      toast.success(`Updated wholesale prices for ${count} package(s)! 🏷️`);
+    } catch (err: any) {
+      toast.error(`Error saving wholesale prices: ${err.message}`);
+    } finally {
+      setIsSavingWholesale(false);
+    }
+  };
+
+  const handleSaveRCWholesale = async () => {
+    try {
+      await setDoc(
+        doc(db, "settings", "results_checker"),
+        {
+          wholesalePrice: Number(rcWholesalePrice),
+        },
+        { merge: true },
+      );
+      toast.success("Results Checker wholesale price updated! 🎓");
+    } catch (err: any) {
+      toast.error(`Failed to update Results Checker wholesale price: ${err.message}`);
+    }
   };
 
   const handleUpdateOrderStatus = async (
@@ -887,6 +997,18 @@ export default function AdminDashboard() {
     return matchesSearch;
   });
 
+  const filteredWholesaleBundles = bundles.filter((b) => {
+    const matchesCat =
+      wholesaleCategoryFilter === "ALL" ||
+      b.category === wholesaleCategoryFilter ||
+      b.network === wholesaleCategoryFilter;
+    const matchesSearch =
+      !wholesaleSearch.trim() ||
+      b.name.toLowerCase().includes(wholesaleSearch.toLowerCase()) ||
+      (b.dataAmount && b.dataAmount.toLowerCase().includes(wholesaleSearch.toLowerCase()));
+    return matchesCat && matchesSearch;
+  });
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
@@ -940,6 +1062,12 @@ export default function AdminDashboard() {
               className="h-9 px-4 rounded-lg font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all focus-visible:ring-0"
             >
               BUNDLES
+            </TabsTrigger>
+            <TabsTrigger
+              value="wholesale"
+              className="h-9 px-4 rounded-lg font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all focus-visible:ring-0"
+            >
+              WHOLESALE 🏷️
             </TabsTrigger>
             <TabsTrigger
               value="announcement"
@@ -1521,7 +1649,7 @@ export default function AdminDashboard() {
                     </div>
                     <div className="space-y-1">
                       <Label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-300">
-                        Price (GHS)
+                        Retail Price (GHS)
                       </Label>
                       <Input
                         type="number"
@@ -1538,6 +1666,25 @@ export default function AdminDashboard() {
                         className="rounded-xl border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white"
                       />
                     </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-300">
+                      Wholesale Price (GHS) - Optional Override
+                    </Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={bundleForm.wholesalePrice}
+                      onChange={(e) =>
+                        setBundleForm({
+                          ...bundleForm,
+                          wholesalePrice: e.target.value,
+                        })
+                      }
+                      placeholder="Auto formula if empty"
+                      className="rounded-xl border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white"
+                    />
                   </div>
 
                   <div className="space-y-1">
@@ -1678,6 +1825,219 @@ export default function AdminDashboard() {
                       ))}
                   </TableBody>
                 </Table>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="wholesale" className="mt-0 outline-none">
+          <div className="space-y-6">
+            {/* Header Banner */}
+            <Card className="rounded-3xl border-2 border-slate-200 dark:border-slate-800 bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 text-white overflow-hidden shadow-md">
+              <CardContent className="p-6 sm:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                <div className="space-y-2">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/20 text-primary border border-primary/30 text-xs font-black uppercase tracking-wider">
+                    <span>🏷️ Wholesale Control Hub</span>
+                  </div>
+                  <h2 className="text-2xl sm:text-3xl font-black text-white">
+                    Set Wholesale Prices Manually
+                  </h2>
+                  <p className="text-sm text-slate-300 max-w-2xl font-medium">
+                    Customize baseline wholesale prices for data bundles and services. Saved wholesale prices immediately reflect across agent stores and wholesale reseller checkouts. Leave blank to rely on default formula calculation.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 shrink-0">
+                  <Button
+                    onClick={handleSaveAllWholesale}
+                    disabled={isSavingWholesale}
+                    className="h-12 px-6 rounded-2xl font-black bg-primary text-secondary hover:bg-primary/90 uppercase tracking-wider shadow-lg flex items-center gap-2 cursor-pointer"
+                  >
+                    {isSavingWholesale ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <CheckCircle className="w-4 h-4" />
+                    )}
+                    Save All Wholesale Prices
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Results Checker Wholesale Section */}
+            <Card className="rounded-3xl border-2 border-indigo-200 dark:border-indigo-900/40 bg-indigo-50/50 dark:bg-indigo-950/20 shadow-sm overflow-hidden">
+              <CardContent className="p-6 sm:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                <div className="space-y-1">
+                  <h3 className="text-lg font-black text-indigo-950 dark:text-indigo-200 flex items-center gap-2">
+                    <span>🎓 WAEC Results Checker Wholesale Price</span>
+                  </h3>
+                  <p className="text-xs text-indigo-700/80 dark:text-indigo-300/80 font-medium">
+                    Retail price is GHS {pricePerChecker.toFixed(2)}. Wholesale cost determines agent profit margin.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">GHS</span>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={rcWholesalePrice}
+                      onChange={(e) => setRcWholesalePrice(Number(e.target.value))}
+                      className="pl-12 w-32 h-11 rounded-xl font-black text-sm border-2 border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-900"
+                    />
+                  </div>
+                  <Button
+                    onClick={handleSaveRCWholesale}
+                    className="h-11 px-5 rounded-xl font-black text-xs uppercase bg-indigo-600 text-white hover:bg-indigo-700 shadow-md cursor-pointer"
+                  >
+                    Save RC Wholesale
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Data Bundles Wholesale Controls */}
+            <Card className="rounded-3xl border-2 bg-white dark:bg-slate-950 dark:border-slate-800 shadow-sm overflow-hidden">
+              <CardHeader className="p-6 bg-slate-50 dark:bg-slate-900/50 border-b dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <CardTitle className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>Packages & Bundles List</span>
+                    <Badge variant="outline" className="text-xs font-bold px-2 py-0.5 rounded-full">
+                      {filteredWholesaleBundles.length} items
+                    </Badge>
+                  </CardTitle>
+                </div>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                  <div className="relative">
+                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      value={wholesaleSearch}
+                      onChange={(e) => setWholesaleSearch(e.target.value)}
+                      placeholder="Search package name..."
+                      className="pl-9 h-10 w-full sm:w-60 rounded-xl border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white text-xs font-bold"
+                    />
+                  </div>
+                  <Select
+                    value={wholesaleCategoryFilter}
+                    onValueChange={setWholesaleCategoryFilter}
+                  >
+                    <SelectTrigger className="h-10 rounded-xl border-2 text-xs font-bold dark:bg-slate-900 dark:border-slate-800 dark:text-white min-w-[150px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="dark:bg-slate-900 dark:border-slate-800">
+                      <SelectItem value="ALL">All Categories</SelectItem>
+                      <SelectItem value="MTN">MTN Data</SelectItem>
+                      <SelectItem value="Telecel">Telecel Data</SelectItem>
+                      <SelectItem value="AirtelTigo">AirtelTigo Data</SelectItem>
+                      <SelectItem value="FC Mobile Points">FC Mobile Points</SelectItem>
+                      <SelectItem value="FC Mobile Silver">FC Mobile Silver</SelectItem>
+                      <SelectItem value="PC Games">PC Games</SelectItem>
+                      <SelectItem value="Premium Apps">Premium Apps</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader className="bg-slate-50/50 dark:bg-slate-900/20">
+                      <TableRow>
+                        <TableHead className="font-black text-[10px] uppercase p-4 sm:p-6">Package Name</TableHead>
+                        <TableHead className="font-black text-[10px] uppercase">Retail Price</TableHead>
+                        <TableHead className="font-black text-[10px] uppercase">Default Formula</TableHead>
+                        <TableHead className="font-black text-[10px] uppercase min-w-[200px]">Manual Wholesale Price (GHS)</TableHead>
+                        <TableHead className="font-black text-[10px] uppercase text-right p-4 sm:p-6">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredWholesaleBundles.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center py-12 text-slate-500 font-bold">
+                            No packages found matching search or filter.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredWholesaleBundles.map((b) => {
+                          const defaultWholesale = calculateDefaultWholesale(b);
+                          const currentInput = wholesaleInputs[b.id] !== undefined
+                            ? wholesaleInputs[b.id]
+                            : (b.wholesalePrice != null ? String(b.wholesalePrice) : "");
+                          const isCustom = b.wholesalePrice != null && b.wholesalePrice > 0;
+
+                          return (
+                            <TableRow key={b.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30">
+                              <TableCell className="p-4 sm:p-6 font-bold">
+                                <div className="flex items-center gap-3">
+                                  <Badge className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md">
+                                    {b.network || b.category}
+                                  </Badge>
+                                  <div>
+                                    <p className="text-sm font-black text-slate-900 dark:text-white">{b.name}</p>
+                                    {b.dataAmount && <p className="text-xs text-slate-500 font-semibold">{b.dataAmount}</p>}
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell className="font-extrabold text-sm text-slate-900 dark:text-slate-100">
+                                GHS {Number(b.price).toFixed(2)}
+                              </TableCell>
+                              <TableCell className="text-xs font-bold text-slate-500">
+                                GHS {defaultWholesale.toFixed(2)}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <div className="relative flex-1">
+                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">GHS</span>
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      placeholder={defaultWholesale.toFixed(2)}
+                                      value={currentInput}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setWholesaleInputs((prev) => ({
+                                          ...prev,
+                                          [b.id]: val,
+                                        }));
+                                      }}
+                                      className="pl-9 h-9 rounded-xl text-xs font-black border-2 dark:bg-slate-900 dark:border-slate-800"
+                                    />
+                                  </div>
+                                  {isCustom && (
+                                    <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[9px] font-black uppercase px-1.5 py-0.5 shrink-0">
+                                      Manual
+                                    </Badge>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right p-4 sm:p-6">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleSaveSingleWholesale(b.id)}
+                                    className="h-8 px-3 rounded-lg text-[10px] font-black uppercase bg-primary text-secondary hover:bg-primary/90 cursor-pointer"
+                                  >
+                                    Save
+                                  </Button>
+                                  {isCustom && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => handleResetSingleWholesale(b.id)}
+                                      className="h-8 px-2 rounded-lg text-[10px] font-bold text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 cursor-pointer"
+                                      title="Reset to default formula"
+                                    >
+                                      Reset
+                                    </Button>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               </CardContent>
             </Card>
           </div>

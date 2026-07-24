@@ -210,6 +210,12 @@ export default function BundleList({
     if (b.network === "MTN") {
       wholesalePrice = Math.max(0, wholesalePrice - 0.30);
     }
+
+    // Manual wholesale price override if set in Admin Dashboard
+    if (b.wholesalePrice != null && typeof b.wholesalePrice === "number" && b.wholesalePrice > 0) {
+      wholesalePrice = b.wholesalePrice;
+    }
+
     let discountedPrice = originalPrice;
 
     if (agentContext) {

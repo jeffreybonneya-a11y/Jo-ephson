@@ -62,6 +62,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
 
   // Price setup states
   const [customPrices, setCustomPrices] = useState<{ [bundleId: string]: string }>({});
+  const [rcWholesalePrice, setRcWholesalePrice] = useState<number>(19.0);
 
   // Withdrawal States
   const [withdrawAmount, setWithdrawAmount] = useState('');
@@ -154,11 +155,18 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
       setLoadingOrders(false);
     });
 
+    const unsubRC = onSnapshot(doc(db, 'settings', 'results_checker'), (snapshot) => {
+      if (snapshot.exists() && typeof snapshot.data().wholesalePrice === 'number') {
+        setRcWholesalePrice(snapshot.data().wholesalePrice);
+      }
+    });
+
     return () => {
       unsubAgent();
       unsubWithdrawals();
       unsubBundles();
       unsubOrders();
+      unsubRC();
     };
   }, []);
 
@@ -784,6 +792,11 @@ Reference Code: ${refCode}
                               if (bundle.network === "MTN") {
                                 wholesale = Math.max(0, wholesale - 0.30);
                               }
+
+                              if (bundle.wholesalePrice != null && typeof bundle.wholesalePrice === "number" && bundle.wholesalePrice > 0) {
+                                wholesale = bundle.wholesalePrice;
+                              }
+
                               const currentVal = customPrices[bundle.id] ?? String(wholesale);
                               const sellingPrice = customPrices[bundle.id] ? Number(customPrices[bundle.id]) : wholesale;
                               const profit = sellingPrice - wholesale;
@@ -847,7 +860,7 @@ Reference Code: ${refCode}
                       </h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {(() => {
-                          const wholesale = 19.0;
+                          const wholesale = rcWholesalePrice;
                           const currentVal = customPrices['results_checker'] ?? String(wholesale);
                           const sellingPrice = customPrices['results_checker'] ? Number(customPrices['results_checker']) : wholesale;
                           const profit = sellingPrice - wholesale;

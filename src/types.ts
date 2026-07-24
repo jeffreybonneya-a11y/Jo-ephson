@@ -14,6 +14,7 @@ export interface Bundle {
   name: string;
   dataAmount: string;
   price: number;
+  wholesalePrice?: number | null;
   network: Network;
   active: boolean;
   offerSlug?: string;

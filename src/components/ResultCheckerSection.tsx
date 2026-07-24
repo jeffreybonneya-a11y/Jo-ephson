@@ -21,12 +21,13 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
   const [activeCheckerTab, setActiveCheckerTab] = useState<'WASSCE' | 'BECE' | 'NOVDEC'>('WASSCE');
   const [quantity, setQuantity] = useState<number>(1);
   const [pricePerChecker, setPricePerChecker] = useState<number>(25);
+  const [rcWholesalePrice, setRcWholesalePrice] = useState<number>(19);
   const [loadingPrice, setLoadingPrice] = useState<boolean>(true);
-  
+
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [mobileNumber, setMobileNumber] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  
+
   const [showSuccessScreen, setShowSuccessScreen] = useState<boolean>(false);
 
   // Real-time listener for Results Checker price settings
@@ -35,18 +36,18 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
       if (agentContext.prices && typeof agentContext.prices.results_checker === 'number') {
         setPricePerChecker(agentContext.prices.results_checker);
       } else {
-        // Fallback to the wholesale price of 19 GHC if the agent hasn't set one yet
-        setPricePerChecker(19);
+        setPricePerChecker(rcWholesalePrice);
       }
-      setLoadingPrice(false);
-      return;
     }
 
     const unsub = onSnapshot(doc(db, 'settings', 'results_checker'), (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
-        if (typeof data.pricePerChecker === 'number') {
+        if (!agentContext && typeof data.pricePerChecker === 'number') {
           setPricePerChecker(data.pricePerChecker);
+        }
+        if (typeof data.wholesalePrice === 'number') {
+          setRcWholesalePrice(data.wholesalePrice);
         }
       }
       setLoadingPrice(false);
@@ -115,12 +116,12 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
           agent_id: agentContext.id,
           agentName: agentContext.agent_name,
           agent_name: agentContext.agent_name,
-          wholesalePrice: 19 * quantity,
-          wholesale_price: 19 * quantity,
+          wholesalePrice: rcWholesalePrice * quantity,
+          wholesale_price: rcWholesalePrice * quantity,
           agentPrice: pricePerChecker * quantity,
           agent_price: pricePerChecker * quantity,
-          profit: (pricePerChecker - 19) * quantity,
-          agent_profit: (pricePerChecker - 19) * quantity,
+          profit: (pricePerChecker - rcWholesalePrice) * quantity,
+          agent_profit: (pricePerChecker - rcWholesalePrice) * quantity,
           profit_credited: false,
           profitAwarded: false,
         } : {})
@@ -139,9 +140,9 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
             phone: phoneClean,
             network: "Result Checker",
           },
-          wholesale_price: 19 * quantity,
+          wholesale_price: rcWholesalePrice * quantity,
           agent_price: pricePerChecker * quantity,
-          profit: (pricePerChecker - 19) * quantity,
+          profit: (pricePerChecker - rcWholesalePrice) * quantity,
           status: "pending",
           created_at: serverTimestamp(),
           paymentReference: finalOrderId,
