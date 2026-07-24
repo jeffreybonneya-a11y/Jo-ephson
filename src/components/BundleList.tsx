@@ -56,13 +56,8 @@ export default function BundleList({
   const [announcement, setAnnouncement] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Temporarily hide features: Result Checker, PC Games, Premium Apps, Game Coins
-  const hiddenTabs = [
-    "Result Checker",
-    "PC Games",
-    "Premium Apps",
-    "Game Coins",
-  ];
+  // Enabled all categories: Result Checker, PC Games, Premium Apps, Game Coins
+  const hiddenTabs: string[] = [];
 
   const tabs = [
     "MTN",
@@ -209,6 +204,11 @@ export default function BundleList({
     if (b.network === "MTN" && gbValue >= 1 && gbValue <= 6) {
       wholesalePrice += 2.0;
       originalPrice += 2.0;
+    }
+
+    // Deduct 0.30 Ghc from agent wholesale prices for MTN
+    if (b.network === "MTN") {
+      wholesalePrice = Math.max(0, wholesalePrice - 0.30);
     }
     let discountedPrice = originalPrice;
 
@@ -1443,6 +1443,8 @@ export default function BundleList({
                       </div>
                     )}
                   </div>
+                ) : tab === "Premium Apps" ? (
+                  <StreamingTab onSelectBundle={onSelectBundle} bundles={bundles} />
                 ) : (
                   <div className="min-h-[40vh] flex flex-col items-center justify-center p-8 bg-card rounded-[2rem] border-2 border-border text-center">
                     <Crown className="w-12 h-12 text-primary/30 mb-4 animate-bounce" />

@@ -417,19 +417,6 @@ export default function AdminDashboard() {
         }
       }
 
-      // Purge any FC Mobile / Game Coins bundles from Firestore
-      const snapsAll = await getDocs(collection(db, "bundles"));
-      for (const d of snapsAll.docs) {
-        const bd = d.data();
-        if (
-          bd.network === "FCMobile" ||
-          bd.category === "Game Coins" ||
-          String(bd.name).toLowerCase().includes("fc points") ||
-          String(bd.name).toLowerCase().includes("fc silver")
-        ) {
-          await deleteDoc(d.ref);
-        }
-      }
     };
     seed().catch(console.error);
   }, []);

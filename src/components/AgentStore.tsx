@@ -779,6 +779,11 @@ Reference Code: ${refCode}
                               if (bundle.network === "MTN" && gbValue >= 1 && gbValue <= 6) {
                                 wholesale += 2.0;
                               }
+
+                              // Deduct 0.30 Ghc from agent wholesale prices for MTN
+                              if (bundle.network === "MTN") {
+                                wholesale = Math.max(0, wholesale - 0.30);
+                              }
                               const currentVal = customPrices[bundle.id] ?? String(wholesale);
                               const sellingPrice = customPrices[bundle.id] ? Number(customPrices[bundle.id]) : wholesale;
                               const profit = sellingPrice - wholesale;
