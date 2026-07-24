@@ -281,8 +281,35 @@ export default function CheckoutForm({
       const finalOrderId = doc(collection(db, "orders")).id;
       setOrderId(finalOrderId);
 
-      // Use recipient phone number as the payment transfer reference code
-      const generatedRef = data.recipientPhone ? data.recipientPhone.trim() : (profile?.phoneNumber || "0535884851");
+      // Determine reference code based on service category / network
+      const cat = (bundle.category || bundle.network || "").trim().toLowerCase();
+      const net = (bundle.network || "").trim().toLowerCase();
+      const name = (bundle.name || "").trim().toLowerCase();
+
+      let generatedRef = "";
+
+      if (
+        net === "pc games" || cat === "pc games" || cat === "fc 26" ||
+        net.includes("pc game") || cat.includes("pc game") || name.includes("pc game")
+      ) {
+        generatedRef = "PC GAMES";
+      } else if (
+        net === "premium apps" || cat === "premium apps" ||
+        net.includes("premium app") || cat.includes("premium app") || name.includes("premium app")
+      ) {
+        generatedRef = "PREMIUM APPS";
+      } else if (
+        net === "game coins" || cat === "game coins" ||
+        net.includes("game coin") || cat.includes("game coin") || name.includes("game coin") ||
+        net.includes("fc mobile") || cat.includes("fc mobile") ||
+        net.includes("pubg") || cat.includes("pubg")
+      ) {
+        generatedRef = "GAME COINS";
+      } else {
+        // Use recipient phone number as the payment transfer reference code for data bundles, result checkers, etc.
+        generatedRef = data.recipientPhone ? data.recipientPhone.trim() : (profile?.phoneNumber || "0535884851");
+      }
+
       setMomoRefCode(generatedRef);
 
       const wsPrice = Number(bundle.wholesalePrice || bundle.price);
@@ -810,28 +837,33 @@ export default function CheckoutForm({
               </div>
 
               {/* 2. MoMo Number */}
-              <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-950 rounded-xl border border-slate-100 dark:border-slate-800">
+              <div className="flex items-center justify-between p-4 bg-yellow-400/20 dark:bg-yellow-500/20 rounded-2xl border-2 border-yellow-500 dark:border-yellow-400 shadow-md ring-2 ring-yellow-400/30">
                 <div>
-                  <p className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                    MTN MoMo Number
-                  </p>
-                  <p className="text-base sm:text-lg font-black text-foreground font-mono">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span className="text-[10px] font-black uppercase bg-yellow-400 text-slate-950 px-2 py-0.5 rounded-full tracking-wider shadow-sm">
+                      MTN MoMo Number 📲
+                    </span>
+                    <span className="text-[10px] font-bold text-yellow-700 dark:text-yellow-300 animate-pulse">
+                      (Send Payment Here)
+                    </span>
+                  </div>
+                  <p className="text-xl sm:text-2xl font-black text-slate-950 dark:text-yellow-300 font-mono tracking-wider">
                     {MOMO_NUMBER}
                   </p>
                 </div>
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant="default"
                   onClick={() => handleCopy(MOMO_NUMBER, "MoMo Number")}
-                  className="h-9 px-3 gap-1.5 font-bold text-xs rounded-lg border-2"
+                  className="h-10 px-4 gap-1.5 font-black text-xs rounded-xl bg-yellow-400 hover:bg-yellow-500 text-slate-950 border-2 border-yellow-500 shadow-sm"
                 >
                   {copiedField === "MoMo Number" ? (
                     <>
-                      <Check className="w-3.5 h-3.5 text-green-600" /> Copied!
+                      <Check className="w-4 h-4 text-slate-950" /> Copied!
                     </>
                   ) : (
                     <>
-                      <Copy className="w-3.5 h-3.5" /> Copy
+                      <Copy className="w-4 h-4" /> Copy Number
                     </>
                   )}
                 </Button>
