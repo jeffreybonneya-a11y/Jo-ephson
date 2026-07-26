@@ -7,7 +7,6 @@ import CheckoutForm from './components/CheckoutForm';
 import AdminDashboard from './components/AdminDashboard';
 import OrderHistory from './components/OrderHistory';
 import Footer from './components/Footer';
-import PromoAd from './components/PromoAd';
 import { Bundle } from './types';
 import { Toaster, toast } from 'sonner';
 import { auth, db } from './lib/firebase';
@@ -369,7 +368,6 @@ export default function App() {
       
       <Footer />
       <ThemeCustomizer />
-      <PromoAd />
 
       {/* Movable WhatsApp Buttons */}
       <div className="fixed bottom-48 md:bottom-24 right-6 z-50 flex flex-col gap-4 pointer-events-none">
