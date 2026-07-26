@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { motion } from "motion/react";
-import { Smartphone, Wifi, Zap, Crown, Search } from "lucide-react";
+import { Smartphone, Wifi, Zap, Crown, Search, GraduationCap, Gamepad2, Monitor, Sparkles } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import StreamingTab from "./StreamingTab";
 import ResultCheckerSection from "./ResultCheckerSection";
@@ -72,6 +72,48 @@ export default function BundleList({
     { id: "FC_MOBILE", label: "FC ™ MOBILE points and silver" },
     { id: "PUBG_MOBILE", label: "PUBG Mobile UC" },
   ];
+
+  const mainCategories = [
+    { id: "DATA_BUNDLES", label: "Data Bundles", icon: Wifi },
+    { id: "RESULT_CHECKER", label: "Result Checker", icon: GraduationCap },
+    { id: "GAME_COINS", label: "Game Coins", icon: Gamepad2 },
+    { id: "PC_GAMES", label: "PC Games", icon: Monitor },
+    { id: "PREMIUM_APPS", label: "Premium Apps", icon: Sparkles },
+  ];
+
+  const dataNetworks = [
+    { id: "MTN", label: "MTN", activeClass: "bg-amber-400 text-slate-950 border-amber-500 font-black", dotClass: "bg-amber-500" },
+    { id: "Telecel", label: "Telecel", activeClass: "bg-red-600 text-white border-red-700 font-black", dotClass: "bg-red-500" },
+    { id: "AirtelTigo", label: "AT (AirtelTigo)", activeClass: "bg-blue-600 text-white border-blue-700 font-black", dotClass: "bg-blue-500" },
+  ];
+
+  const currentMainCat = ["MTN", "Telecel", "AirtelTigo"].includes(activeTab)
+    ? "DATA_BUNDLES"
+    : activeTab === "Result Checker"
+    ? "RESULT_CHECKER"
+    : activeTab === "Game Coins"
+    ? "GAME_COINS"
+    : activeTab === "PC Games"
+    ? "PC_GAMES"
+    : activeTab === "Premium Apps"
+    ? "PREMIUM_APPS"
+    : "DATA_BUNDLES";
+
+  const handleSelectMainCategory = (catId: string) => {
+    if (catId === "DATA_BUNDLES") {
+      if (!["MTN", "Telecel", "AirtelTigo"].includes(activeTab)) {
+        setActiveTab("MTN");
+      }
+    } else if (catId === "RESULT_CHECKER") {
+      setActiveTab("Result Checker");
+    } else if (catId === "GAME_COINS") {
+      setActiveTab("Game Coins");
+    } else if (catId === "PC_GAMES") {
+      setActiveTab("PC Games");
+    } else if (catId === "PREMIUM_APPS") {
+      setActiveTab("Premium Apps");
+    }
+  };
 
   const getNetworkColor = (tab: string) => {
     switch (tab) {
@@ -543,39 +585,89 @@ export default function BundleList({
           className="w-full max-w-6xl mx-auto"
           id="bundle-tabs"
         >
-          <div className="w-full mb-8 flex flex-col lg:flex-row gap-4 justify-between items-stretch lg:items-center bg-card p-3 rounded-2xl border border-border shadow-sm">
-            <div className="overflow-x-auto pb-2 lg:pb-0 scrollbar-hide">
-              <TabsList className="flex w-max gap-2 bg-slate-100/60 dark:bg-slate-800/60 p-1 rounded-xl border border-slate-200/40 dark:border-slate-700/40 h-auto">
-                {tabs.map((tab) => {
-                  return (
-                    <TabsTrigger
-                      key={tab}
-                      value={tab}
-                      className={`text-xs sm:text-sm font-bold h-9 md:h-11 px-4 rounded-lg transition-all select-none border border-transparent ${
-                        tab === activeTab
-                          ? getNetworkColor(tab) +
-                            " shadow-sm font-extrabold border-primary cursor-pointer"
-                          : "text-muted-foreground hover:text-foreground dark:hover:text-white hover:bg-slate-200/20 cursor-pointer"
+          {/* ROYAL NAVIGATION CATEGORY BAR */}
+          <div className="w-full mb-8 space-y-3.5">
+            {/* Primary Category Selector Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 bg-[#111C38] p-2.5 sm:p-3 rounded-2xl border border-amber-500/20 shadow-md">
+              {mainCategories.map((cat) => {
+                const isActive = currentMainCat === cat.id;
+                const IconComponent = cat.icon;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => handleSelectMainCategory(cat.id)}
+                    className={`flex items-center justify-center gap-2 sm:gap-2.5 px-2.5 sm:px-3 py-3 rounded-xl font-extrabold text-xs sm:text-sm transition-all duration-200 cursor-pointer select-none border ${
+                      isActive
+                        ? "bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 border-amber-300/60 shadow-[0_4px_15px_rgba(245,158,11,0.3)] scale-[1.02]"
+                        : "bg-[#0B132B]/70 text-slate-300 border-slate-800 hover:text-white hover:bg-slate-800/60 hover:border-amber-500/30"
+                    }`}
+                  >
+                    <IconComponent
+                      className={`w-4 h-4 shrink-0 ${
+                        isActive
+                          ? "text-slate-950"
+                          : "text-amber-400/80"
                       }`}
-                    >
-                      <div className="flex flex-col items-center justify-center leading-tight">
-                        <span>{tab}</span>
-                      </div>
-                    </TabsTrigger>
-                  );
-                })}
-              </TabsList>
+                    />
+                    <span className="truncate tracking-wide">{cat.label}</span>
+                  </button>
+                );
+              })}
             </div>
 
-            <div className="relative w-full lg:w-72 shrink-0">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search products..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 rounded-xl border border-border bg-slate-50 dark:bg-slate-900 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary text-xs transition-all h-9 md:h-10"
-              />
+            {/* Sub-Header Section for Data Bundles / Categories & Search */}
+            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-[#111C38]/80 p-3 rounded-2xl border border-amber-500/20 shadow-md">
+              {currentMainCat === "DATA_BUNDLES" ? (
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-hide">
+                  <span className="text-[11px] font-black uppercase text-amber-400 px-1 shrink-0 hidden sm:inline-block tracking-wider">
+                    Network:
+                  </span>
+                  {dataNetworks.map((net) => {
+                    const isSelected = activeTab === net.id;
+                    return (
+                      <button
+                        key={net.id}
+                        type="button"
+                        onClick={() => setActiveTab(net.id)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer border ${
+                          isSelected
+                            ? net.activeClass + " shadow-md scale-[1.02]"
+                            : "bg-[#0B132B] text-slate-300 border-slate-800 hover:border-amber-500/40 hover:text-white"
+                        }`}
+                      >
+                        <span
+                          className={`w-2.5 h-2.5 rounded-full ${net.dotClass} shrink-0`}
+                        />
+                        <span>{net.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 px-2 text-xs font-extrabold text-slate-300">
+                  <Crown className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>
+                    Viewing{" "}
+                    <strong className="text-amber-300 uppercase font-black tracking-wide">
+                      {mainCategories.find((c) => c.id === currentMainCat)?.label}
+                    </strong>{" "}
+                    Deals 👑
+                  </span>
+                </div>
+              )}
+
+              {/* Universal Search Input */}
+              <div className="relative w-full md:w-72 shrink-0">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-amber-400/80" />
+                <input
+                  type="text"
+                  placeholder="Search products..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 rounded-xl border border-amber-500/30 bg-[#0B132B] text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-400 focus:border-amber-400 text-xs transition-all h-9 md:h-10 font-medium"
+                />
+              </div>
             </div>
           </div>
 
@@ -614,33 +706,33 @@ export default function BundleList({
                       viewport={{ once: true }}
                       transition={{ duration: 0.3, delay: index * 0.02 }}
                     >
-                      <Card className="hover:shadow-md hover:shadow-primary/5 hover:border-primary/50 transition-all duration-300 border border-border/80 rounded-2xl overflow-hidden group bg-card shadow-sm hover:-translate-y-0.5 flex flex-col h-full">
+                      <Card className="hover:shadow-[0_8px_25px_rgba(245,158,11,0.15)] hover:border-amber-500/60 transition-all duration-300 border border-amber-500/20 rounded-2xl overflow-hidden group bg-[#111C38] shadow-md hover:-translate-y-0.5 flex flex-col h-full">
                         <CardHeader
-                          className={`${getNetworkBadgeColor(bundle.network)}/5 border-b border-border/50 p-4 flex flex-col gap-1`}
+                          className={`${getNetworkBadgeColor(bundle.network)}/10 border-b border-amber-500/20 p-4 flex flex-col gap-1`}
                         >
                           <div className="flex justify-between items-center">
                             <Badge
-                              className={`${getNetworkBadgeColor(bundle.network)} text-[10px] px-2 py-0.5 font-black uppercase rounded-md`}
+                              className={`${getNetworkBadgeColor(bundle.network)} text-[10px] px-2 py-0.5 font-black uppercase rounded-md shadow-sm border border-white/20`}
                             >
                               {bundle.network}
                             </Badge>
-                            <Zap className="w-4 h-4 text-primary fill-primary animate-pulse shrink-0" />
+                            <Zap className="w-4 h-4 text-amber-400 fill-amber-400 animate-pulse shrink-0" />
                           </div>
-                          <CardTitle className="text-lg sm:text-xl font-black mt-2 text-foreground dark:text-white tracking-tight leading-none min-h-[2rem] flex items-center">
+                          <CardTitle className="text-lg sm:text-xl font-black mt-2 text-slate-100 tracking-tight leading-none min-h-[2rem] flex items-center">
                             {bundle.dataAmount}
                           </CardTitle>
                           {["MTN", "Telecel", "AirtelTigo"].includes(
                             bundle.network,
                           ) && (
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase mt-1">
-                              NON-EXPIRY
+                            <p className="text-[10px] font-extrabold text-amber-400/90 uppercase tracking-wider mt-1">
+                              NON-EXPIRY DATA
                             </p>
                           )}
                         </CardHeader>
                         <CardContent className="p-4 flex flex-col justify-between flex-1 gap-4">
                           <div className="flex items-center justify-between">
-                            <div className="flex flex-col">
-                              <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">
+                            <div className="flex flex-col gap-1">
+                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
                                 Royal Price
                               </span>
                               <div className="flex flex-col">
@@ -648,30 +740,30 @@ export default function BundleList({
                                   !isAgentUser &&
                                   (bundle as any).isDiscounted) ||
                                   isAgentUser) && (
-                                  <span className="text-[10px] font-bold text-red-500 line-through">
+                                  <span className="text-[10px] font-bold text-red-400 line-through mb-0.5">
                                     GH₵{" "}
                                     {(bundle as any).originalPrice?.toFixed(
                                       2,
                                     ) || bundle.price.toFixed(2)}
                                   </span>
                                 )}
-                                <span className="text-base sm:text-lg font-black text-foreground dark:text-white">
+                                <span className="text-xs sm:text-sm font-black text-slate-950 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 px-2.5 py-1 rounded-lg border border-amber-300/60 shadow-sm w-fit tracking-tight">
                                   GH₵ {bundle.price.toFixed(2)}
                                 </span>
                               </div>
                               {isAgentUser && (
                                 <Badge
                                   variant="outline"
-                                  className="mt-1 border-primary/30 text-primary font-black animate-pulse rounded px-1 py-0 text-[8px] uppercase w-fit"
+                                  className="mt-1.5 border-amber-500/40 text-amber-300 font-black animate-pulse rounded px-1.5 py-0.5 text-[8px] uppercase w-fit bg-amber-500/10"
                                 >
                                   👑 Agent Wholesale
                                 </Badge>
                               )}
                             </div>
-                            <Wifi className="w-6 h-6 text-primary/10 group-hover:text-primary transition-colors shrink-0" />
+                            <Wifi className="w-6 h-6 text-amber-500/20 group-hover:text-amber-400 transition-colors shrink-0" />
                           </div>
                           <Button
-                            className="w-full h-10 text-xs font-black rounded-xl bg-secondary text-secondary-foreground hover:bg-primary hover:text-white transition-all shadow-md cursor-pointer"
+                            className="w-full h-10 text-xs font-black tracking-wide rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 hover:brightness-110 border border-amber-300/50 transition-all shadow-[0_2px_10px_rgba(245,158,11,0.25)] cursor-pointer"
                             onClick={() => {
                               onSelectBundle(bundle);
                             }}
@@ -723,33 +815,33 @@ export default function BundleList({
                           viewport={{ once: true }}
                           transition={{ duration: 0.3, delay: index * 0.03 }}
                         >
-                          <Card className="hover:shadow-md hover:shadow-primary/5 hover:border-primary/50 transition-all duration-300 border border-border/80 rounded-2xl overflow-hidden group bg-card shadow-sm hover:-translate-y-0.5 flex flex-col h-full">
+                          <Card className="hover:shadow-[0_8px_25px_rgba(245,158,11,0.15)] hover:border-amber-500/60 transition-all duration-300 border border-amber-500/20 rounded-2xl overflow-hidden group bg-[#111C38] shadow-md hover:-translate-y-0.5 flex flex-col h-full">
                             <CardHeader
-                              className={`${getNetworkBadgeColor(bundle.network)}/5 border-b border-border/50 p-4 flex flex-col gap-1`}
+                              className={`${getNetworkBadgeColor(bundle.network)}/10 border-b border-amber-500/20 p-4 flex flex-col gap-1`}
                             >
                               <div className="flex justify-between items-center">
                                 <Badge
-                                  className={`${getNetworkBadgeColor(bundle.network)} text-[10px] px-2 py-0.5 font-black uppercase rounded-md`}
+                                  className={`${getNetworkBadgeColor(bundle.network)} text-[10px] px-2 py-0.5 font-black uppercase rounded-md shadow-sm border border-white/20`}
                                 >
                                   {bundle.network}
                                 </Badge>
-                                <Zap className="w-4 h-4 text-primary fill-primary animate-pulse shrink-0" />
+                                <Zap className="w-4 h-4 text-amber-400 fill-amber-400 animate-pulse shrink-0" />
                               </div>
-                              <CardTitle className="text-xl sm:text-2xl font-black mt-2 text-foreground dark:text-white tracking-tight leading-none">
+                              <CardTitle className="text-xl sm:text-2xl font-black mt-2 text-slate-100 tracking-tight leading-none">
                                 {bundle.dataAmount}
                               </CardTitle>
                               {["MTN", "Telecel", "AirtelTigo"].includes(
                                 bundle.network,
                               ) && (
-                                <p className="text-[10px] font-bold text-muted-foreground uppercase mt-1">
-                                  NON-EXPIRY
+                                <p className="text-[10px] font-extrabold text-amber-400/90 uppercase tracking-wider mt-1">
+                                  NON-EXPIRY DATA
                                 </p>
                               )}
                             </CardHeader>
                             <CardContent className="p-4 flex flex-col justify-between flex-1 gap-4">
                               <div className="flex items-center justify-between">
-                                <div className="flex flex-col">
-                                  <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">
+                                <div className="flex flex-col gap-1">
+                                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
                                     Royal Price
                                   </span>
                                   <div className="flex flex-col">
@@ -757,30 +849,30 @@ export default function BundleList({
                                       !isAgentUser &&
                                       (bundle as any).isDiscounted) ||
                                       isAgentUser) && (
-                                      <span className="text-[10px] font-bold text-red-500 line-through">
+                                      <span className="text-[10px] font-bold text-red-400 line-through mb-0.5">
                                         GH₵{" "}
                                         {(bundle as any).originalPrice.toFixed(
                                           2,
                                         )}
                                       </span>
                                     )}
-                                    <span className="text-lg sm:text-xl font-black text-foreground dark:text-white">
+                                    <span className="text-xs sm:text-sm font-black text-slate-950 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 px-2.5 py-1 rounded-lg border border-amber-300/60 shadow-sm w-fit tracking-tight">
                                       GH₵ {bundle.price.toFixed(2)}
                                     </span>
                                   </div>
                                   {isAgentUser && (
                                     <Badge
                                       variant="outline"
-                                      className="mt-1 border-primary/30 text-primary font-black animate-pulse rounded px-1 py-0 text-[8px] uppercase w-fit"
+                                      className="mt-1.5 border-amber-500/40 text-amber-300 font-black animate-pulse rounded px-1.5 py-0.5 text-[8px] uppercase w-fit bg-amber-500/10"
                                     >
                                       👑 Agent Wholesale
                                     </Badge>
                                   )}
                                 </div>
-                                <Wifi className="w-7 h-7 text-primary/10 group-hover:text-primary transition-colors shrink-0" />
+                                <Wifi className="w-7 h-7 text-amber-500/20 group-hover:text-amber-400 transition-colors shrink-0" />
                               </div>
                               <Button
-                                className="w-full h-10 text-xs font-black rounded-xl bg-secondary text-secondary-foreground hover:bg-primary hover:text-white transition-all shadow-md cursor-pointer"
+                                className="w-full h-10 text-xs font-black tracking-wide rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 hover:brightness-110 border border-amber-300/50 transition-all shadow-[0_2px_10px_rgba(245,158,11,0.25)] cursor-pointer"
                                 onClick={() => {
                                   onSelectBundle(bundle);
                                 }}

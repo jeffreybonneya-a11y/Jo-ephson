@@ -1,13 +1,13 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-    --font-heading: var(--royal-font, var(--font-sans));
-    --font-sans: var(--royal-font, 'Geist Variable', sans-serif);
+    --font-heading: 'Playfair Display', Georgia, serif;
+    --font-serif: 'Playfair Display', Georgia, serif;
+    --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -49,31 +49,31 @@
 }
 
 :root {
-    --background: oklch(0.98 0.01 240);
-    --foreground: oklch(0.15 0.05 240);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.15 0.05 240);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.15 0.05 240);
-    --primary: oklch(0.75 0.18 85); /* Vibrant Gold */
-    --primary-foreground: oklch(0.15 0.05 240);
-    --secondary: oklch(0.25 0.12 240); /* Deep Royal Blue */
-    --secondary-foreground: oklch(0.98 0.01 240);
-    --muted: oklch(0.95 0.02 240);
-    --muted-foreground: oklch(0.45 0.05 240);
-    --accent: oklch(0.75 0.18 85 / 0.1);
-    --accent-foreground: oklch(0.75 0.18 85);
-    --destructive: oklch(0.55 0.2 25);
-    --border: oklch(0.9 0.02 240);
-    --input: oklch(0.9 0.02 240);
-    --ring: oklch(0.75 0.18 85);
+    --background: #0B132B;
+    --foreground: #F8FAFC;
+    --card: #111C38;
+    --card-foreground: #F8FAFC;
+    --popover: #111C38;
+    --popover-foreground: #F8FAFC;
+    --primary: #F59E0B; /* Rich Gold */
+    --primary-foreground: #0B132B;
+    --secondary: #1E293B; /* Executive Navy Slate */
+    --secondary-foreground: #F8FAFC;
+    --muted: #1E293B;
+    --muted-foreground: #94A3B8;
+    --accent: rgba(245, 158, 11, 0.15);
+    --accent-foreground: #F59E0B;
+    --destructive: #EF4444;
+    --border: #1E293B;
+    --input: #1E293B;
+    --ring: #F59E0B;
     --radius: 1rem;
 
     /* Semantic Overrides */
     --card-bg: var(--card);
-    --heading-foreground: var(--foreground);
-    --body-foreground: var(--foreground);
-    --muted-text: var(--muted-foreground);
+    --heading-foreground: #FFFFFF;
+    --body-foreground: #E2E8F0;
+    --muted-text: #94A3B8;
 
     /* Customizer Variables */
     --base-font-size: 16px;
@@ -86,29 +86,28 @@
 }
 
 .dark {
-    --background: oklch(0.12 0.06 240); /* Very Deep Blue */
-    --foreground: oklch(0.98 0.01 240);
-    --card: oklch(0.15 0.08 240);
-    --card-foreground: oklch(0.98 0.01 240);
-    --popover: oklch(0.15 0.08 240);
-    --popover-foreground: oklch(0.98 0.01 240);
-    --primary: oklch(0.75 0.18 85); /* Gold */
-    --primary-foreground: oklch(0.12 0.06 240);
-    --secondary: oklch(0.25 0.12 240);
-    --secondary-foreground: oklch(0.98 0.01 240);
-    --muted: oklch(0.2 0.08 240);
-    --muted-foreground: oklch(0.7 0.05 240);
-    --accent: oklch(0.75 0.18 85 / 0.15);
-    --accent-foreground: oklch(0.75 0.18 85);
-    --destructive: oklch(0.5 0.2 25);
-    --border: oklch(0.25 0.08 240);
-    --input: oklch(0.25 0.08 240);
-    --ring: oklch(0.75 0.18 85);
+    --background: #0B132B;
+    --foreground: #F8FAFC;
+    --card: #111C38;
+    --card-foreground: #F8FAFC;
+    --popover: #111C38;
+    --popover-foreground: #F8FAFC;
+    --primary: #F59E0B;
+    --primary-foreground: #0B132B;
+    --secondary: #1E293B;
+    --secondary-foreground: #F8FAFC;
+    --muted: #1E293B;
+    --muted-foreground: #94A3B8;
+    --accent: rgba(245, 158, 11, 0.15);
+    --accent-foreground: #F59E0B;
+    --destructive: #EF4444;
+    --border: #1E293B;
+    --input: #1E293B;
+    --ring: #F59E0B;
 
-    /* Dark Mode semantic overrides */
-    --heading-foreground: white;
-    --body-foreground: oklch(0.9 0.02 240);
-    --muted-text: oklch(0.6 0.02 240);
+    --heading-foreground: #FFFFFF;
+    --body-foreground: #E2E8F0;
+    --muted-text: #94A3B8;
 }
 
 @layer base {
@@ -121,10 +120,13 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-[#0B132B] text-[#F8FAFC];
     font-family: var(--font-sans);
     line-height: var(--base-line-height);
     letter-spacing: var(--base-letter-spacing);
+    background-image: radial-gradient(rgba(245, 158, 11, 0.12) 1px, transparent 0);
+    background-size: 28px 28px;
+    background-attachment: fixed;
   }
 
   #root {
