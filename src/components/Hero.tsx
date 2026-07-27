@@ -41,7 +41,7 @@ export default function Hero() {
 
             {/* Short Supporting Description */}
             <p className="text-sm sm:text-base md:text-lg text-slate-300 max-w-xl font-normal leading-relaxed">
-              Instant non-expiry data bundles, WAEC result checkers, game coins, and premium app access — backed by Paystack security and 24/7 royal support.
+              High-speed non-expiry data bundles for MTN, Telecel, and AirtelTigo — backed by Paystack security and 24/7 royal support.
             </p>
 
             {/* Single Clear Primary CTA Button */}

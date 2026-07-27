@@ -56,8 +56,13 @@ export default function BundleList({
   const [announcement, setAnnouncement] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Enabled all categories: Result Checker, PC Games, Premium Apps, Game Coins
-  const hiddenTabs: string[] = [];
+  // Temporarily hidden non-data bundle services as requested by user
+  const hiddenTabs: string[] = [
+    "Result Checker",
+    "PC Games",
+    "Premium Apps",
+    "Game Coins",
+  ];
 
   const tabs = [
     "MTN",
@@ -79,7 +84,13 @@ export default function BundleList({
     { id: "GAME_COINS", label: "Game Coins", icon: Gamepad2 },
     { id: "PC_GAMES", label: "PC Games", icon: Monitor },
     { id: "PREMIUM_APPS", label: "Premium Apps", icon: Sparkles },
-  ];
+  ].filter((cat) => {
+    if (cat.id === "RESULT_CHECKER" && hiddenTabs.includes("Result Checker")) return false;
+    if (cat.id === "GAME_COINS" && hiddenTabs.includes("Game Coins")) return false;
+    if (cat.id === "PC_GAMES" && hiddenTabs.includes("PC Games")) return false;
+    if (cat.id === "PREMIUM_APPS" && hiddenTabs.includes("Premium Apps")) return false;
+    return true;
+  });
 
   const dataNetworks = [
     { id: "MTN", label: "MTN", activeClass: "bg-amber-400 text-slate-950 border-amber-500 font-black", dotClass: "bg-amber-500" },
@@ -587,34 +598,36 @@ export default function BundleList({
         >
           {/* ROYAL NAVIGATION CATEGORY BAR */}
           <div className="w-full mb-8 space-y-3.5">
-            {/* Primary Category Selector Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 bg-[#111C38] p-2.5 sm:p-3 rounded-2xl border border-amber-500/20 shadow-md">
-              {mainCategories.map((cat) => {
-                const isActive = currentMainCat === cat.id;
-                const IconComponent = cat.icon;
-                return (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => handleSelectMainCategory(cat.id)}
-                    className={`flex items-center justify-center gap-2 sm:gap-2.5 px-2.5 sm:px-3 py-3 rounded-xl font-extrabold text-xs sm:text-sm transition-all duration-200 cursor-pointer select-none border ${
-                      isActive
-                        ? "bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 border-amber-300/60 shadow-[0_4px_15px_rgba(245,158,11,0.3)] scale-[1.02]"
-                        : "bg-[#0B132B]/70 text-slate-300 border-slate-800 hover:text-white hover:bg-slate-800/60 hover:border-amber-500/30"
-                    }`}
-                  >
-                    <IconComponent
-                      className={`w-4 h-4 shrink-0 ${
+            {/* Primary Category Selector Cards (Shown when multiple categories are unhidden) */}
+            {mainCategories.length > 1 && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 bg-[#111C38] p-2.5 sm:p-3 rounded-2xl border border-amber-500/20 shadow-md">
+                {mainCategories.map((cat) => {
+                  const isActive = currentMainCat === cat.id;
+                  const IconComponent = cat.icon;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => handleSelectMainCategory(cat.id)}
+                      className={`flex items-center justify-center gap-2 sm:gap-2.5 px-2.5 sm:px-3 py-3 rounded-xl font-extrabold text-xs sm:text-sm transition-all duration-200 cursor-pointer select-none border ${
                         isActive
-                          ? "text-slate-950"
-                          : "text-amber-400/80"
+                          ? "bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 border-amber-300/60 shadow-[0_4px_15px_rgba(245,158,11,0.3)] scale-[1.02]"
+                          : "bg-[#0B132B]/70 text-slate-300 border-slate-800 hover:text-white hover:bg-slate-800/60 hover:border-amber-500/30"
                       }`}
-                    />
-                    <span className="truncate tracking-wide">{cat.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+                    >
+                      <IconComponent
+                        className={`w-4 h-4 shrink-0 ${
+                          isActive
+                            ? "text-slate-950"
+                            : "text-amber-400/80"
+                        }`}
+                      />
+                      <span className="truncate tracking-wide">{cat.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Sub-Header Section for Data Bundles / Categories & Search */}
             <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-[#111C38]/80 p-3 rounded-2xl border border-amber-500/20 shadow-md">
