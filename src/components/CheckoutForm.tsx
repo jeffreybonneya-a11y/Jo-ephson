@@ -48,6 +48,7 @@ import {
   ArrowLeft,
   PhoneCall,
   Wallet,
+  ShoppingBag,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -124,8 +125,8 @@ export default function CheckoutForm({
     "form" | "select_method" | "momo_pay" | "momo_sent"
   >("form");
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<
-    "momo_direct" | "paystack"
-  >("momo_direct");
+    "momo_direct" | "paystack" | "selar"
+  >("paystack");
   const [savedFormData, setSavedFormData] = useState<z.infer<
     typeof formSchema
   > | null>(null);
@@ -263,7 +264,13 @@ export default function CheckoutForm({
       return;
     }
     setSavedFormData(data);
-    setCheckoutStep("select_method");
+    if (selectedPaymentMethod === "paystack") {
+      processPaystackPayment(data);
+    } else if (selectedPaymentMethod === "selar") {
+      processSelarPayment(data);
+    } else {
+      processMoMoDirectPayment(data);
+    }
   };
 
   const handleCopy = (text: string, label: string) => {
@@ -530,13 +537,148 @@ export default function CheckoutForm({
     }
   };
 
+  const processSelarPayment = async (data: z.infer<typeof formSchema>) => {
+    if (!bundle || !auth.currentUser) return;
+    setIsSubmitting(true);
+
+    try {
+      const finalOrderId = doc(collection(db, "orders")).id;
+      setOrderId(finalOrderId);
+
+      const wsPrice = Number(bundle.wholesalePrice || bundle.price);
+      const agPrice = Number(bundle.price);
+      const calculatedProfit = agPrice - wsPrice;
+
+      const productDetails = bundle.network === "PC Games" ? bundle.name : `${data.recipientNetwork} ${bundle.dataAmount}`;
+
+      const initialOrderData = {
+        email: profile?.email || auth.currentUser.email || "",
+        phone: data.recipientPhone || "",
+        network: data.recipientNetwork,
+        bundle: productDetails,
+        amount: Number(bundle.price),
+        status: "pending",
+        createdAt: serverTimestamp(),
+        userId: auth.currentUser.uid,
+        customerName: profile?.fullName || auth.currentUser.displayName || "Royal Customer",
+        reference: finalOrderId,
+        paymentStatus: "pending",
+        paymentMethod: "Selar",
+        ...(data.fcUserId ? { fcUserId: data.fcUserId } : {}),
+        ...(data.fcUsername ? { fcUsername: data.fcUsername } : {}),
+        ...(isAgentUser || profile?.isAgent ? { isAgentOrder: true } : {}),
+        ...(agentContext
+          ? {
+              agentId: agentContext.id,
+              agent_id: agentContext.id,
+              agentName: agentContext.agent_name,
+              agent_name: agentContext.agent_name,
+              wholesalePrice: wsPrice,
+              wholesale_price: wsPrice,
+              agentPrice: agPrice,
+              agent_price: agPrice,
+              profit: calculatedProfit,
+              agent_profit: calculatedProfit,
+              profitAwarded: false,
+              profit_credited: false,
+            }
+          : {}),
+      };
+
+      await setDoc(doc(db, "orders", finalOrderId), initialOrderData);
+
+      if (agentContext) {
+        const initialAgentOrderData = {
+          id: finalOrderId,
+          agent_id: agentContext.id,
+          customer_details: {
+            name: profile?.fullName || auth.currentUser.displayName || "Royal Customer",
+            email: profile?.email || auth.currentUser.email || "",
+            phone: data.recipientPhone || "",
+            network: data.recipientNetwork,
+          },
+          wholesale_price: wsPrice,
+          agent_price: agPrice,
+          profit: calculatedProfit,
+          status: "pending",
+          created_at: serverTimestamp(),
+          paymentReference: finalOrderId,
+          paymentMethod: "Selar",
+        };
+        await setDoc(doc(db, "agent_orders", finalOrderId), initialAgentOrderData);
+      }
+
+      const customerEmail = (profile?.email && profile.email.includes("@")) 
+        ? profile.email 
+        : ((auth.currentUser.email && auth.currentUser.email.includes("@")) 
+            ? auth.currentUser.email 
+            : "customer@kingjdeals.com");
+
+      const customerName = profile?.fullName || auth.currentUser.displayName || "Royal Customer";
+      const customerPhoneNumber = data.recipientPhone || profile?.phoneNumber || "";
+
+      let idToken = "";
+      try {
+        idToken = await auth.currentUser.getIdToken();
+      } catch (tokErr) {
+        console.warn("Could not retrieve Firebase ID token:", tokErr);
+      }
+
+      toast.info("Connecting to Selar Checkout... 🛍️");
+
+      const response = await fetch(getApiUrl("/api/selar-initialize"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
+        },
+        body: JSON.stringify({
+          orderId: finalOrderId,
+          productDetails,
+          amount: finalAmountToCharge,
+          currency: "GHS",
+          customerName,
+          customerEmail,
+          customerPhoneNumber
+        }),
+      });
+
+      if (!response.ok) {
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson.error || "Failed to initialize Selar payment session");
+      }
+
+      const resData = await response.json();
+      if (resData.success && resData.checkout_url) {
+        toast.success("Redirecting to Selar payment... 👑");
+        if (window.self !== window.top) {
+          try {
+            window.top.location.href = resData.checkout_url;
+          } catch (rErr) {
+            window.location.href = resData.checkout_url;
+          }
+        } else {
+          window.location.href = resData.checkout_url;
+        }
+      } else {
+        throw new Error(resData.error || "Failed to retrieve checkout URL from Selar");
+      }
+    } catch (err: any) {
+      console.error("Selar Checkout Error:", err);
+      toast.error(err.message || "Could not initialize Selar payment. Please try again.");
+      setIsSubmitting(false);
+    }
+  };
+
   const handleProceedPayment = () => {
     if (!savedFormData) return;
     if (selectedPaymentMethod === "paystack") {
-      toast.error("Paystack online payment is currently unavailable. Please select Pay Directly with MoMo.");
-      return;
+      processPaystackPayment(savedFormData);
+    } else if (selectedPaymentMethod === "selar") {
+      processSelarPayment(savedFormData);
+    } else {
+      processMoMoDirectPayment(savedFormData);
     }
-    processMoMoDirectPayment(savedFormData);
   };
 
   const handleSentPayment = async () => {
@@ -706,58 +848,101 @@ export default function CheckoutForm({
             </div>
 
             <div className="space-y-3">
-              {/* Option 1: Pay Directly with MoMo */}
+              {/* Option 1: Paystack Gateway (Main) */}
               <div
-                onClick={() => setSelectedPaymentMethod("momo_direct")}
+                onClick={() => setSelectedPaymentMethod("paystack")}
                 className={`cursor-pointer p-4 rounded-2xl border-2 transition-all flex items-start gap-3.5 relative ${
-                  selectedPaymentMethod === "momo_direct"
-                    ? "border-amber-500 bg-amber-500/5 dark:bg-amber-500/10 shadow-md"
+                  selectedPaymentMethod === "paystack"
+                    ? "border-amber-500 bg-amber-500/10 dark:bg-amber-500/20 shadow-md ring-2 ring-amber-500/30"
                     : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900"
                 }`}
               >
                 <div className={`w-5 h-5 rounded-full border-2 mt-0.5 flex items-center justify-center shrink-0 ${
-                  selectedPaymentMethod === "momo_direct" ? "border-amber-500 bg-amber-500 text-white" : "border-slate-300 dark:border-slate-700"
+                  selectedPaymentMethod === "paystack" ? "border-amber-500 bg-amber-500 text-slate-950" : "border-slate-300 dark:border-slate-700"
                 }`}>
-                  {selectedPaymentMethod === "momo_direct" && <Check className="w-3 h-3 stroke-[3]" />}
-                </div>
-
-                <div className="flex-1 space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-black text-sm text-foreground uppercase">
-                      Pay Directly with MoMo
-                    </span>
-                    <span className="bg-amber-400/90 text-slate-950 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-                      MTN MoMo
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                    Transfer directly to MoMo number <span className="font-mono font-bold text-foreground">0535884851</span> using an auto-generated reference code.
-                  </p>
-                </div>
-              </div>
-
-              {/* Option 2: Paystack Gateway (Unavailable) */}
-              <div
-                onClick={() => {
-                  toast.error("Paystack online payment is currently unavailable. Please use Pay Directly with MoMo.");
-                }}
-                className="cursor-not-allowed opacity-60 p-4 rounded-2xl border-2 border-slate-200 dark:border-slate-800 bg-slate-100/80 dark:bg-slate-900/40 transition-all flex items-start gap-3.5 relative"
-              >
-                <div className="w-5 h-5 rounded-full border-2 border-slate-300 dark:border-slate-700 mt-0.5 flex items-center justify-center shrink-0">
                   {selectedPaymentMethod === "paystack" && <Check className="w-3 h-3 stroke-[3]" />}
                 </div>
 
                 <div className="flex-1 space-y-1">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-black text-sm text-foreground/70 uppercase">
-                      Paystack Online Gateway
-                    </span>
-                    <span className="bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-                      UNAVAILABLE
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="w-4 h-4 text-amber-500" />
+                      <span className="font-black text-sm text-foreground uppercase">
+                        Paystack Gateway
+                      </span>
+                    </div>
+                    <span className="bg-amber-400 text-slate-950 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                      MAIN PAYMENT ⚡
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                    Pay with Debit/Credit Card, Bank Account, or Mobile Money via Paystack checkout window.
+                    Pay instantly with Debit/Credit Card, Bank Account, or Mobile Money via Paystack checkout window.
+                  </p>
+                </div>
+              </div>
+
+              {/* Option 2: Pay with Selar */}
+              <div
+                onClick={() => setSelectedPaymentMethod("selar")}
+                className={`cursor-pointer p-4 rounded-2xl border-2 transition-all flex items-start gap-3.5 relative ${
+                  selectedPaymentMethod === "selar"
+                    ? "border-amber-500 bg-amber-500/10 dark:bg-amber-500/20 shadow-md ring-2 ring-amber-500/30"
+                    : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900"
+                }`}
+              >
+                <div className={`w-5 h-5 rounded-full border-2 mt-0.5 flex items-center justify-center shrink-0 ${
+                  selectedPaymentMethod === "selar" ? "border-amber-500 bg-amber-500 text-slate-950" : "border-slate-300 dark:border-slate-700"
+                }`}>
+                  {selectedPaymentMethod === "selar" && <Check className="w-3 h-3 stroke-[3]" />}
+                </div>
+
+                <div className="flex-1 space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <ShoppingBag className="w-4 h-4 text-amber-500" />
+                      <span className="font-black text-sm text-foreground uppercase">
+                        Pay with Selar
+                      </span>
+                    </div>
+                    <span className="bg-purple-500/20 text-purple-600 dark:text-purple-300 border border-purple-500/30 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                      SELAR GATEWAY 🛍️
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                    Pay securely via Selar checkout page with Cards, Mobile Money, or Bank Transfer.
+                  </p>
+                </div>
+              </div>
+
+              {/* Option 2: Pay Directly with MoMo (Optional) */}
+              <div
+                onClick={() => setSelectedPaymentMethod("momo_direct")}
+                className={`cursor-pointer p-4 rounded-2xl border-2 transition-all flex items-start gap-3.5 relative ${
+                  selectedPaymentMethod === "momo_direct"
+                    ? "border-amber-500 bg-amber-500/10 dark:bg-amber-500/20 shadow-md ring-2 ring-amber-500/30"
+                    : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900"
+                }`}
+              >
+                <div className={`w-5 h-5 rounded-full border-2 mt-0.5 flex items-center justify-center shrink-0 ${
+                  selectedPaymentMethod === "momo_direct" ? "border-amber-500 bg-amber-500 text-slate-950" : "border-slate-300 dark:border-slate-700"
+                }`}>
+                  {selectedPaymentMethod === "momo_direct" && <Check className="w-3 h-3 stroke-[3]" />}
+                </div>
+
+                <div className="flex-1 space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Smartphone className="w-4 h-4 text-amber-500" />
+                      <span className="font-black text-sm text-foreground uppercase">
+                        Pay Directly with MoMo
+                      </span>
+                    </div>
+                    <span className="bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                      OPTIONAL
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                    Transfer directly to MoMo number <span className="font-mono font-bold text-foreground">0535884851</span> using an auto-generated reference code.
                   </p>
                 </div>
               </div>
@@ -1184,6 +1369,74 @@ export default function CheckoutForm({
                       </div>
                     </>
                   )}
+                </div>
+
+                {/* Payment Method Selector */}
+                <div className="space-y-2 pt-2">
+                  <Label className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 ml-1">
+                    Select Payment Method
+                  </Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-2.5">
+                    <div
+                      onClick={() => setSelectedPaymentMethod("paystack")}
+                      className={`cursor-pointer p-2.5 sm:p-3 rounded-xl border-2 transition-all flex items-center justify-between gap-1.5 ${
+                        selectedPaymentMethod === "paystack"
+                          ? "border-amber-500 bg-amber-500/10 dark:bg-amber-500/20 shadow-sm ring-1 ring-amber-500"
+                          : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50 dark:bg-slate-900"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <CreditCard className={`w-3.5 h-3.5 shrink-0 ${selectedPaymentMethod === "paystack" ? "text-amber-500" : "text-slate-400"}`} />
+                        <div className="min-w-0">
+                          <p className="font-black text-[11px] text-foreground truncate uppercase">Paystack</p>
+                          <p className="text-[8px] text-slate-500 dark:text-slate-400 font-bold truncate">Card / MoMo</p>
+                        </div>
+                      </div>
+                      <span className="bg-amber-400 text-slate-950 text-[7px] font-black px-1 py-0.5 rounded shrink-0 uppercase tracking-wider">
+                        MAIN ⚡
+                      </span>
+                    </div>
+
+                    <div
+                      onClick={() => setSelectedPaymentMethod("selar")}
+                      className={`cursor-pointer p-2.5 sm:p-3 rounded-xl border-2 transition-all flex items-center justify-between gap-1.5 ${
+                        selectedPaymentMethod === "selar"
+                          ? "border-amber-500 bg-amber-500/10 dark:bg-amber-500/20 shadow-sm ring-1 ring-amber-500"
+                          : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50 dark:bg-slate-900"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <ShoppingBag className={`w-3.5 h-3.5 shrink-0 ${selectedPaymentMethod === "selar" ? "text-amber-500" : "text-slate-400"}`} />
+                        <div className="min-w-0">
+                          <p className="font-black text-[11px] text-foreground truncate uppercase">Selar</p>
+                          <p className="text-[8px] text-slate-500 dark:text-slate-400 font-bold truncate">Selar Pay</p>
+                        </div>
+                      </div>
+                      <span className="bg-purple-500/20 text-purple-600 dark:text-purple-300 border border-purple-500/30 text-[7px] font-black px-1 py-0.5 rounded shrink-0 uppercase tracking-wider">
+                        SELAR
+                      </span>
+                    </div>
+
+                    <div
+                      onClick={() => setSelectedPaymentMethod("momo_direct")}
+                      className={`cursor-pointer p-2.5 sm:p-3 rounded-xl border-2 transition-all flex items-center justify-between gap-1.5 ${
+                        selectedPaymentMethod === "momo_direct"
+                          ? "border-amber-500 bg-amber-500/10 dark:bg-amber-500/20 shadow-sm ring-1 ring-amber-500"
+                          : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50 dark:bg-slate-900"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <Smartphone className={`w-3.5 h-3.5 shrink-0 ${selectedPaymentMethod === "momo_direct" ? "text-amber-500" : "text-slate-400"}`} />
+                        <div className="min-w-0">
+                          <p className="font-black text-[11px] text-foreground truncate uppercase">Direct MoMo</p>
+                          <p className="text-[8px] text-slate-500 dark:text-slate-400 font-bold truncate">Manual</p>
+                        </div>
+                      </div>
+                      <span className="bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[7px] font-black px-1 py-0.5 rounded shrink-0 uppercase tracking-wider">
+                        OPTIONAL
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
 

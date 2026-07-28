@@ -49,10 +49,19 @@ export default function App() {
 
   useEffect(() => {
     seedFC();
-    // 1. Check for Paystack Reference in URL
+
+    // Check for payment cancellation
+    if (window.location.pathname.includes('/payment-cancelled')) {
+      toast.warning("Payment was cancelled or not completed.");
+      window.history.replaceState({}, document.title, "/");
+    }
+
+    // 1. Check for Paystack or Selar Reference in URL
     const params = new URLSearchParams(window.location.search);
-    const reference = params.get('reference') || params.get('trxref');
-    
+    const reference = params.get('reference') || params.get('trxref') || params.get('orderId') || params.get('order_id');
+    const paymentMethod = params.get('method');
+    const isSelarMethod = paymentMethod === 'selar' || window.location.pathname.includes('/payment-success');
+
     if (reference) {
         toast.info("Verifying your payment, please wait...", { duration: 5000 });
         
@@ -64,11 +73,12 @@ export default function App() {
 
         const verifyPayment = async () => {
             try {
-                // 1. Call verify-payment endpoint (which always returns success: true)
-                const response = await fetch(getApiUrl('/api/verify-payment'), {
+                const verifyEndpoint = isSelarMethod ? '/api/selar-verify' : '/api/verify-payment';
+                // 1. Call verification endpoint
+                const response = await fetch(getApiUrl(verifyEndpoint), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ reference })
+                    body: JSON.stringify({ reference, orderId: reference })
                 });
 
                 if (!response.ok) {
@@ -82,7 +92,8 @@ export default function App() {
                 if (orderSnap.exists()) {
                     const orderData = orderSnap.data();
                     await updateDoc(orderDocRef, {
-                        paymentStatus: "success"
+                        paymentStatus: "success",
+                        ...(isSelarMethod ? { paymentMethod: "Selar" } : {})
                     });
 
                     // Instantly grant Agent Access in Firestore if this was an Agent Unlock order!
@@ -94,7 +105,7 @@ export default function App() {
                 
                 unlockPremiumAccess();
                 // Clean up URL
-                window.history.replaceState({}, document.title, window.location.pathname);
+                window.history.replaceState({}, document.title, "/");
             } catch (err) {
                 console.error("URL Verification Error:", err);
                 // Resilient silent fallback: ensure no error is shown, and attempt Firestore update anyway
@@ -104,7 +115,8 @@ export default function App() {
                     if (orderSnap.exists()) {
                         const orderData = orderSnap.data();
                         await updateDoc(orderDocRef, {
-                            paymentStatus: "success"
+                            paymentStatus: "success",
+                            ...(isSelarMethod ? { paymentMethod: "Selar" } : {})
                         });
                         if (orderData.bundle === "AGENT ACCESS UNLOCK" && orderData.userId) {
                             await updateDoc(doc(db, "users", orderData.userId), { isAgent: true });
@@ -114,7 +126,7 @@ export default function App() {
                     console.error("Database fallback update failed:", dbErr);
                 }
                 unlockPremiumAccess();
-                window.history.replaceState({}, document.title, window.location.pathname);
+                window.history.replaceState({}, document.title, "/");
             }
         };
         
