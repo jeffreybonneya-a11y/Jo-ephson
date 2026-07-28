@@ -624,6 +624,17 @@ export default function CheckoutForm({
         console.warn("Could not retrieve Firebase ID token:", tokErr);
       }
 
+      const selarReqBody = {
+        orderId: finalOrderId,
+        productDetails,
+        amount: finalAmountToCharge,
+        currency: "GHS",
+        customerName,
+        customerEmail,
+        customerPhoneNumber
+      };
+
+      console.log("[Selar Client Request]:", selarReqBody);
       toast.info("Connecting to Selar Checkout... 🛍️");
 
       const response = await fetch(getApiUrl("/api/selar-initialize"), {
@@ -632,33 +643,33 @@ export default function CheckoutForm({
           "Content-Type": "application/json",
           ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
         },
-        body: JSON.stringify({
-          orderId: finalOrderId,
-          productDetails,
-          amount: finalAmountToCharge,
-          currency: "GHS",
-          customerName,
-          customerEmail,
-          customerPhoneNumber
-        }),
+        body: JSON.stringify(selarReqBody),
       });
 
-      if (!response.ok) {
-        const errJson = await response.json().catch(() => ({}));
-        throw new Error(errJson.error || "Failed to initialize Selar payment session");
+      const resData = await response.json().catch(() => ({}));
+      console.log("[Selar Client Response]:", resData);
+
+      if (!response.ok || !resData.success) {
+        throw new Error(resData.error || resData.message || "Failed to initialize Selar payment session");
       }
 
-      const resData = await response.json();
       if (resData.success && resData.checkout_url) {
+        const checkoutUrl = resData.checkout_url;
+        console.log("[Selar Client Redirecting To]:", checkoutUrl);
+
+        if (checkoutUrl.includes(window.location.hostname) && checkoutUrl.includes("payment-success")) {
+          console.warn("[Selar Client Notice]: Received local fallback URL. Checking for official Selar checkout URL.");
+        }
+
         toast.success("Redirecting to Selar payment... 👑");
         if (window.self !== window.top) {
           try {
-            window.top.location.href = resData.checkout_url;
+            window.top.location.href = checkoutUrl;
           } catch (rErr) {
-            window.location.href = resData.checkout_url;
+            window.location.href = checkoutUrl;
           }
         } else {
-          window.location.href = resData.checkout_url;
+          window.location.href = checkoutUrl;
         }
       } else {
         throw new Error(resData.error || "Failed to retrieve checkout URL from Selar");

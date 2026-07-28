@@ -64,68 +64,57 @@ export default function App() {
 
     if (reference) {
         toast.info("Verifying your payment, please wait...", { duration: 5000 });
-        
-        const unlockPremiumAccess = () => {
-            console.log("Payment verified successfully");
-            toast.success("Payment verified! Your order is being processed. 👑");
-            setIsHistoryView(true); // Take them to see their orders
-        };
 
         const verifyPayment = async () => {
             try {
                 const verifyEndpoint = isSelarMethod ? '/api/selar-verify' : '/api/verify-payment';
-                // 1. Call verification endpoint
-                const response = await fetch(getApiUrl(verifyEndpoint), {
+                const apiUrl = getApiUrl(verifyEndpoint);
+                console.log(`[Payment Verification] Sending verification request to: ${apiUrl} for reference: ${reference}`);
+
+                const response = await fetch(apiUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ reference, orderId: reference })
                 });
 
-                if (!response.ok) {
-                    throw new Error(`Server payment verification returned status ${response.status}`);
+                const resData = await response.json().catch((jsonErr) => {
+                    console.error("[Payment Verification] Failed to parse backend JSON response:", jsonErr);
+                    return {};
+                });
+
+                console.log("[Payment Verification] Backend verification response:", resData);
+
+                if (!response.ok || !resData.success || (resData.data && resData.data.status !== 'success' && resData.data.status !== 'successful')) {
+                    const failReason = resData.message || resData.error || `Server verification failed with status ${response.status}`;
+                    console.error(`[Payment Verification Failed] ${failReason}`, resData);
+                    toast.error("Payment verification failed ❌");
+                    window.history.replaceState({}, document.title, "/");
+                    return;
                 }
 
-                // 2. Query and update the order in Firestore directly
-                const orderDocRef = doc(db, 'orders', reference);
-                const orderSnap = await getDoc(orderDocRef);
-
-                if (orderSnap.exists()) {
-                    const orderData = orderSnap.data();
-                    await updateDoc(orderDocRef, {
-                        paymentStatus: "success",
-                        ...(isSelarMethod ? { paymentMethod: "Selar" } : {})
-                    });
-
-                    // Instantly grant Agent Access in Firestore if this was an Agent Unlock order!
-                    if (orderData.bundle === "AGENT ACCESS UNLOCK" && orderData.userId) {
-                        await updateDoc(doc(db, "users", orderData.userId), { isAgent: true });
-                        toast.success("Agent Access Unlocked! Welcome 👑");
-                    }
-                }
+                // Success! The backend has verified the payment and saved the order in Firestore.
+                console.log(`[Payment Verification Succeeded] Reference ${reference} verified successfully!`);
                 
-                unlockPremiumAccess();
-                // Clean up URL
-                window.history.replaceState({}, document.title, "/");
-            } catch (err) {
-                console.error("URL Verification Error:", err);
-                // Resilient silent fallback: ensure no error is shown, and attempt Firestore update anyway
+                // Check if this was an Agent Unlock order to toast agent welcome
                 try {
                     const orderDocRef = doc(db, 'orders', reference);
                     const orderSnap = await getDoc(orderDocRef);
                     if (orderSnap.exists()) {
                         const orderData = orderSnap.data();
-                        await updateDoc(orderDocRef, {
-                            paymentStatus: "success",
-                            ...(isSelarMethod ? { paymentMethod: "Selar" } : {})
-                        });
-                        if (orderData.bundle === "AGENT ACCESS UNLOCK" && orderData.userId) {
-                            await updateDoc(doc(db, "users", orderData.userId), { isAgent: true });
+                        if (orderData.bundle === "AGENT ACCESS UNLOCK") {
+                            toast.success("Agent Access Unlocked! Welcome 👑");
                         }
                     }
-                } catch (dbErr) {
-                    console.error("Database fallback update failed:", dbErr);
+                } catch (snapErr) {
+                    console.warn("[Payment Verification] Could not inspect order doc client-side:", snapErr);
                 }
-                unlockPremiumAccess();
+
+                toast.success("Payment Successful ✅");
+                setIsHistoryView(true); // Take user to view their orders
+                window.history.replaceState({}, document.title, "/");
+            } catch (err: any) {
+                console.error("[Payment Verification Error] Request failed:", err.message || err);
+                toast.error("Payment verification failed ❌");
                 window.history.replaceState({}, document.title, "/");
             }
         };

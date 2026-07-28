@@ -205,17 +205,26 @@ export default function AdminDashboard() {
     );
     const unsubOrders = onSnapshot(ordersQuery, (snapshot) => {
       const allOrders = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() as any }));
-      // Show only orders with successful payment to satisfy user constraint:
-      // "all successful payment orders must show in my admin dashboard too. only successful payment orders should show."
+      // Show ONLY orders with successful verified payment
       const completedOrders = allOrders.filter((o) => {
-        return o.paymentStatus === "success" || 
-               o.status === "success" || 
-               o.status === "delivered" || 
-               o.status === "processing" || 
-               o.status === "completed" || 
-               o.status === "paid" ||
-               o.status === "pending_verification" ||
-               o.paymentStatus === "pending_verification";
+        const isExplicitFailed = o.paymentStatus === "failed" || 
+                                 o.paymentStatus === "abandoned" || 
+                                 o.paymentStatus === "cancelled" || 
+                                 o.paymentStatus === "unverified" || 
+                                 o.paymentStatus === "pending_verification" ||
+                                 o.status === "failed" || 
+                                 o.status === "cancelled" || 
+                                 o.status === "abandoned" || 
+                                 o.status === "pending_verification";
+
+        const isVerifiedSuccess = o.paymentStatus === "success" || 
+                                  o.status === "paid" || 
+                                  o.status === "completed" || 
+                                  o.status === "delivered" || 
+                                  o.status === "processing" || 
+                                  o.status === "success";
+
+        return isVerifiedSuccess && !isExplicitFailed;
       });
       setOrders(completedOrders);
     });
@@ -1045,13 +1054,13 @@ export default function AdminDashboard() {
             >
               TRACKING 👑
               {orders.filter(
-                (o) => (o.status === "pending" || o.status === "pending_verification" || o.status === "paid") && !o.agent_id && !o.agentId,
+                (o) => (o.status === "pending" || o.status === "paid" || o.status === "processing") && !o.agent_id && !o.agentId,
               ).length > 0 && (
                 <span className="absolute -top-1.5 -right-1 bg-red-600 text-white text-[8px] w-4.5 h-4.5 flex items-center justify-center rounded-full font-black shadow-lg">
                   {
                     orders.filter(
                       (o) =>
-                        (o.status === "pending" || o.status === "pending_verification" || o.status === "paid") && !o.agent_id && !o.agentId,
+                        (o.status === "pending" || o.status === "paid" || o.status === "processing") && !o.agent_id && !o.agentId,
                     ).length
                   }
                 </span>
@@ -1094,14 +1103,14 @@ export default function AdminDashboard() {
               AGENTS HUB 👑
               {profitRequests.filter((r) => r.status === "pending").length +
                 orders.filter(
-                  (o) => (o.status === "pending" || o.status === "pending_verification" || o.status === "paid") && (o.agent_id || o.agentId),
+                  (o) => (o.status === "pending" || o.status === "paid" || o.status === "processing") && (o.agent_id || o.agentId),
                 ).length >
                 0 && (
                 <span className="absolute -top-1.5 -right-1 bg-primary text-secondary text-[8px] w-4.5 h-4.5 flex items-center justify-center rounded-full font-black shadow-lg">
                   {profitRequests.filter((r) => r.status === "pending").length +
                     orders.filter(
                       (o) =>
-                        (o.status === "pending" || o.status === "pending_verification" || o.status === "paid") && (o.agent_id || o.agentId),
+                        (o.status === "pending" || o.status === "paid" || o.status === "processing") && (o.agent_id || o.agentId),
                     ).length}
                 </span>
               )}
