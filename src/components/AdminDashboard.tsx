@@ -676,8 +676,8 @@ export default function AdminDashboard() {
         );
       }
 
-      if (status === "accepted") {
-        toast.success("Order Accepted ✅");
+      if (status === "accepted" || status === "processing") {
+        toast.success("Order Accepted! Status set to Processing ⏳");
       } else if (status === "delivered") {
         toast.success("Order Delivered ✅");
       } else if (status === "declined") {
@@ -1455,7 +1455,7 @@ export default function AdminDashboard() {
                                         onClick={() =>
                                           handleUpdateOrderStatus(
                                             order.id,
-                                            "accepted",
+                                            "processing",
                                             order,
                                           )
                                         }
@@ -2943,7 +2943,7 @@ export default function AdminDashboard() {
                                           onClick={() =>
                                             handleUpdateOrderStatus(
                                               o.id,
-                                              "accepted",
+                                              "processing",
                                               o,
                                             )
                                           }
@@ -2984,7 +2984,7 @@ export default function AdminDashboard() {
                                         </Button>
                                       </>
                                     )}
-                                    {o.status === "accepted" && (
+                                    {(o.status === "accepted" || o.status === "processing") && (
                                       <Button
                                         size="sm"
                                         className="h-8 px-3 rounded-lg bg-green-600 hover:bg-green-700 text-white font-black uppercase text-[9px] shadow-sm flex items-center gap-1 cursor-pointer"

@@ -58,15 +58,18 @@ export default function MyOrders() {
           id: doc.id,
           ...doc.data(),
         }));
-        // Show orders with successful payment or pending MoMo verification
+        // Show orders with successful payment or active status
         const completedOrders = fetchedOrders.filter(
           (o: any) =>
             o.paymentStatus === "success" ||
             o.status === "success" ||
-            o.status === "pending_verification" ||
-            o.paymentStatus === "pending_verification" ||
+            o.status === "paid" ||
+            o.status === "accepted" ||
+            o.status === "processing" ||
             o.status === "delivered" ||
-            o.status === "processing"
+            o.status === "completed" ||
+            o.status === "pending_verification" ||
+            o.paymentStatus === "pending_verification"
         );
         setOrders(completedOrders);
         setLoading(false);
@@ -199,27 +202,31 @@ export default function MyOrders() {
                       <div className="flex items-center gap-2">
                         <Badge
                           className={`
-                            font-black text-[10px] uppercase px-3 py-0.5 rounded-lg
+                            font-black text-[10px] uppercase px-3 py-1 rounded-lg shadow-sm
                             ${
-                              order.status === "delivered" ||
-                              order.status === "paid"
-                                ? "bg-green-100 text-green-700"
-                                : order.status === "processing"
-                                  ? "bg-blue-100 text-blue-700 animate-pulse"
-                                  : order.status === "failed" ||
-                                      order.status === "unpaid"
-                                    ? "bg-red-100 text-red-700"
-                                    : "bg-amber-100 text-amber-700"
+                              order.status === "delivered" || order.status === "completed"
+                                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300"
+                                : order.status === "processing" || order.status === "accepted"
+                                  ? "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-300 animate-pulse"
+                                  : order.status === "paid" || order.status === "success" || order.paymentStatus === "success"
+                                    ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200"
+                                    : order.status === "failed" || order.status === "unpaid"
+                                      ? "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-400 border border-red-200"
+                                      : "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-300"
                             }
                           `}
                         >
-                          {order.status === "unpaid"
-                            ? "UNPAID"
-                            : order.status === "pending"
-                              ? "PENDING"
-                              : order.status === "pending_verification"
-                                ? "PENDING VERIFICATION"
-                                : order.status}
+                          {order.status === "delivered" || order.status === "completed"
+                            ? "DELIVERED ✅"
+                            : order.status === "processing" || order.status === "accepted"
+                              ? "PROCESSING ⏳"
+                              : order.status === "paid" || order.status === "success" || order.paymentStatus === "success"
+                                ? "PAID 👑"
+                                : order.status === "unpaid"
+                                  ? "UNPAID"
+                                  : order.status === "pending_verification"
+                                    ? "PENDING VERIFICATION"
+                                    : (order.status ? String(order.status).toUpperCase() : "PENDING")}
                         </Badge>
                         <Button
                           size="sm"
