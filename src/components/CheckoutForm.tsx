@@ -48,7 +48,6 @@ import {
   ArrowLeft,
   PhoneCall,
   Wallet,
-  ShoppingBag,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -125,7 +124,7 @@ export default function CheckoutForm({
     "form" | "select_method" | "momo_pay" | "momo_sent"
   >("form");
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<
-    "momo_direct" | "paystack" | "selar"
+    "momo_direct" | "paystack"
   >("paystack");
   const [savedFormData, setSavedFormData] = useState<z.infer<
     typeof formSchema
@@ -266,8 +265,6 @@ export default function CheckoutForm({
     setSavedFormData(data);
     if (selectedPaymentMethod === "paystack") {
       processPaystackPayment(data);
-    } else if (selectedPaymentMethod === "selar") {
-      processSelarPayment(data);
     } else {
       processMoMoDirectPayment(data);
     }
@@ -544,156 +541,10 @@ export default function CheckoutForm({
     }
   };
 
-  const processSelarPayment = async (data: z.infer<typeof formSchema>) => {
-    if (!bundle || !auth.currentUser) return;
-    setIsSubmitting(true);
-
-    try {
-      const finalOrderId = doc(collection(db, "orders")).id;
-      setOrderId(finalOrderId);
-
-      const wsPrice = Number(bundle.wholesalePrice || bundle.price);
-      const agPrice = Number(bundle.price);
-      const calculatedProfit = agPrice - wsPrice;
-
-      const productDetails = bundle.network === "PC Games" ? bundle.name : `${data.recipientNetwork} ${bundle.dataAmount}`;
-
-      const initialOrderData = {
-        email: profile?.email || auth.currentUser.email || "",
-        phone: data.recipientPhone || "",
-        network: data.recipientNetwork,
-        bundle: productDetails,
-        amount: Number(bundle.price),
-        status: "pending",
-        createdAt: serverTimestamp(),
-        userId: auth.currentUser.uid,
-        customerName: profile?.fullName || auth.currentUser.displayName || "Royal Customer",
-        reference: finalOrderId,
-        paymentStatus: "pending",
-        paymentMethod: "Selar",
-        ...(data.fcUserId ? { fcUserId: data.fcUserId } : {}),
-        ...(data.fcUsername ? { fcUsername: data.fcUsername } : {}),
-        ...(isAgentUser || profile?.isAgent ? { isAgentOrder: true } : {}),
-        ...(agentContext
-          ? {
-              agentId: agentContext.id,
-              agent_id: agentContext.id,
-              agentName: agentContext.agent_name,
-              agent_name: agentContext.agent_name,
-              wholesalePrice: wsPrice,
-              wholesale_price: wsPrice,
-              agentPrice: agPrice,
-              agent_price: agPrice,
-              profit: calculatedProfit,
-              agent_profit: calculatedProfit,
-              profitAwarded: false,
-              profit_credited: false,
-            }
-          : {}),
-      };
-
-      await setDoc(doc(db, "orders", finalOrderId), initialOrderData);
-
-      if (agentContext) {
-        const initialAgentOrderData = {
-          id: finalOrderId,
-          agent_id: agentContext.id,
-          customer_details: {
-            name: profile?.fullName || auth.currentUser.displayName || "Royal Customer",
-            email: profile?.email || auth.currentUser.email || "",
-            phone: data.recipientPhone || "",
-            network: data.recipientNetwork,
-          },
-          wholesale_price: wsPrice,
-          agent_price: agPrice,
-          profit: calculatedProfit,
-          status: "pending",
-          created_at: serverTimestamp(),
-          paymentReference: finalOrderId,
-          paymentMethod: "Selar",
-        };
-        await setDoc(doc(db, "agent_orders", finalOrderId), initialAgentOrderData);
-      }
-
-      const customerEmail = (profile?.email && profile.email.includes("@")) 
-        ? profile.email 
-        : ((auth.currentUser.email && auth.currentUser.email.includes("@")) 
-            ? auth.currentUser.email 
-            : "customer@kingjdeals.com");
-
-      const customerName = profile?.fullName || auth.currentUser.displayName || "Royal Customer";
-      const customerPhoneNumber = data.recipientPhone || profile?.phoneNumber || "";
-
-      let idToken = "";
-      try {
-        idToken = await auth.currentUser.getIdToken();
-      } catch (tokErr) {
-        console.warn("Could not retrieve Firebase ID token:", tokErr);
-      }
-
-      const selarReqBody = {
-        orderId: finalOrderId,
-        productDetails,
-        amount: finalAmountToCharge,
-        currency: "GHS",
-        customerName,
-        customerEmail,
-        customerPhoneNumber
-      };
-
-      console.log("[Selar Client Request]:", selarReqBody);
-      toast.info("Connecting to Selar Checkout... 🛍️");
-
-      const response = await fetch(getApiUrl("/api/selar-initialize"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {})
-        },
-        body: JSON.stringify(selarReqBody),
-      });
-
-      const resData = await response.json().catch(() => ({}));
-      console.log("[Selar Client Response]:", resData);
-
-      if (!response.ok || !resData.success) {
-        throw new Error(resData.error || resData.message || "Failed to initialize Selar payment session");
-      }
-
-      if (resData.success && resData.checkout_url) {
-        const checkoutUrl = resData.checkout_url;
-        console.log("[Selar Client Redirecting To]:", checkoutUrl);
-
-        if (checkoutUrl.includes(window.location.hostname) && checkoutUrl.includes("payment-success")) {
-          console.warn("[Selar Client Notice]: Received local fallback URL. Checking for official Selar checkout URL.");
-        }
-
-        toast.success("Redirecting to Selar payment... 👑");
-        if (window.self !== window.top) {
-          try {
-            window.top.location.href = checkoutUrl;
-          } catch (rErr) {
-            window.location.href = checkoutUrl;
-          }
-        } else {
-          window.location.href = checkoutUrl;
-        }
-      } else {
-        throw new Error(resData.error || "Failed to retrieve checkout URL from Selar");
-      }
-    } catch (err: any) {
-      console.error("Selar Checkout Error:", err);
-      toast.error(err.message || "Could not initialize Selar payment. Please try again.");
-      setIsSubmitting(false);
-    }
-  };
-
   const handleProceedPayment = () => {
     if (!savedFormData) return;
     if (selectedPaymentMethod === "paystack") {
       processPaystackPayment(savedFormData);
-    } else if (selectedPaymentMethod === "selar") {
-      processSelarPayment(savedFormData);
     } else {
       processMoMoDirectPayment(savedFormData);
     }
@@ -895,39 +746,6 @@ export default function CheckoutForm({
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
                     Pay instantly with Debit/Credit Card, Bank Account, or Mobile Money via Paystack checkout window.
-                  </p>
-                </div>
-              </div>
-
-              {/* Option 2: Pay with Selar */}
-              <div
-                onClick={() => setSelectedPaymentMethod("selar")}
-                className={`cursor-pointer p-4 rounded-2xl border-2 transition-all flex items-start gap-3.5 relative ${
-                  selectedPaymentMethod === "selar"
-                    ? "border-amber-500 bg-amber-500/10 dark:bg-amber-500/20 shadow-md ring-2 ring-amber-500/30"
-                    : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900"
-                }`}
-              >
-                <div className={`w-5 h-5 rounded-full border-2 mt-0.5 flex items-center justify-center shrink-0 ${
-                  selectedPaymentMethod === "selar" ? "border-amber-500 bg-amber-500 text-slate-950" : "border-slate-300 dark:border-slate-700"
-                }`}>
-                  {selectedPaymentMethod === "selar" && <Check className="w-3 h-3 stroke-[3]" />}
-                </div>
-
-                <div className="flex-1 space-y-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <ShoppingBag className="w-4 h-4 text-amber-500" />
-                      <span className="font-black text-sm text-foreground uppercase">
-                        Pay with Selar
-                      </span>
-                    </div>
-                    <span className="bg-purple-500/20 text-purple-600 dark:text-purple-300 border border-purple-500/30 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-                      SELAR GATEWAY 🛍️
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                    Pay securely via Selar checkout page with Cards, Mobile Money, or Bank Transfer.
                   </p>
                 </div>
               </div>
@@ -1412,26 +1230,6 @@ export default function CheckoutForm({
                       </div>
                       <span className="bg-amber-400 text-slate-950 text-[7px] font-black px-1 py-0.5 rounded shrink-0 uppercase tracking-wider">
                         MAIN ⚡
-                      </span>
-                    </div>
-
-                    <div
-                      onClick={() => setSelectedPaymentMethod("selar")}
-                      className={`cursor-pointer p-2.5 sm:p-3 rounded-xl border-2 transition-all flex items-center justify-between gap-1.5 ${
-                        selectedPaymentMethod === "selar"
-                          ? "border-amber-500 bg-amber-500/10 dark:bg-amber-500/20 shadow-sm ring-1 ring-amber-500"
-                          : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50 dark:bg-slate-900"
-                      }`}
-                    >
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <ShoppingBag className={`w-3.5 h-3.5 shrink-0 ${selectedPaymentMethod === "selar" ? "text-amber-500" : "text-slate-400"}`} />
-                        <div className="min-w-0">
-                          <p className="font-black text-[11px] text-foreground truncate uppercase">Selar</p>
-                          <p className="text-[8px] text-slate-500 dark:text-slate-400 font-bold truncate">Selar Pay</p>
-                        </div>
-                      </div>
-                      <span className="bg-purple-500/20 text-purple-600 dark:text-purple-300 border border-purple-500/30 text-[7px] font-black px-1 py-0.5 rounded shrink-0 uppercase tracking-wider">
-                        SELAR
                       </span>
                     </div>
 

@@ -56,18 +56,16 @@ export default function App() {
       window.history.replaceState({}, document.title, "/");
     }
 
-    // 1. Check for Paystack or Selar Reference in URL
+    // 1. Check for Paystack Reference in URL
     const params = new URLSearchParams(window.location.search);
     const reference = params.get('reference') || params.get('trxref') || params.get('orderId') || params.get('order_id');
-    const paymentMethod = params.get('method');
-    const isSelarMethod = paymentMethod === 'selar' || window.location.pathname.includes('/payment-success');
 
     if (reference) {
         toast.info("Verifying your payment, please wait...", { duration: 5000 });
 
         const verifyPayment = async () => {
             try {
-                const verifyEndpoint = isSelarMethod ? '/api/selar-verify' : '/api/verify-payment';
+                const verifyEndpoint = '/api/verify-payment';
                 const apiUrl = getApiUrl(verifyEndpoint);
                 console.log(`[Payment Verification] Sending verification request to: ${apiUrl} for reference: ${reference}`);
 
@@ -92,8 +90,7 @@ export default function App() {
                         const orderData = orderSnap.data();
                         await updateDoc(orderDocRef, {
                             paymentStatus: "success",
-                            status: "paid",
-                            ...(isSelarMethod ? { paymentMethod: "Selar" } : {})
+                            status: "paid"
                         });
                         if (orderData.bundle === "AGENT ACCESS UNLOCK" && orderData.userId) {
                             await updateDoc(doc(db, "users", orderData.userId), { isAgent: true });
