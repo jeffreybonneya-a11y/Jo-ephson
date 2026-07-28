@@ -118,6 +118,7 @@ export default function AdminDashboard() {
   const [wholesaleInputs, setWholesaleInputs] = useState<Record<string, string>>({});
   const [wholesaleSearch, setWholesaleSearch] = useState("");
   const [wholesaleCategoryFilter, setWholesaleCategoryFilter] = useState("ALL");
+  const [notifierCount, setNotifierCount] = useState(0);
   const [isSavingWholesale, setIsSavingWholesale] = useState(false);
 
   const calculateDefaultWholesale = (bundle: any): number => {
@@ -169,7 +170,14 @@ export default function AdminDashboard() {
   useEffect(() => {
     localStorage.setItem('admin_notifier_reset_time', Date.now().toString());
     window.dispatchEvent(new Event('RESET_ADMIN_NOTIFIER'));
+    setNotifierCount(0);
     seedFC();
+
+    const handleReset = () => {
+      setNotifierCount(0);
+    };
+    window.addEventListener('RESET_ADMIN_NOTIFIER', handleReset);
+
     // 1. Fetch Announcement
     const unsubAnnouncement = onSnapshot(
       doc(db, "settings", "announcement"),
@@ -228,6 +236,23 @@ export default function AdminDashboard() {
 
         return isVerifiedSuccess && !isExplicitFailedOrPending;
       });
+      
+      const resetTimeStr = localStorage.getItem('admin_notifier_reset_time');
+      const resetTime = resetTimeStr ? parseInt(resetTimeStr, 10) : 0;
+      const unreadNewPaid = completedOrders.filter((o) => {
+        let orderTime = 0;
+        if (o.createdAt?.seconds) orderTime = o.createdAt.seconds * 1000;
+        else if (typeof o.createdAt?.toMillis === 'function') orderTime = o.createdAt.toMillis();
+        else if (o.createdAt instanceof Date) orderTime = o.createdAt.getTime();
+        else if (typeof o.createdAt === 'number') orderTime = o.createdAt;
+        else if (typeof o.createdAt === 'string') {
+          const parsed = Date.parse(o.createdAt);
+          if (!isNaN(parsed) && parsed > 0) orderTime = parsed;
+        }
+        return orderTime > resetTime;
+      }).length;
+      
+      setNotifierCount(unreadNewPaid);
       setOrders(completedOrders);
     });
 
@@ -298,6 +323,7 @@ export default function AdminDashboard() {
     );
 
     return () => {
+      window.removeEventListener('RESET_ADMIN_NOTIFIER', handleReset);
       unsubAnnouncement();
       unsubBundles();
       unsubOrders();
@@ -1035,14 +1061,16 @@ export default function AdminDashboard() {
         <div className="flex items-center gap-3">
           <Button
             onClick={() => {
+              localStorage.setItem('admin_notifier_reset_time', Date.now().toString());
               window.dispatchEvent(new Event('RESET_ADMIN_NOTIFIER'));
+              setNotifierCount(0);
               toast.success("Notifier counter reset to zero! 👑");
             }}
             variant="outline"
             className="h-10 px-4 rounded-xl border-amber-400/50 hover:border-amber-500 font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-sm cursor-pointer"
           >
             <RotateCcw className="w-4 h-4 text-amber-500" />
-            Reset Notifier (0)
+            Reset Notifier ({notifierCount})
           </Button>
         </div>
       </div>

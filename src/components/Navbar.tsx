@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { auth, db } from '@/src/lib/firebase';
 import { signOut } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
@@ -110,22 +111,58 @@ export default function Navbar({
       });
 
       const qOrders = query(collection(db, 'orders'));
+      let lastOrderCount = -1;
       const unsubOrders = onSnapshot(qOrders, (snapshot) => {
         const resetTimeMs = getResetTime();
         const visibleOrders = snapshot.docs.filter((doc) => {
           const o = doc.data();
-          const isPendingStatus =
+          const isExplicitFailed =
+            o.status === "failed" ||
+            o.status === "cancelled" ||
+            o.status === "abandoned" ||
             o.status === "pending" ||
             o.status === "pending_verification" ||
-            o.paymentStatus === "pending_verification" ||
+            o.paymentStatus === "failed" ||
+            o.paymentStatus === "cancelled" ||
+            o.paymentStatus === "abandoned" ||
+            o.paymentStatus === "pending" ||
+            o.paymentStatus === "pending_verification";
+
+          const isSuccessfulPay =
+            o.paymentStatus === "success" ||
             o.status === "paid" ||
-            o.paymentStatus === "success";
+            o.status === "success" ||
+            o.status === "completed" ||
+            o.status === "delivered" ||
+            o.status === "processing";
           
-          if (!isPendingStatus) return false;
+          if (!isSuccessfulPay || isExplicitFailed) return false;
           const orderTime = getOrderMillis(doc);
           return orderTime > 0 && orderTime > resetTimeMs;
         });
-        ordersCount = visibleOrders.length;
+
+        const newOrdersCount = visibleOrders.length;
+        if (lastOrderCount !== -1 && newOrdersCount > lastOrderCount) {
+          try {
+            const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.2);
+            gain.gain.setValueAtTime(0.3, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.5);
+          } catch (e) {
+            // Audio context policy catch
+          }
+          toast.success(`👑 NEW PAID ORDER RECEIVED! (${newOrdersCount} new)`);
+        }
+        lastOrderCount = newOrdersCount;
+        ordersCount = newOrdersCount;
         updateCount();
       });
 
