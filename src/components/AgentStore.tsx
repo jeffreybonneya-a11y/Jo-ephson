@@ -220,6 +220,10 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
 
           try {
             toast.info("Launching secure checkout... 👑");
+            const redirectTarget = (typeof window !== 'undefined' && window.location.origin && window.location.origin.includes('king-j-deals.onrender.com'))
+              ? window.location.origin
+              : 'https://king-j-deals.onrender.com';
+
             await openPaystackPopup({
               key: publicKey,
               email: paystackEmail,
@@ -229,7 +233,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
               onSuccess: (ref) => {
                 toast.success("Payment completed successfully! Verifying... 👑");
                 // Redirect to callback URL to trigger uniform verification & success handling in App.tsx
-                window.location.href = window.location.origin + "/?reference=" + ref;
+                window.location.href = redirectTarget + "/?reference=" + ref;
               },
               onClose: () => {
                 toast.warning("Payment window closed.");
@@ -238,6 +242,9 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
             });
           } catch (popError) {
             console.warn("Paystack Inline popup failed or blocked. Falling back to secure redirect mode:", popError);
+            const redirectTarget = (typeof window !== 'undefined' && window.location.origin && window.location.origin.includes('king-j-deals.onrender.com'))
+              ? window.location.origin
+              : 'https://king-j-deals.onrender.com';
 
             // Fallback to server-side redirect initialization
             const initResponse = await fetch(getApiUrl("/api/paystack-initialize"), {
@@ -247,7 +254,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
                 email: paystackEmail,
                 amount: 5000,
                 reference: finalOrderId,
-                callback_url: window.location.origin + "/?reference=" + finalOrderId,
+                callback_url: redirectTarget + "/?reference=" + finalOrderId,
                 currency: "GHS",
               }),
             });

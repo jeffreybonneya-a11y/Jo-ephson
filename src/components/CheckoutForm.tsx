@@ -479,6 +479,10 @@ export default function CheckoutForm({
 
       try {
         toast.info("Launching secure checkout... 👑");
+        const redirectTarget = (typeof window !== 'undefined' && window.location.origin && window.location.origin.includes('king-j-deals.onrender.com'))
+          ? window.location.origin
+          : 'https://king-j-deals.onrender.com';
+
         await openPaystackPopup({
           key: publicKey,
           email: paystackEmail,
@@ -487,7 +491,7 @@ export default function CheckoutForm({
           ref: finalOrderId,
           onSuccess: (ref) => {
             toast.success("Payment completed successfully! Verifying... 👑");
-            window.location.href = window.location.origin + "/?reference=" + ref;
+            window.location.href = redirectTarget + "/?reference=" + ref;
           },
           onClose: () => {
             toast.warning("Payment window closed.");
@@ -496,6 +500,9 @@ export default function CheckoutForm({
         });
       } catch (popError) {
         console.warn("Paystack Inline popup failed or blocked. Falling back to secure redirect mode:", popError);
+        const redirectTarget = (typeof window !== 'undefined' && window.location.origin && window.location.origin.includes('king-j-deals.onrender.com'))
+          ? window.location.origin
+          : 'https://king-j-deals.onrender.com';
         
         const initResponse = await fetch(getApiUrl("/api/paystack-initialize"), {
           method: "POST",
@@ -504,7 +511,7 @@ export default function CheckoutForm({
             email: paystackEmail,
             amount: Math.round(finalAmountToCharge * 100),
             reference: finalOrderId,
-            callback_url: window.location.origin + "/?reference=" + finalOrderId,
+            callback_url: redirectTarget + "/?reference=" + finalOrderId,
             currency: "GHS",
           }),
         });
