@@ -35,7 +35,7 @@ export interface ThemeSettings {
 
 const DEFAULT_SETTINGS: ThemeSettings = {
   primaryColor: '#eab308', // Royal Gold
-  mode: 'system',
+  mode: 'dark',
   brightness: 100,
   contrast: 100,
   fontFamily: 'Inter',
@@ -68,6 +68,11 @@ export function useTheme() {
         // Migration & Type Safety
         const { backgroundColor, textColor, musicEnabled, musicVolume, ...rest } = parsed;
         const validated = { ...DEFAULT_SETTINGS, ...rest };
+        
+        // Ensure default is dark mode if mode was previously 'system'
+        if (parsed.mode === 'system') {
+          validated.mode = 'dark';
+        }
         
         // Force types for numeric values
         if (typeof validated.brightness !== 'number') validated.brightness = 100;
