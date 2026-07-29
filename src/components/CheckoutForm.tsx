@@ -630,9 +630,9 @@ export default function CheckoutForm({
             : "customer@kingjdeals.com");
       const customerName = profile?.fullName || auth.currentUser.displayName || "Royal Customer";
 
-      const redirectTarget = (typeof window !== 'undefined' && window.location.origin && window.location.origin.includes('king-j-deals.onrender.com'))
+      const redirectTarget = (typeof window !== 'undefined' && window.location.origin)
         ? window.location.origin
-        : 'https://king-j-deals.onrender.com';
+        : 'https://kingjdeals.onrender.com';
 
       toast.info("Connecting to Korapay Checkout... 💳");
 

@@ -311,7 +311,7 @@ async function handleKorapayInitialize(req: express.Request, res: express.Respon
             process.env.VITE_KORAPAY_SECRET_KEY || 
             process.env.KORA_SECRET_KEY
         );
-        const hostOrigin = process.env.PUBLIC_APP_URL || (req.headers.origin && typeof req.headers.origin === 'string' ? req.headers.origin : 'https://king-j-deals.onrender.com');
+        const hostOrigin = process.env.PUBLIC_APP_URL || (req.headers.origin && typeof req.headers.origin === 'string' ? req.headers.origin : 'https://kingjdeals.onrender.com');
         const defaultRedirectUrl = `${hostOrigin}/?reference=${refToUse}&method=korapay`;
         const redirectUrl = redirect_url || defaultRedirectUrl;
         const notificationUrl = `${hostOrigin}/api/korapay-webhook`;

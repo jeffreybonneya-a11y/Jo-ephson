@@ -120,7 +120,15 @@ export default function App() {
 
                     toast.success("Payment Successful ✅");
                     setIsHistoryView(true); // Take user to view their orders
-                    window.history.replaceState({}, document.title, "https://king-j-deals.onrender.com");
+                    try {
+                      if (window.location.hostname !== 'kingjdeals.onrender.com' && window.location.hostname !== 'king-j-deals.onrender.com') {
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                      } else {
+                        window.history.replaceState({}, document.title, "/");
+                      }
+                    } catch (histErr) {
+                      console.warn("[Payment Verification] History state update notice:", histErr);
+                    }
                 } else {
                     console.warn("[Payment Verification] Payment not completed or was cancelled:", resData);
                     try {
@@ -135,22 +143,20 @@ export default function App() {
                     }
 
                     toast.error(resData.error || "Payment was cancelled or unsuccessful.");
-                    window.history.replaceState({}, document.title, "/");
+                    try {
+                        window.history.replaceState({}, document.title, "/");
+                    } catch (histErr) {
+                        console.warn("[Payment Verification] History state error:", histErr);
+                    }
                 }
             } catch (err: any) {
                 console.error("[Payment Verification Error] Request failed:", err.message || err);
+                toast.error("Unable to complete payment verification. Please check your orders page.");
                 try {
-                    const orderDocRef = doc(db, 'orders', reference);
-                    await setDoc(orderDocRef, {
-                        paymentStatus: "failed",
-                        status: "failed"
-                    }, { merge: true });
+                    window.history.replaceState({}, document.title, "/");
                 } catch (fallbackErr) {
-                    console.warn("[Payment Verification] Failed fallback error:", fallbackErr);
+                    console.warn("[Payment Verification] History fallback error:", fallbackErr);
                 }
-
-                toast.error("Payment verification failed or was cancelled.");
-                window.history.replaceState({}, document.title, "/");
             }
         };
         
