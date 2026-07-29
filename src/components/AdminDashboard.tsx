@@ -168,9 +168,6 @@ export default function AdminDashboard() {
 
 
   useEffect(() => {
-    localStorage.setItem('admin_notifier_reset_time', Date.now().toString());
-    window.dispatchEvent(new Event('RESET_ADMIN_NOTIFIER'));
-    setNotifierCount(0);
     seedFC();
 
     const handleReset = () => {
@@ -1067,10 +1064,15 @@ export default function AdminDashboard() {
               toast.success("Notifier counter reset to zero! 👑");
             }}
             variant="outline"
-            className="h-10 px-4 rounded-xl border-amber-400/50 hover:border-amber-500 font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-sm cursor-pointer"
+            className="h-10 px-4 rounded-xl border-amber-400/50 hover:border-amber-500 font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-sm cursor-pointer relative"
           >
             <RotateCcw className="w-4 h-4 text-amber-500" />
             Reset Notifier ({notifierCount})
+            {notifierCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 bg-red-600 text-white text-[10px] min-w-[20px] h-5 px-1 flex items-center justify-center rounded-full font-black shadow-lg animate-pulse">
+                {notifierCount}
+              </span>
+            )}
           </Button>
         </div>
       </div>

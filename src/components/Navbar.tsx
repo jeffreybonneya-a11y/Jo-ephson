@@ -69,12 +69,12 @@ export default function Navbar({
 
       const getResetTime = () => {
         const val = localStorage.getItem('admin_notifier_reset_time');
-        return val ? parseInt(val, 10) : Date.now();
+        return val ? parseInt(val, 10) : 0;
       };
 
       const getOrderMillis = (doc: any) => {
         const o = doc.data();
-        if (!o) return 0;
+        if (!o) return Date.now();
         if (o.createdAt?.seconds) return o.createdAt.seconds * 1000;
         if (typeof o.createdAt?.toMillis === 'function') return o.createdAt.toMillis();
         if (o.createdAt instanceof Date) return o.createdAt.getTime();
@@ -84,22 +84,17 @@ export default function Navbar({
           if (!isNaN(parsed) && parsed > 0) return parsed;
         }
         if (o.userConfirmedAt?.seconds) return o.userConfirmedAt.seconds * 1000;
-        if (doc.metadata?.hasPendingWrites) return Date.now();
-        return 0;
+        return Date.now();
       };
 
       const updateCount = () => {
-        if (isAdminView) {
-          setUnreadCount(0);
-        } else {
-          setUnreadCount(ordersCount);
-        }
+        setUnreadCount(ordersCount + messagesCount + profitRequestsCount);
       };
 
       const handleResetNotifier = () => {
         localStorage.setItem('admin_notifier_reset_time', Date.now().toString());
         ordersCount = 0;
-        setUnreadCount(0);
+        setUnreadCount(messagesCount + profitRequestsCount);
       };
 
       window.addEventListener('RESET_ADMIN_NOTIFIER', handleResetNotifier);
@@ -125,18 +120,9 @@ export default function Navbar({
             o.paymentStatus === "cancelled" ||
             o.paymentStatus === "abandoned";
 
-          const isSuccessfulPay =
-            o.paymentStatus === "success" ||
-            o.status === "paid" ||
-            o.status === "success" ||
-            o.status === "completed" ||
-            o.status === "delivered" ||
-            o.status === "processing" ||
-            o.status === "accepted";
-          
-          if (!isSuccessfulPay || isExplicitFailed) return false;
+          if (isExplicitFailed) return false;
           const orderTime = getOrderMillis(doc);
-          return orderTime > 0 && orderTime > resetTimeMs;
+          return orderTime > resetTimeMs;
         });
 
         const newOrdersCount = visibleOrders.length;
@@ -157,7 +143,7 @@ export default function Navbar({
           } catch (e) {
             // Audio context policy catch
           }
-          toast.success(`👑 NEW PAID ORDER RECEIVED! (${newOrdersCount} new)`);
+          toast.success(`👑 NEW ORDER RECEIVED! (${newOrdersCount} new)`);
         }
         lastOrderCount = newOrdersCount;
         ordersCount = newOrdersCount;
