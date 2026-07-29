@@ -324,17 +324,18 @@ app.post('/api/korapay-initialize', async (req, res) => {
 
         const rawAmount = Number(amount);
         const targetCurrency = (currency || 'GHS').toUpperCase();
-        // Korapay channel minimum is 10 GHS for GHS or 100 NGN for NGN
-        let validAmount = rawAmount;
-        if (targetCurrency === 'GHS' && validAmount < 10) {
-            validAmount = 10;
-        } else if (targetCurrency === 'NGN' && validAmount < 100) {
-            validAmount = 100;
+
+        if (targetCurrency === 'GHS' && rawAmount < 10) {
+            console.error('[Korapay Error] Order total below GHS 10.00 minimum:', rawAmount);
+            return res.status(400).json({
+                success: false,
+                error: 'Korapay is available only for orders of GHS 10.00 or more. Please increase your order amount to continue.'
+            });
         }
 
         const korapayPayload = {
             reference: refToUse,
-            amount: Number(validAmount.toFixed(2)),
+            amount: Number(rawAmount.toFixed(2)),
             currency: targetCurrency,
             customer: {
                 name: customerName || 'Royal Customer',
@@ -407,8 +408,11 @@ app.post('/api/korapay-initialize', async (req, res) => {
 async function verifyKorapayReference(reference: string) {
     const secretKey = getSanitizedKey(process.env.KORAPAY_SECRET_KEY);
     if (!secretKey) {
-        console.warn('[Korapay Backend Warning] KORAPAY_SECRET_KEY is missing in server environment. Proceeding with resilient verification.');
-        return { status: true, data: { status: 'success', gateway_response: 'Successful (Test Fallback Verification)' } };
+        console.warn('[Korapay Backend Warning] KORAPAY_SECRET_KEY is missing in server environment.');
+        if (reference.includes('mock') || reference.startsWith('KORA')) {
+            return { status: true, data: { status: 'success', gateway_response: 'Successful (Test Fallback Verification)' } };
+        }
+        return { status: false, message: 'Korapay secret key missing and non-mock reference' };
     }
     
     try {
@@ -421,8 +425,9 @@ async function verifyKorapayReference(reference: string) {
         console.log(`[Korapay Backend Response] Status: ${response.status}, Data Status: ${response.data?.data?.status}`);
         return response.data;
     } catch (err: any) {
-        console.warn(`[Korapay Backend Warning] Korapay verify API call error for reference ${reference}: ${err.message || err}. Defaulting to resilient verification.`);
-        return { status: true, data: { status: 'success', gateway_response: 'Successful (Resilient Verification)' } };
+        const errorMsg = err.response?.data?.message || err.message || 'Verification failed';
+        console.error(`[Korapay Backend Error] Korapay verify API call error for reference ${reference}: ${errorMsg}`);
+        return { status: false, message: errorMsg, data: err.response?.data?.data || {} };
     }
 }
 
@@ -443,6 +448,34 @@ async function handleKorapayVerificationRequest(req: express.Request, res: expre
     try {
         const verifyResult = await verifyKorapayReference(reference);
         const koraData = verifyResult?.data || {};
+        const koraStatus = (koraData?.status || '').toLowerCase();
+        
+        // Strictly check if Korapay verified transaction as successful
+        const isSuccess = verifyResult?.status === true && (koraStatus === 'success' || koraStatus === 'paid');
+
+        if (!isSuccess) {
+            console.warn(`[Korapay Backend Unverified] Reference ${reference} status is NOT successful: ${koraStatus || 'failed/unpaid'}`);
+            try {
+                const orderRef = dbAdmin.collection('orders').doc(reference);
+                await orderRef.set({
+                    paymentStatus: "failed",
+                    status: "failed",
+                    paymentMethod: "Korapay",
+                    payment_provider: "korapay",
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+            } catch (fsErr: any) {
+                console.error(`[Firebase Admin Error] Failed updating failed status for reference ${reference}:`, fsErr.message);
+            }
+
+            return res.status(400).json({ 
+                success: false, 
+                verified: false,
+                error: 'Korapay payment was cancelled or not completed.', 
+                status: koraStatus || 'failed' 
+            });
+        }
+
         const amount = koraData?.amount || 0;
         const currency = koraData?.currency || "GHS";
         const customerEmail = koraData?.customer?.email || "";
@@ -509,21 +542,21 @@ async function handleKorapayVerificationRequest(req: express.Request, res: expre
         console.error(`[Korapay Verification Exception] Reference ${reference}:`, err.message || err);
         try {
             const orderRef = dbAdmin.collection('orders').doc(reference);
-            await orderRef.update({
-                paymentStatus: "success",
-                status: "paid",
+            await orderRef.set({
+                paymentStatus: "failed",
+                status: "failed",
                 paymentMethod: "Korapay",
                 payment_provider: "korapay",
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
-            });
+            }, { merge: true });
         } catch (fsErr) {
-            console.error("[Firebase Admin Error] Korapay Fallback update:", fsErr);
+            console.error("[Firebase Admin Error] Korapay failure update error:", fsErr);
         }
 
-        return res.json({
-            success: true,
-            verified: true,
-            message: "Korapay Payment Successful ✅"
+        return res.status(400).json({
+            success: false,
+            verified: false,
+            error: "Payment verification failed or was cancelled."
         });
     }
 }

@@ -84,58 +84,72 @@ export default function App() {
 
                 console.log("[Payment Verification] Backend verification response:", resData);
 
-                // Update order in Firestore directly as success/paid
-                try {
-                    const orderDocRef = doc(db, 'orders', reference);
-                    const orderSnap = await getDoc(orderDocRef);
-                    const provider = isKorapay ? 'korapay' : 'paystack';
-                    const method = isKorapay ? 'Korapay' : 'Paystack';
+                const provider = isKorapay ? 'korapay' : 'paystack';
+                const method = isKorapay ? 'Korapay' : 'Paystack';
+                const orderDocRef = doc(db, 'orders', reference);
 
-                    if (orderSnap.exists()) {
-                        const orderData = orderSnap.data();
-                        await updateDoc(orderDocRef, {
-                            paymentStatus: "success",
-                            status: "paid",
-                            paymentMethod: orderData.paymentMethod || method,
-                            payment_provider: orderData.payment_provider || provider
-                        });
-                        if (orderData.bundle === "AGENT ACCESS UNLOCK" && orderData.userId) {
-                            await updateDoc(doc(db, "users", orderData.userId), { isAgent: true });
-                            toast.success("Agent Access Unlocked! Welcome 👑");
+                if (response.ok && resData.success && resData.verified !== false) {
+                    try {
+                        const orderSnap = await getDoc(orderDocRef);
+                        if (orderSnap.exists()) {
+                            const orderData = orderSnap.data();
+                            await updateDoc(orderDocRef, {
+                                paymentStatus: "success",
+                                status: "paid",
+                                paymentMethod: orderData.paymentMethod || method,
+                                payment_provider: orderData.payment_provider || provider
+                            });
+                            if (orderData.bundle === "AGENT ACCESS UNLOCK" && orderData.userId) {
+                                await updateDoc(doc(db, "users", orderData.userId), { isAgent: true });
+                                toast.success("Agent Access Unlocked! Welcome 👑");
+                            }
+                        } else {
+                            await setDoc(orderDocRef, {
+                                id: reference,
+                                paymentStatus: "success",
+                                status: "paid",
+                                paymentMethod: method,
+                                payment_provider: provider,
+                                createdAt: new Date(),
+                                reference
+                            }, { merge: true });
                         }
-                    } else {
-                        await setDoc(orderDocRef, {
-                            id: reference,
-                            paymentStatus: "success",
-                            status: "paid",
-                            paymentMethod: method,
-                            payment_provider: provider,
-                            createdAt: new Date(),
-                            reference
-                        }, { merge: true });
+                    } catch (fsErr) {
+                        console.warn("[Payment Verification] Firestore client update:", fsErr);
                     }
-                } catch (fsErr) {
-                    console.warn("[Payment Verification] Firestore client update:", fsErr);
-                }
 
-                toast.success("Payment Successful ✅");
-                setIsHistoryView(true); // Take user to view their orders
-                window.history.replaceState({}, document.title, "/");
+                    toast.success("Payment Successful ✅");
+                    setIsHistoryView(true); // Take user to view their orders
+                    window.history.replaceState({}, document.title, "https://king-j-deals.onrender.com");
+                } else {
+                    console.warn("[Payment Verification] Payment not completed or was cancelled:", resData);
+                    try {
+                        await setDoc(orderDocRef, {
+                            paymentStatus: "failed",
+                            status: "failed",
+                            paymentMethod: method,
+                            payment_provider: provider
+                        }, { merge: true });
+                    } catch (fsErr) {
+                        console.warn("[Payment Verification] Failed to mark order failed in Firestore:", fsErr);
+                    }
+
+                    toast.error(resData.error || "Payment was cancelled or unsuccessful.");
+                    window.history.replaceState({}, document.title, "/");
+                }
             } catch (err: any) {
-                console.error("[Payment Verification Error] Request failed, applying resilient fallback:", err.message || err);
-                
+                console.error("[Payment Verification Error] Request failed:", err.message || err);
                 try {
                     const orderDocRef = doc(db, 'orders', reference);
-                    await updateDoc(orderDocRef, {
-                        paymentStatus: "success",
-                        status: "paid"
-                    });
+                    await setDoc(orderDocRef, {
+                        paymentStatus: "failed",
+                        status: "failed"
+                    }, { merge: true });
                 } catch (fallbackErr) {
-                    console.warn("[Payment Verification] Resilient fallback error:", fallbackErr);
+                    console.warn("[Payment Verification] Failed fallback error:", fallbackErr);
                 }
 
-                toast.success("Payment Successful ✅");
-                setIsHistoryView(true);
+                toast.error("Payment verification failed or was cancelled.");
                 window.history.replaceState({}, document.title, "/");
             }
         };

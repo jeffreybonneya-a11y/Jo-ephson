@@ -48,6 +48,7 @@ import {
   ArrowLeft,
   PhoneCall,
   Wallet,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -201,6 +202,12 @@ export default function CheckoutForm({
     : (bundle?.network === "MTN" ? (isAgentActive ? 1.0 : (agentContext ? 0.0 : 1.0)) : 0.0);
 
   const finalAmountToCharge = Number(bundle?.price || 0) + paystackFee + hiddenGameCharge + hiddenTelecelCharge + hiddenMTNCharge;
+
+  useEffect(() => {
+    if (finalAmountToCharge < 10 && selectedPaymentMethod === "korapay") {
+      setSelectedPaymentMethod("paystack");
+    }
+  }, [finalAmountToCharge, selectedPaymentMethod]);
 
   useEffect(() => {
     if (
@@ -881,38 +888,45 @@ export default function CheckoutForm({
                 </div>
               </div>
 
-              {/* Option 2: Korapay Gateway */}
-              <div
-                onClick={() => setSelectedPaymentMethod("korapay")}
-                className={`cursor-pointer p-4 rounded-2xl border-2 transition-all flex items-start gap-3.5 relative ${
-                  selectedPaymentMethod === "korapay"
-                    ? "border-amber-500 bg-amber-500/10 dark:bg-amber-500/20 shadow-md ring-2 ring-amber-500/30"
-                    : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900"
-                }`}
-              >
-                <div className={`w-5 h-5 rounded-full border-2 mt-0.5 flex items-center justify-center shrink-0 ${
-                  selectedPaymentMethod === "korapay" ? "border-amber-500 bg-amber-500 text-slate-950" : "border-slate-300 dark:border-slate-700"
-                }`}>
-                  {selectedPaymentMethod === "korapay" && <Check className="w-3 h-3 stroke-[3]" />}
-                </div>
+              {/* Option 2: Korapay Gateway (Only when total >= GHS 10.00) */}
+              {finalAmountToCharge >= 10 ? (
+                <div
+                  onClick={() => setSelectedPaymentMethod("korapay")}
+                  className={`cursor-pointer p-4 rounded-2xl border-2 transition-all flex items-start gap-3.5 relative ${
+                    selectedPaymentMethod === "korapay"
+                      ? "border-amber-500 bg-amber-500/10 dark:bg-amber-500/20 shadow-md ring-2 ring-amber-500/30"
+                      : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900"
+                  }`}
+                >
+                  <div className={`w-5 h-5 rounded-full border-2 mt-0.5 flex items-center justify-center shrink-0 ${
+                    selectedPaymentMethod === "korapay" ? "border-amber-500 bg-amber-500 text-slate-950" : "border-slate-300 dark:border-slate-700"
+                  }`}>
+                    {selectedPaymentMethod === "korapay" && <Check className="w-3 h-3 stroke-[3]" />}
+                  </div>
 
-                <div className="flex-1 space-y-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <CreditCard className="w-4 h-4 text-emerald-500" />
-                      <span className="font-black text-sm text-foreground uppercase">
-                        Korapay Checkout
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <CreditCard className="w-4 h-4 text-emerald-500" />
+                        <span className="font-black text-sm text-foreground uppercase">
+                          Korapay Checkout
+                        </span>
+                      </div>
+                      <span className="bg-emerald-500 text-slate-950 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                        NEW 🚀
                       </span>
                     </div>
-                    <span className="bg-emerald-500 text-slate-950 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-                      NEW 🚀
-                    </span>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                      Fast checkout via Korapay hosted payment page. Supports Card, Bank Transfer & Mobile Money.
+                    </p>
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                    Fast checkout via Korapay hosted payment page. Supports Card, Bank Transfer & Mobile Money.
-                  </p>
                 </div>
-              </div>
+              ) : (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs font-medium text-amber-700 dark:text-amber-400 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
+                  <span>Korapay is available only for orders of GHS 10.00 or more. Please increase your order amount to continue.</span>
+                </div>
+              )}
 
               {/* Option 3: Pay Directly with MoMo (Optional) */}
               <div
@@ -1397,25 +1411,27 @@ export default function CheckoutForm({
                       </span>
                     </div>
 
-                    <div
-                      onClick={() => setSelectedPaymentMethod("korapay")}
-                      className={`cursor-pointer p-2.5 sm:p-3 rounded-xl border-2 transition-all flex items-center justify-between gap-1.5 ${
-                        selectedPaymentMethod === "korapay"
-                          ? "border-amber-500 bg-amber-500/10 dark:bg-amber-500/20 shadow-sm ring-1 ring-amber-500"
-                          : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50 dark:bg-slate-900"
-                      }`}
-                    >
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <CreditCard className={`w-3.5 h-3.5 shrink-0 ${selectedPaymentMethod === "korapay" ? "text-amber-500" : "text-slate-400"}`} />
-                        <div className="min-w-0">
-                          <p className="font-black text-[11px] text-foreground truncate uppercase">Korapay</p>
-                          <p className="text-[8px] text-slate-500 dark:text-slate-400 font-bold truncate">Checkout</p>
+                    {finalAmountToCharge >= 10 && (
+                      <div
+                        onClick={() => setSelectedPaymentMethod("korapay")}
+                        className={`cursor-pointer p-2.5 sm:p-3 rounded-xl border-2 transition-all flex items-center justify-between gap-1.5 ${
+                          selectedPaymentMethod === "korapay"
+                            ? "border-amber-500 bg-amber-500/10 dark:bg-amber-500/20 shadow-sm ring-1 ring-amber-500"
+                            : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50 dark:bg-slate-900"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <CreditCard className={`w-3.5 h-3.5 shrink-0 ${selectedPaymentMethod === "korapay" ? "text-amber-500" : "text-slate-400"}`} />
+                          <div className="min-w-0">
+                            <p className="font-black text-[11px] text-foreground truncate uppercase">Korapay</p>
+                            <p className="text-[8px] text-slate-500 dark:text-slate-400 font-bold truncate">Checkout</p>
+                          </div>
                         </div>
+                        <span className="bg-emerald-500 text-slate-950 text-[7px] font-black px-1 py-0.5 rounded shrink-0 uppercase tracking-wider">
+                          NEW 🚀
+                        </span>
                       </div>
-                      <span className="bg-emerald-500 text-slate-950 text-[7px] font-black px-1 py-0.5 rounded shrink-0 uppercase tracking-wider">
-                        NEW 🚀
-                      </span>
-                    </div>
+                    )}
 
                     <div
                       onClick={() => setSelectedPaymentMethod("momo_direct")}

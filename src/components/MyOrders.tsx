@@ -58,18 +58,30 @@ export default function MyOrders() {
           id: doc.id,
           ...doc.data(),
         }));
-        // Show orders with successful payment or active status
+        // Show only orders with verified successful payment status
         const completedOrders = fetchedOrders.filter(
-          (o: any) =>
-            o.paymentStatus === "success" ||
-            o.status === "success" ||
-            o.status === "paid" ||
-            o.status === "accepted" ||
-            o.status === "processing" ||
-            o.status === "delivered" ||
-            o.status === "completed" ||
-            o.status === "pending_verification" ||
-            o.paymentStatus === "pending_verification"
+          (o: any) => {
+            const isExplicitPendingOrFailed = 
+              o.paymentStatus === "pending" ||
+              o.paymentStatus === "failed" ||
+              o.paymentStatus === "abandoned" ||
+              o.paymentStatus === "unverified" ||
+              o.status === "pending" ||
+              o.status === "failed" ||
+              o.status === "cancelled" ||
+              o.status === "abandoned";
+
+            const isPaidOrVerified =
+              o.paymentStatus === "success" ||
+              o.status === "paid" ||
+              o.status === "delivered" ||
+              o.status === "completed" ||
+              o.status === "processing" ||
+              o.status === "accepted" ||
+              o.status === "success";
+
+            return isPaidOrVerified && !isExplicitPendingOrFailed;
+          }
         );
         setOrders(completedOrders);
         setLoading(false);
