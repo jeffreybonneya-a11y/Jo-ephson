@@ -118,9 +118,19 @@ export default function Navbar({
             o.status === "declined" ||
             o.paymentStatus === "failed" ||
             o.paymentStatus === "cancelled" ||
-            o.paymentStatus === "abandoned";
+            o.paymentStatus === "abandoned" ||
+            o.paymentStatus === "unverified";
 
-          if (isExplicitFailed) return false;
+          const isVerifiedSuccess =
+            o.paymentStatus === "success" ||
+            o.status === "paid" ||
+            o.status === "completed" ||
+            o.status === "delivered" ||
+            o.status === "processing" ||
+            o.status === "accepted" ||
+            o.status === "success";
+
+          if (!isVerifiedSuccess || isExplicitFailed) return false;
           const orderTime = getOrderMillis(doc);
           return orderTime > resetTimeMs;
         });

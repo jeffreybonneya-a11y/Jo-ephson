@@ -224,8 +224,8 @@ export default function AdminDashboard() {
 
         allOrders.sort((a, b) => getOrderTime(b) - getOrderTime(a));
 
-        // Show all orders except explicitly failed or declined
-        const validOrders = allOrders.filter((o) => {
+        // Show ONLY orders with successful verified Paystack/payment status
+        const completedOrders = allOrders.filter((o) => {
           const isExplicitFailed = o.paymentStatus === "failed" || 
                                    o.paymentStatus === "abandoned" || 
                                    o.paymentStatus === "cancelled" || 
@@ -235,18 +235,26 @@ export default function AdminDashboard() {
                                    o.status === "abandoned" ||
                                    o.status === "declined";
 
-          return !isExplicitFailed;
+          const isVerifiedSuccess = o.paymentStatus === "success" || 
+                                    o.status === "paid" || 
+                                    o.status === "completed" || 
+                                    o.status === "delivered" || 
+                                    o.status === "processing" ||
+                                    o.status === "accepted" ||
+                                    o.status === "success";
+
+          return isVerifiedSuccess && !isExplicitFailed;
         });
         
         const resetTimeStr = localStorage.getItem('admin_notifier_reset_time');
         const resetTime = resetTimeStr ? parseInt(resetTimeStr, 10) : 0;
-        const unreadNewPaid = validOrders.filter((o) => {
+        const unreadNewPaid = completedOrders.filter((o) => {
           const orderTime = getOrderTime(o);
           return orderTime > resetTime;
         }).length;
         
         setNotifierCount(unreadNewPaid);
-        setOrders(validOrders);
+        setOrders(completedOrders);
       },
       (err) => {
         console.error("Orders listener error:", err);
