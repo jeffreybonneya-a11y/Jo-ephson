@@ -293,7 +293,7 @@ app.get('/api/korapay-public-key', (req, res) => {
 });
 
 // REST Endpoint: Korapay Payment Initialization
-app.post('/api/korapay-initialize', async (req, res) => {
+async function handleKorapayInitialize(req: express.Request, res: express.Response) {
     try {
         const { reference, orderId, amount, currency, customerName, customerEmail, narration, redirect_url } = req.body;
         const refToUse = reference || orderId;
@@ -306,7 +306,11 @@ app.post('/api/korapay-initialize', async (req, res) => {
             });
         }
 
-        const secretKey = getSanitizedKey(process.env.KORAPAY_SECRET_KEY);
+        const secretKey = getSanitizedKey(
+            process.env.KORAPAY_SECRET_KEY || 
+            process.env.VITE_KORAPAY_SECRET_KEY || 
+            process.env.KORA_SECRET_KEY
+        );
         const hostOrigin = process.env.PUBLIC_APP_URL || (req.headers.origin && typeof req.headers.origin === 'string' ? req.headers.origin : 'https://king-j-deals.onrender.com');
         const defaultRedirectUrl = `${hostOrigin}/?reference=${refToUse}&method=korapay`;
         const redirectUrl = redirect_url || defaultRedirectUrl;
@@ -333,7 +337,7 @@ app.post('/api/korapay-initialize', async (req, res) => {
             });
         }
 
-        const korapayPayload = {
+        const korapayPayload: any = {
             reference: refToUse,
             amount: Number(rawAmount.toFixed(2)),
             currency: targetCurrency,
@@ -341,7 +345,6 @@ app.post('/api/korapay-initialize', async (req, res) => {
                 name: customerName || 'Royal Customer',
                 email: customerEmail
             },
-            channels: ["card", "mobile_money", "bank_transfer"],
             notification_url: notificationUrl,
             redirect_url: redirectUrl,
             narration: narration || 'Bundle Purchase'
@@ -402,11 +405,19 @@ app.post('/api/korapay-initialize', async (req, res) => {
             error: err.message || 'Internal server error during Korapay payment initialization.'
         });
     }
-});
+}
+
+app.post('/api/korapay-initialize', handleKorapayInitialize);
+app.post('/api/korapay/initialize', handleKorapayInitialize);
+app.post('/korapay-initialize', handleKorapayInitialize);
 
 // Verification Helper for Korapay
 async function verifyKorapayReference(reference: string) {
-    const secretKey = getSanitizedKey(process.env.KORAPAY_SECRET_KEY);
+    const secretKey = getSanitizedKey(
+        process.env.KORAPAY_SECRET_KEY || 
+        process.env.VITE_KORAPAY_SECRET_KEY || 
+        process.env.KORA_SECRET_KEY
+    );
     if (!secretKey) {
         console.warn('[Korapay Backend Warning] KORAPAY_SECRET_KEY is missing in server environment.');
         if (reference.includes('mock') || reference.startsWith('KORA')) {
