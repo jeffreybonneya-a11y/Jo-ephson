@@ -207,52 +207,54 @@ export default function AdminDashboard() {
     });
 
     // 3. Listen for Orders
-    const ordersQuery = query(
+    const unsubOrders = onSnapshot(
       collection(db, "orders"),
-      orderBy("createdAt", "desc"),
+      (snapshot) => {
+        const allOrders = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() as any }));
+        
+        const getOrderTime = (o: any) => {
+          if (!o) return Date.now();
+          if (o.createdAt?.seconds) return o.createdAt.seconds * 1000;
+          if (typeof o.createdAt?.toMillis === 'function') return o.createdAt.toMillis();
+          if (o.createdAt instanceof Date) return o.createdAt.getTime();
+          if (typeof o.createdAt === 'number') return o.createdAt;
+          if (typeof o.createdAt === 'string') {
+            const parsed = Date.parse(o.createdAt);
+            if (!isNaN(parsed) && parsed > 0) return parsed;
+          }
+          return Date.now();
+        };
+
+        allOrders.sort((a, b) => getOrderTime(b) - getOrderTime(a));
+
+        // Show all orders except explicitly failed or declined
+        const validOrders = allOrders.filter((o) => {
+          const isExplicitFailed = o.paymentStatus === "failed" || 
+                                   o.paymentStatus === "abandoned" || 
+                                   o.paymentStatus === "cancelled" || 
+                                   o.paymentStatus === "unverified" ||
+                                   o.status === "failed" || 
+                                   o.status === "cancelled" || 
+                                   o.status === "abandoned" ||
+                                   o.status === "declined";
+
+          return !isExplicitFailed;
+        });
+        
+        const resetTimeStr = localStorage.getItem('admin_notifier_reset_time');
+        const resetTime = resetTimeStr ? parseInt(resetTimeStr, 10) : 0;
+        const unreadNewPaid = validOrders.filter((o) => {
+          const orderTime = getOrderTime(o);
+          return orderTime > resetTime;
+        }).length;
+        
+        setNotifierCount(unreadNewPaid);
+        setOrders(validOrders);
+      },
+      (err) => {
+        console.error("Orders listener error:", err);
+      }
     );
-    const unsubOrders = onSnapshot(ordersQuery, (snapshot) => {
-      const allOrders = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() as any }));
-      // Show ONLY orders with successful verified Paystack/payment status
-      const completedOrders = allOrders.filter((o) => {
-        const isExplicitFailed = o.paymentStatus === "failed" || 
-                                 o.paymentStatus === "abandoned" || 
-                                 o.paymentStatus === "cancelled" || 
-                                 o.paymentStatus === "unverified" ||
-                                 o.status === "failed" || 
-                                 o.status === "cancelled" || 
-                                 o.status === "abandoned" ||
-                                 o.status === "declined";
-
-        const isVerifiedSuccess = o.paymentStatus === "success" || 
-                                  o.status === "paid" || 
-                                  o.status === "completed" || 
-                                  o.status === "delivered" || 
-                                  o.status === "processing" ||
-                                  o.status === "accepted" ||
-                                  o.status === "success";
-
-        return isVerifiedSuccess && !isExplicitFailed;
-      });
-      
-      const resetTimeStr = localStorage.getItem('admin_notifier_reset_time');
-      const resetTime = resetTimeStr ? parseInt(resetTimeStr, 10) : 0;
-      const unreadNewPaid = completedOrders.filter((o) => {
-        let orderTime = 0;
-        if (o.createdAt?.seconds) orderTime = o.createdAt.seconds * 1000;
-        else if (typeof o.createdAt?.toMillis === 'function') orderTime = o.createdAt.toMillis();
-        else if (o.createdAt instanceof Date) orderTime = o.createdAt.getTime();
-        else if (typeof o.createdAt === 'number') orderTime = o.createdAt;
-        else if (typeof o.createdAt === 'string') {
-          const parsed = Date.parse(o.createdAt);
-          if (!isNaN(parsed) && parsed > 0) orderTime = parsed;
-        }
-        return orderTime > resetTime;
-      }).length;
-      
-      setNotifierCount(unreadNewPaid);
-      setOrders(completedOrders);
-    });
 
     // 4. Listen for Messages
     const unsubMessages = onSnapshot(
