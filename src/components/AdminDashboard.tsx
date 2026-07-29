@@ -215,26 +215,24 @@ export default function AdminDashboard() {
       const allOrders = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() as any }));
       // Show ONLY orders with successful verified Paystack/payment status
       const completedOrders = allOrders.filter((o) => {
-        const isExplicitFailedOrPending = o.paymentStatus === "failed" || 
-                                          o.paymentStatus === "abandoned" || 
-                                          o.paymentStatus === "cancelled" || 
-                                          o.paymentStatus === "unverified" || 
-                                          o.paymentStatus === "pending" ||
-                                          o.paymentStatus === "pending_verification" ||
-                                          o.status === "failed" || 
-                                          o.status === "cancelled" || 
-                                          o.status === "abandoned" || 
-                                          o.status === "pending" ||
-                                          o.status === "pending_verification";
+        const isExplicitFailed = o.paymentStatus === "failed" || 
+                                 o.paymentStatus === "abandoned" || 
+                                 o.paymentStatus === "cancelled" || 
+                                 o.paymentStatus === "unverified" ||
+                                 o.status === "failed" || 
+                                 o.status === "cancelled" || 
+                                 o.status === "abandoned" ||
+                                 o.status === "declined";
 
         const isVerifiedSuccess = o.paymentStatus === "success" || 
                                   o.status === "paid" || 
                                   o.status === "completed" || 
                                   o.status === "delivered" || 
                                   o.status === "processing" ||
+                                  o.status === "accepted" ||
                                   o.status === "success";
 
-        return isVerifiedSuccess && !isExplicitFailedOrPending;
+        return isVerifiedSuccess && !isExplicitFailed;
       });
       
       const resetTimeStr = localStorage.getItem('admin_notifier_reset_time');

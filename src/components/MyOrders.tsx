@@ -61,15 +61,14 @@ export default function MyOrders() {
         // Show only orders with verified successful payment status
         const completedOrders = fetchedOrders.filter(
           (o: any) => {
-            const isExplicitPendingOrFailed = 
-              o.paymentStatus === "pending" ||
+            const isExplicitFailed = 
               o.paymentStatus === "failed" ||
               o.paymentStatus === "abandoned" ||
               o.paymentStatus === "unverified" ||
-              o.status === "pending" ||
               o.status === "failed" ||
               o.status === "cancelled" ||
-              o.status === "abandoned";
+              o.status === "abandoned" ||
+              o.status === "declined";
 
             const isPaidOrVerified =
               o.paymentStatus === "success" ||
@@ -80,7 +79,7 @@ export default function MyOrders() {
               o.status === "accepted" ||
               o.status === "success";
 
-            return isPaidOrVerified && !isExplicitPendingOrFailed;
+            return isPaidOrVerified && !isExplicitFailed;
           }
         );
         setOrders(completedOrders);

@@ -120,13 +120,10 @@ export default function Navbar({
             o.status === "failed" ||
             o.status === "cancelled" ||
             o.status === "abandoned" ||
-            o.status === "pending" ||
-            o.status === "pending_verification" ||
+            o.status === "declined" ||
             o.paymentStatus === "failed" ||
             o.paymentStatus === "cancelled" ||
-            o.paymentStatus === "abandoned" ||
-            o.paymentStatus === "pending" ||
-            o.paymentStatus === "pending_verification";
+            o.paymentStatus === "abandoned";
 
           const isSuccessfulPay =
             o.paymentStatus === "success" ||
@@ -134,7 +131,8 @@ export default function Navbar({
             o.status === "success" ||
             o.status === "completed" ||
             o.status === "delivered" ||
-            o.status === "processing";
+            o.status === "processing" ||
+            o.status === "accepted";
           
           if (!isSuccessfulPay || isExplicitFailed) return false;
           const orderTime = getOrderMillis(doc);
