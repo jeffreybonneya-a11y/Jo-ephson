@@ -64,16 +64,23 @@ app.post('/api/paystack-initialize', async (req, res) => {
             return res.status(400).json({ success: false, error: 'Email, amount, reference, and callback_url are required' });
         }
         
-        const key = getSanitizedKey(process.env.PAYSTACK_SECRET_KEY);
-        if (!key || !key.startsWith('sk_')) {
-            const reason = !key ? "is missing" : "does not start with 'sk_' (ensure you provide the Secret Key, not the Public Key)";
-            console.log(`[Paystack] PAYSTACK_SECRET_KEY ${reason}. Falling back to mock.`);
-            const fallbackUrl = `${req.body.callback_url}${req.body.callback_url.includes('?') ? '&' : '?'}reference=${req.body.reference}&mock=true`;
-            return res.json({ 
-                success: true, 
-                authorization_url: fallbackUrl,
-                warning: `Paystack keys missing or invalid. Falling back to mock.`
-            });
+        const key = getSanitizedKey(
+            process.env.PAYSTACK_SECRET_KEY || 
+            process.env.VITE_PAYSTACK_SECRET_KEY || 
+            process.env.PAYSTACK_KEY
+        );
+        if (!key || (!key.startsWith('sk_') && !key.startsWith('sat_'))) {
+            const reason = !key ? "is missing" : "does not start with 'sk_'";
+            console.warn(`[Paystack] PAYSTACK_SECRET_KEY ${reason}.`);
+            if (reference && (reference.includes('mock') || reference.startsWith('PSTK'))) {
+                const fallbackUrl = `${req.body.callback_url}${req.body.callback_url.includes('?') ? '&' : '?'}reference=${req.body.reference}&mock=true`;
+                return res.json({ 
+                    success: true, 
+                    authorization_url: fallbackUrl,
+                    warning: `Paystack key missing. Falling back to test mock.`
+                });
+            }
+            return res.status(400).json({ success: false, error: 'Paystack secret key is missing or unconfigured.' });
         }
         
         console.log(`[Paystack] Initializing transaction for email: ${email}, amount: ${amount}, currency: ${currency || "GHS"}`);
@@ -97,15 +104,17 @@ app.post('/api/paystack-initialize', async (req, res) => {
         }
     } catch (err: any) {
         const errorDetails = err.response?.data || {};
-        const errorMsg = errorDetails.message || err.message || "Unknown issue";
-        console.log(`[Paystack] Notice: transaction status resolved. Falling back to mock checkout path.`);
+        const errorMsg = errorDetails.message || err.message || "Paystack initialization failed";
+        console.error(`[Paystack Initialization Error]:`, errorDetails);
         
-        const fallbackUrl = `${req.body.callback_url}${req.body.callback_url.includes('?') ? '&' : '?'}reference=${req.body.reference}&mock=true`;
-        return res.json({ 
-            success: true, 
-            authorization_url: fallbackUrl,
-            warning: `Paystack transaction status resolved. Falling back to mock.`
-        });
+        if (req.body?.reference && (req.body.reference.includes('mock') || req.body.reference.startsWith('PSTK'))) {
+            const fallbackUrl = `${req.body.callback_url}${req.body.callback_url.includes('?') ? '&' : '?'}reference=${req.body.reference}&mock=true`;
+            return res.json({ 
+                success: true, 
+                authorization_url: fallbackUrl
+            });
+        }
+        return res.status(400).json({ success: false, error: errorMsg });
     }
 });
 
@@ -150,10 +159,17 @@ async function updateFirestoreOrderPaymentSuccess(reference: string) {
 }
 
 async function verifyPaystackReference(reference: string) {
-    const key = getSanitizedKey(process.env.PAYSTACK_SECRET_KEY);
+    const key = getSanitizedKey(
+        process.env.PAYSTACK_SECRET_KEY || 
+        process.env.VITE_PAYSTACK_SECRET_KEY || 
+        process.env.PAYSTACK_KEY
+    );
     if (!key || (!key.startsWith('sk_') && !key.startsWith('sat_'))) {
-        console.warn('[Paystack Backend Warning] PAYSTACK_SECRET_KEY is missing or invalid in server environment. Proceeding with resilient verification.');
-        return { status: true, data: { status: 'success', gateway_response: 'Successful (Resilient Verification)' } };
+        console.warn('[Paystack Backend Warning] PAYSTACK_SECRET_KEY is missing or invalid in server environment.');
+        if (reference.includes('mock') || reference.startsWith('PSTK')) {
+            return { status: true, data: { status: 'success', gateway_response: 'Successful (Test Fallback Verification)' } };
+        }
+        return { status: false, message: 'Paystack secret key missing and non-mock reference' };
     }
     
     try {
@@ -166,8 +182,9 @@ async function verifyPaystackReference(reference: string) {
         console.log(`[Paystack Backend Response] Status: ${response.status}, Data Status: ${response.data?.data?.status}`);
         return response.data;
     } catch (err: any) {
-        console.warn(`[Paystack Backend Warning] Paystack verify API call error for reference ${reference}: ${err.message}. Defaulting to resilient verification.`);
-        return { status: true, data: { status: 'success', gateway_response: 'Successful (Fallback Verification)' } };
+        const errorMsg = err.response?.data?.message || err.message || 'Verification failed';
+        console.error(`[Paystack Backend Error] Paystack verify API call error for reference ${reference}: ${errorMsg}`);
+        return { status: false, message: errorMsg, data: err.response?.data?.data || {} };
     }
 }
 
@@ -189,6 +206,34 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
     try {
         const verifyResult = await verifyPaystackReference(reference);
         const paystackData = verifyResult?.data || {};
+        const paystackStatus = (paystackData?.status || '').toLowerCase();
+        
+        // Strictly check if Paystack verified transaction as successful
+        const isSuccess = verifyResult?.status === true && (paystackStatus === 'success' || paystackStatus === 'paid');
+
+        if (!isSuccess) {
+            console.warn(`[Paystack Backend Unverified] Reference ${reference} status is NOT successful: ${paystackStatus || 'failed/unpaid'}`);
+            try {
+                const orderRef = dbAdmin.collection('orders').doc(reference);
+                await orderRef.set({
+                    paymentStatus: "failed",
+                    status: "failed",
+                    paymentMethod: "Paystack",
+                    payment_provider: "paystack",
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+            } catch (fsErr: any) {
+                console.error(`[Firebase Admin Error] Failed updating failed status for reference ${reference}:`, fsErr.message);
+            }
+
+            return res.status(400).json({ 
+                success: false, 
+                verified: false,
+                error: 'Paystack payment was cancelled or not completed.', 
+                status: paystackStatus || 'failed' 
+            });
+        }
+
         const amountInMainCurrency = paystackData?.amount ? paystackData.amount / 100 : 0;
         const currency = paystackData?.currency || "GHS";
         const customerEmail = paystackData?.customer?.email || "";
@@ -206,6 +251,8 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
             const orderPayload = {
                 paymentStatus: "success",
                 status: "paid",
+                paymentMethod: "Paystack",
+                payment_provider: "paystack",
                 paymentReference: reference,
                 currency,
                 ...(amountInMainCurrency > 0 ? { amountPaid: amountInMainCurrency } : {}),
@@ -245,6 +292,8 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
                 await agentOrderRef.update({
                     status: "success",
                     paymentStatus: "success",
+                    paymentMethod: "Paystack",
+                    payment_provider: "paystack",
                     paymentReference: reference,
                     paymentTimestamp
                 });
@@ -263,22 +312,23 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
         const errorDetails = err.response?.data || err.message || 'Unknown error';
         console.error(`[Paystack Backend Verification Exception] Reference ${reference}:`, errorDetails);
 
-        // Fallback: still mark order as paid in Firestore so customer isn't stuck
         try {
             const orderRef = dbAdmin.collection('orders').doc(reference);
-            await orderRef.update({
-                paymentStatus: "success",
-                status: "paid",
+            await orderRef.set({
+                paymentStatus: "failed",
+                status: "failed",
+                paymentMethod: "Paystack",
+                payment_provider: "paystack",
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
-            });
+            }, { merge: true });
         } catch (fsErr) {
-            console.error("[Firebase Admin Error] Fallback update in catch block:", fsErr);
+            console.error("[Firebase Admin Error] Fallback failure update in catch block:", fsErr);
         }
 
-        return res.json({
-            success: true,
-            verified: true,
-            message: "Payment Successful ✅"
+        return res.status(400).json({
+            success: false,
+            verified: false,
+            error: "Paystack payment verification failed or was cancelled."
         });
     }
 }
