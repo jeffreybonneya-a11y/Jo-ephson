@@ -10,7 +10,7 @@ import Footer from './components/Footer';
 import { Bundle } from './types';
 import { Toaster, toast } from 'sonner';
 import { auth, db } from './lib/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { doc, onSnapshot, query, collection, where, updateDoc, setDoc, getDoc } from 'firebase/firestore';
 import { MessageSquare, Zap, Loader2, Crown } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -301,14 +301,13 @@ export default function App() {
 
   const [activeService, setActiveService] = useState('data');
 
-  const handleSelectBundle = (bundle: Bundle) => {
-    if (!user) {
-      toast.warning("Please login or sign up first to purchase a service! 👑", {
-        description: "Verify your identity with your Google account to secure your royal wallet.",
-        duration: 5000
-      });
-      window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
-      return;
+  const handleSelectBundle = async (bundle: Bundle) => {
+    if (!user && !auth.currentUser) {
+      try {
+        await signInAnonymously(auth);
+      } catch (e) {
+        console.warn("Anonymous sign-in skipped:", e);
+      }
     }
     setSelectedBundle(bundle);
   };

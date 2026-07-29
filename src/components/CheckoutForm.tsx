@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Bundle, Network, UserProfile } from "@/src/types";
 import { auth, db } from "@/src/lib/firebase";
+import { signInAnonymously } from "firebase/auth";
 import { getApiUrl } from "@/src/lib/api";
 import { openPaystackPopup } from "@/src/lib/paystack";
 import {
@@ -264,11 +265,20 @@ export default function CheckoutForm({
     };
   }, [orderStatus, orderId, onClose]);
 
-  const onSubmit = async (data: z.infer<typeof formSchema>) => {
-    if (!bundle || !auth.currentUser) {
-      toast.error("You must be logged in to purchase.");
-      return;
+  const ensureUser = async () => {
+    if (auth.currentUser) return auth.currentUser;
+    try {
+      const res = await signInAnonymously(auth);
+      return res.user;
+    } catch (e) {
+      console.warn("Anonymous auth failed or disabled:", e);
+      return null;
     }
+  };
+
+  const onSubmit = async (data: z.infer<typeof formSchema>) => {
+    if (!bundle) return;
+    await ensureUser();
     setSavedFormData(data);
     if (selectedPaymentMethod === "paystack") {
       processPaystackPayment(data);
@@ -287,10 +297,21 @@ export default function CheckoutForm({
   };
 
   const processMoMoDirectPayment = async (data: z.infer<typeof formSchema>) => {
-    if (!bundle || !auth.currentUser) return;
+    if (!bundle) return;
     setIsSubmitting(true);
 
     try {
+      const activeUser = await ensureUser();
+      const currentUid = activeUser?.uid || auth.currentUser?.uid || `guest_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const currentEmail = (profile?.email && profile.email.includes("@"))
+        ? profile.email
+        : ((activeUser?.email && activeUser.email.includes("@"))
+            ? activeUser.email
+            : ((auth.currentUser?.email && auth.currentUser.email.includes("@"))
+                ? auth.currentUser.email
+                : (data.recipientPhone ? `${data.recipientPhone.replace(/\s+/g, '')}@customer.kingjdeals.com` : "customer@kingjdeals.com")));
+      const currentName = profile?.fullName || activeUser?.displayName || auth.currentUser?.displayName || (data.recipientPhone ? `Customer (${data.recipientPhone})` : "Royal Customer");
+
       const finalOrderId = doc(collection(db, "orders")).id;
       setOrderId(finalOrderId);
 
@@ -330,7 +351,7 @@ export default function CheckoutForm({
       const calculatedProfit = agPrice - wsPrice;
 
       const momoOrderData = {
-        email: profile?.email || auth.currentUser.email || "",
+        email: currentEmail,
         phone: data.recipientPhone || "",
         network: data.recipientNetwork,
         bundle: bundle.network === "PC Games" ? bundle.name : `${data.recipientNetwork} ${bundle.dataAmount}`,
@@ -339,8 +360,8 @@ export default function CheckoutForm({
         paymentStatus: "pending_verification",
         paymentMethod: "momo_direct",
         createdAt: serverTimestamp(),
-        userId: auth.currentUser.uid,
-        customerName: profile?.fullName || auth.currentUser.displayName || "Royal Customer",
+        userId: currentUid,
+        customerName: currentName,
         reference: generatedRef,
         momoRefCode: generatedRef,
         momoNumber: MOMO_NUMBER,
@@ -372,8 +393,8 @@ export default function CheckoutForm({
           id: finalOrderId,
           agent_id: agentContext.id,
           customer_details: {
-            name: profile?.fullName || auth.currentUser.displayName || "Royal Customer",
-            email: profile?.email || auth.currentUser.email || "",
+            name: currentName,
+            email: currentEmail,
             phone: data.recipientPhone || "",
             network: data.recipientNetwork,
           },
@@ -397,10 +418,21 @@ export default function CheckoutForm({
   };
 
   const processPaystackPayment = async (data: z.infer<typeof formSchema>) => {
-    if (!bundle || !auth.currentUser) return;
+    if (!bundle) return;
     setIsSubmitting(true);
 
     try {
+      const activeUser = await ensureUser();
+      const currentUid = activeUser?.uid || auth.currentUser?.uid || `guest_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const currentEmail = (profile?.email && profile.email.includes("@"))
+        ? profile.email
+        : ((activeUser?.email && activeUser.email.includes("@"))
+            ? activeUser.email
+            : ((auth.currentUser?.email && auth.currentUser.email.includes("@"))
+                ? auth.currentUser.email
+                : (data.recipientPhone ? `${data.recipientPhone.replace(/\s+/g, '')}@customer.kingjdeals.com` : "customer@kingjdeals.com")));
+      const currentName = profile?.fullName || activeUser?.displayName || auth.currentUser?.displayName || (data.recipientPhone ? `Customer (${data.recipientPhone})` : "Royal Customer");
+
       const finalOrderId = doc(collection(db, "orders")).id;
       setOrderId(finalOrderId);
 
@@ -409,15 +441,15 @@ export default function CheckoutForm({
       const calculatedProfit = agPrice - wsPrice;
 
       const initialOrderData = {
-        email: profile?.email || auth.currentUser.email || "",
+        email: currentEmail,
         phone: data.recipientPhone || "",
         network: data.recipientNetwork,
         bundle: bundle.network === "PC Games" ? bundle.name : `${data.recipientNetwork} ${bundle.dataAmount}`,
         amount: Number(bundle.price),
         status: "pending",
         createdAt: serverTimestamp(),
-        userId: auth.currentUser.uid,
-        customerName: profile?.fullName || auth.currentUser.displayName || "Royal Customer",
+        userId: currentUid,
+        customerName: currentName,
         reference: finalOrderId,
         paymentStatus: "pending",
         paymentMethod: "paystack",
@@ -449,8 +481,8 @@ export default function CheckoutForm({
           id: finalOrderId,
           agent_id: agentContext.id,
           customer_details: {
-            name: profile?.fullName || auth.currentUser.displayName || "Royal Customer",
-            email: profile?.email || auth.currentUser.email || "",
+            name: currentName,
+            email: currentEmail,
             phone: data.recipientPhone || "",
             network: data.recipientNetwork,
           },
@@ -464,11 +496,7 @@ export default function CheckoutForm({
         await setDoc(doc(db, "agent_orders", finalOrderId), initialAgentOrderData);
       }
 
-      const paystackEmail = (profile?.email && profile.email.includes("@")) 
-        ? profile.email 
-        : ((auth.currentUser.email && auth.currentUser.email.includes("@")) 
-            ? auth.currentUser.email 
-            : "customer@kingjdeals.com");
+      const paystackEmail = currentEmail;
 
       let publicKey = "pk_live_1a324af248d2bb1e2f784e7c27981f58f7d66b2c";
       try {
@@ -551,10 +579,21 @@ export default function CheckoutForm({
   };
 
   const processKorapayPayment = async (data: z.infer<typeof formSchema>) => {
-    if (!bundle || !auth.currentUser) return;
+    if (!bundle) return;
     setIsSubmitting(true);
 
     try {
+      const activeUser = await ensureUser();
+      const currentUid = activeUser?.uid || auth.currentUser?.uid || `guest_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const currentEmail = (profile?.email && profile.email.includes("@"))
+        ? profile.email
+        : ((activeUser?.email && activeUser.email.includes("@"))
+            ? activeUser.email
+            : ((auth.currentUser?.email && auth.currentUser.email.includes("@"))
+                ? auth.currentUser.email
+                : (data.recipientPhone ? `${data.recipientPhone.replace(/\s+/g, '')}@customer.kingjdeals.com` : "customer@kingjdeals.com")));
+      const currentName = profile?.fullName || activeUser?.displayName || auth.currentUser?.displayName || (data.recipientPhone ? `Customer (${data.recipientPhone})` : "Royal Customer");
+
       const finalOrderId = doc(collection(db, "orders")).id;
       setOrderId(finalOrderId);
 
@@ -565,15 +604,15 @@ export default function CheckoutForm({
       const productDetails = bundle.network === "PC Games" ? bundle.name : `${data.recipientNetwork} ${bundle.dataAmount}`;
 
       const initialOrderData = {
-        email: profile?.email || auth.currentUser.email || "",
+        email: currentEmail,
         phone: data.recipientPhone || "",
         network: data.recipientNetwork,
         bundle: productDetails,
         amount: Number(bundle.price),
         status: "pending",
         createdAt: serverTimestamp(),
-        userId: auth.currentUser.uid,
-        customerName: profile?.fullName || auth.currentUser.displayName || "Royal Customer",
+        userId: currentUid,
+        customerName: currentName,
         reference: finalOrderId,
         paymentStatus: "pending",
         paymentMethod: "Korapay",
@@ -606,8 +645,8 @@ export default function CheckoutForm({
           id: finalOrderId,
           agent_id: agentContext.id,
           customer_details: {
-            name: profile?.fullName || auth.currentUser.displayName || "Royal Customer",
-            email: profile?.email || auth.currentUser.email || "",
+            name: currentName,
+            email: currentEmail,
             phone: data.recipientPhone || "",
             network: data.recipientNetwork,
           },
@@ -623,12 +662,8 @@ export default function CheckoutForm({
         await setDoc(doc(db, "agent_orders", finalOrderId), initialAgentOrderData);
       }
 
-      const customerEmail = (profile?.email && profile.email.includes("@")) 
-        ? profile.email 
-        : ((auth.currentUser.email && auth.currentUser.email.includes("@")) 
-            ? auth.currentUser.email 
-            : "customer@kingjdeals.com");
-      const customerName = profile?.fullName || auth.currentUser.displayName || "Royal Customer";
+      const customerEmail = currentEmail;
+      const customerName = currentName;
 
       const redirectTarget = (typeof window !== 'undefined' && window.location.origin)
         ? window.location.origin
@@ -677,8 +712,9 @@ export default function CheckoutForm({
     }
   };
 
-  const handleProceedPayment = () => {
+  const handleProceedPayment = async () => {
     if (!savedFormData) return;
+    await ensureUser();
     if (selectedPaymentMethod === "paystack") {
       processPaystackPayment(savedFormData);
     } else if (selectedPaymentMethod === "korapay") {
