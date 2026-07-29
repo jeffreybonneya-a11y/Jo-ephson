@@ -56,16 +56,18 @@ export default function App() {
       window.history.replaceState({}, document.title, "/");
     }
 
-    // 1. Check for Paystack Reference in URL
+    // 1. Check for Paystack / Korapay Reference in URL
     const params = new URLSearchParams(window.location.search);
     const reference = params.get('reference') || params.get('trxref') || params.get('orderId') || params.get('order_id');
+    const methodParam = params.get('method');
 
     if (reference) {
         toast.info("Verifying your payment, please wait...", { duration: 5000 });
 
         const verifyPayment = async () => {
             try {
-                const verifyEndpoint = '/api/verify-payment';
+                const isKorapay = methodParam === 'korapay' || reference.startsWith('KORA');
+                const verifyEndpoint = isKorapay ? '/api/korapay-verify' : '/api/verify-payment';
                 const apiUrl = getApiUrl(verifyEndpoint);
                 console.log(`[Payment Verification] Sending verification request to: ${apiUrl} for reference: ${reference}`);
 
@@ -86,11 +88,16 @@ export default function App() {
                 try {
                     const orderDocRef = doc(db, 'orders', reference);
                     const orderSnap = await getDoc(orderDocRef);
+                    const provider = isKorapay ? 'korapay' : 'paystack';
+                    const method = isKorapay ? 'Korapay' : 'Paystack';
+
                     if (orderSnap.exists()) {
                         const orderData = orderSnap.data();
                         await updateDoc(orderDocRef, {
                             paymentStatus: "success",
-                            status: "paid"
+                            status: "paid",
+                            paymentMethod: orderData.paymentMethod || method,
+                            payment_provider: orderData.payment_provider || provider
                         });
                         if (orderData.bundle === "AGENT ACCESS UNLOCK" && orderData.userId) {
                             await updateDoc(doc(db, "users", orderData.userId), { isAgent: true });
@@ -101,6 +108,8 @@ export default function App() {
                             id: reference,
                             paymentStatus: "success",
                             status: "paid",
+                            paymentMethod: method,
+                            payment_provider: provider,
                             createdAt: new Date(),
                             reference
                         }, { merge: true });
