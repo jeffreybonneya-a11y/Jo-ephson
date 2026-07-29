@@ -56,13 +56,8 @@ export default function BundleList({
   const [announcement, setAnnouncement] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Temporarily hidden non-data bundle services as requested by user
-  const hiddenTabs: string[] = [
-    "Result Checker",
-    "PC Games",
-    "Premium Apps",
-    "Game Coins",
-  ];
+  // Unhidden all services as requested by user
+  const hiddenTabs: string[] = [];
 
   const tabs = [
     "MTN",
