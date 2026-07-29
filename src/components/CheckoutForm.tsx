@@ -125,9 +125,7 @@ export default function CheckoutForm({
   const [checkoutStep, setCheckoutStep] = useState<
     "form" | "select_method" | "momo_pay" | "momo_sent"
   >("form");
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<
-    "momo_direct" | "paystack" | "korapay"
-  >("paystack");
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'paystack'>('paystack');
   const [savedFormData, setSavedFormData] = useState<z.infer<
     typeof formSchema
   > | null>(null);
@@ -715,13 +713,7 @@ export default function CheckoutForm({
   const handleProceedPayment = async () => {
     if (!savedFormData) return;
     await ensureUser();
-    if (selectedPaymentMethod === "paystack") {
-      processPaystackPayment(savedFormData);
-    } else if (selectedPaymentMethod === "korapay") {
-      processKorapayPayment(savedFormData);
-    } else {
-      processMoMoDirectPayment(savedFormData);
-    }
+    processPaystackPayment(savedFormData);
   };
 
   const handleSentPayment = async () => {
@@ -891,19 +883,12 @@ export default function CheckoutForm({
             </div>
 
             <div className="space-y-3">
-              {/* Option 1: Paystack Gateway (Main) */}
+              {/* Option: Paystack Gateway (Main) */}
               <div
-                onClick={() => setSelectedPaymentMethod("paystack")}
-                className={`cursor-pointer p-4 rounded-2xl border-2 transition-all flex items-start gap-3.5 relative ${
-                  selectedPaymentMethod === "paystack"
-                    ? "border-amber-500 bg-amber-500/10 dark:bg-amber-500/20 shadow-md ring-2 ring-amber-500/30"
-                    : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900"
-                }`}
+                className={`p-4 rounded-2xl border-2 transition-all flex items-start gap-3.5 relative border-amber-500 bg-amber-500/10 dark:bg-amber-500/20 shadow-md ring-2 ring-amber-500/30`}
               >
-                <div className={`w-5 h-5 rounded-full border-2 mt-0.5 flex items-center justify-center shrink-0 ${
-                  selectedPaymentMethod === "paystack" ? "border-amber-500 bg-amber-500 text-slate-950" : "border-slate-300 dark:border-slate-700"
-                }`}>
-                  {selectedPaymentMethod === "paystack" && <Check className="w-3 h-3 stroke-[3]" />}
+                <div className={`w-5 h-5 rounded-full border-2 mt-0.5 flex items-center justify-center shrink-0 border-amber-500 bg-amber-500 text-slate-950`}>
+                  <Check className="w-3 h-3 stroke-[3]" />
                 </div>
 
                 <div className="flex-1 space-y-1">
@@ -920,79 +905,6 @@ export default function CheckoutForm({
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
                     Pay instantly with Debit/Credit Card, Bank Account, or Mobile Money via Paystack checkout window.
-                  </p>
-                </div>
-              </div>
-
-              {/* Option 2: Korapay Gateway (Only when total >= GHS 10.00) */}
-              {finalAmountToCharge >= 10 ? (
-                <div
-                  onClick={() => setSelectedPaymentMethod("korapay")}
-                  className={`cursor-pointer p-4 rounded-2xl border-2 transition-all flex items-start gap-3.5 relative ${
-                    selectedPaymentMethod === "korapay"
-                      ? "border-amber-500 bg-amber-500/10 dark:bg-amber-500/20 shadow-md ring-2 ring-amber-500/30"
-                      : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900"
-                  }`}
-                >
-                  <div className={`w-5 h-5 rounded-full border-2 mt-0.5 flex items-center justify-center shrink-0 ${
-                    selectedPaymentMethod === "korapay" ? "border-amber-500 bg-amber-500 text-slate-950" : "border-slate-300 dark:border-slate-700"
-                  }`}>
-                    {selectedPaymentMethod === "korapay" && <Check className="w-3 h-3 stroke-[3]" />}
-                  </div>
-
-                  <div className="flex-1 space-y-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <CreditCard className="w-4 h-4 text-emerald-500" />
-                        <span className="font-black text-sm text-foreground uppercase">
-                          Korapay Checkout
-                        </span>
-                      </div>
-                      <span className="bg-emerald-500 text-slate-950 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-                        NEW 🚀
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                      Fast checkout via Korapay hosted payment page. Supports Card, Bank Transfer & Mobile Money.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs font-medium text-amber-700 dark:text-amber-400 flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
-                  <span>Korapay is available only for orders of GHS 10.00 or more. Please increase your order amount to continue.</span>
-                </div>
-              )}
-
-              {/* Option 3: Pay Directly with MoMo (Optional) */}
-              <div
-                onClick={() => setSelectedPaymentMethod("momo_direct")}
-                className={`cursor-pointer p-4 rounded-2xl border-2 transition-all flex items-start gap-3.5 relative ${
-                  selectedPaymentMethod === "momo_direct"
-                    ? "border-amber-500 bg-amber-500/10 dark:bg-amber-500/20 shadow-md ring-2 ring-amber-500/30"
-                    : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900"
-                }`}
-              >
-                <div className={`w-5 h-5 rounded-full border-2 mt-0.5 flex items-center justify-center shrink-0 ${
-                  selectedPaymentMethod === "momo_direct" ? "border-amber-500 bg-amber-500 text-slate-950" : "border-slate-300 dark:border-slate-700"
-                }`}>
-                  {selectedPaymentMethod === "momo_direct" && <Check className="w-3 h-3 stroke-[3]" />}
-                </div>
-
-                <div className="flex-1 space-y-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <Smartphone className="w-4 h-4 text-amber-500" />
-                      <span className="font-black text-sm text-foreground uppercase">
-                        Pay Directly with MoMo
-                      </span>
-                    </div>
-                    <span className="bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-                      OPTIONAL
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                    Transfer directly to MoMo number <span className="font-mono font-bold text-foreground">0535884851</span> using an auto-generated reference code.
                   </p>
                 </div>
               </div>
@@ -1421,73 +1333,24 @@ export default function CheckoutForm({
                   )}
                 </div>
 
-                {/* Payment Method Selector */}
+                {/* Payment Method Selector (Fixed to Paystack) */}
                 <div className="space-y-2 pt-2">
                   <Label className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 ml-1">
-                    Select Payment Method
+                    Payment Method
                   </Label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-2.5">
-                    <div
-                      onClick={() => setSelectedPaymentMethod("paystack")}
-                      className={`cursor-pointer p-2.5 sm:p-3 rounded-xl border-2 transition-all flex items-center justify-between gap-1.5 ${
-                        selectedPaymentMethod === "paystack"
-                          ? "border-amber-500 bg-amber-500/10 dark:bg-amber-500/20 shadow-sm ring-1 ring-amber-500"
-                          : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50 dark:bg-slate-900"
-                      }`}
-                    >
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <CreditCard className={`w-3.5 h-3.5 shrink-0 ${selectedPaymentMethod === "paystack" ? "text-amber-500" : "text-slate-400"}`} />
-                        <div className="min-w-0">
-                          <p className="font-black text-[11px] text-foreground truncate uppercase">Paystack</p>
-                          <p className="text-[8px] text-slate-500 dark:text-slate-400 font-bold truncate">Card / MoMo</p>
-                        </div>
+                  <div
+                    className={`p-2.5 sm:p-3 rounded-xl border-2 transition-all flex items-center justify-between gap-1.5 border-amber-500 bg-amber-500/10 dark:bg-amber-500/20 shadow-sm ring-1 ring-amber-500`}
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <CreditCard className={`w-3.5 h-3.5 shrink-0 text-amber-500`} />
+                      <div className="min-w-0">
+                        <p className="font-black text-[11px] text-foreground truncate uppercase">Paystack</p>
+                        <p className="text-[8px] text-slate-500 dark:text-slate-400 font-bold truncate">Card / MoMo</p>
                       </div>
-                      <span className="bg-amber-400 text-slate-950 text-[7px] font-black px-1 py-0.5 rounded shrink-0 uppercase tracking-wider">
-                        MAIN ⚡
-                      </span>
                     </div>
-
-                    {finalAmountToCharge >= 10 && (
-                      <div
-                        onClick={() => setSelectedPaymentMethod("korapay")}
-                        className={`cursor-pointer p-2.5 sm:p-3 rounded-xl border-2 transition-all flex items-center justify-between gap-1.5 ${
-                          selectedPaymentMethod === "korapay"
-                            ? "border-amber-500 bg-amber-500/10 dark:bg-amber-500/20 shadow-sm ring-1 ring-amber-500"
-                            : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50 dark:bg-slate-900"
-                        }`}
-                      >
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <CreditCard className={`w-3.5 h-3.5 shrink-0 ${selectedPaymentMethod === "korapay" ? "text-amber-500" : "text-slate-400"}`} />
-                          <div className="min-w-0">
-                            <p className="font-black text-[11px] text-foreground truncate uppercase">Korapay</p>
-                            <p className="text-[8px] text-slate-500 dark:text-slate-400 font-bold truncate">Checkout</p>
-                          </div>
-                        </div>
-                        <span className="bg-emerald-500 text-slate-950 text-[7px] font-black px-1 py-0.5 rounded shrink-0 uppercase tracking-wider">
-                          NEW 🚀
-                        </span>
-                      </div>
-                    )}
-
-                    <div
-                      onClick={() => setSelectedPaymentMethod("momo_direct")}
-                      className={`cursor-pointer p-2.5 sm:p-3 rounded-xl border-2 transition-all flex items-center justify-between gap-1.5 ${
-                        selectedPaymentMethod === "momo_direct"
-                          ? "border-amber-500 bg-amber-500/10 dark:bg-amber-500/20 shadow-sm ring-1 ring-amber-500"
-                          : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50 dark:bg-slate-900"
-                      }`}
-                    >
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <Smartphone className={`w-3.5 h-3.5 shrink-0 ${selectedPaymentMethod === "momo_direct" ? "text-amber-500" : "text-slate-400"}`} />
-                        <div className="min-w-0">
-                          <p className="font-black text-[11px] text-foreground truncate uppercase">Direct MoMo</p>
-                          <p className="text-[8px] text-slate-500 dark:text-slate-400 font-bold truncate">Manual</p>
-                        </div>
-                      </div>
-                      <span className="bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[7px] font-black px-1 py-0.5 rounded shrink-0 uppercase tracking-wider">
-                        OPTIONAL
-                      </span>
-                    </div>
+                    <span className="bg-amber-400 text-slate-950 text-[7px] font-black px-1 py-0.5 rounded shrink-0 uppercase tracking-wider">
+                      MAIN ⚡
+                    </span>
                   </div>
                 </div>
               </div>

@@ -46,7 +46,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
 
   // Payment flow steps
   const [checkoutStep, setCheckoutStep] = useState<'form' | 'select_method' | 'momo_pay' | 'momo_sent'>('form');
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'momo_direct' | 'paystack'>('momo_direct');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'paystack'>('paystack');
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [orderId, setOrderId] = useState<string>('');
 
@@ -355,12 +355,75 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
     }
   };
 
-  const handleProceedPayment = () => {
-    if (selectedPaymentMethod === "momo_direct") {
-      processMoMoDirectPayment();
-    } else {
-      toast.error("Paystack online payment is currently unavailable. Please select Pay Directly with MoMo.");
+  const processKorapayPayment = async () => {
+    if (!auth.currentUser) {
+      toast.error("Please log in first to purchase a Results Checker voucher.");
+      return;
     }
+
+    const phoneClean = mobileNumber.trim().replace(/\s/g, '');
+    setIsSubmitting(true);
+
+    try {
+      const finalOrderId = doc(collection(db, "orders")).id;
+      setOrderId(finalOrderId);
+
+      // Create order in Firestore
+      const orderData = {
+        email: auth.currentUser?.email || "",
+        serviceType: "Results Checker",
+        examType: activeCheckerTab,
+        quantity: quantity,
+        amount: totalAmount,
+        customerPhone: phoneClean,
+        phone: phoneClean,
+        network: "Result Checker",
+        bundle: `Results Checker (${activeCheckerTab}) x${quantity}`,
+        status: "pending",
+        paymentStatus: "pending",
+        paymentMethod: "korapay",
+        createdAt: serverTimestamp(),
+        userId: auth.currentUser?.uid || "anonymous",
+        customerName: auth.currentUser?.displayName || "Royal Customer",
+        reference: finalOrderId,
+        // ... (agent data omitted for brevity, match processPaystackPayment)
+      };
+
+      await setDoc(doc(db, "orders", finalOrderId), orderData);
+
+      // Call Korapay initialization API
+      const initResponse = await fetch(getApiUrl("/api/korapay-initialize"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: totalAmount,
+          currency: "GHS",
+          reference: finalOrderId,
+          customer: {
+            email: auth.currentUser?.email || "customer@kingjdeals.com",
+            name: auth.currentUser?.displayName || "Customer"
+          },
+          callback_url: window.location.origin + "/?reference=" + finalOrderId,
+        }),
+      });
+
+      const initData = await initResponse.json();
+      if (initData.success && initData.authorization_url) {
+        toast.success("Redirecting to secure payment page... 👑");
+        window.location.href = initData.authorization_url;
+      } else {
+        throw new Error(initData.error || "Failed to initialize Korapay");
+      }
+    } catch (error: any) {
+      console.error("Korapay initiation error:", error);
+      toast.error(`Korapay error: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleProceedPayment = () => {
+    processPaystackPayment();
   };
 
   const handleWhatsAppContact = () => {
@@ -710,66 +773,27 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
                       </div>
 
                       <div className="space-y-3">
-                        {/* Option 1: Pay Directly with MoMo */}
+                        {/* Option: Paystack Gateway */}
                         <div
-                          onClick={() => setSelectedPaymentMethod("momo_direct")}
-                          className={`p-4 sm:p-5 rounded-2xl border-2 cursor-pointer transition-all flex items-center justify-between ${
-                            selectedPaymentMethod === "momo_direct"
-                              ? "border-amber-500 bg-amber-500/10 dark:bg-amber-500/20 shadow-md"
-                              : "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 hover:border-slate-300"
-                          }`}
-                        >
-                          <div className="flex items-center gap-3.5">
-                            <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-sm">
-                              <Smartphone className="w-5 h-5" />
-                            </div>
-                            <div>
-                              <p className="font-black text-sm text-foreground dark:text-white uppercase tracking-tight">
-                                Pay Directly with MoMo 📱
-                              </p>
-                              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                                Transfer directly using recipient number as reference
-                              </p>
-                            </div>
-                          </div>
-                          <div
-                            className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                              selectedPaymentMethod === "momo_direct"
-                                ? "border-amber-500 bg-amber-500 text-white"
-                                : "border-slate-300 dark:border-slate-700"
-                            }`}
-                          >
-                            {selectedPaymentMethod === "momo_direct" && <Check className="w-3 h-3 stroke-[3]" />}
-                          </div>
-                        </div>
-
-                        {/* Option 2: Paystack Gateway (Unavailable) */}
-                        <div
-                          onClick={() => {
-                            toast.error("Paystack online payment is currently unavailable. Please use Pay Directly with MoMo.");
-                          }}
-                          className="cursor-not-allowed opacity-60 p-4 sm:p-5 rounded-2xl border-2 border-slate-200 dark:border-slate-800 bg-slate-100/80 dark:bg-slate-900/40 transition-all flex items-center justify-between"
+                          className={`p-4 sm:p-5 rounded-2xl border-2 cursor-pointer transition-all flex items-center justify-between border-amber-500 bg-amber-500/10 dark:bg-amber-500/20 shadow-md`}
                         >
                           <div className="flex items-center gap-3.5">
                             <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black shrink-0 shadow-sm">
                               <CreditCard className="w-5 h-5" />
                             </div>
                             <div>
-                              <div className="flex items-center gap-2">
-                                <p className="font-black text-sm text-foreground/70 dark:text-white/70 uppercase tracking-tight">
-                                  Paystack Online Gateway
-                                </p>
-                                <span className="bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-                                  UNAVAILABLE
-                                </span>
-                              </div>
+                              <p className="font-black text-sm text-foreground dark:text-white uppercase tracking-tight">
+                                Paystack Online Gateway
+                              </p>
                               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                                Pay with Debit/Credit Card, Bank Account, or Mobile Money via Paystack
+                                Pay with Debit/Credit Card, Bank Account, or Mobile Money
                               </p>
                             </div>
                           </div>
-                          <div className="w-5 h-5 rounded-full border-2 border-slate-300 dark:border-slate-700 flex items-center justify-center">
-                            {selectedPaymentMethod === "paystack" && <Check className="w-3 h-3 stroke-[3]" />}
+                          <div
+                            className={`w-5 h-5 rounded-full border-2 flex items-center justify-center border-amber-500 bg-amber-500 text-white`}
+                          >
+                            <Check className="w-3 h-3 stroke-[3]" />
                           </div>
                         </div>
                       </div>
