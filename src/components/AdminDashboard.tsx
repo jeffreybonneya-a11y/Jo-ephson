@@ -223,38 +223,17 @@ export default function AdminDashboard() {
         };
 
         allOrders.sort((a, b) => getOrderTime(b) - getOrderTime(a));
-
-        // Show ONLY orders with successful verified Paystack/payment status
-        const completedOrders = allOrders.filter((o) => {
-          const isExplicitFailed = o.paymentStatus === "failed" || 
-                                   o.paymentStatus === "abandoned" || 
-                                   o.paymentStatus === "cancelled" || 
-                                   o.paymentStatus === "unverified" ||
-                                   o.status === "failed" || 
-                                   o.status === "cancelled" || 
-                                   o.status === "abandoned" ||
-                                   o.status === "declined";
-
-          const isVerifiedSuccess = o.paymentStatus === "success" || 
-                                    o.status === "paid" || 
-                                    o.status === "completed" || 
-                                    o.status === "delivered" || 
-                                    o.status === "processing" ||
-                                    o.status === "accepted" ||
-                                    o.status === "success";
-
-          return isVerifiedSuccess && !isExplicitFailed;
-        });
         
         const resetTimeStr = localStorage.getItem('admin_notifier_reset_time');
         const resetTime = resetTimeStr ? parseInt(resetTimeStr, 10) : 0;
-        const unreadNewPaid = completedOrders.filter((o) => {
+        const unreadNewPaid = allOrders.filter((o) => {
           const orderTime = getOrderTime(o);
-          return orderTime > resetTime;
+          const isSuccessfulOrActive = o.status === "paid" || o.status === "success" || o.status === "successful" || o.status === "completed" || o.status === "delivered" || o.paymentStatus === "success";
+          return orderTime > resetTime && isSuccessfulOrActive;
         }).length;
         
         setNotifierCount(unreadNewPaid);
-        setOrders(completedOrders);
+        setOrders(allOrders);
       },
       (err) => {
         console.error("Orders listener error:", err);
@@ -849,12 +828,14 @@ export default function AdminDashboard() {
           </Badge>
         );
       case "paid":
+      case "success":
+      case "successful":
         return (
           <Badge
             variant="outline"
-            className="bg-green-50 text-green-700 border-green-200 font-bold dark:bg-green-900/20 dark:text-green-400 dark:border-green-900/50"
+            className="bg-emerald-50 text-emerald-700 border-emerald-300 font-black dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800"
           >
-            PAID
+            SUCCESSFUL ✅
           </Badge>
         );
       case "pending":
@@ -1094,13 +1075,13 @@ export default function AdminDashboard() {
             >
               TRACKING 👑
               {orders.filter(
-                (o) => (o.status === "paid" || o.status === "processing") && !o.agent_id && !o.agentId,
+                (o) => (o.status === "paid" || o.status === "processing" || o.status === "pending" || o.status === "success") && !o.agent_id && !o.agentId,
               ).length > 0 && (
                 <span className="absolute -top-1.5 -right-1 bg-red-600 text-white text-[8px] w-4.5 h-4.5 flex items-center justify-center rounded-full font-black shadow-lg">
                   {
                     orders.filter(
                       (o) =>
-                        (o.status === "paid" || o.status === "processing") && !o.agent_id && !o.agentId,
+                        (o.status === "paid" || o.status === "processing" || o.status === "pending" || o.status === "success") && !o.agent_id && !o.agentId,
                     ).length
                   }
                 </span>
@@ -1143,14 +1124,14 @@ export default function AdminDashboard() {
               AGENTS HUB 👑
               {profitRequests.filter((r) => r.status === "pending").length +
                 orders.filter(
-                  (o) => (o.status === "paid" || o.status === "processing") && (o.agent_id || o.agentId),
+                  (o) => (o.status === "paid" || o.status === "processing" || o.status === "pending" || o.status === "success") && (o.agent_id || o.agentId),
                 ).length >
                 0 && (
                 <span className="absolute -top-1.5 -right-1 bg-primary text-secondary text-[8px] w-4.5 h-4.5 flex items-center justify-center rounded-full font-black shadow-lg">
                   {profitRequests.filter((r) => r.status === "pending").length +
                     orders.filter(
                       (o) =>
-                        (o.status === "paid" || o.status === "processing") && (o.agent_id || o.agentId),
+                        (o.status === "paid" || o.status === "processing" || o.status === "pending" || o.status === "success") && (o.agent_id || o.agentId),
                     ).length}
                 </span>
               )}

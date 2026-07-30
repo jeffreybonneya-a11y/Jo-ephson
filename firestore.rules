@@ -30,11 +30,14 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() &&
-             "email" in request.auth.token && (
+      return isAuthenticated() && (
+             ("email" in request.auth.token && (
                (request.auth.token.email.lower() == "jeffreybonneya@gmail.com") ||
                (request.auth.token.email.lower() == "emmagyapong62@gmail.com")
-             );
+             )) ||
+             (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin")
+      );
     }
 
     function isOwner(userId) {
@@ -66,7 +69,7 @@ service cloud.firestore {
              data.phone is string &&
              data.network is string &&
              data.bundle is string &&
-             data.amount is number && data.amount > 0 &&
+             data.amount is number && data.amount >= 0 &&
              data.status in ['paid', 'completed', 'failed', 'pending', 'processing', 'delivered', 'pending_payment', 'unpaid', 'accepted', 'declined', 'checkout_unpaid', 'success', 'pending_verification'] &&
              data.createdAt is timestamp &&
              (!('reference' in data) || data.reference is string) &&
@@ -74,6 +77,23 @@ service cloud.firestore {
              (!('customerName' in data) || data.customerName is string) &&
              (!('paymentStatus' in data) || data.paymentStatus is string) &&
              (!('paymentMethod' in data) || data.paymentMethod is string) &&
+             (!('payment_provider' in data) || data.payment_provider is string) &&
+             (!('examType' in data) || data.examType is string) &&
+             (!('quantity' in data) || data.quantity is number) &&
+             (!('serviceType' in data) || data.serviceType is string) &&
+             (!('customerPhone' in data) || data.customerPhone is string) &&
+             (!('notes' in data) || data.notes is string) &&
+             (!('deliveryNotes' in data) || data.deliveryNotes is string) &&
+             (!('adminNotes' in data) || data.adminNotes is string) &&
+             (!('voucherCode' in data) || data.voucherCode is string) &&
+             (!('pin' in data) || data.pin is string) &&
+             (!('serialNumber' in data) || data.serialNumber is string) &&
+             (!('serial' in data) || data.serial is string) &&
+             (!('fulfilledAt' in data) || data.fulfilledAt is timestamp) &&
+             (!('fulfilledBy' in data) || data.fulfilledBy is string) &&
+             (!('paymentReference' in data) || data.paymentReference is string) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp) &&
+             (!('id' in data) || data.id is string) &&
              (!('type' in data) || data.type in ['data', 'stream', 'system']) &&
              (!('streamType' in data) || data.streamType in ['live', 'onetime']) &&
              (!('streamStatus' in data) || data.streamStatus in ['pending', 'pending_approval', 'approved', 'rejected']) &&

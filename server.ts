@@ -125,10 +125,12 @@ async function updateFirestoreOrderPaymentStatus(reference: string, paymentStatu
         const orderSnap = await orderRef.get();
         if (orderSnap.exists) {
             const orderData = orderSnap.data();
+            const newStatus = paymentStatus === "success" ? "paid" : (paymentStatus === "failed" ? "failed" : (orderData?.status || "pending"));
             await orderRef.update({
-                paymentStatus
+                paymentStatus,
+                status: newStatus
             });
-            console.log(`[Firebase Admin] Successfully updated order ${reference} to paymentStatus: ${paymentStatus}`);
+            console.log(`[Firebase Admin] Successfully updated order ${reference} to paymentStatus: ${paymentStatus}, status: ${newStatus}`);
             
             // Instantly grant Agent Access if this was an Agent Unlock order and payment is successful
             if (paymentStatus === "success" && orderData?.bundle === "AGENT ACCESS UNLOCK" && orderData?.userId) {
