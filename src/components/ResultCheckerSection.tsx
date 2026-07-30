@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../lib/firebase';
+import { signInAnonymously } from 'firebase/auth';
 import { doc, onSnapshot, collection, serverTimestamp, setDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
@@ -83,6 +84,17 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
 
   const totalAmount = quantity * pricePerChecker;
 
+  const ensureUser = async () => {
+    if (auth.currentUser) return auth.currentUser;
+    try {
+      const res = await signInAnonymously(auth);
+      return res.user;
+    } catch (e) {
+      console.warn("Anonymous auth failed or disabled:", e);
+      return null;
+    }
+  };
+
   const handleOpenPurchaseFlow = () => {
     if (quantity < 1) {
       toast.error("Please select a quantity of 1 or more.");
@@ -99,12 +111,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
     setTimeout(() => setCopiedField(null), 2500);
   };
 
-  const handleFormSubmit = () => {
-    if (!auth.currentUser) {
-      toast.error("Please log in first to purchase a Results Checker voucher.");
-      return;
-    }
-
+  const handleFormSubmit = async () => {
     if (!mobileNumber.trim()) {
       toast.error("Mobile number is required.");
       return;
@@ -116,17 +123,22 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
       return;
     }
 
-    setCheckoutStep('select_method');
+    await ensureUser();
+    processPaystackPayment();
   };
 
   const processMoMoDirectPayment = async () => {
-    if (!auth.currentUser) {
-      toast.error("Please log in first to purchase a Results Checker voucher.");
-      return;
-    }
-
+    const activeUser = await ensureUser();
     const phoneClean = mobileNumber.trim().replace(/\s/g, '');
     setIsSubmitting(true);
+
+    const userEmail = (activeUser?.email && activeUser.email.includes("@"))
+      ? activeUser.email
+      : ((auth.currentUser?.email && auth.currentUser.email.includes("@"))
+          ? auth.currentUser.email
+          : (phoneClean ? `${phoneClean}@customer.kingjdeals.com` : "customer@kingjdeals.com"));
+    const userName = activeUser?.displayName || auth.currentUser?.displayName || (phoneClean ? `Customer (${phoneClean})` : "Royal Customer");
+    const userUid = activeUser?.uid || auth.currentUser?.uid || `guest_${Date.now()}`;
 
     try {
       const finalOrderId = doc(collection(db, "orders")).id;
@@ -136,7 +148,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
       const generatedRef = phoneClean;
 
       const momoOrderData = {
-        email: auth.currentUser?.email || "",
+        email: userEmail,
         serviceType: "Results Checker",
         examType: activeCheckerTab,
         quantity: quantity,
@@ -149,8 +161,8 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
         paymentStatus: "pending_verification",
         paymentMethod: "momo_direct",
         createdAt: serverTimestamp(),
-        userId: auth.currentUser?.uid || "anonymous",
-        customerName: auth.currentUser?.displayName || "Royal Customer",
+        userId: userUid,
+        customerName: userName,
         reference: generatedRef,
         momoRefCode: generatedRef,
         momoNumber: MOMO_NUMBER,
@@ -178,8 +190,8 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
           id: finalOrderId,
           agent_id: agentContext.id,
           customer_details: {
-            name: auth.currentUser?.displayName || "Royal Customer",
-            email: auth.currentUser?.email || "",
+            name: userName,
+            email: userEmail,
             phone: phoneClean,
             network: "Result Checker",
           },
@@ -203,20 +215,24 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
   };
 
   const processPaystackPayment = async () => {
-    if (!auth.currentUser) {
-      toast.error("Please log in first to purchase a Results Checker voucher.");
-      return;
-    }
-
+    const activeUser = await ensureUser();
     const phoneClean = mobileNumber.trim().replace(/\s/g, '');
     setIsSubmitting(true);
+
+    const userEmail = (activeUser?.email && activeUser.email.includes("@"))
+      ? activeUser.email
+      : ((auth.currentUser?.email && auth.currentUser.email.includes("@"))
+          ? auth.currentUser.email
+          : (phoneClean ? `${phoneClean}@customer.kingjdeals.com` : "customer@kingjdeals.com"));
+    const userName = activeUser?.displayName || auth.currentUser?.displayName || (phoneClean ? `Customer (${phoneClean})` : "Royal Customer");
+    const userUid = activeUser?.uid || auth.currentUser?.uid || `guest_${Date.now()}`;
 
     try {
       const finalOrderId = doc(collection(db, "orders")).id;
       setOrderId(finalOrderId);
 
       const initialOrderData = {
-        email: auth.currentUser?.email || "",
+        email: userEmail,
         serviceType: "Results Checker",
         examType: activeCheckerTab,
         quantity: quantity,
@@ -229,8 +245,8 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
         paymentStatus: "pending",
         paymentMethod: "paystack",
         createdAt: serverTimestamp(),
-        userId: auth.currentUser?.uid || "anonymous",
-        customerName: auth.currentUser?.displayName || "Royal Customer",
+        userId: userUid,
+        customerName: userName,
         reference: finalOrderId,
         ...(isAgentUser ? { isAgentOrder: true } : {}),
         ...(agentContext ? {
@@ -256,8 +272,8 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
           id: finalOrderId,
           agent_id: agentContext.id,
           customer_details: {
-            name: auth.currentUser?.displayName || "Royal Customer",
-            email: auth.currentUser?.email || "",
+            name: userName,
+            email: userEmail,
             phone: phoneClean,
             network: "Result Checker",
           },
@@ -270,10 +286,6 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
         };
         await setDoc(doc(db, "agent_orders", finalOrderId), initialAgentOrderData);
       }
-
-      const userEmail = (auth.currentUser?.email && auth.currentUser.email.includes("@"))
-        ? auth.currentUser.email
-        : "customer@kingjdeals.com";
 
       let publicKey = "pk_live_1a324af248d2bb1e2f784e7c27981f58f7d66b2c";
       try {
@@ -356,21 +368,24 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
   };
 
   const processKorapayPayment = async () => {
-    if (!auth.currentUser) {
-      toast.error("Please log in first to purchase a Results Checker voucher.");
-      return;
-    }
-
+    const activeUser = await ensureUser();
     const phoneClean = mobileNumber.trim().replace(/\s/g, '');
     setIsSubmitting(true);
+
+    const userEmail = (activeUser?.email && activeUser.email.includes("@"))
+      ? activeUser.email
+      : ((auth.currentUser?.email && auth.currentUser.email.includes("@"))
+          ? auth.currentUser.email
+          : (phoneClean ? `${phoneClean}@customer.kingjdeals.com` : "customer@kingjdeals.com"));
+    const userName = activeUser?.displayName || auth.currentUser?.displayName || (phoneClean ? `Customer (${phoneClean})` : "Royal Customer");
+    const userUid = activeUser?.uid || auth.currentUser?.uid || `guest_${Date.now()}`;
 
     try {
       const finalOrderId = doc(collection(db, "orders")).id;
       setOrderId(finalOrderId);
 
-      // Create order in Firestore
       const orderData = {
-        email: auth.currentUser?.email || "",
+        email: userEmail,
         serviceType: "Results Checker",
         examType: activeCheckerTab,
         quantity: quantity,
@@ -383,15 +398,13 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
         paymentStatus: "pending",
         paymentMethod: "korapay",
         createdAt: serverTimestamp(),
-        userId: auth.currentUser?.uid || "anonymous",
-        customerName: auth.currentUser?.displayName || "Royal Customer",
+        userId: userUid,
+        customerName: userName,
         reference: finalOrderId,
-        // ... (agent data omitted for brevity, match processPaystackPayment)
       };
 
       await setDoc(doc(db, "orders", finalOrderId), orderData);
 
-      // Call Korapay initialization API
       const initResponse = await fetch(getApiUrl("/api/korapay-initialize"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -400,8 +413,8 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
           currency: "GHS",
           reference: finalOrderId,
           customer: {
-            email: auth.currentUser?.email || "customer@kingjdeals.com",
-            name: auth.currentUser?.displayName || "Customer"
+            email: userEmail,
+            name: userName
           },
           callback_url: window.location.origin + "/?reference=" + finalOrderId,
         }),
@@ -739,11 +752,19 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
                         </div>
 
                         <Button
-                          disabled={!mobileNumber.trim()}
+                          disabled={!mobileNumber.trim() || isSubmitting}
                           onClick={handleFormSubmit}
                           className="h-12 px-8 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-xs tracking-wider shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95"
                         >
-                          Confirm & Proceed <ChevronRight className="w-4 h-4" />
+                          {isSubmitting ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" /> Processing...
+                            </>
+                          ) : (
+                            <>
+                              Confirm & Proceed <ChevronRight className="w-4 h-4" />
+                            </>
+                          )}
                         </Button>
                       </div>
                     </>
@@ -775,7 +796,8 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
                       <div className="space-y-3">
                         {/* Option: Paystack Gateway */}
                         <div
-                          className={`p-4 sm:p-5 rounded-2xl border-2 cursor-pointer transition-all flex items-center justify-between border-amber-500 bg-amber-500/10 dark:bg-amber-500/20 shadow-md`}
+                          onClick={() => processPaystackPayment()}
+                          className={`p-4 sm:p-5 rounded-2xl border-2 cursor-pointer transition-all flex items-center justify-between border-amber-500 bg-amber-500/10 dark:bg-amber-500/20 shadow-md hover:scale-[1.01]`}
                         >
                           <div className="flex items-center gap-3.5">
                             <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black shrink-0 shadow-sm">
@@ -786,21 +808,39 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
                                 Paystack Online Gateway
                               </p>
                               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                                Pay with Debit/Credit Card, Bank Account, or Mobile Money
+                                Pay instantly with Mobile Money, Card, or Bank
                               </p>
                             </div>
                           </div>
-                          <div
-                            className={`w-5 h-5 rounded-full border-2 flex items-center justify-center border-amber-500 bg-amber-500 text-white`}
-                          >
+                          <div className="w-5 h-5 rounded-full border-2 flex items-center justify-center border-amber-500 bg-amber-500 text-white">
                             <Check className="w-3 h-3 stroke-[3]" />
+                          </div>
+                        </div>
+
+                        {/* Option: MoMo Direct */}
+                        <div
+                          onClick={() => processMoMoDirectPayment()}
+                          className={`p-4 sm:p-5 rounded-2xl border-2 cursor-pointer transition-all flex items-center justify-between border-slate-200 dark:border-slate-800 hover:border-amber-500/50 bg-slate-50 dark:bg-slate-900 shadow-sm hover:scale-[1.01]`}
+                        >
+                          <div className="flex items-center gap-3.5">
+                            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black shrink-0 shadow-sm">
+                              <Smartphone className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <p className="font-black text-sm text-foreground dark:text-white uppercase tracking-tight">
+                                Manual MoMo Transfer
+                              </p>
+                              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                                Direct mobile money transfer to admin
+                              </p>
+                            </div>
                           </div>
                         </div>
                       </div>
 
                       <Button
                         disabled={isSubmitting}
-                        onClick={handleProceedPayment}
+                        onClick={() => processPaystackPayment()}
                         className="w-full h-14 bg-amber-400 hover:bg-amber-500 text-slate-950 font-black rounded-2xl flex items-center justify-center gap-2 shadow-lg uppercase tracking-wider text-base"
                       >
                         {isSubmitting ? (
@@ -809,7 +849,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
                           </>
                         ) : (
                           <>
-                            <Crown className="w-5 h-5" /> PROCEED TO PAYMENT 👑
+                            <Crown className="w-5 h-5" /> PROCEED WITH PAYSTACK 👑
                           </>
                         )}
                       </Button>

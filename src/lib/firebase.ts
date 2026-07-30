@@ -1,8 +1,11 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { initializeFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { initializeFirestore, setLogLevel } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import firebaseConfigData from '../../firebase-applet-config.json';
+
+// Set log level to error to prevent non-fatal 10-second backend connection warning noise
+setLogLevel('error');
 
 // Allow environment variables to override the JSON config for production (Render)
 const firebaseConfig = {
@@ -24,9 +27,9 @@ const storageBucketUrl = firebaseConfig.storageBucket
 
 export const storage = getStorage(app, storageBucketUrl);
 
-// Use initializeFirestore with experimentalForceLongPolling and useFetchStreams to prevent iframe connection blocks
+// Use auto-detection for long polling to establish fast connection in sandboxed iframe environments
 export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true,
-  useFetchStreams: false,
+  experimentalAutoDetectLongPolling: true,
 } as any, firebaseConfig.firestoreDatabaseId);
+
 
