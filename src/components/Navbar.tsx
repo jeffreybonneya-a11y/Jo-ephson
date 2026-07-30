@@ -58,15 +58,6 @@ export default function Navbar({
       let ordersCount = 0;
       let profitRequestsCount = 0;
 
-      // Initialize reset timestamp if not present
-      if (!localStorage.getItem('admin_notifier_reset_time')) {
-        localStorage.setItem('admin_notifier_reset_time', Date.now().toString());
-      }
-
-      if (isAdminView) {
-        localStorage.setItem('admin_notifier_reset_time', Date.now().toString());
-      }
-
       const getResetTime = () => {
         const val = localStorage.getItem('admin_notifier_reset_time');
         return val ? parseInt(val, 10) : 0;
@@ -118,19 +109,9 @@ export default function Navbar({
             o.status === "declined" ||
             o.paymentStatus === "failed" ||
             o.paymentStatus === "cancelled" ||
-            o.paymentStatus === "abandoned" ||
-            o.paymentStatus === "unverified";
+            o.paymentStatus === "abandoned";
 
-          const isVerifiedSuccess =
-            o.paymentStatus === "success" ||
-            o.status === "paid" ||
-            o.status === "completed" ||
-            o.status === "delivered" ||
-            o.status === "processing" ||
-            o.status === "accepted" ||
-            o.status === "success";
-
-          if (!isVerifiedSuccess || isExplicitFailed) return false;
+          if (isExplicitFailed) return false;
           const orderTime = getOrderMillis(doc);
           return orderTime > resetTimeMs;
         });

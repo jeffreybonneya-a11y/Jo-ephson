@@ -226,19 +226,31 @@ export default function AdminDashboard() {
         
         const resetTimeStr = localStorage.getItem('admin_notifier_reset_time');
         const resetTime = resetTimeStr ? parseInt(resetTimeStr, 10) : 0;
-        const unreadNewPaid = allOrders.filter((o) => {
+        const unreadNewOrders = allOrders.filter((o) => {
           const orderTime = getOrderTime(o);
-          const isSuccessfulOrActive = o.status === "paid" || o.status === "success" || o.status === "successful" || o.status === "completed" || o.status === "delivered" || o.paymentStatus === "success";
-          return orderTime > resetTime && isSuccessfulOrActive;
+          const isExplicitFailed =
+            o.paymentStatus === "failed" ||
+            o.paymentStatus === "abandoned" ||
+            o.paymentStatus === "cancelled" ||
+            o.status === "failed" ||
+            o.status === "cancelled" ||
+            o.status === "abandoned" ||
+            o.status === "declined";
+          return orderTime > resetTime && !isExplicitFailed;
         }).length;
         
-        setNotifierCount(unreadNewPaid);
+        setNotifierCount(unreadNewOrders);
         setOrders(allOrders);
       },
       (err) => {
         console.error("Orders listener error:", err);
       }
     );
+
+    const handleResetNotifierEvent = () => {
+      setNotifierCount(0);
+    };
+    window.addEventListener('RESET_ADMIN_NOTIFIER', handleResetNotifierEvent);
 
     // 4. Listen for Messages
     const unsubMessages = onSnapshot(
@@ -307,7 +319,7 @@ export default function AdminDashboard() {
     );
 
     return () => {
-      window.removeEventListener('RESET_ADMIN_NOTIFIER', handleReset);
+      window.removeEventListener('RESET_ADMIN_NOTIFIER', handleResetNotifierEvent);
       unsubAnnouncement();
       unsubBundles();
       unsubOrders();
