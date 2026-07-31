@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 
 export const GetFreeDataWidget: React.FC = () => {
   const [isDisabled, setIsDisabled] = useState<boolean>(false);
+  const [servicePrice, setServicePrice] = useState<number>(1);
   const [isOpen, setIsOpen] = useState<boolean>(false);
   
   // Modal Stages: 'pay' | 'spin' | 'win_form' | 'win_success' | 'loss'
@@ -40,7 +41,7 @@ export const GetFreeDataWidget: React.FC = () => {
     }
   }, []);
 
-  // 1. Listen for persistent admin toggle state
+  // 1. Listen for persistent admin toggle state and price
   useEffect(() => {
     const unsub = onSnapshot(
       doc(db, "settings", "free_data"),
@@ -48,8 +49,14 @@ export const GetFreeDataWidget: React.FC = () => {
         if (snapshot.exists()) {
           const data = snapshot.data();
           setIsDisabled(!!data.disabled);
+          if (data.price !== undefined && data.price !== null) {
+            setServicePrice(Number(data.price));
+          } else {
+            setServicePrice(1);
+          }
         } else {
           setIsDisabled(false);
+          setServicePrice(1);
         }
       },
       (err) => {
@@ -64,7 +71,7 @@ export const GetFreeDataWidget: React.FC = () => {
 
   const resetModalState = () => {
     setIsOpen(false);
-    setStage('pay');
+    setStage(servicePrice <= 0 ? 'spin' : 'pay');
     setPaymentRef('');
     setPhone('');
     setIsSpinning(false);
@@ -73,11 +80,27 @@ export const GetFreeDataWidget: React.FC = () => {
     setIsSubmitting(false);
   };
 
-  // 2. Step 1: Handle Paystack Payment GH₵1
+  const handleOpenModal = () => {
+    setIsOpen(true);
+    if (servicePrice <= 0) {
+      setStage('spin');
+    } else {
+      setStage('pay');
+    }
+  };
+
+  // 2. Step 1: Handle Payment / Free Spin Entry
   const handleInitiatePayment = async () => {
+    if (servicePrice <= 0) {
+      setStage('spin');
+      toast.success("Spin unlocked for FREE! 🎁");
+      return;
+    }
+
     setIsSubmitting(true);
     const generatedRef = `FD_${Date.now()}_${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
     const publicKey = "pk_live_1a324af248d2bb1e2f784e7c27981f58f7d66b2c";
+    const pesewas = Math.round(servicePrice * 100);
 
     const userEmail = (auth.currentUser?.email && auth.currentUser.email.includes("@"))
       ? auth.currentUser.email
@@ -88,14 +111,14 @@ export const GetFreeDataWidget: React.FC = () => {
       await openPaystackPopup({
         key: publicKey,
         email: userEmail,
-        amount: 100, // GH₵ 1.00 (100 pesewas)
+        amount: pesewas,
         currency: "GHS",
         ref: generatedRef,
         onSuccess: (ref) => {
           setIsSubmitting(false);
           setPaymentRef(ref || generatedRef);
           setStage('spin');
-          toast.success("Payment of GH₵1 Confirmed! Spin the wheel now 🎡");
+          toast.success(`Payment of GH₵${servicePrice.toFixed(2)} Confirmed! Spin the wheel now 🎡`);
         },
         onClose: () => {
           setIsSubmitting(false);
@@ -114,7 +137,7 @@ export const GetFreeDataWidget: React.FC = () => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             email: userEmail,
-            amount: 100,
+            amount: pesewas,
             reference: generatedRef,
             callback_url: `${redirectTarget}/?reference=${generatedRef}&fd_win=true`,
             currency: "GHS",
@@ -192,14 +215,15 @@ export const GetFreeDataWidget: React.FC = () => {
         orderType: "Free Data Win",
         isFreeDataWin: true,
         network: "Free Data",
+        bundle: "1GB Free Data Win",
         bundleName: "1GB Free Data Win",
         phone: phoneClean,
-        amount: 1,
+        amount: Number(servicePrice || 0),
         quantity: 1,
         status: "pending",
-        paymentStatus: "paid",
-        paymentMethod: "paystack",
-        reference: paymentRef || `FD_${Date.now()}`,
+        paymentStatus: servicePrice > 0 ? "paid" : "free_promo",
+        paymentMethod: servicePrice > 0 ? "paystack" : "free_promo",
+        reference: paymentRef || `FD_${Date.now()}_${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
         createdAt: serverTimestamp(),
         userId: auth.currentUser?.uid || "anonymous",
         customerName: auth.currentUser?.displayName || (phoneClean ? `Customer (${phoneClean})` : "Royal Customer"),
@@ -208,6 +232,7 @@ export const GetFreeDataWidget: React.FC = () => {
       await addDoc(collection(db, "orders"), orderData);
       setIsSubmitting(false);
       setStage('win_success');
+      toast.success("Order submitted successfully to Admin! 🚀");
     } catch (err: any) {
       setIsSubmitting(false);
       console.error("Error creating Free Data Win order:", err);
@@ -232,7 +257,7 @@ export const GetFreeDataWidget: React.FC = () => {
         }}
         onClick={() => {
           if (!isDraggingRef.current) {
-            setIsOpen(true);
+            handleOpenModal();
           }
         }}
         initial={{ scale: 0, opacity: 0, y: 10 }}
@@ -291,7 +316,7 @@ export const GetFreeDataWidget: React.FC = () => {
                 <X className="w-5 h-5" />
               </button>
 
-              {/* Stage 1: Pay GH₵1 Gate */}
+              {/* Stage 1: Pay / Free Entry Gate */}
               {stage === 'pay' && (
                 <div className="flex flex-col items-center text-center space-y-5 py-2">
                   <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-300 text-slate-950 flex items-center justify-center shadow-lg">
@@ -302,28 +327,38 @@ export const GetFreeDataWidget: React.FC = () => {
                       Get Free Data Promo 🎁
                     </h3>
                     <p className="text-xs text-slate-300 mt-2 font-medium leading-relaxed px-2">
-                      Pay <span className="font-extrabold text-amber-300">GH₵1.00</span> via Paystack to unlock 1 spin on the Lucky Data Wheel! Win free data instantly!
+                      {servicePrice <= 0 ? (
+                        <>Spin the Lucky Data Wheel for <span className="font-extrabold text-amber-300 uppercase">100% FREE</span>! Win free data instantly!</>
+                      ) : (
+                        <>Pay <span className="font-extrabold text-amber-300">GH₵{servicePrice.toFixed(2)}</span> via Paystack to unlock 1 spin on the Lucky Data Wheel! Win free data instantly!</>
+                      )}
                     </p>
                   </div>
 
                   <div className="w-full bg-slate-900/90 border border-amber-400/30 rounded-2xl p-4 flex items-center justify-between">
                     <span className="text-xs uppercase font-extrabold text-slate-300">Spin Gate Entry Fee</span>
-                    <span className="text-xl font-black text-amber-400 font-mono">GH₵ 1.00</span>
+                    <span className="text-xl font-black text-amber-400 font-mono">
+                      {servicePrice <= 0 ? "FREE (GH₵ 0.00)" : `GH₵ ${servicePrice.toFixed(2)}`}
+                    </span>
                   </div>
 
                   <button
                     type="button"
                     disabled={isSubmitting}
                     onClick={handleInitiatePayment}
-                    className="w-full h-14 bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black rounded-2xl flex items-center justify-center gap-2 shadow-lg uppercase tracking-wider text-sm transition-all active:scale-95 disabled:opacity-50"
+                    className="w-full h-14 bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black rounded-2xl flex items-center justify-center gap-2 shadow-lg uppercase tracking-wider text-sm transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
                   >
                     {isSubmitting ? (
                       <>
                         <Loader2 className="w-5 h-5 animate-spin" /> Launching Paystack...
                       </>
+                    ) : servicePrice <= 0 ? (
+                      <>
+                        SPIN FOR FREE NOW 🎡 <ChevronRight className="w-5 h-5 stroke-[3]" />
+                      </>
                     ) : (
                       <>
-                        Pay GH₵1 to Spin <ChevronRight className="w-5 h-5 stroke-[3]" />
+                        Pay GH₵{servicePrice.toFixed(2)} to Spin <ChevronRight className="w-5 h-5 stroke-[3]" />
                       </>
                     )}
                   </button>

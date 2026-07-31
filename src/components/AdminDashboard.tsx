@@ -72,6 +72,8 @@ import {
   RotateCcw,
   Search,
   Gift,
+  Loader2,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -117,6 +119,7 @@ export default function AdminDashboard() {
   const [rcWholesalePrice, setRcWholesalePrice] = useState<number>(19);
   const [isUpdatingPrice, setIsUpdatingPrice] = useState<boolean>(false);
   const [isFreeDataDisabled, setIsFreeDataDisabled] = useState<boolean>(false);
+  const [freeDataPrice, setFreeDataPrice] = useState<number>(1);
 
   const [wholesaleInputs, setWholesaleInputs] = useState<Record<string, string>>({});
   const [wholesaleSearch, setWholesaleSearch] = useState("");
@@ -326,9 +329,16 @@ export default function AdminDashboard() {
       doc(db, "settings", "free_data"),
       (snapshot) => {
         if (snapshot.exists()) {
-          setIsFreeDataDisabled(!!snapshot.data().disabled);
+          const data = snapshot.data();
+          setIsFreeDataDisabled(!!data.disabled);
+          if (data.price !== undefined && data.price !== null) {
+            setFreeDataPrice(Number(data.price));
+          } else {
+            setFreeDataPrice(1);
+          }
         } else {
           setIsFreeDataDisabled(false);
+          setFreeDataPrice(1);
         }
       }
     );
@@ -348,14 +358,18 @@ export default function AdminDashboard() {
     };
   }, []);
 
-  const handleToggleFreeDataService = async (disabled: boolean) => {
+  const handleSaveFreeDataSettings = async (disabled: boolean, price: number) => {
     try {
-      await setDoc(doc(db, "settings", "free_data"), { disabled }, { merge: true });
+      setIsUpdatingPrice(true);
+      await setDoc(doc(db, "settings", "free_data"), { disabled, price: Number(price) }, { merge: true });
       setIsFreeDataDisabled(disabled);
-      toast.success(disabled ? "Get Free Data Service Disabled" : "Get Free Data Service Enabled");
+      setFreeDataPrice(Number(price));
+      toast.success("Free Data settings updated successfully! 🎁");
     } catch (err) {
       console.error(err);
-      toast.error("Failed to update Get Free Data setting.");
+      toast.error("Failed to update Free Data setting.");
+    } finally {
+      setIsUpdatingPrice(false);
     }
   };
 
@@ -1154,7 +1168,7 @@ export default function AdminDashboard() {
               value="disable_free_data"
               className="h-9 px-4 rounded-lg font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-[#0B132B] data-[state=active]:text-amber-400 data-[state=active]:shadow-sm transition-all focus-visible:ring-0"
             >
-              Disable Get Free Data Service
+              FREE DATA SETTINGS 🎁
             </TabsTrigger>
             <TabsTrigger
               value="users"
@@ -2264,36 +2278,134 @@ export default function AdminDashboard() {
           <Card className="rounded-3xl border-2 bg-white dark:bg-slate-950 dark:border-slate-800 overflow-hidden shadow-sm">
             <CardHeader className="p-8 border-b dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
               <CardTitle className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-3">
-                Disable Get Free Data Service 🎁
+                <Gift className="w-7 h-7 text-amber-500" />
+                Get Free Data Promo Settings 🎁
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-8 space-y-6">
+            <CardContent className="p-8 space-y-8">
+              {/* Feature Toggle Status */}
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 p-6 rounded-2xl border-2 border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40">
                 <div className="space-y-1 max-w-xl">
                   <h4 className="font-black text-lg text-slate-900 dark:text-white flex items-center gap-2">
                     Service Status:{" "}
                     {isFreeDataDisabled ? (
                       <span className="text-red-500 font-extrabold uppercase bg-red-500/10 px-3 py-1 rounded-full text-xs">
-                        Disabled (ON)
+                        Disabled (Hidden)
                       </span>
                     ) : (
                       <span className="text-emerald-500 font-extrabold uppercase bg-emerald-500/10 px-3 py-1 rounded-full text-xs">
-                        Active / Enabled (OFF)
+                        Active / Enabled (Live)
                       </span>
                     )}
                   </h4>
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                    Toggle switch ON (Disabled) to hide the floating "Get free data" widget and deactivate the GH₵1 payment spin game across the entire live site. Toggle OFF to re-enable the widget for customers.
+                    Toggle switch ON (Disabled) to hide the floating "Get free data" widget across the entire live site. Toggle OFF to make the promo widget active for customers.
                   </p>
                 </div>
                 <div className="flex items-center gap-4 bg-white dark:bg-slate-800 p-4 rounded-xl border dark:border-slate-700 shadow-sm shrink-0">
                   <span className="text-xs font-black uppercase text-slate-700 dark:text-slate-300">
-                    Disable Feature
+                    Disable Service
                   </span>
                   <Switch
                     checked={isFreeDataDisabled}
-                    onCheckedChange={(checked) => handleToggleFreeDataService(checked)}
+                    onCheckedChange={(checked) => handleSaveFreeDataSettings(checked, freeDataPrice)}
                   />
+                </div>
+              </div>
+
+              {/* Service Price Configuration (Free vs Paid) */}
+              <div className="p-6 rounded-2xl border-2 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-6">
+                <div className="space-y-1">
+                  <h4 className="font-black text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                    Service Entry Fee / Spin Price (GHS) 💳
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                    Set the spin gate price for customers. Set to <span className="font-extrabold text-amber-500">GH₵ 0.00</span> to make the service <span className="font-bold text-emerald-500">100% FREE</span> (no Paystack payment required). Set a price above 0 (e.g. <span className="font-bold text-amber-500">GH₵ 1.00</span>) to require Paystack payment before spinning.
+                  </p>
+                </div>
+
+                {/* Price Quick Presets */}
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="text-xs font-black uppercase text-slate-500 dark:text-slate-400">Quick Presets:</span>
+                  <Button
+                    type="button"
+                    variant={freeDataPrice === 0 ? "default" : "outline"}
+                    onClick={() => setFreeDataPrice(0)}
+                    className={`h-9 px-4 rounded-xl font-black text-xs transition-all ${freeDataPrice === 0 ? "bg-emerald-500 text-slate-950 font-black shadow-md" : "hover:bg-emerald-500/10 text-emerald-600 border-emerald-500/30"}`}
+                  >
+                    🎁 100% FREE (GH₵ 0.00)
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={freeDataPrice === 1 ? "default" : "outline"}
+                    onClick={() => setFreeDataPrice(1)}
+                    className={`h-9 px-4 rounded-xl font-black text-xs transition-all ${freeDataPrice === 1 ? "bg-amber-500 text-slate-950 font-black shadow-md" : ""}`}
+                  >
+                    💳 GH₵ 1.00
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={freeDataPrice === 2 ? "default" : "outline"}
+                    onClick={() => setFreeDataPrice(2)}
+                    className={`h-9 px-4 rounded-xl font-black text-xs transition-all ${freeDataPrice === 2 ? "bg-amber-500 text-slate-950 font-black shadow-md" : ""}`}
+                  >
+                    💳 GH₵ 2.00
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={freeDataPrice === 5 ? "default" : "outline"}
+                    onClick={() => setFreeDataPrice(5)}
+                    className={`h-9 px-4 rounded-xl font-black text-xs transition-all ${freeDataPrice === 5 ? "bg-amber-500 text-slate-950 font-black shadow-md" : ""}`}
+                  >
+                    💳 GH₵ 5.00
+                  </Button>
+                </div>
+
+                {/* Custom Price Input */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 max-w-md pt-2">
+                  <div className="relative flex-1">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-400 text-sm">
+                      GH₵
+                    </span>
+                    <Input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      value={freeDataPrice}
+                      onChange={(e) => setFreeDataPrice(Math.max(0, parseFloat(e.target.value) || 0))}
+                      placeholder="0.00"
+                      className="h-14 pl-14 pr-4 rounded-2xl border-2 font-mono text-lg font-black dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                    />
+                  </div>
+
+                  <Button
+                    type="button"
+                    disabled={isUpdatingPrice}
+                    onClick={() => handleSaveFreeDataSettings(isFreeDataDisabled, freeDataPrice)}
+                    className="h-14 px-8 rounded-2xl font-black text-sm bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-md transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+                  >
+                    {isUpdatingPrice ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" /> SAVING...
+                      </>
+                    ) : (
+                      <>
+                        SAVE SETTINGS 🎁
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {/* Mode Indicator Banner */}
+                <div className={`p-4 rounded-xl border flex items-center gap-3 text-xs font-bold ${freeDataPrice <= 0 ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400"}`}>
+                  <Sparkles className="w-5 h-5 shrink-0" />
+                  <span>
+                    {freeDataPrice <= 0 ? (
+                      <>Current Mode: <strong className="uppercase">100% Free Promo</strong>. Customers spin directly without paying.</>
+                    ) : (
+                      <>Current Mode: <strong className="uppercase">Paid Promo (GH₵{freeDataPrice.toFixed(2)})</strong>. Customers pay GH₵{freeDataPrice.toFixed(2)} via Paystack before spinning.</>
+                    )}
+                  </span>
                 </div>
               </div>
             </CardContent>
@@ -3454,7 +3566,7 @@ export default function AdminDashboard() {
                     <input
                       type="checkbox"
                       checked={isFreeDataDisabled}
-                      onChange={(e) => handleToggleFreeDataService(e.target.checked)}
+                      onChange={(e) => handleSaveFreeDataSettings(e.target.checked, freeDataPrice)}
                       className="sr-only peer"
                     />
                     <div className="w-14 h-7 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all dark:after:border-slate-600 peer-checked:bg-red-600"></div>
