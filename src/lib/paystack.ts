@@ -19,6 +19,22 @@ export function loadPaystackScript(): Promise<any> {
       resolve((window as any).PaystackPop);
       return;
     }
+    const existing = document.querySelector('script[src*="paystack.co"]');
+    if (existing) {
+      let intervalCount = 0;
+      const checkInterval = setInterval(() => {
+        intervalCount++;
+        if ((window as any).PaystackPop) {
+          clearInterval(checkInterval);
+          resolve((window as any).PaystackPop);
+        } else if (intervalCount > 20) {
+          clearInterval(checkInterval);
+          reject(new Error("Paystack SDK script exists but failed to initialize."));
+        }
+      }, 150);
+      return;
+    }
+
     const script = document.createElement('script');
     script.src = 'https://js.paystack.co/v1/inline.js';
     script.async = true;
@@ -26,7 +42,7 @@ export function loadPaystackScript(): Promise<any> {
       if ((window as any).PaystackPop) {
         resolve((window as any).PaystackPop);
       } else {
-        reject(new Error("PaystackPop SDK failed to initialize."));
+        reject(new Error("PaystackPop SDK failed to initialize after script load."));
       }
     };
     script.onerror = () => {
@@ -39,6 +55,9 @@ export function loadPaystackScript(): Promise<any> {
 export async function openPaystackPopup(options: PaystackOptions): Promise<void> {
   try {
     const PaystackPop = await loadPaystackScript();
+    if (!PaystackPop || typeof PaystackPop.setup !== 'function') {
+      throw new Error("Paystack SDK is not loaded or invalid.");
+    }
     const handler = PaystackPop.setup({
       key: options.key,
       email: options.email,
@@ -47,14 +66,19 @@ export async function openPaystackPopup(options: PaystackOptions): Promise<void>
       ref: options.ref,
       callback: (response: any) => {
         console.log("[Paystack SDK] Payment successful. Reference:", response.reference);
-        options.onSuccess(response.reference);
+        options.onSuccess(response?.reference || options.ref);
       },
       onClose: () => {
         console.log("[Paystack SDK] Payment window closed by customer.");
         options.onClose();
       }
     });
-    handler.openIframe();
+
+    if (handler && typeof handler.openIframe === 'function') {
+      handler.openIframe();
+    } else {
+      throw new Error("Paystack setup failed to return valid handler.");
+    }
   } catch (error) {
     console.error("[Paystack SDK] Error opening popup:", error);
     throw error;

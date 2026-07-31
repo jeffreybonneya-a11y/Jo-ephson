@@ -22,6 +22,7 @@ import { useTheme } from './hooks/useTheme';
 import { seedFC } from './lib/seed';
 import DownloadPage from './components/DownloadPage';
 import PriceDropNotifier from './components/PriceDropNotifier';
+import GetFreeDataWidget from './components/GetFreeDataWidget';
 import { getApiUrl } from './lib/api';
 
 export default function App() {
@@ -471,6 +472,7 @@ export default function App() {
         )}
       </div>
       <PriceDropNotifier />
+      <GetFreeDataWidget />
     </div>
   );
 }

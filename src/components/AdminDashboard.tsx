@@ -27,7 +27,7 @@ import {
   Complaint,
 } from "@/src/types";
 import { getProductImage } from "@/src/lib/images";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,6 +40,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -70,6 +71,7 @@ import {
   LockOpen,
   RotateCcw,
   Search,
+  Gift,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -102,7 +104,7 @@ export default function AdminDashboard() {
   // Agents Hub
   const [agents, setAgents] = useState<any[]>([]);
   const [profitRequests, setProfitRequests] = useState<any[]>([]);
-  const [orderSourceFilter, setOrderSourceFilter] = useState<'all' | 'direct' | 'agent'>('all');
+  const [orderSourceFilter, setOrderSourceFilter] = useState<'all' | 'direct' | 'agent' | 'freedata'>('all');
   const [deleteSearchQuery, setDeleteSearchQuery] = useState("");
 
   // Customer Management States
@@ -114,6 +116,7 @@ export default function AdminDashboard() {
   const [pricePerChecker, setPricePerChecker] = useState<number>(25);
   const [rcWholesalePrice, setRcWholesalePrice] = useState<number>(19);
   const [isUpdatingPrice, setIsUpdatingPrice] = useState<boolean>(false);
+  const [isFreeDataDisabled, setIsFreeDataDisabled] = useState<boolean>(false);
 
   const [wholesaleInputs, setWholesaleInputs] = useState<Record<string, string>>({});
   const [wholesaleSearch, setWholesaleSearch] = useState("");
@@ -318,6 +321,18 @@ export default function AdminDashboard() {
       }
     );
 
+    // 10. Listen for Get Free Data Service Settings
+    const unsubFreeData = onSnapshot(
+      doc(db, "settings", "free_data"),
+      (snapshot) => {
+        if (snapshot.exists()) {
+          setIsFreeDataDisabled(!!snapshot.data().disabled);
+        } else {
+          setIsFreeDataDisabled(false);
+        }
+      }
+    );
+
     return () => {
       window.removeEventListener('RESET_ADMIN_NOTIFIER', handleResetNotifierEvent);
       unsubAnnouncement();
@@ -329,8 +344,20 @@ export default function AdminDashboard() {
       unsubAgents();
       unsubProfitRequests();
       unsubResultsChecker();
+      unsubFreeData();
     };
   }, []);
+
+  const handleToggleFreeDataService = async (disabled: boolean) => {
+    try {
+      await setDoc(doc(db, "settings", "free_data"), { disabled }, { merge: true });
+      setIsFreeDataDisabled(disabled);
+      toast.success(disabled ? "Get Free Data Service Disabled" : "Get Free Data Service Enabled");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to update Get Free Data setting.");
+    }
+  };
 
   useEffect(() => {
     const seed = async () => {
@@ -1124,6 +1151,12 @@ export default function AdminDashboard() {
               RESULTS CHECKER
             </TabsTrigger>
             <TabsTrigger
+              value="disable_free_data"
+              className="h-9 px-4 rounded-lg font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-[#0B132B] data-[state=active]:text-amber-400 data-[state=active]:shadow-sm transition-all focus-visible:ring-0"
+            >
+              Disable Get Free Data Service
+            </TabsTrigger>
+            <TabsTrigger
               value="users"
               className="h-9 px-4 rounded-lg font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all focus-visible:ring-0"
             >
@@ -1193,7 +1226,7 @@ export default function AdminDashboard() {
                         : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
-                    Direct Shop ({orders.filter(o => !o.agent_id && !o.agentId).length})
+                    Direct Shop ({orders.filter(o => !o.agent_id && !o.agentId && !o.isFreeDataWin && o.serviceType !== "Free Data Win" && o.network !== "Free Data").length})
                   </button>
                   <button
                     type="button"
@@ -1205,6 +1238,17 @@ export default function AdminDashboard() {
                     }`}
                   >
                     Agent Stores ({orders.filter(o => o.agent_id || o.agentId).length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOrderSourceFilter('freedata')}
+                    className={`px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-wider transition-all cursor-pointer ${
+                      orderSourceFilter === 'freedata'
+                        ? 'bg-amber-500 text-slate-950 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    Free Data Wins ({orders.filter(o => o.isFreeDataWin || o.serviceType === "Free Data Win" || o.network === "Free Data").length})
                   </button>
                 </div>
               </div>
@@ -1233,8 +1277,9 @@ export default function AdminDashboard() {
                 <TableBody>
                   {orders.filter((o) => {
                     if (orderSourceFilter === 'all') return true;
-                    if (orderSourceFilter === 'direct') return !o.agent_id && !o.agentId;
+                    if (orderSourceFilter === 'direct') return !o.agent_id && !o.agentId && !o.isFreeDataWin && o.serviceType !== "Free Data Win" && o.network !== "Free Data";
                     if (orderSourceFilter === 'agent') return !!(o.agent_id || o.agentId);
+                    if (orderSourceFilter === 'freedata') return !!(o.isFreeDataWin || o.serviceType === "Free Data Win" || o.network === "Free Data");
                     return true;
                   }).length === 0 ? (
                     <TableRow>
@@ -1249,8 +1294,9 @@ export default function AdminDashboard() {
                     orders
                       .filter((o) => {
                         if (orderSourceFilter === 'all') return true;
-                        if (orderSourceFilter === 'direct') return !o.agent_id && !o.agentId;
+                        if (orderSourceFilter === 'direct') return !o.agent_id && !o.agentId && !o.isFreeDataWin && o.serviceType !== "Free Data Win" && o.network !== "Free Data";
                         if (orderSourceFilter === 'agent') return !!(o.agent_id || o.agentId);
+                        if (orderSourceFilter === 'freedata') return !!(o.isFreeDataWin || o.serviceType === "Free Data Win" || o.network === "Free Data");
                         return true;
                       })
                       .map((order) => (
@@ -1267,6 +1313,11 @@ export default function AdminDashboard() {
                                 {(order.agent_id || order.agentId) && (
                                   <Badge className="bg-amber-500 hover:bg-amber-600 text-white font-black text-[8px] uppercase px-1.5 py-0.5 rounded-md leading-none h-4">
                                     Agent Store
+                                  </Badge>
+                                )}
+                                {(order.isFreeDataWin || order.serviceType === "Free Data Win" || order.network === "Free Data") && (
+                                  <Badge className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-[8px] uppercase px-1.5 py-0.5 rounded-md leading-none h-4">
+                                    Free Data Win 🎁
                                   </Badge>
                                 )}
                               </div>
@@ -2205,6 +2256,46 @@ export default function AdminDashboard() {
                   {isUpdatingPrice ? "UPDATING... 👑" : "SAVE PRICE SETTING 👑"}
                 </Button>
               </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="disable_free_data" className="mt-0 outline-none">
+          <Card className="rounded-3xl border-2 bg-white dark:bg-slate-950 dark:border-slate-800 overflow-hidden shadow-sm">
+            <CardHeader className="p-8 border-b dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+              <CardTitle className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-3">
+                Disable Get Free Data Service 🎁
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-8 space-y-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 p-6 rounded-2xl border-2 border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40">
+                <div className="space-y-1 max-w-xl">
+                  <h4 className="font-black text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                    Service Status:{" "}
+                    {isFreeDataDisabled ? (
+                      <span className="text-red-500 font-extrabold uppercase bg-red-500/10 px-3 py-1 rounded-full text-xs">
+                        Disabled (ON)
+                      </span>
+                    ) : (
+                      <span className="text-emerald-500 font-extrabold uppercase bg-emerald-500/10 px-3 py-1 rounded-full text-xs">
+                        Active / Enabled (OFF)
+                      </span>
+                    )}
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                    Toggle switch ON (Disabled) to hide the floating "Get free data" widget and deactivate the GH₵1 payment spin game across the entire live site. Toggle OFF to re-enable the widget for customers.
+                  </p>
+                </div>
+                <div className="flex items-center gap-4 bg-white dark:bg-slate-800 p-4 rounded-xl border dark:border-slate-700 shadow-sm shrink-0">
+                  <span className="text-xs font-black uppercase text-slate-700 dark:text-slate-300">
+                    Disable Feature
+                  </span>
+                  <Switch
+                    checked={isFreeDataDisabled}
+                    onCheckedChange={(checked) => handleToggleFreeDataService(checked)}
+                  />
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -3316,6 +3407,60 @@ export default function AdminDashboard() {
                   )}
                 </TableBody>
               </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="free_data_toggle" className="mt-0 outline-none">
+          <Card className="rounded-3xl border-2 bg-white dark:bg-slate-950 dark:border-slate-800 shadow-sm overflow-hidden">
+            <CardHeader className="p-8 bg-slate-50 dark:bg-slate-900/50 border-b dark:border-slate-800">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <CardTitle className="text-xl font-black text-amber-500 flex items-center gap-2">
+                    <Gift className="w-5 h-5 text-amber-500" />
+                    Disable Get Free Data Service 🎁
+                  </CardTitle>
+                  <CardDescription className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
+                    Toggle whether the "Get free data" floating widget and spin service is active or disabled for customers on the live site.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-8 space-y-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-6 rounded-2xl border-2 border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 gap-6">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-3">
+                    <h4 className="font-black text-base text-slate-900 dark:text-white">
+                      Service Status:
+                    </h4>
+                    {isFreeDataDisabled ? (
+                      <span className="px-3 py-1 rounded-full text-xs font-black uppercase bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400 border border-red-300 dark:border-red-800">
+                        DISABLED (HIDDEN ON LIVE SITE)
+                      </span>
+                    ) : (
+                      <span className="px-3 py-1 rounded-full text-xs font-black uppercase bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800">
+                        ENABLED (ACTIVE ON LIVE SITE)
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                    Toggled ON (disabled) = Floating widget disappears from live site and customers cannot access spin.<br />
+                    Toggled OFF (enabled) = Floating widget is visible and fully operational.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isFreeDataDisabled}
+                      onChange={(e) => handleToggleFreeDataService(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-14 h-7 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all dark:after:border-slate-600 peer-checked:bg-red-600"></div>
+                  </label>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
