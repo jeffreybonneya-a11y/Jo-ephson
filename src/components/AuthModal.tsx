@@ -37,15 +37,36 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
       // Check if user profile exists
       const userDoc = await getDoc(doc(db, 'users', user.uid));
+      const userFullName = user.displayName || (user.email ? user.email.split('@')[0] : "Customer");
+      const userUsername = user.displayName ? user.displayName.toLowerCase().replace(/\s+/g, '_') : (user.email ? user.email.split('@')[0] : "customer");
+      
       if (!userDoc.exists()) {
         await setDoc(doc(db, 'users', user.uid), {
           uid: user.uid,
-          email: user.email,
-          fullName: user.displayName || "User",
+          id: user.uid,
+          email: user.email || '',
+          gmail: user.email || '',
+          fullName: userFullName,
+          displayName: user.displayName || userFullName,
+          username: userUsername,
           role: 'user',
           walletBalance: 0,
+          photoURL: user.photoURL || '',
           topupReference: 'KJ-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
         });
+      } else {
+        const existingData = userDoc.data();
+        const updates: any = {};
+        if (!existingData.email && user.email) updates.email = user.email;
+        if (!existingData.gmail && user.email) updates.gmail = user.email;
+        if (!existingData.fullName && userFullName) updates.fullName = userFullName;
+        if (!existingData.displayName && user.displayName) updates.displayName = user.displayName;
+        if (!existingData.username && userUsername) updates.username = userUsername;
+        if (!existingData.id) updates.id = user.uid;
+        if (user.photoURL && !existingData.photoURL) updates.photoURL = user.photoURL;
+        if (Object.keys(updates).length > 0) {
+          await setDoc(doc(db, 'users', user.uid), updates, { merge: true });
+        }
       }
       
       toast.success("Logged in with Google!");

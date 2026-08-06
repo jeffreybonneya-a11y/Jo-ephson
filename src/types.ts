@@ -93,13 +93,22 @@ export interface StreamAccess {
 }
 
 export interface UserProfile {
+  id?: string;
   uid: string;
   email: string;
+  gmail?: string;
   fullName: string;
+  displayName?: string;
+  username?: string;
   phoneNumber?: string;
+  phone?: string;
   role: "admin" | "user";
   walletBalance: number;
   isAgent?: boolean;
+  photoURL?: string;
+  createdAt?: any;
+  lastLoginAt?: any;
+  topupReference?: string;
 }
 
 export interface Complaint {

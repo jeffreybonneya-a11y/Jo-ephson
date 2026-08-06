@@ -4,7 +4,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Bundle, Network, UserProfile } from "@/src/types";
 import { auth, db } from "@/src/lib/firebase";
-import { signInAnonymously } from "firebase/auth";
 import { getApiUrl } from "@/src/lib/api";
 import { openPaystackPopup } from "@/src/lib/paystack";
 import {
@@ -235,7 +234,7 @@ export default function CheckoutForm({
   }, [profile, bundle, setValue]);
 
   useEffect(() => {
-    if (bundle?.network === "PC Games" && auth.currentUser && !isSubmitting) {
+    if (bundle?.network === "PC Games" && auth.currentUser && !auth.currentUser.isAnonymous && !isSubmitting) {
       handleSubmit(onSubmit)();
     }
   }, [bundle, auth.currentUser]);
@@ -264,19 +263,22 @@ export default function CheckoutForm({
   }, [orderStatus, orderId, onClose]);
 
   const ensureUser = async () => {
-    if (auth.currentUser) return auth.currentUser;
-    try {
-      const res = await signInAnonymously(auth);
-      return res.user;
-    } catch (e) {
-      console.warn("Anonymous auth failed or disabled:", e);
-      return null;
+    if (auth.currentUser && !auth.currentUser.isAnonymous) {
+      return auth.currentUser;
     }
+    return null;
   };
 
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
     if (!bundle) return;
-    await ensureUser();
+    const activeUser = await ensureUser();
+    if (!activeUser) {
+      toast.error("Please log in before you can purchase any service! 👑", {
+        description: "You must be signed in with your Google account to order.",
+      });
+      window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
+      return;
+    }
     setSavedFormData(data);
     if (selectedPaymentMethod === "paystack") {
       processPaystackPayment(data);
@@ -300,15 +302,19 @@ export default function CheckoutForm({
 
     try {
       const activeUser = await ensureUser();
-      const currentUid = activeUser?.uid || auth.currentUser?.uid || `guest_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      if (!activeUser) {
+        toast.error("Please log in before you can purchase any service! 👑", {
+          description: "You must be signed in with your Google account to order.",
+        });
+        window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
+        setIsSubmitting(false);
+        return;
+      }
+      const currentUid = activeUser.uid;
       const currentEmail = (profile?.email && profile.email.includes("@"))
         ? profile.email
-        : ((activeUser?.email && activeUser.email.includes("@"))
-            ? activeUser.email
-            : ((auth.currentUser?.email && auth.currentUser.email.includes("@"))
-                ? auth.currentUser.email
-                : (data.recipientPhone ? `${data.recipientPhone.replace(/\s+/g, '')}@customer.kingjdeals.com` : "customer@kingjdeals.com")));
-      const currentName = profile?.fullName || activeUser?.displayName || auth.currentUser?.displayName || (data.recipientPhone ? `Customer (${data.recipientPhone})` : "Royal Customer");
+        : (activeUser.email || (data.recipientPhone ? `${data.recipientPhone.replace(/\s+/g, '')}@customer.kingjdeals.com` : "customer@kingjdeals.com"));
+      const currentName = profile?.fullName || activeUser.displayName || (data.recipientPhone ? `Customer (${data.recipientPhone})` : "Royal Customer");
 
       const finalOrderId = doc(collection(db, "orders")).id;
       setOrderId(finalOrderId);
@@ -421,15 +427,19 @@ export default function CheckoutForm({
 
     try {
       const activeUser = await ensureUser();
-      const currentUid = activeUser?.uid || auth.currentUser?.uid || `guest_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      if (!activeUser) {
+        toast.error("Please log in before you can purchase any service! 👑", {
+          description: "You must be signed in with your Google account to order.",
+        });
+        window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
+        setIsSubmitting(false);
+        return;
+      }
+      const currentUid = activeUser.uid;
       const currentEmail = (profile?.email && profile.email.includes("@"))
         ? profile.email
-        : ((activeUser?.email && activeUser.email.includes("@"))
-            ? activeUser.email
-            : ((auth.currentUser?.email && auth.currentUser.email.includes("@"))
-                ? auth.currentUser.email
-                : (data.recipientPhone ? `${data.recipientPhone.replace(/\s+/g, '')}@customer.kingjdeals.com` : "customer@kingjdeals.com")));
-      const currentName = profile?.fullName || activeUser?.displayName || auth.currentUser?.displayName || (data.recipientPhone ? `Customer (${data.recipientPhone})` : "Royal Customer");
+        : (activeUser.email || (data.recipientPhone ? `${data.recipientPhone.replace(/\s+/g, '')}@customer.kingjdeals.com` : "customer@kingjdeals.com"));
+      const currentName = profile?.fullName || activeUser.displayName || (data.recipientPhone ? `Customer (${data.recipientPhone})` : "Royal Customer");
 
       const finalOrderId = doc(collection(db, "orders")).id;
       setOrderId(finalOrderId);
@@ -582,15 +592,19 @@ export default function CheckoutForm({
 
     try {
       const activeUser = await ensureUser();
-      const currentUid = activeUser?.uid || auth.currentUser?.uid || `guest_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      if (!activeUser) {
+        toast.error("Please log in before you can purchase any service! 👑", {
+          description: "You must be signed in with your Google account to order.",
+        });
+        window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
+        setIsSubmitting(false);
+        return;
+      }
+      const currentUid = activeUser.uid;
       const currentEmail = (profile?.email && profile.email.includes("@"))
         ? profile.email
-        : ((activeUser?.email && activeUser.email.includes("@"))
-            ? activeUser.email
-            : ((auth.currentUser?.email && auth.currentUser.email.includes("@"))
-                ? auth.currentUser.email
-                : (data.recipientPhone ? `${data.recipientPhone.replace(/\s+/g, '')}@customer.kingjdeals.com` : "customer@kingjdeals.com")));
-      const currentName = profile?.fullName || activeUser?.displayName || auth.currentUser?.displayName || (data.recipientPhone ? `Customer (${data.recipientPhone})` : "Royal Customer");
+        : (activeUser.email || (data.recipientPhone ? `${data.recipientPhone.replace(/\s+/g, '')}@customer.kingjdeals.com` : "customer@kingjdeals.com"));
+      const currentName = profile?.fullName || activeUser.displayName || (data.recipientPhone ? `Customer (${data.recipientPhone})` : "Royal Customer");
 
       const finalOrderId = doc(collection(db, "orders")).id;
       setOrderId(finalOrderId);
@@ -712,7 +726,12 @@ export default function CheckoutForm({
 
   const handleProceedPayment = async () => {
     if (!savedFormData) return;
-    await ensureUser();
+    const activeUser = await ensureUser();
+    if (!activeUser) {
+      toast.error("Please log in before you can purchase any service! 👑");
+      window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
+      return;
+    }
     processPaystackPayment(savedFormData);
   };
 
@@ -1145,6 +1164,23 @@ export default function CheckoutForm({
                 You will be redirected to paystack for payment.
               </p>
             </div>
+
+            {(!auth.currentUser || auth.currentUser.isAnonymous) && (
+              <div className="bg-amber-500/10 border-2 border-amber-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 animate-pulse">
+                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 text-xs font-bold text-center sm:text-left">
+                  <Crown className="w-5 h-5 text-amber-500 shrink-0" />
+                  <span>Login Required: Please sign in with Google before placing your order.</span>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'))}
+                  className="h-9 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs uppercase shadow-md cursor-pointer shrink-0"
+                >
+                  Sign In with Google 👑
+                </Button>
+              </div>
+            )}
 
             <form
               onSubmit={handleSubmit(onSubmit)}

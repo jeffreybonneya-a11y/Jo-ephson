@@ -226,10 +226,10 @@ service cloud.firestore {
 
     match /orders/{orderId} {
       allow read: if isAdmin() || (isAuthenticated() && (
-        ('userId' in resource.data && resource.data.userId == request.auth.uid) || 
-        ('agent_id' in resource.data && resource.data.agent_id == request.auth.uid) || 
-        ('agentId' in resource.data && resource.data.agentId == request.auth.uid) || 
-        (getAuthEmail() != "" && 'email' in resource.data && (resource.data.email == getAuthEmail() || resource.data.email.lower() == getAuthEmail().lower()))
+        resource.data.userId == request.auth.uid || 
+        resource.data.agent_id == request.auth.uid || 
+        resource.data.agentId == request.auth.uid || 
+        (getAuthEmail() != "" && resource.data.email == getAuthEmail())
       ));
       allow create: if isAuthenticated() && isValidOrder(request.resource.data) && (
         ('userId' in request.resource.data && request.resource.data.userId == request.auth.uid) || 
@@ -240,17 +240,16 @@ service cloud.firestore {
         isValidOrder(request.resource.data) && (
           // EITHER: An agent updating reporting fields
           (
-            (('agent_id' in resource.data && resource.data.agent_id == request.auth.uid) || 
-             ('agentId' in resource.data && resource.data.agentId == request.auth.uid)) &&
+            (resource.data.agent_id == request.auth.uid || resource.data.agentId == request.auth.uid) &&
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportedToAdmin', 'agentReportReason'])
           ) ||
           // OR: The buyer/agent updating payment status upon successful Paystack completion
           (
             (
-              ('userId' in resource.data && resource.data.userId == request.auth.uid) || 
-              ('agent_id' in resource.data && resource.data.agent_id == request.auth.uid) || 
-              ('agentId' in resource.data && resource.data.agentId == request.auth.uid) || 
-              (getAuthEmail() != "" && 'email' in resource.data && (resource.data.email == getAuthEmail() || resource.data.email.lower() == getAuthEmail().lower()))
+              resource.data.userId == request.auth.uid || 
+              resource.data.agent_id == request.auth.uid || 
+              resource.data.agentId == request.auth.uid || 
+              (getAuthEmail() != "" && resource.data.email == getAuthEmail())
             ) &&
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentStatus', 'reference', 'profitAwarded', 'profit_credited', 'status', 'momoSentClicked', 'userConfirmedAt'])
           )
@@ -258,10 +257,10 @@ service cloud.firestore {
       );
       allow delete: if isAdmin() || (
         isAuthenticated() && (
-          ('userId' in resource.data && resource.data.userId == request.auth.uid) || 
-          ('agent_id' in resource.data && resource.data.agent_id == request.auth.uid) || 
-          ('agentId' in resource.data && resource.data.agentId == request.auth.uid) || 
-          (getAuthEmail() != "" && 'email' in resource.data && (resource.data.email == getAuthEmail() || resource.data.email.lower() == getAuthEmail().lower()))
+          resource.data.userId == request.auth.uid || 
+          resource.data.agent_id == request.auth.uid || 
+          resource.data.agentId == request.auth.uid || 
+          (getAuthEmail() != "" && resource.data.email == getAuthEmail())
         )
       );
     }
@@ -273,27 +272,27 @@ service cloud.firestore {
     }
 
     match /complaints/{complaintId} {
-      allow read: if isAdmin() || (isAuthenticated() && 'userId' in resource.data && resource.data.userId == request.auth.uid);
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
       allow create: if isAuthenticated() && isValidComplaint(request.resource.data) && 'userId' in request.resource.data && request.resource.data.userId == request.auth.uid;
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
     match /wallet_transactions/{transactionId} {
-      allow read: if isAdmin() || (isAuthenticated() && 'userId' in resource.data && resource.data.userId == request.auth.uid);
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
       allow create: if isAuthenticated() && isValidWalletTransaction(request.resource.data) && 'userId' in request.resource.data && request.resource.data.userId == request.auth.uid;
       allow update: if isAdmin();
     }
 
     match /messages/{messageId} {
-      allow read: if isAdmin() || (isAuthenticated() && 'userId' in resource.data && resource.data.userId == request.auth.uid);
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
       allow create: if isAuthenticated() && isValidMessage(request.resource.data) && 'userId' in request.resource.data && request.resource.data.userId == request.auth.uid;
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
     match /streamAccess/{accessId} {
-      allow read: if isAdmin() || (isAuthenticated() && 'userId' in resource.data && resource.data.userId == request.auth.uid);
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
       allow create: if isAuthenticated() && isValidStreamAccess(request.resource.data) && 'userId' in request.resource.data && request.resource.data.userId == request.auth.uid;
       allow update: if isAdmin();
       allow delete: if isAdmin();
@@ -307,14 +306,14 @@ service cloud.firestore {
     }
 
     match /agent_orders/{orderId} {
-      allow read: if isAdmin() || (isAuthenticated() && 'agent_id' in resource.data && resource.data.agent_id == request.auth.uid);
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.agent_id == request.auth.uid);
       allow create: if isValidAgentOrder(request.resource.data);
       allow update: if isAdmin();
-      allow delete: if isAdmin() || (isAuthenticated() && 'agent_id' in resource.data && resource.data.agent_id == request.auth.uid);
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.agent_id == request.auth.uid);
     }
 
     match /profit_requests/{requestId} {
-      allow read: if isAdmin() || (isAuthenticated() && 'agent_id' in resource.data && resource.data.agent_id == request.auth.uid);
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.agent_id == request.auth.uid);
       allow create: if isAuthenticated() && isValidProfitRequest(request.resource.data) && 'agent_id' in request.resource.data && request.resource.data.agent_id == request.auth.uid;
       allow update: if isAdmin();
       allow delete: if isAdmin();

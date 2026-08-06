@@ -10,8 +10,8 @@ import Footer from './components/Footer';
 import { Bundle } from './types';
 import { Toaster, toast } from 'sonner';
 import { auth, db } from './lib/firebase';
-import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
-import { doc, onSnapshot, query, collection, where, updateDoc, setDoc, getDoc } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
+import { doc, onSnapshot, query, collection, where, updateDoc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { MessageSquare, Zap, Loader2, Crown } from 'lucide-react';
 import { motion } from 'motion/react';
 import MyOrders from './components/MyOrders';
@@ -190,7 +190,44 @@ export default function App() {
         agentUnsubscribe = undefined;
       }
 
-      if (user) {
+      if (user && !user.isAnonymous) {
+        // Ensure user profile in Firestore
+        const userRef = doc(db, 'users', user.uid);
+        getDoc(userRef).then((snap) => {
+          const isEmailAdmin = adminEmails.includes(user.email?.toLowerCase() || '');
+          const userFullName = user.displayName || (user.email ? user.email.split('@')[0] : "Customer");
+          const userUsername = user.displayName ? user.displayName.toLowerCase().replace(/\s+/g, '_') : (user.email ? user.email.split('@')[0] : "customer");
+          
+          if (!snap.exists()) {
+            setDoc(userRef, {
+              uid: user.uid,
+              id: user.uid,
+              email: user.email || '',
+              gmail: user.email || '',
+              fullName: userFullName,
+              displayName: user.displayName || userFullName,
+              username: userUsername,
+              role: isEmailAdmin ? 'admin' : 'user',
+              walletBalance: 0,
+              photoURL: user.photoURL || '',
+              topupReference: 'KJ-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
+            }, { merge: true }).catch(console.error);
+          } else {
+            const data = snap.data();
+            const updates: any = {};
+            if (!data.email && user.email) updates.email = user.email;
+            if (!data.gmail && user.email) updates.gmail = user.email;
+            if (!data.fullName && userFullName) updates.fullName = userFullName;
+            if (!data.displayName && user.displayName) updates.displayName = user.displayName;
+            if (!data.username && userUsername) updates.username = userUsername;
+            if (!data.id) updates.id = user.uid;
+            if (user.photoURL && !data.photoURL) updates.photoURL = user.photoURL;
+            if (Object.keys(updates).length > 0) {
+              setDoc(userRef, updates, { merge: true }).catch(console.error);
+            }
+          }
+        }).catch(console.error);
+
         // Real-time profile listener
         profileUnsubscribe = onSnapshot(doc(db, 'users', user.uid), async (docSnapshot) => {
           if (docSnapshot.exists()) {
@@ -302,13 +339,14 @@ export default function App() {
 
   const [activeService, setActiveService] = useState('data');
 
-  const handleSelectBundle = async (bundle: Bundle) => {
-    if (!user && !auth.currentUser) {
-      try {
-        await signInAnonymously(auth);
-      } catch (e) {
-        console.warn("Anonymous sign-in skipped:", e);
-      }
+  const handleSelectBundle = (bundle: Bundle) => {
+    const activeUser = user || auth.currentUser;
+    if (!activeUser || activeUser.isAnonymous) {
+      toast.error("Please log in before you can purchase any service! 👑", {
+        description: "You must be signed in to purchase data bundles, game coins, PC games, or results checkers.",
+      });
+      window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
+      return;
     }
     setSelectedBundle(bundle);
   };

@@ -1054,17 +1054,70 @@ export default function AdminDashboard() {
     }
   };
 
-  // Customers tab statistics and filtering
-  const totalRegistered = users.length;
-  const totalAgents = users.filter((u) => u.isAgent).length;
-  const totalWalletBalances = users.reduce((sum, u) => sum + (u.walletBalance || 0), 0);
+  // Customers tab statistics and filtering (consolidating registered users and orders)
+  const allCustomers: UserProfile[] = React.useMemo(() => {
+    const userMap = new Map<string, UserProfile>();
+    
+    // 1. Add all registered users from Firestore users collection
+    users.forEach((u) => {
+      const email = (u.email || u.gmail || '').trim();
+      const key = u.id || u.uid || email.toLowerCase();
+      const derivedUsername = u.username || (u.displayName ? u.displayName.toLowerCase().replace(/\s+/g, '_') : (email ? email.split('@')[0] : "customer"));
+      const derivedFullName = u.fullName || u.displayName || (email ? email.split('@')[0] : "Customer");
+      userMap.set(key, {
+        ...u,
+        id: u.id || u.uid || key,
+        uid: u.uid || u.id || key,
+        email: u.email || u.gmail || email,
+        gmail: u.gmail || u.email || email,
+        fullName: derivedFullName,
+        displayName: u.displayName || derivedFullName,
+        username: derivedUsername,
+      });
+    });
+
+    // 2. Supplement with any customers from orders
+    orders.forEach((o) => {
+      const email = (o.email || '').trim();
+      const userId = (o.userId || '').trim();
+      const key = userId || email.toLowerCase();
+      if (key && !userMap.has(key) && (email || o.customerName)) {
+        const derivedUsername = o.customerName ? o.customerName.toLowerCase().replace(/\s+/g, '_') : (email ? email.split('@')[0] : "customer");
+        const derivedFullName = o.customerName || (email ? email.split('@')[0] : "Customer");
+        userMap.set(key, {
+          id: key,
+          uid: userId || key,
+          email: email,
+          gmail: email,
+          fullName: derivedFullName,
+          displayName: derivedFullName,
+          username: derivedUsername,
+          phoneNumber: o.phone || o.customerPhone || '',
+          role: 'user',
+          walletBalance: 0,
+        });
+      }
+    });
+
+    return Array.from(userMap.values());
+  }, [users, orders]);
+
+  const totalRegistered = allCustomers.length;
+  const totalAgents = allCustomers.filter((u) => u.isAgent).length;
+  const totalWalletBalances = allCustomers.reduce((sum, u) => sum + (u.walletBalance || 0), 0);
   const totalCompletedOrders = orders.filter((o) => o.status === "completed" || o.status === "delivered" || o.status === "paid" || o.status === "success").length;
 
-  const filteredUsers = users.filter((u) => {
+  const filteredUsers = allCustomers.filter((u) => {
+    const q = customerSearchQuery.toLowerCase().trim();
     const matchesSearch =
-      (u.fullName || "").toLowerCase().includes(customerSearchQuery.toLowerCase()) ||
-      (u.email || "").toLowerCase().includes(customerSearchQuery.toLowerCase()) ||
-      (u.phoneNumber || "").toLowerCase().includes(customerSearchQuery.toLowerCase());
+      !q ||
+      (u.fullName || "").toLowerCase().includes(q) ||
+      (u.displayName || "").toLowerCase().includes(q) ||
+      (u.username || "").toLowerCase().includes(q) ||
+      (u.email || "").toLowerCase().includes(q) ||
+      (u.gmail || "").toLowerCase().includes(q) ||
+      (u.phoneNumber || "").toLowerCase().includes(q) ||
+      (u.id || "").toLowerCase().includes(q);
 
     if (customerRoleFilter === "all") return matchesSearch;
     if (customerRoleFilter === "admin") return matchesSearch && u.role === "admin";
@@ -2497,16 +2550,16 @@ export default function AdminDashboard() {
                 <TableHeader className="bg-slate-50 dark:bg-slate-900">
                   <TableRow className="border-b dark:border-slate-800">
                     <TableHead className="p-6 font-black text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-200">
-                      Royal Customer
+                      Customer & User Name
                     </TableHead>
                     <TableHead className="font-black text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-200">
-                      Email Address
+                      Gmail / Email Address
                     </TableHead>
                     <TableHead className="font-black text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-200">
-                      Activity
+                      Orders & Activity
                     </TableHead>
                     <TableHead className="font-black text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-200">
-                      Balance
+                      Wallet Balance
                     </TableHead>
                     <TableHead className="font-black text-[10px] uppercase tracking-wider text-right p-6 text-slate-600 dark:text-slate-200">
                       Actions
@@ -2523,7 +2576,7 @@ export default function AdminDashboard() {
                   ) : (
                     filteredUsers.map((u) => {
                       const userOrders = orders.filter(
-                        (o) => o.userId === u.id || (o.email && o.email.toLowerCase() === u.email.toLowerCase())
+                        (o) => o.userId === u.id || (o.email && o.email.toLowerCase() === (u.email || '').toLowerCase())
                       );
                       const ordersCount = userOrders.length;
                       const totalSpent = userOrders
@@ -2531,21 +2584,24 @@ export default function AdminDashboard() {
                         .reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
 
                       const isEditingBalance = editingBalanceUserId === u.id;
+                      const displayEmail = u.gmail || u.email || "";
+                      const isGmailAddress = displayEmail.toLowerCase().includes("@gmail.com");
+                      const displayUsername = u.username || (u.displayName ? u.displayName.toLowerCase().replace(/\s+/g, '_') : (displayEmail ? displayEmail.split('@')[0] : "customer"));
 
                       return (
                         <TableRow
                           key={u.id}
                           className="hover:bg-slate-50/50 transition-colors dark:border-slate-800 animate-fade-in"
                         >
-                          {/* Name & Badge */}
-                          <TableCell className="p-6 min-w-[200px]">
+                          {/* Name & User Name Badge */}
+                          <TableCell className="p-6 min-w-[220px]">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-black text-sm">
+                              <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-black text-sm shrink-0 shadow-sm border border-primary/20">
                                 {(u.fullName || "U").split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase()}
                               </div>
-                              <div>
+                              <div className="space-y-1">
                                 <div className="font-black text-slate-900 dark:text-slate-100 flex items-center gap-1.5 flex-wrap">
-                                  {u.fullName}
+                                  <span>{u.fullName || u.displayName || "Customer"}</span>
                                   {u.role === "admin" && (
                                     <Badge className="bg-red-500 hover:bg-red-600 text-white font-black text-[8px] tracking-widest px-1.5 py-0.5 rounded-md uppercase">
                                       Admin
@@ -2557,32 +2613,56 @@ export default function AdminDashboard() {
                                     </Badge>
                                   )}
                                 </div>
-                                <span className="text-[10px] text-slate-400 font-mono block">ID: {u.id}</span>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <Badge variant="outline" className="bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 font-mono text-[10px] px-1.5 py-0">
+                                    @{displayUsername}
+                                  </Badge>
+                                  <span className="text-[9px] text-slate-400 font-mono">ID: {u.id?.substring(0, 10)}...</span>
+                                </div>
                               </div>
                             </div>
                           </TableCell>
 
-                          {/* Contact Details */}
-                          <TableCell className="min-w-[180px]">
-                            <div className="flex flex-col gap-0.5">
-                              <span className="font-mono text-xs text-slate-700 dark:text-slate-300">
-                                {u.email}
-                              </span>
+                          {/* Contact & Gmail Details */}
+                          <TableCell className="min-w-[220px]">
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-mono text-xs font-bold text-slate-900 dark:text-slate-100 select-all">
+                                  {displayEmail || "No Email Provided"}
+                                </span>
+                                {isGmailAddress && (
+                                  <Badge className="bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 font-black text-[8px] px-1.5 py-0 border border-red-300 dark:border-red-800">
+                                    Gmail ✉️
+                                  </Badge>
+                                )}
+                                {displayEmail && (
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(displayEmail);
+                                      toast.success("Gmail / Email copied to clipboard! 📋");
+                                    }}
+                                    className="text-slate-400 hover:text-primary transition-colors p-0.5"
+                                    title="Copy Email"
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
                               {u.phoneNumber && (
-                                <span className="text-[10px] font-bold text-slate-400">
-                                  {u.phoneNumber}
+                                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1 font-mono">
+                                  📞 {u.phoneNumber}
                                 </span>
                               )}
                             </div>
                           </TableCell>
 
                           {/* Orders Stats */}
-                          <TableCell className="min-w-[120px]">
+                          <TableCell className="min-w-[140px]">
                             <div className="flex flex-col gap-0.5">
-                              <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                              <span className="text-xs font-black text-slate-800 dark:text-slate-200">
                                 {ordersCount} {ordersCount === 1 ? "order" : "orders"}
                               </span>
-                              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                              <span className="text-[11px] font-black text-emerald-600 dark:text-emerald-400">
                                 Spent: GHS {totalSpent.toFixed(2)}
                               </span>
                             </div>

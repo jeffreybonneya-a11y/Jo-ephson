@@ -2,15 +2,25 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, Gift, X, Loader2, Trophy, Frown, CheckCircle2, ChevronRight, Crown } from 'lucide-react';
 import { doc, onSnapshot, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { onAuthStateChanged, User } from 'firebase/auth';
 import { db, auth } from '../lib/firebase';
 import { openPaystackPopup } from '../lib/paystack';
 import { getApiUrl } from '../lib/api';
 import { toast } from 'sonner';
 
 export const GetFreeDataWidget: React.FC = () => {
+  const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
   const [isDisabled, setIsDisabled] = useState<boolean>(false);
   const [servicePrice, setServicePrice] = useState<number>(1);
   const [isOpen, setIsOpen] = useState<boolean>(false);
+
+  // Listen for Auth changes
+  useEffect(() => {
+    const unsubAuth = onAuthStateChanged(auth, (usr) => {
+      setCurrentUser(usr);
+    });
+    return () => unsubAuth();
+  }, []);
   
   // Modal Stages: 'pay' | 'spin' | 'win_form' | 'win_success' | 'loss'
   const [stage, setStage] = useState<'pay' | 'spin' | 'win_form' | 'win_success' | 'loss'>('pay');
@@ -34,12 +44,17 @@ export const GetFreeDataWidget: React.FC = () => {
     const isFdWin = params.get('fd_win') === 'true' || (ref && (ref.startsWith('FD_') || ref.startsWith('FREE_DATA_')));
 
     if (ref && isFdWin) {
+      if (!auth.currentUser && !currentUser) {
+        toast.error("Please login to claim your Free Data spin! 🎁");
+        window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
+        return;
+      }
       setPaymentRef(ref);
       setStage('spin');
       setIsOpen(true);
       toast.success("Payment confirmed! Spin the wheel to claim your Free Data 🎡");
     }
-  }, []);
+  }, [currentUser]);
 
   // 1. Listen for persistent admin toggle state and price
   useEffect(() => {
@@ -81,6 +96,12 @@ export const GetFreeDataWidget: React.FC = () => {
   };
 
   const handleOpenModal = () => {
+    const activeUser = currentUser || auth.currentUser;
+    if (!activeUser) {
+      toast.error("You must login before accessing Free Data! 🎁");
+      window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
+      return;
+    }
     setIsOpen(true);
     if (servicePrice <= 0) {
       setStage('spin');
@@ -91,6 +112,14 @@ export const GetFreeDataWidget: React.FC = () => {
 
   // 2. Step 1: Handle Payment / Free Spin Entry
   const handleInitiatePayment = async () => {
+    const activeUser = currentUser || auth.currentUser;
+    if (!activeUser) {
+      toast.error("You must login before continuing! 🎁");
+      window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
+      setIsOpen(false);
+      return;
+    }
+
     if (servicePrice <= 0) {
       setStage('spin');
       toast.success("Spin unlocked for FREE! 🎁");
@@ -102,8 +131,8 @@ export const GetFreeDataWidget: React.FC = () => {
     const publicKey = "pk_live_1a324af248d2bb1e2f784e7c27981f58f7d66b2c";
     const pesewas = Math.round(servicePrice * 100);
 
-    const userEmail = (auth.currentUser?.email && auth.currentUser.email.includes("@"))
-      ? auth.currentUser.email
+    const userEmail = (activeUser.email && activeUser.email.includes("@"))
+      ? activeUser.email
       : "customer@kingjdeals.com";
 
     try {
@@ -201,6 +230,14 @@ export const GetFreeDataWidget: React.FC = () => {
   // 4. Step 3: Handle Claim Submission for Winner
   const handleClaimFreeData = async (e: React.FormEvent) => {
     e.preventDefault();
+    const activeUser = currentUser || auth.currentUser;
+    if (!activeUser) {
+      toast.error("You must be logged in to claim Free Data! 🎁");
+      window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
+      setIsOpen(false);
+      return;
+    }
+
     const phoneClean = phone.trim().replace(/\s/g, '');
     if (!phoneClean || phoneClean.length < 9) {
       toast.error("Please enter a valid phone number.");
@@ -210,7 +247,7 @@ export const GetFreeDataWidget: React.FC = () => {
     setIsSubmitting(true);
     try {
       const orderData = {
-        email: auth.currentUser?.email || `${phoneClean}@customer.kingjdeals.com`,
+        email: activeUser.email || `${phoneClean}@customer.kingjdeals.com`,
         serviceType: "Free Data Win",
         orderType: "Free Data Win",
         isFreeDataWin: true,
@@ -225,8 +262,8 @@ export const GetFreeDataWidget: React.FC = () => {
         paymentMethod: servicePrice > 0 ? "paystack" : "free_promo",
         reference: paymentRef || `FD_${Date.now()}_${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
         createdAt: serverTimestamp(),
-        userId: auth.currentUser?.uid || "anonymous",
-        customerName: auth.currentUser?.displayName || (phoneClean ? `Customer (${phoneClean})` : "Royal Customer"),
+        userId: activeUser.uid,
+        customerName: activeUser.displayName || (phoneClean ? `Customer (${phoneClean})` : "Royal Customer"),
       };
 
       await addDoc(collection(db, "orders"), orderData);

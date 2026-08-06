@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../lib/firebase';
-import { signInAnonymously } from 'firebase/auth';
 import { doc, onSnapshot, collection, serverTimestamp, setDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
@@ -85,17 +84,20 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
   const totalAmount = quantity * pricePerChecker;
 
   const ensureUser = async () => {
-    if (auth.currentUser) return auth.currentUser;
-    try {
-      const res = await signInAnonymously(auth);
-      return res.user;
-    } catch (e) {
-      console.warn("Anonymous auth failed or disabled:", e);
-      return null;
+    if (auth.currentUser && !auth.currentUser.isAnonymous) {
+      return auth.currentUser;
     }
+    return null;
   };
 
   const handleOpenPurchaseFlow = () => {
+    if (!auth.currentUser || auth.currentUser.isAnonymous) {
+      toast.error("Please log in before you can purchase any service! 👑", {
+        description: "You must be signed in with your Google account to purchase Results Checkers.",
+      });
+      window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
+      return;
+    }
     if (quantity < 1) {
       toast.error("Please select a quantity of 1 or more.");
       return;
@@ -112,6 +114,15 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
   };
 
   const handleFormSubmit = async () => {
+    const activeUser = await ensureUser();
+    if (!activeUser) {
+      toast.error("Please log in before you can purchase any service! 👑", {
+        description: "You must be signed in with your Google account to order.",
+      });
+      window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
+      return;
+    }
+
     if (!mobileNumber.trim()) {
       toast.error("Mobile number is required.");
       return;
@@ -123,22 +134,23 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
       return;
     }
 
-    await ensureUser();
     processPaystackPayment();
   };
 
   const processMoMoDirectPayment = async () => {
     const activeUser = await ensureUser();
+    if (!activeUser) {
+      toast.error("Please log in before you can purchase any service! 👑");
+      window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
+      setIsSubmitting(false);
+      return;
+    }
     const phoneClean = mobileNumber.trim().replace(/\s/g, '');
     setIsSubmitting(true);
 
-    const userEmail = (activeUser?.email && activeUser.email.includes("@"))
-      ? activeUser.email
-      : ((auth.currentUser?.email && auth.currentUser.email.includes("@"))
-          ? auth.currentUser.email
-          : (phoneClean ? `${phoneClean}@customer.kingjdeals.com` : "customer@kingjdeals.com"));
-    const userName = activeUser?.displayName || auth.currentUser?.displayName || (phoneClean ? `Customer (${phoneClean})` : "Royal Customer");
-    const userUid = activeUser?.uid || auth.currentUser?.uid || `guest_${Date.now()}`;
+    const userEmail = activeUser.email || (phoneClean ? `${phoneClean}@customer.kingjdeals.com` : "customer@kingjdeals.com");
+    const userName = activeUser.displayName || (phoneClean ? `Customer (${phoneClean})` : "Royal Customer");
+    const userUid = activeUser.uid;
 
     try {
       const finalOrderId = doc(collection(db, "orders")).id;
@@ -216,16 +228,18 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
 
   const processPaystackPayment = async () => {
     const activeUser = await ensureUser();
+    if (!activeUser) {
+      toast.error("Please log in before you can purchase any service! 👑");
+      window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
+      setIsSubmitting(false);
+      return;
+    }
     const phoneClean = mobileNumber.trim().replace(/\s/g, '');
     setIsSubmitting(true);
 
-    const userEmail = (activeUser?.email && activeUser.email.includes("@"))
-      ? activeUser.email
-      : ((auth.currentUser?.email && auth.currentUser.email.includes("@"))
-          ? auth.currentUser.email
-          : (phoneClean ? `${phoneClean}@customer.kingjdeals.com` : "customer@kingjdeals.com"));
-    const userName = activeUser?.displayName || auth.currentUser?.displayName || (phoneClean ? `Customer (${phoneClean})` : "Royal Customer");
-    const userUid = activeUser?.uid || auth.currentUser?.uid || `guest_${Date.now()}`;
+    const userEmail = activeUser.email || (phoneClean ? `${phoneClean}@customer.kingjdeals.com` : "customer@kingjdeals.com");
+    const userName = activeUser.displayName || (phoneClean ? `Customer (${phoneClean})` : "Royal Customer");
+    const userUid = activeUser.uid;
 
     try {
       const finalOrderId = doc(collection(db, "orders")).id;
@@ -369,16 +383,18 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
 
   const processKorapayPayment = async () => {
     const activeUser = await ensureUser();
+    if (!activeUser) {
+      toast.error("Please log in before you can purchase any service! 👑");
+      window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
+      setIsSubmitting(false);
+      return;
+    }
     const phoneClean = mobileNumber.trim().replace(/\s/g, '');
     setIsSubmitting(true);
 
-    const userEmail = (activeUser?.email && activeUser.email.includes("@"))
-      ? activeUser.email
-      : ((auth.currentUser?.email && auth.currentUser.email.includes("@"))
-          ? auth.currentUser.email
-          : (phoneClean ? `${phoneClean}@customer.kingjdeals.com` : "customer@kingjdeals.com"));
-    const userName = activeUser?.displayName || auth.currentUser?.displayName || (phoneClean ? `Customer (${phoneClean})` : "Royal Customer");
-    const userUid = activeUser?.uid || auth.currentUser?.uid || `guest_${Date.now()}`;
+    const userEmail = activeUser.email || (phoneClean ? `${phoneClean}@customer.kingjdeals.com` : "customer@kingjdeals.com");
+    const userName = activeUser.displayName || (phoneClean ? `Customer (${phoneClean})` : "Royal Customer");
+    const userUid = activeUser.uid;
 
     try {
       const finalOrderId = doc(collection(db, "orders")).id;
@@ -652,6 +668,22 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
 
                       {/* Body Content */}
                       <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
+                        {(!auth.currentUser || auth.currentUser.isAnonymous) && (
+                          <div className="bg-amber-500/10 border-2 border-amber-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 animate-pulse">
+                            <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 text-xs font-bold text-center sm:text-left">
+                              <Crown className="w-5 h-5 text-amber-500 shrink-0" />
+                              <span>Login Required: Sign in before purchasing Results Checkers.</span>
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'))}
+                              className="h-9 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs uppercase shadow-md cursor-pointer shrink-0"
+                            >
+                              Sign In 👑
+                            </Button>
+                          </div>
+                        )}
                         {/* Instructions List */}
                         <div className="space-y-4">
                           <h4 className="font-black text-xs uppercase tracking-widest text-indigo-600">
