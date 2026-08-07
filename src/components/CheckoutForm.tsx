@@ -194,10 +194,13 @@ export default function CheckoutForm({
 
   const hiddenTelecelCharge = isTelecelHiddenChargeMain ? 1.0 : (!!agentContext && isTelecel1to5 ? 2.0 : 0.0);
 
-  const isMTN1to5 = bundle?.network === "MTN" && gbValue >= 1 && gbValue <= 5;
-  const hiddenMTNCharge = isMTN1to5
-    ? 0.0
-    : (bundle?.network === "MTN" ? (isAgentActive ? 1.0 : (agentContext ? 0.0 : 1.0)) : 0.0);
+  const isMTN1to4 = bundle?.network === "MTN" && gbValue >= 1 && gbValue <= 4;
+  const isMTN5 = bundle?.network === "MTN" && gbValue > 4 && gbValue <= 5;
+  const hiddenMTNCharge = (!agentContext && isMTN1to4)
+    ? 0.50
+    : (isMTN5
+        ? 0.0
+        : (bundle?.network === "MTN" ? (isAgentActive ? 1.0 : (agentContext ? 0.0 : 1.0)) : 0.0));
 
   const finalAmountToCharge = Number(bundle?.price || 0) + paystackFee + hiddenGameCharge + hiddenTelecelCharge + hiddenMTNCharge;
 
