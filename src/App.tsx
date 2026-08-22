@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
-import WaecPromoCard from './components/WaecPromoCard';
 import BundleList from './components/BundleList';
 import HowItWorks from './components/HowItWorks';
 import CheckoutForm from './components/CheckoutForm';
@@ -21,6 +20,7 @@ import AgentStore from './components/AgentStore';
 import ThemeCustomizer from './components/ThemeCustomizer';
 import { useTheme } from './hooks/useTheme';
 import { seedFC } from './lib/seed';
+import TopPromosRow from './components/TopPromosRow';
 import DownloadPage from './components/DownloadPage';
 import PriceDropNotifier from './components/PriceDropNotifier';
 import GetFreeDataWidget from './components/GetFreeDataWidget';
@@ -438,7 +438,7 @@ export default function App() {
         ) : (
           <>
             <div className="bg-[#0B132B] pt-20 sm:pt-24 pb-2 relative z-20">
-              <WaecPromoCard />
+              <TopPromosRow />
             </div>
             <Hero />
             <BundleList onSelectBundle={handleSelectBundle} isAgentUser={hasRegisteredAgent || !!profile?.isAgent} />

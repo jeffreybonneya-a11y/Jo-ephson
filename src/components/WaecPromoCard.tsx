@@ -23,12 +23,12 @@ export default function WaecPromoCard({ onNavigateToChecker }: WaecPromoCardProp
   };
 
   return (
-    <div id="waec-promo-card" className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+    <div id="waec-promo-card" className="w-full">
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#111C38] via-[#142247] to-[#111C38] border border-amber-500/25 shadow-[0_4px_20px_rgba(0,0,0,0.25)] p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 transition-all hover:border-amber-500/45 group"
+        className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#111C38] via-[#142247] to-[#111C38] border border-amber-500/25 shadow-[0_4px_20px_rgba(0,0,0,0.25)] p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 transition-all hover:border-amber-500/45 group h-full"
       >
         {/* Subtle ambient gold background highlight */}
         <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/5 blur-2xl rounded-full pointer-events-none -translate-y-1/2 translate-x-1/3" />

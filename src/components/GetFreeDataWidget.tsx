@@ -21,6 +21,15 @@ export const GetFreeDataWidget: React.FC = () => {
     });
     return () => unsubAuth();
   }, []);
+
+  // Listen for external open trigger
+  useEffect(() => {
+    const handleTrigger = () => {
+      handleOpenModal();
+    };
+    window.addEventListener('OPEN_FREE_DATA_MODAL', handleTrigger);
+    return () => window.removeEventListener('OPEN_FREE_DATA_MODAL', handleTrigger);
+  }, [currentUser, servicePrice]);
   
   // Modal Stages: 'pay' | 'spin' | 'win_form' | 'win_success' | 'loss'
   const [stage, setStage] = useState<'pay' | 'spin' | 'win_form' | 'win_success' | 'loss'>('pay');
@@ -28,6 +37,7 @@ export const GetFreeDataWidget: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [paymentRef, setPaymentRef] = useState<string>('');
   const [phone, setPhone] = useState<string>('');
+  const [network, setNetwork] = useState<string>('MTN');
   
   // Spin state
   const [isSpinning, setIsSpinning] = useState<boolean>(false);
@@ -89,6 +99,7 @@ export const GetFreeDataWidget: React.FC = () => {
     setStage(servicePrice <= 0 ? 'spin' : 'pay');
     setPaymentRef('');
     setPhone('');
+    setNetwork('MTN');
     setIsSpinning(false);
     setWheelRotation(0);
     setHasSpun(false);
@@ -96,12 +107,6 @@ export const GetFreeDataWidget: React.FC = () => {
   };
 
   const handleOpenModal = () => {
-    const activeUser = currentUser || auth.currentUser;
-    if (!activeUser) {
-      toast.error("You must login before accessing Free Data! 🎁");
-      window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
-      return;
-    }
     setIsOpen(true);
     if (servicePrice <= 0) {
       setStage('spin');
@@ -113,12 +118,6 @@ export const GetFreeDataWidget: React.FC = () => {
   // 2. Step 1: Handle Payment / Free Spin Entry
   const handleInitiatePayment = async () => {
     const activeUser = currentUser || auth.currentUser;
-    if (!activeUser) {
-      toast.error("You must login before continuing! 🎁");
-      window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
-      setIsOpen(false);
-      return;
-    }
 
     if (servicePrice <= 0) {
       setStage('spin');
@@ -131,7 +130,7 @@ export const GetFreeDataWidget: React.FC = () => {
     const publicKey = "pk_live_1a324af248d2bb1e2f784e7c27981f58f7d66b2c";
     const pesewas = Math.round(servicePrice * 100);
 
-    const userEmail = (activeUser.email && activeUser.email.includes("@"))
+    const userEmail = activeUser?.email && activeUser.email.includes("@")
       ? activeUser.email
       : "customer@kingjdeals.com";
 
@@ -151,7 +150,7 @@ export const GetFreeDataWidget: React.FC = () => {
         },
         onClose: () => {
           setIsSubmitting(false);
-          toast.warning("Payment cancelled. You must complete payment to spin.");
+          toast.warning("Payment cancelled. Complete payment to spin.");
         }
       });
     } catch (err: any) {
@@ -227,33 +226,32 @@ export const GetFreeDataWidget: React.FC = () => {
     }, 3500);
   };
 
-  // 4. Step 3: Handle Claim Submission for Winner
+  // 4. Step 3: Handle Claim Submission for Winner (Only after winning spin)
   const handleClaimFreeData = async (e: React.FormEvent) => {
     e.preventDefault();
     const activeUser = currentUser || auth.currentUser;
-    if (!activeUser) {
-      toast.error("You must be logged in to claim Free Data! 🎁");
-      window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
-      setIsOpen(false);
-      return;
-    }
 
     const phoneClean = phone.trim().replace(/\s/g, '');
     if (!phoneClean || phoneClean.length < 9) {
-      toast.error("Please enter a valid phone number.");
+      toast.error("Please enter a valid phone number (at least 9 digits).");
+      return;
+    }
+
+    if (!network) {
+      toast.error("Please select your mobile network.");
       return;
     }
 
     setIsSubmitting(true);
     try {
       const orderData = {
-        email: activeUser.email || `${phoneClean}@customer.kingjdeals.com`,
+        email: activeUser?.email || `${phoneClean}@customer.kingjdeals.com`,
         serviceType: "Free Data Win",
         orderType: "Free Data Win",
         isFreeDataWin: true,
-        network: "Free Data",
-        bundle: "1GB Free Data Win",
-        bundleName: "1GB Free Data Win",
+        network: network,
+        bundle: `1GB ${network} Free Data Win`,
+        bundleName: `1GB ${network} Free Data Win`,
         phone: phoneClean,
         amount: Number(servicePrice || 0),
         quantity: 1,
@@ -262,8 +260,8 @@ export const GetFreeDataWidget: React.FC = () => {
         paymentMethod: servicePrice > 0 ? "paystack" : "free_promo",
         reference: paymentRef || `FD_${Date.now()}_${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
         createdAt: serverTimestamp(),
-        userId: activeUser.uid,
-        customerName: activeUser.displayName || (phoneClean ? `Customer (${phoneClean})` : "Royal Customer"),
+        userId: activeUser?.uid || "free_data_winner",
+        customerName: activeUser?.displayName || (phoneClean ? `Customer (${phoneClean})` : "Royal Winner"),
       };
 
       await addDoc(collection(db, "orders"), orderData);
@@ -337,57 +335,78 @@ export const GetFreeDataWidget: React.FC = () => {
       {/* Modal Overlay */}
       <AnimatePresence>
         {isOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto">
             <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              initial={{ scale: 0.92, opacity: 0, y: 15 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative w-full max-w-md bg-[#0B132B] border-2 border-amber-400/80 rounded-3xl p-6 text-white shadow-[0_25px_60px_rgba(0,0,0,0.8),0_0_30px_rgba(251,191,36,0.2)] overflow-hidden"
+              exit={{ scale: 0.92, opacity: 0, y: 15 }}
+              className="relative w-full max-w-md bg-[#0B132B] border-2 border-amber-400 rounded-3xl p-5 sm:p-6 text-white shadow-[0_25px_60px_rgba(0,0,0,0.9),0_0_35px_rgba(251,191,36,0.25)] overflow-hidden my-auto"
             >
+              {/* Top ambient gold glow */}
+              <div className="absolute top-0 right-0 w-40 h-40 bg-amber-400/10 blur-2xl rounded-full pointer-events-none -translate-y-1/2 translate-x-1/3" />
+
               {/* Close Button */}
               <button
                 type="button"
                 onClick={resetModalState}
-                className="absolute top-4 right-4 p-2 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-all z-10"
+                className="absolute top-4 right-4 p-2 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-all z-10 cursor-pointer"
+                title="Close"
               >
                 <X className="w-5 h-5" />
               </button>
 
               {/* Stage 1: Pay / Free Entry Gate */}
               {stage === 'pay' && (
-                <div className="flex flex-col items-center text-center space-y-5 py-2">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-300 text-slate-950 flex items-center justify-center shadow-lg">
-                    <Gift className="w-9 h-9" />
+                <div className="flex flex-col items-center text-center space-y-4 py-1">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-tr from-amber-500 via-yellow-400 to-amber-300 text-slate-950 flex items-center justify-center shadow-lg">
+                    <Gift className="w-8 h-8 sm:w-9 sm:h-9 stroke-[2.5]" />
                   </div>
+
                   <div>
-                    <h3 className="text-2xl font-black uppercase text-amber-400 tracking-tight">
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-black uppercase tracking-wider mb-1.5">
+                      <Sparkles className="w-3 h-3 text-amber-400" />
+                      Free Data Lucky Spin
+                    </div>
+                    <h3 className="text-xl sm:text-2xl font-black uppercase text-slate-100 tracking-tight">
                       Get Free Data Promo 🎁
                     </h3>
-                    <p className="text-xs text-slate-300 mt-2 font-medium leading-relaxed px-2">
+                    <p className="text-xs text-slate-300 mt-1 font-medium leading-relaxed px-1">
                       {servicePrice <= 0 ? (
-                        <>Spin the Lucky Data Wheel for <span className="font-extrabold text-amber-300 uppercase">100% FREE</span>! Win free data instantly!</>
+                        <>Spin the Lucky Data Wheel for <span className="font-extrabold text-amber-300 uppercase">100% FREE</span> & win instant data!</>
                       ) : (
-                        <>Pay <span className="font-extrabold text-amber-300">GH₵{servicePrice.toFixed(2)}</span> via Paystack to unlock 1 spin on the Lucky Data Wheel! Win free data instantly!</>
+                        <>Pay <span className="font-extrabold text-amber-300">GH₵{servicePrice.toFixed(2)}</span> to unlock 1 spin on the Lucky Data Wheel!</>
                       )}
                     </p>
                   </div>
 
-                  <div className="w-full bg-slate-900/90 border border-amber-400/30 rounded-2xl p-4 flex items-center justify-between">
-                    <span className="text-xs uppercase font-extrabold text-slate-300">Spin Gate Entry Fee</span>
-                    <span className="text-xl font-black text-amber-400 font-mono">
-                      {servicePrice <= 0 ? "FREE (GH₵ 0.00)" : `GH₵ ${servicePrice.toFixed(2)}`}
-                    </span>
+                  {/* Checkout summary breakdown */}
+                  <div className="w-full bg-slate-900/90 border border-amber-400/30 rounded-2xl p-4 space-y-2.5 text-left">
+                    <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-800">
+                      <span className="text-slate-400 font-medium">Service Package</span>
+                      <span className="font-bold text-slate-200">1x Lucky Wheel Spin (Win 1GB Data)</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-800">
+                      <span className="text-slate-400 font-medium">Supported Networks</span>
+                      <span className="font-bold text-amber-400">MTN • Telecel • AT</span>
+                    </div>
+                    <div className="flex items-center justify-between pt-0.5">
+                      <span className="text-xs uppercase font-extrabold text-slate-300">Amount Due</span>
+                      <span className="text-2xl font-black text-amber-400 font-mono">
+                        {servicePrice <= 0 ? "FREE (GH₵ 0.00)" : `GH₵ ${servicePrice.toFixed(2)}`}
+                      </span>
+                    </div>
                   </div>
 
+                  {/* Direct Pay Action Button */}
                   <button
                     type="button"
                     disabled={isSubmitting}
                     onClick={handleInitiatePayment}
-                    className="w-full h-14 bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black rounded-2xl flex items-center justify-center gap-2 shadow-lg uppercase tracking-wider text-sm transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                    className="w-full h-13 sm:h-14 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:brightness-110 text-slate-950 font-black rounded-2xl flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(245,158,11,0.35)] uppercase tracking-wider text-sm transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
                   >
                     {isSubmitting ? (
                       <>
-                        <Loader2 className="w-5 h-5 animate-spin" /> Launching Paystack...
+                        <Loader2 className="w-5 h-5 animate-spin text-slate-950" /> Launching Paystack...
                       </>
                     ) : servicePrice <= 0 ? (
                       <>
@@ -399,6 +418,10 @@ export const GetFreeDataWidget: React.FC = () => {
                       </>
                     )}
                   </button>
+
+                  <p className="text-[10px] text-slate-400 flex items-center justify-center gap-1">
+                    <span>🔒 Secured by Paystack (Mobile Money & Card)</span>
+                  </p>
                 </div>
               )}
 
@@ -463,40 +486,72 @@ export const GetFreeDataWidget: React.FC = () => {
                 </div>
               )}
 
-              {/* Stage 3: Winner Claim Form */}
+              {/* Stage 3: Winner Claim Form (Number and network type taken here after winning spin) */}
               {stage === 'win_form' && (
-                <div className="flex flex-col items-center text-center space-y-5 py-2">
-                  <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-400 text-emerald-400 flex items-center justify-center shadow-lg animate-bounce">
-                    <Trophy className="w-9 h-9" />
+                <div className="flex flex-col items-center text-center space-y-4 py-2">
+                  <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border-2 border-emerald-400 text-emerald-400 flex items-center justify-center shadow-lg animate-bounce">
+                    <Trophy className="w-8 h-8" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-black uppercase text-amber-400 tracking-tight">
-                      Win🎉 CONGRATULATIONS!
+                    <h3 className="text-xl sm:text-2xl font-black uppercase text-amber-400 tracking-tight">
+                      🎉 CONGRATULATIONS! YOU WON!
                     </h3>
                     <p className="text-xs text-slate-300 mt-1 font-medium">
-                      You won free data! Enter your phone number below to receive your bundle.
+                      Select your network and enter your phone number to receive your free data bundle.
                     </p>
                   </div>
 
-                  <form onSubmit={handleClaimFreeData} className="w-full space-y-4">
-                    <div className="text-left space-y-1.5">
-                      <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                        Phone Number for Data
+                  <form onSubmit={handleClaimFreeData} className="w-full space-y-3.5 text-left">
+                    {/* 1. Select Network */}
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-black uppercase tracking-wider text-slate-300">
+                        1. Select Mobile Network
+                      </label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { id: 'MTN', name: 'MTN', color: 'border-yellow-400 bg-yellow-400/10 text-yellow-400' },
+                          { id: 'Telecel', name: 'Telecel', color: 'border-red-500 bg-red-500/10 text-red-400' },
+                          { id: 'AT', name: 'AT', color: 'border-blue-400 bg-blue-400/10 text-blue-400' },
+                        ].map((net) => {
+                          const isSelected = network === net.id;
+                          return (
+                            <button
+                              key={net.id}
+                              type="button"
+                              onClick={() => setNetwork(net.id)}
+                              className={`h-11 rounded-xl font-black text-xs uppercase tracking-wider border-2 transition-all cursor-pointer flex items-center justify-center ${
+                                isSelected
+                                  ? `${net.color} shadow-md ring-2 ring-amber-400/50 scale-[1.02]`
+                                  : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                              }`}
+                            >
+                              {net.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* 2. Recipient Phone Number */}
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-black uppercase tracking-wider text-slate-300">
+                        2. Phone Number for Data Delivery
                       </label>
                       <input
                         type="tel"
                         required
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
-                        placeholder="e.g. 024XXXXXXX"
-                        className="w-full h-13 px-4 rounded-xl bg-slate-900 border-2 border-amber-400/50 text-white font-mono placeholder:text-slate-500 focus:outline-none focus:border-amber-400 transition-all"
+                        placeholder="e.g. 0244123456"
+                        className="w-full h-12 px-3.5 rounded-xl bg-slate-900 border-2 border-amber-400/50 text-white font-mono placeholder:text-slate-500 focus:outline-none focus:border-amber-400 transition-all text-sm"
                       />
                     </div>
 
+                    {/* Submit button */}
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="w-full h-14 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black rounded-2xl flex items-center justify-center gap-2 shadow-lg uppercase tracking-wider text-sm transition-all active:scale-95 disabled:opacity-50"
+                      className="w-full h-13 sm:h-14 bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-600 hover:to-emerald-500 text-slate-950 font-black rounded-2xl flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(16,185,129,0.35)] uppercase tracking-wider text-sm transition-all active:scale-95 disabled:opacity-50 cursor-pointer mt-2"
                     >
                       {isSubmitting ? (
                         <>
@@ -504,7 +559,7 @@ export const GetFreeDataWidget: React.FC = () => {
                         </>
                       ) : (
                         <>
-                          CLAIM FREE DATA 🚀
+                          CLAIM FREE {network} DATA 🚀
                         </>
                       )}
                     </button>
@@ -523,7 +578,7 @@ export const GetFreeDataWidget: React.FC = () => {
                       Claim Submitted! 👑
                     </h3>
                     <p className="text-xs text-slate-300 mt-2 font-medium leading-relaxed">
-                      Your Free Data claim for <span className="font-mono text-amber-300 font-bold">{phone}</span> has been logged in the admin dashboard. You will receive your data shortly!
+                      Your Free Data claim for <span className="font-bold text-amber-300">{network}</span> (<span className="font-mono text-amber-300 font-bold">{phone}</span>) has been logged in the admin dashboard. You will receive your data shortly!
                     </p>
                   </div>
 
