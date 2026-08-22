@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { auth, db } from '@/src/lib/firebase';
 import { 
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  signInWithRedirect
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,8 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
@@ -39,7 +42,9 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       const userFullName = user.displayName || (user.email ? user.email.split('@')[0] : "Customer");
       const userUsername = user.displayName ? user.displayName.toLowerCase().replace(/\s+/g, '_') : (user.email ? user.email.split('@')[0] : "customer");
-      
+      const adminEmails = ['kingjdeals@gmail.com', 'jeffreybonneya@gmail.com', 'emmagyapong62@gmail.com'];
+      const isEmailAdmin = adminEmails.includes(user.email?.toLowerCase() || '');
+
       if (!userDoc.exists()) {
         await setDoc(doc(db, 'users', user.uid), {
           uid: user.uid,
@@ -49,7 +54,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           fullName: userFullName,
           displayName: user.displayName || userFullName,
           username: userUsername,
-          role: 'user',
+          role: isEmailAdmin ? 'admin' : 'user',
           walletBalance: 0,
           photoURL: user.photoURL || '',
           topupReference: 'KJ-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
@@ -64,6 +69,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         if (!existingData.username && userUsername) updates.username = userUsername;
         if (!existingData.id) updates.id = user.uid;
         if (user.photoURL && !existingData.photoURL) updates.photoURL = user.photoURL;
+        if (isEmailAdmin && existingData.role !== 'admin') updates.role = 'admin';
         if (Object.keys(updates).length > 0) {
           await setDoc(doc(db, 'users', user.uid), updates, { merge: true });
         }
@@ -72,10 +78,28 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       toast.success("Logged in with Google!");
       onClose();
     } catch (error: any) {
+      if (error.code === 'auth/popup-closed-by-user' || error.message?.includes('popup-closed-by-user')) {
+        // User closed the popup intentionally - notify gently without triggering error logs
+        toast.info("Google sign-in cancelled.");
+        return;
+      }
+
+      if (error.code === 'auth/popup-blocked' || error.message?.includes('popup-blocked')) {
+        toast.warning(
+          isIframe 
+            ? "Google Sign-In pop-up was blocked inside the preview frame. Click 'Open App in New Tab 🔗' below to log in!"
+            : "Login pop-up was blocked by your browser. Please allow popups or click 'Open App in New Tab 🔗' below!",
+          { duration: 7000 }
+        );
+        return;
+      }
+
       console.error("Login Error:", error);
       let errorMessage = error.message || "Google login failed";
       
-      if (error.code === 'auth/unauthorized-domain') {
+      if (error.code === 'auth/internal-error' || error.message?.includes('internal-error')) {
+        errorMessage = "Google login encountered an iframe restriction. Please click 'Open App in New Tab 🔗' below to sign in!";
+      } else if (error.code === 'auth/unauthorized-domain') {
         errorMessage = "This domain is not authorized in Firebase. Please add it to Authorized Domains in Firebase Console.";
       } else if (error.code === 'auth/network-request-failed' || error.message?.includes('network-request-failed')) {
         errorMessage = "Google login was blocked inside the iframe by your browser. Please open the app in a new tab!";

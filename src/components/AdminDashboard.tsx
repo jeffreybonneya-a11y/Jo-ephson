@@ -27,6 +27,11 @@ import {
   Complaint,
 } from "@/src/types";
 import { getProductImage } from "@/src/lib/images";
+import {
+  deduplicateOrdersList,
+  purgeDuplicateOrdersFromFirestore,
+  isFcOrCoinsOrder,
+} from "@/src/lib/orderDeduplication";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -126,6 +131,7 @@ export default function AdminDashboard() {
   const [wholesaleCategoryFilter, setWholesaleCategoryFilter] = useState("ALL");
   const [notifierCount, setNotifierCount] = useState(0);
   const [isSavingWholesale, setIsSavingWholesale] = useState(false);
+  const [isPurgingDuplicates, setIsPurgingDuplicates] = useState(false);
 
   const calculateDefaultWholesale = (bundle: any): number => {
     const isFCPackage =
@@ -214,6 +220,7 @@ export default function AdminDashboard() {
       collection(db, "orders"),
       (snapshot) => {
         const allOrders = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() as any }));
+        const cleanOrders = deduplicateOrdersList(allOrders);
         
         const getOrderTime = (o: any) => {
           if (!o) return Date.now();
@@ -228,11 +235,11 @@ export default function AdminDashboard() {
           return Date.now();
         };
 
-        allOrders.sort((a, b) => getOrderTime(b) - getOrderTime(a));
+        cleanOrders.sort((a, b) => getOrderTime(b) - getOrderTime(a));
         
         const resetTimeStr = localStorage.getItem('admin_notifier_reset_time');
         const resetTime = resetTimeStr ? parseInt(resetTimeStr, 10) : 0;
-        const unreadNewOrders = allOrders.filter((o) => {
+        const unreadNewOrders = cleanOrders.filter((o) => {
           const orderTime = getOrderTime(o);
           const isExplicitFailed =
             o.paymentStatus === "failed" ||
@@ -246,7 +253,7 @@ export default function AdminDashboard() {
         }).length;
         
         setNotifierCount(unreadNewOrders);
-        setOrders(allOrders);
+        setOrders(cleanOrders);
       },
       (err) => {
         console.error("Orders listener error:", err);
@@ -772,6 +779,43 @@ export default function AdminDashboard() {
     }
   };
 
+  const handlePurgeDuplicates = async (onlyFc: boolean = false) => {
+    const targetLabel = onlyFc
+      ? "FC Mobile Points, Silver & Game Coins"
+      : "ALL services across the store";
+    
+    const confirmPurge = window.confirm(
+      `👑 ROYAL CLEANUP: Do you want to permanently scan and delete duplicate orders for ${targetLabel} from the database?\n\n` +
+      `• The verified/best order will ALWAYS be preserved safely.\n` +
+      `• Redundant duplicate submissions will be deleted from Firestore.\n\n` +
+      `Click OK to proceed.`
+    );
+    if (!confirmPurge) return;
+
+    setIsPurgingDuplicates(true);
+    toast.info("Royal duplicate scan initiated... 🧹");
+
+    try {
+      const result = await purgeDuplicateOrdersFromFirestore(db, { onlyFcAndCoins: onlyFc });
+      if (result.totalRemoved > 0) {
+        toast.success(
+          `🎉 Royal Clean Complete! Removed ${result.totalRemoved} duplicate order(s) (${result.fcRemoved} FC Mobile/Coins duplicates) from ${result.totalScanned} scanned orders! 👑`,
+          { duration: 6000 }
+        );
+      } else {
+        toast.info(
+          `✨ Database is 100% clean! No duplicate orders found among ${result.totalScanned} orders. 👑`,
+          { duration: 4000 }
+        );
+      }
+    } catch (err: any) {
+      console.error("Purge error:", err);
+      toast.error(`Cleanup failed: ${err.message || "Unknown error"}`);
+    } finally {
+      setIsPurgingDuplicates(false);
+    }
+  };
+
   const handleDeleteAgentOrder = async (orderId: string) => {
     try {
       const confirmDelete = window.confirm(
@@ -1271,52 +1315,82 @@ export default function AdminDashboard() {
                   Orders Activity👑
                 </CardTitle>
                 
-                {/* Unified Filter Pills */}
-                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border dark:border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => setOrderSourceFilter('all')}
-                    className={`px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-wider transition-all cursor-pointer ${
-                      orderSourceFilter === 'all'
-                        ? 'bg-primary text-secondary shadow-sm'
-                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                    }`}
-                  >
-                    All ({orders.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setOrderSourceFilter('direct')}
-                    className={`px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-wider transition-all cursor-pointer ${
-                      orderSourceFilter === 'direct'
-                        ? 'bg-primary text-secondary shadow-sm'
-                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                    }`}
-                  >
-                    Direct Shop ({orders.filter(o => !o.agent_id && !o.agentId && !o.isFreeDataWin && o.serviceType !== "Free Data Win" && o.network !== "Free Data").length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setOrderSourceFilter('agent')}
-                    className={`px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-wider transition-all cursor-pointer ${
-                      orderSourceFilter === 'agent'
-                        ? 'bg-primary text-secondary shadow-sm'
-                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                    }`}
-                  >
-                    Agent Stores ({orders.filter(o => o.agent_id || o.agentId).length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setOrderSourceFilter('freedata')}
-                    className={`px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-wider transition-all cursor-pointer ${
-                      orderSourceFilter === 'freedata'
-                        ? 'bg-amber-500 text-slate-950 shadow-sm'
-                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                    }`}
-                  >
-                    Free Data Wins ({orders.filter(o => o.isFreeDataWin || o.serviceType === "Free Data Win" || o.network === "Free Data").length})
-                  </button>
+                {/* Unified Filter Pills & Duplicate Cleanup */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border dark:border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setOrderSourceFilter('all')}
+                      className={`px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-wider transition-all cursor-pointer ${
+                        orderSourceFilter === 'all'
+                          ? 'bg-primary text-secondary shadow-sm'
+                          : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      All ({orders.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOrderSourceFilter('direct')}
+                      className={`px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-wider transition-all cursor-pointer ${
+                        orderSourceFilter === 'direct'
+                          ? 'bg-primary text-secondary shadow-sm'
+                          : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      Direct Shop ({orders.filter(o => !o.agent_id && !o.agentId && !o.isFreeDataWin && o.serviceType !== "Free Data Win" && o.network !== "Free Data").length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOrderSourceFilter('agent')}
+                      className={`px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-wider transition-all cursor-pointer ${
+                        orderSourceFilter === 'agent'
+                          ? 'bg-primary text-secondary shadow-sm'
+                          : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      Agent Stores ({orders.filter(o => o.agent_id || o.agentId).length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOrderSourceFilter('freedata')}
+                      className={`px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-wider transition-all cursor-pointer ${
+                        orderSourceFilter === 'freedata'
+                          ? 'bg-amber-500 text-slate-950 shadow-sm'
+                          : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      Free Data Wins ({orders.filter(o => o.isFreeDataWin || o.serviceType === "Free Data Win" || o.network === "Free Data").length})
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={isPurgingDuplicates}
+                      className="h-8 px-3 rounded-xl border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 hover:bg-amber-100 font-black text-[9px] uppercase tracking-wider shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
+                      title="Remove duplicate orders for FC Mobile Points, Silver & Game Coins"
+                      onClick={() => handlePurgeDuplicates(true)}
+                    >
+                      {isPurgingDuplicates ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-3 h-3 text-amber-600" />
+                      )}
+                      Clean FC Mobile/Coins Duplicates 🧹
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={isPurgingDuplicates}
+                      className="h-8 px-2.5 rounded-xl border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 hover:bg-red-100 font-black text-[9px] uppercase tracking-wider shadow-sm flex items-center gap-1 transition-all cursor-pointer"
+                      title="Scan and delete all duplicate orders across the entire platform"
+                      onClick={() => handlePurgeDuplicates(false)}
+                    >
+                      Purge All Duplicates 🗑️
+                    </Button>
+                  </div>
                 </div>
               </div>
             </CardHeader>
@@ -3323,6 +3397,50 @@ export default function AdminDashboard() {
 
                 {/* 4. Delete Agent Orders Tab Content */}
                 <TabsContent value="delete" className="outline-none">
+                  {/* Duplicate Orders Cleanup Center Card */}
+                  <div className="mb-6 p-5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-red-500/10 to-purple-500/10 border-2 border-amber-500/30 dark:border-amber-500/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Trash2 className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                        <h4 className="font-black text-sm uppercase text-slate-900 dark:text-white tracking-wide">
+                          Duplicate Orders Cleanup Center 👑
+                        </h4>
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
+                        Instantly scan and remove duplicate order submissions (especially for <span className="font-bold text-amber-600 dark:text-amber-400">FC Mobile Points</span>, <span className="font-bold text-slate-700 dark:text-slate-300">FC Silver</span> & <span className="font-bold text-yellow-600 dark:text-yellow-400">Game Coins</span>). Verified active orders are always kept safe.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                      <Button
+                        size="sm"
+                        disabled={isPurgingDuplicates}
+                        onClick={() => handlePurgeDuplicates(true)}
+                        className="h-10 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black text-xs uppercase tracking-wider shadow-md flex items-center gap-2 transition-all cursor-pointer flex-1 md:flex-initial"
+                      >
+                        {isPurgingDuplicates ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-4 h-4" />
+                        )}
+                        Clean FC Mobile & Silver Duplicates 🧹
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={isPurgingDuplicates}
+                        onClick={() => handlePurgeDuplicates(false)}
+                        className="h-10 px-4 rounded-xl font-black text-xs uppercase tracking-wider shadow-md flex items-center gap-2 transition-all cursor-pointer flex-1 md:flex-initial"
+                      >
+                        {isPurgingDuplicates ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
+                        Purge All Duplicates 🗑️
+                      </Button>
+                    </div>
+                  </div>
+
                   <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border dark:border-slate-800">
                     <div className="flex-1 w-full max-w-md relative">
                       <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />

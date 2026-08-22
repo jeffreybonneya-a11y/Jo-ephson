@@ -8,7 +8,7 @@ export default function Hero() {
   };
 
   return (
-    <section className="relative pt-24 pb-12 md:pt-32 md:pb-20 overflow-hidden bg-[#0B132B] text-slate-100">
+    <section className="relative pt-4 sm:pt-6 pb-12 md:pb-20 overflow-hidden bg-[#0B132B] text-slate-100">
       {/* Background decoration with warm gold glows & micro dot matrix */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-[10%] left-1/3 w-[600px] h-[350px] bg-amber-500/10 blur-[150px] rounded-full" />

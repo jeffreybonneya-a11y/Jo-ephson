@@ -258,14 +258,16 @@ export default function Navbar({
 
               {isAdmin && !agentContext && (
                 <Button 
-                  variant={isAdminView ? "default" : "ghost"} 
+                  variant={isAdminView ? "default" : "outline"} 
                   size="sm" 
                   onClick={() => { onAdminView(!isAdminView); }}
-                  className="px-2 h-9 relative border border-amber-500/20 text-amber-400 hover:bg-amber-500/10"
+                  className={`px-3 h-9 relative border border-amber-500/40 text-amber-300 hover:bg-amber-500/20 flex items-center gap-1.5 font-black text-xs cursor-pointer shadow-md transition-all ${isAdminView ? 'bg-amber-500 text-slate-950 shadow-amber-500/30' : 'bg-amber-500/10'}`}
                 >
                   <LayoutDashboard className="w-4 h-4" />
+                  <span className="hidden sm:inline font-extrabold tracking-wide">ADMIN DASHBOARD 👑</span>
+                  <span className="sm:hidden font-extrabold tracking-wide">ADMIN</span>
                   {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[8px] font-bold text-white shadow-lg">
+                    <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[9px] font-black text-white shadow-lg animate-bounce">
                       {unreadCount}
                     </span>
                   )}

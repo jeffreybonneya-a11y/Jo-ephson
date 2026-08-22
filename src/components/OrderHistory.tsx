@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '@/src/lib/firebase';
 import { Order } from '@/src/types';
+import { deduplicateOrdersList } from '@/src/lib/orderDeduplication';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Smartphone, Clock, CheckCircle2, XCircle, Loader2, Package } from 'lucide-react';
@@ -25,7 +26,7 @@ export default function OrderHistory() {
         id: doc.id,
         ...doc.data()
       } as Order));
-      setOrders(orderData);
+      setOrders(deduplicateOrdersList(orderData));
       setLoading(false);
     }, (error) => {
       console.error("Order history error:", error);

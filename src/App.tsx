@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
+import WaecPromoCard from './components/WaecPromoCard';
 import BundleList from './components/BundleList';
 import HowItWorks from './components/HowItWorks';
 import CheckoutForm from './components/CheckoutForm';
@@ -177,7 +178,7 @@ export default function App() {
     const authUnsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       setIsAuthLoading(false);
-      const adminEmails = ['jeffreybonneya@gmail.com', 'emmagyapong62@gmail.com'];
+      const adminEmails = ['kingjdeals@gmail.com', 'jeffreybonneya@gmail.com', 'emmagyapong62@gmail.com'];
       const userIsAdmin = user?.email ? adminEmails.includes(user.email.toLowerCase()) : false;
       setIsAdmin(userIsAdmin);
       
@@ -222,6 +223,7 @@ export default function App() {
             if (!data.username && userUsername) updates.username = userUsername;
             if (!data.id) updates.id = user.uid;
             if (user.photoURL && !data.photoURL) updates.photoURL = user.photoURL;
+            if (isEmailAdmin && data.role !== 'admin') updates.role = 'admin';
             if (Object.keys(updates).length > 0) {
               setDoc(userRef, updates, { merge: true }).catch(console.error);
             }
@@ -233,7 +235,10 @@ export default function App() {
           if (docSnapshot.exists()) {
             const data = docSnapshot.data() as UserProfile;
             setProfile(data);
-            const isEmailAdmin = adminEmails.includes(user.email?.toLowerCase() || '');
+            const isEmailAdmin = adminEmails.includes(user.email?.trim().toLowerCase() || '') || 
+                                 adminEmails.includes(data.email?.trim().toLowerCase() || '') || 
+                                 adminEmails.includes(data.gmail?.trim().toLowerCase() || '') || 
+                                 data.role === 'admin';
             setIsAdmin(isEmailAdmin);
           }
         });
@@ -432,6 +437,9 @@ export default function App() {
           <AgentStore profile={profile} onSelectBundle={handleSelectBundle} />
         ) : (
           <>
+            <div className="bg-[#0B132B] pt-20 sm:pt-24 pb-2 relative z-20">
+              <WaecPromoCard />
+            </div>
             <Hero />
             <BundleList onSelectBundle={handleSelectBundle} isAgentUser={hasRegisteredAgent || !!profile?.isAgent} />
           </>

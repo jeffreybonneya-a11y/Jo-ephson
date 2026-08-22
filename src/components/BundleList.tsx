@@ -175,8 +175,23 @@ export default function BundleList({
         }
       }, 100);
     };
+    const handleNavChecker = () => {
+      setActiveTab("Result Checker");
+      setTimeout(() => {
+        const tabsElement = document.getElementById("bundle-tabs");
+        if (tabsElement) {
+          tabsElement.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 100);
+    };
     window.addEventListener("NAVIGATE_TO_PC_GAMES", handleNav);
-    return () => window.removeEventListener("NAVIGATE_TO_PC_GAMES", handleNav);
+    window.addEventListener("NAVIGATE_TO_RESULT_CHECKER", handleNavChecker);
+    window.addEventListener("NAVIGATE_TO_RESULTS_CHECKER", handleNavChecker);
+    return () => {
+      window.removeEventListener("NAVIGATE_TO_PC_GAMES", handleNav);
+      window.removeEventListener("NAVIGATE_TO_RESULT_CHECKER", handleNavChecker);
+      window.removeEventListener("NAVIGATE_TO_RESULTS_CHECKER", handleNavChecker);
+    };
   }, []);
 
   useEffect(() => {
@@ -988,7 +1003,7 @@ export default function BundleList({
                             {fcOptionTab === "points" && (
                               <div className="w-full">
                                 {(() => {
-                                  const rawPoints =
+                                  const allPoints =
                                     processedBundles.filter(
                                       (b) => b.category === "FC Mobile Points",
                                     ).length > 0
@@ -1096,6 +1111,15 @@ export default function BundleList({
                                           },
                                         ];
 
+                                  // Deduplicate points by dataAmount
+                                  const pointsMap = new Map();
+                                  for (const p of allPoints) {
+                                    if (!pointsMap.has(p.dataAmount)) {
+                                      pointsMap.set(p.dataAmount, p);
+                                    }
+                                  }
+                                  const rawPoints = Array.from(pointsMap.values());
+
                                   const filteredPoints = rawPoints
                                     .filter((b) => {
                                       if (!searchQuery) return true;
@@ -1184,9 +1208,16 @@ export default function BundleList({
                             {fcOptionTab === "silver" && (
                               <div className="w-full">
                                 {(() => {
-                                  const rawSilver = processedBundles.filter(
+                                  const allSilver = processedBundles.filter(
                                     (b) => b.category === "FC Mobile Silver",
                                   );
+                                  const silverMap = new Map();
+                                  for (const s of allSilver) {
+                                    if (!silverMap.has(s.dataAmount)) {
+                                      silverMap.set(s.dataAmount, s);
+                                    }
+                                  }
+                                  const rawSilver = Array.from(silverMap.values());
                                   const filteredSilver = rawSilver
                                     .filter((b) => {
                                       if (!searchQuery) return true;

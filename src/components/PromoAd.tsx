@@ -1,7 +1,3 @@
-import React from 'react';
+import WaecPromoCard from './WaecPromoCard';
 
-const PromoAd: React.FC = () => {
-  return null;
-};
-
-export default PromoAd;
+export default WaecPromoCard;

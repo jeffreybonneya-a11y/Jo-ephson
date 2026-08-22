@@ -9,6 +9,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db, auth } from "../lib/firebase";
+import { deduplicateOrdersList } from "@/src/lib/orderDeduplication";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -82,7 +83,8 @@ export default function MyOrders() {
             return isPaidOrVerified && !isExplicitFailed;
           }
         );
-        setOrders(completedOrders);
+        const uniqueOrders = deduplicateOrdersList(completedOrders);
+        setOrders(uniqueOrders);
         setLoading(false);
       },
       (error) => {
