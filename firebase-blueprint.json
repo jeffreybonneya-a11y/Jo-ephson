@@ -130,6 +130,19 @@
         "created_at": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "agent_id", "withdrawal_amount", "status", "created_at"]
+    },
+    "BrandingSettings": {
+      "title": "Branding Settings",
+      "description": "Custom site branding and logo configurations.",
+      "type": "object",
+      "properties": {
+        "logoUrl": { "type": "string", "description": "Base64 or URL of the custom logo image from local disk" },
+        "brandName": { "type": "string", "description": "Custom display brand name" },
+        "tagline": { "type": "string", "description": "Custom brand tagline or slogan" },
+        "showCrown": { "type": "boolean", "description": "Whether to display the royal crown badge" },
+        "logoShape": { "type": "string", "enum": ["rounded", "circle", "square", "original"], "description": "Display crop style of the logo" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "firestore": {
@@ -168,6 +181,10 @@
     "/profit_requests/{requestId}": {
       "schema": "ProfitRequest",
       "description": "Agent profit withdrawal requests."
+    },
+    "/settings/{settingId}": {
+      "schema": "BrandingSettings",
+      "description": "Site global and branding settings."
     }
   }
 }

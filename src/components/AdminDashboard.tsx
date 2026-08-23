@@ -79,8 +79,11 @@ import {
   Gift,
   Loader2,
   Sparkles,
+  Palette,
+  Image as ImageIcon,
 } from "lucide-react";
 import { toast } from "sonner";
+import AdminBrandingManager from "./AdminBrandingManager";
 
 const parseDataAmountToMB = (amountStr: string): number => {
   if (!amountStr) return 0;
@@ -1291,6 +1294,12 @@ export default function AdminDashboard() {
                     ).length}
                 </span>
               )}
+            </TabsTrigger>
+            <TabsTrigger
+              value="branding"
+              className="h-9 px-4 rounded-lg font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-400 data-[state=active]:via-yellow-300 data-[state=active]:to-amber-500 data-[state=active]:text-slate-950 data-[state=active]:shadow-sm transition-all focus-visible:ring-0"
+            >
+              LOGO & BRANDING 🎨
             </TabsTrigger>
             <TabsTrigger
               value="complaints"
@@ -3719,6 +3728,10 @@ export default function AdminDashboard() {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="branding" className="mt-0 outline-none">
+          <AdminBrandingManager />
         </TabsContent>
 
         <TabsContent value="free_data_toggle" className="mt-0 outline-none">

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { LogIn, LogOut, LayoutDashboard, History, User, Crown, Home, MessageCircle, Download } from 'lucide-react';
 import { onSnapshot, collection, query, where } from 'firebase/firestore';
 import { UserProfile } from '@/src/types';
+import { useBranding } from '@/src/hooks/useBranding';
 import AuthModal from './AuthModal';
 import SupportModal from './SupportModal';
 
@@ -42,6 +43,7 @@ export default function Navbar({
   isAuthLoading,
   agentContext = null
 }: NavbarProps) {
+  const { branding } = useBranding();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
   const [greeting, setGreeting] = useState('');
@@ -194,14 +196,54 @@ export default function Navbar({
                 className="flex items-center gap-2 cursor-pointer select-none group"
                 onClick={() => { onAdminView(false); onHistoryView(false); onStreamView(false); onDownloadView(false); }}
               >
-                <div className="relative p-0.5 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.25)]">
-                  <div className="bg-[#0B132B] px-3.5 py-1.5 rounded-[14px] flex items-center gap-2 border border-amber-500/40">
-                    <span className="font-serif font-black text-sm md:text-base tracking-wide bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 bg-clip-text text-transparent">
-                      {agentContext ? `${agentContext.agent_name.toUpperCase()} STORE` : "KING J DEALS"}
-                    </span>
-                    <span className="text-amber-400 text-base md:text-lg">👑</span>
+                {/* Clean Logo & Text Container with no black box */}
+                {agentContext ? (
+                  <div className="relative p-0.5 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.25)]">
+                    <div className="bg-[#0B132B] px-3.5 py-1.5 rounded-[14px] flex items-center gap-2 border border-amber-500/40">
+                      <span className="font-serif font-black text-base md:text-lg tracking-wide bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 bg-clip-text text-transparent">
+                        {agentContext.agent_name.toUpperCase()} STORE
+                      </span>
+                      <span className="text-amber-400 text-lg md:text-xl">👑</span>
+                    </div>
                   </div>
-                </div>
+                ) : branding.logoUrl ? (
+                  /* Custom Logo: Clean, direct image with optional mix-blend for black bg removal and prominent size */
+                  <div className="flex items-center gap-3 py-1 group-hover:opacity-95 transition-all">
+                    <img
+                      src={branding.logoUrl}
+                      alt={branding.brandName || "Site Logo"}
+                      style={{ 
+                        height: `${Math.max(branding.logoHeight || 58, 52)}px`, 
+                        maxHeight: '72px',
+                        maxWidth: '320px'
+                      }}
+                      className={`${
+                        branding.logoShape === 'circle'
+                          ? 'rounded-full object-cover aspect-square'
+                          : branding.logoShape === 'square'
+                          ? 'rounded-lg object-contain aspect-square'
+                          : branding.logoShape === 'original'
+                          ? 'rounded-none object-contain'
+                          : 'rounded-xl object-contain'
+                      } shrink-0 transition-transform duration-200 group-hover:scale-105 filter drop-shadow-sm select-none`}
+                    />
+                    {branding.showTextInNavbar && (
+                      <span className="font-serif font-black text-xl md:text-2xl tracking-wide bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 bg-clip-text text-transparent select-none drop-shadow-sm">
+                        {branding.brandName || "KING J DEALS"}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  /* Fallback when no custom logo is uploaded yet: Larger typography */
+                  <div className="flex items-center gap-2.5 px-1 py-1">
+                    <span className="font-serif font-black text-xl sm:text-2xl tracking-wide bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 bg-clip-text text-transparent drop-shadow-sm">
+                      {branding.brandName || "KING J DEALS"}
+                    </span>
+                    {branding.showCrown !== false && (
+                      <span className="text-amber-400 text-xl sm:text-2xl animate-pulse">👑</span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

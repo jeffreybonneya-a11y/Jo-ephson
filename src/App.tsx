@@ -19,6 +19,7 @@ import { UserProfile } from './types';
 import AgentStore from './components/AgentStore';
 import ThemeCustomizer from './components/ThemeCustomizer';
 import { useTheme } from './hooks/useTheme';
+import { useBranding } from './hooks/useBranding';
 import { seedFC } from './lib/seed';
 import TopPromosRow from './components/TopPromosRow';
 import DownloadPage from './components/DownloadPage';
@@ -27,6 +28,7 @@ import GetFreeDataWidget from './components/GetFreeDataWidget';
 import { getApiUrl } from './lib/api';
 
 export default function App() {
+  const { branding } = useBranding();
   const [selectedBundle, setSelectedBundle] = useState<Bundle | null>(null);
   const [isAdminView, setIsAdminView] = useState(false);
   const [isHistoryView, setIsHistoryView] = useState(false);
@@ -48,6 +50,21 @@ export default function App() {
 
   // Theme management
   const { settings } = useTheme();
+
+  useEffect(() => {
+    if (branding.brandName) {
+      document.title = `${branding.brandName} | Data Deals & Digital Hub 👑`;
+    }
+    if (branding.logoUrl) {
+      let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.head.appendChild(link);
+      }
+      link.href = branding.logoUrl;
+    }
+  }, [branding]);
 
   useEffect(() => {
     seedFC();

@@ -171,3 +171,17 @@ export interface ProfitRequest {
   status: "pending" | "Seen";
   created_at: any;
 }
+
+export interface BrandingSettings {
+  logoUrl?: string;
+  brandName?: string;
+  tagline?: string;
+  showCrown?: boolean;
+  logoShape?: "rounded" | "circle" | "square" | "original";
+  logoHeight?: number;
+  logoBgStyle?: "dark" | "light" | "transparent" | "glass";
+  showTextInNavbar?: boolean;
+  removeBlackBackground?: boolean;
+  removeWhiteBackground?: boolean;
+  updatedAt?: any;
+}
