@@ -6,11 +6,37 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { motion } from "motion/react";
-import { Smartphone, Wifi, Zap, Crown, Search, GraduationCap, Gamepad2, Monitor, Sparkles } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import {
+  Smartphone,
+  Wifi,
+  Zap,
+  Crown,
+  Search,
+  GraduationCap,
+  Gamepad2,
+  Monitor,
+  Sparkles,
+  Filter,
+  X,
+  SlidersHorizontal,
+  PhoneCall,
+  ArrowUpDown,
+  RotateCcw,
+  Check,
+  ChevronRight,
+} from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import StreamingTab from "./StreamingTab";
 import ResultCheckerSection from "./ResultCheckerSection";
+import CategoryFilterSidebar, {
+  ServiceCategoryKey,
+  PriceFilterKey,
+  SortOptionKey,
+  CategoryCountMap,
+  CATEGORIES_CONFIG,
+} from "./CategoryFilterSidebar";
+import AirtimeSection from "./AirtimeSection";
 import fcMobileIcon from "@/src/assets/images/ea_sports_fc_mobile_cover_fixed_1782486697588.jpg";
 import pubgMobileIcon from "@/src/assets/images/pubg_mobile_cover_1782399506286.jpg";
 import fc26Icon from "@/src/assets/images/ea_sports_fc_26_cover_1782485615642.jpg";
@@ -56,6 +82,13 @@ export default function BundleList({
   const [announcement, setAnnouncement] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Category Filter Sidebar States
+  const [serviceCategory, setServiceCategory] = useState<ServiceCategoryKey>("DATA_BUNDLES");
+  const [networkFilter, setNetworkFilter] = useState<string>("ALL");
+  const [priceFilter, setPriceFilter] = useState<PriceFilterKey>("all");
+  const [sortBy, setSortBy] = useState<SortOptionKey>("popular");
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
   // Unhidden all services as requested by user
   const hiddenTabs: string[] = [];
 
@@ -63,6 +96,7 @@ export default function BundleList({
     "MTN",
     "Telecel",
     "AirtelTigo",
+    "Airtime",
     "Result Checker",
     "PC Games",
     "Premium Apps",
@@ -75,6 +109,7 @@ export default function BundleList({
 
   const mainCategories = [
     { id: "DATA_BUNDLES", label: "Data Bundles", icon: Wifi },
+    { id: "AIRTIME", label: "Airtime & Top-Up", icon: PhoneCall },
     { id: "RESULT_CHECKER", label: "Result Checker", icon: GraduationCap },
     { id: "GAME_COINS", label: "Game Coins", icon: Gamepad2 },
     { id: "PC_GAMES", label: "PC Games", icon: Monitor },
@@ -95,6 +130,8 @@ export default function BundleList({
 
   const currentMainCat = ["MTN", "Telecel", "AirtelTigo"].includes(activeTab)
     ? "DATA_BUNDLES"
+    : activeTab === "Airtime"
+    ? "AIRTIME"
     : activeTab === "Result Checker"
     ? "RESULT_CHECKER"
     : activeTab === "Game Coins"
@@ -107,19 +144,58 @@ export default function BundleList({
 
   const handleSelectMainCategory = (catId: string) => {
     if (catId === "DATA_BUNDLES") {
+      setServiceCategory("DATA_BUNDLES");
       if (!["MTN", "Telecel", "AirtelTigo"].includes(activeTab)) {
         setActiveTab("MTN");
       }
+    } else if (catId === "AIRTIME") {
+      setServiceCategory("AIRTIME");
+      setActiveTab("Airtime");
     } else if (catId === "RESULT_CHECKER") {
+      setServiceCategory("RESULT_CHECKER");
       setActiveTab("Result Checker");
     } else if (catId === "GAME_COINS") {
+      setServiceCategory("GAME_COINS");
       setActiveTab("Game Coins");
     } else if (catId === "PC_GAMES") {
+      setServiceCategory("PC_GAMES");
       setActiveTab("PC Games");
     } else if (catId === "PREMIUM_APPS") {
+      setServiceCategory("PREMIUM_APPS");
       setActiveTab("Premium Apps");
+    } else if (catId === "ALL") {
+      setServiceCategory("ALL");
+      if (!tabs.includes(activeTab)) {
+        setActiveTab("MTN");
+      }
     }
   };
+
+  const handleNetworkFilterSelect = (net: string) => {
+    setNetworkFilter(net);
+    if (net !== "ALL" && ["MTN", "Telecel", "AirtelTigo"].includes(net)) {
+      setActiveTab(net);
+      if (serviceCategory !== "DATA_BUNDLES" && serviceCategory !== "AIRTIME") {
+        setServiceCategory("DATA_BUNDLES");
+      }
+    }
+  };
+
+  const handleResetFilters = () => {
+    setServiceCategory("DATA_BUNDLES");
+    setNetworkFilter("ALL");
+    setPriceFilter("all");
+    setSortBy("popular");
+    setSearchQuery("");
+    setActiveTab("MTN");
+  };
+
+  const isFilterActive =
+    serviceCategory !== "DATA_BUNDLES" ||
+    networkFilter !== "ALL" ||
+    priceFilter !== "all" ||
+    sortBy !== "popular" ||
+    searchQuery.trim() !== "";
 
   const getNetworkColor = (tab: string) => {
     switch (tab) {
@@ -311,9 +387,26 @@ export default function BundleList({
     };
   });
 
+  const dataBundlesCount = processedBundles.filter(
+    (b) => ["MTN", "Telecel", "AirtelTigo"].includes(b.network)
+  ).length;
+
+  const categoryCounts: CategoryCountMap = {
+    ALL: dataBundlesCount + 8 + 18 + 1 + 4 + 8,
+    DATA_BUNDLES: dataBundlesCount,
+    AIRTIME: 8,
+    GAME_COINS: 18,
+    PC_GAMES: 1,
+    RESULT_CHECKER: 4,
+    PREMIUM_APPS: 8,
+  };
+
   const filteredBundles = processedBundles
     .filter((b) => b.network === activeTab)
     .filter((b) => {
+      if (priceFilter === "under_20") return b.price <= 20;
+      if (priceFilter === "20_to_50") return b.price > 20 && b.price <= 50;
+      if (priceFilter === "above_50") return b.price > 50;
       return true;
     })
     .filter((b) => {
@@ -326,6 +419,12 @@ export default function BundleList({
       );
     })
     .sort((a, b) => {
+      if (sortBy === "price_desc") {
+        return b.price - a.price;
+      }
+      if (sortBy === "price_asc") {
+        return a.price - b.price;
+      }
       if (a.network === "Telecel" && b.network === "Telecel") {
         const mbA = parseDataAmountToMB(a.dataAmount || a.name || "");
         const mbB = parseDataAmountToMB(b.dataAmount || b.name || "");
@@ -600,47 +699,183 @@ export default function BundleList({
           </div>
         )}
 
-        <Tabs
-          value={activeTab}
-          onValueChange={setActiveTab}
-          className="w-full max-w-6xl mx-auto"
-          id="bundle-tabs"
-        >
-          {/* ROYAL NAVIGATION CATEGORY BAR */}
-          <div className="w-full mb-8 space-y-3.5">
-            {/* Primary Category Selector Cards (Shown when multiple categories are unhidden) */}
-            {mainCategories.length > 1 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 bg-[#111C38] p-2.5 sm:p-3 rounded-2xl border border-amber-500/20 shadow-md">
-                {mainCategories.map((cat) => {
-                  const isActive = currentMainCat === cat.id;
-                  const IconComponent = cat.icon;
-                  return (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => handleSelectMainCategory(cat.id)}
-                      className={`flex items-center justify-center gap-2 sm:gap-2.5 px-2.5 sm:px-3 py-3 rounded-xl font-extrabold text-xs sm:text-sm transition-all duration-200 cursor-pointer select-none border ${
-                        isActive
-                          ? "bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 border-amber-300/60 shadow-[0_4px_15px_rgba(245,158,11,0.3)] scale-[1.02]"
-                          : "bg-[#0B132B]/70 text-slate-300 border-slate-800 hover:text-white hover:bg-slate-800/60 hover:border-amber-500/30"
+        {/* Mobile Filter & Category Header */}
+        <div className="lg:hidden mb-6 space-y-3">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsMobileSidebarOpen(true)}
+              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 text-slate-950 font-black text-xs shadow-md active:scale-95 transition-all shrink-0 cursor-pointer border border-amber-300"
+            >
+              <Filter className="w-4 h-4 text-slate-950" />
+              <span>Filters & Categories</span>
+              {isFilterActive && (
+                <span className="w-2 h-2 rounded-full bg-slate-950 animate-ping" />
+              )}
+            </button>
+
+            {/* Quick Mobile Search */}
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-amber-400/80" />
+              <input
+                type="text"
+                placeholder="Search products..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-8 py-2 rounded-xl border border-amber-500/30 bg-[#0B132B] text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-400 text-xs h-10 font-medium"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Mobile Horizontal Category Quick Scroll */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            {CATEGORIES_CONFIG.map((cat) => {
+              const isSelected = serviceCategory === cat.id;
+              const count = categoryCounts[cat.id];
+              const IconComponent = cat.icon;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => handleSelectMainCategory(cat.id)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black shrink-0 transition-all border cursor-pointer ${
+                    isSelected
+                      ? "bg-amber-400 text-slate-950 border-amber-300 shadow-md scale-105"
+                      : "bg-[#111C38] text-slate-300 border-slate-800 hover:text-white hover:border-amber-500/30"
+                  }`}
+                >
+                  <IconComponent className="w-3.5 h-3.5" />
+                  <span>{cat.label}</span>
+                  {count !== undefined && count > 0 && (
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                        isSelected
+                          ? "bg-slate-950/20 text-slate-950"
+                          : "bg-slate-800 text-amber-400"
                       }`}
                     >
-                      <IconComponent
-                        className={`w-4 h-4 shrink-0 ${
-                          isActive
-                            ? "text-slate-950"
-                            : "text-amber-400/80"
-                        }`}
-                      />
-                      <span className="truncate tracking-wide">{cat.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
-            {/* Sub-Header Section for Data Bundles / Categories & Search */}
-            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-[#111C38]/80 p-3 rounded-2xl border border-amber-500/20 shadow-md">
+        {/* Mobile Slide-Over Filter Drawer Modal */}
+        <AnimatePresence>
+          {isMobileSidebarOpen && (
+            <div className="fixed inset-0 z-50 lg:hidden flex">
+              {/* Backdrop */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsMobileSidebarOpen(false)}
+                className="fixed inset-0 bg-black/70 backdrop-blur-sm"
+              />
+
+              {/* Drawer panel */}
+              <motion.div
+                initial={{ x: "-100%" }}
+                animate={{ x: 0 }}
+                exit={{ x: "-100%" }}
+                transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                className="relative w-[85%] max-w-sm h-full bg-[#0B132B] border-r border-amber-500/30 p-4 shadow-2xl flex flex-col z-10 overflow-y-auto"
+              >
+                <div className="flex items-center justify-between pb-3 border-b border-amber-500/20 mb-3">
+                  <div className="flex items-center gap-2">
+                    <Crown className="w-5 h-5 text-amber-400" />
+                    <span className="font-black text-white text-base">
+                      Filter & Categories
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsMobileSidebarOpen(false)}
+                    className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="flex-1">
+                  <CategoryFilterSidebar
+                    activeCategory={serviceCategory}
+                    onSelectCategory={(cat) => {
+                      handleSelectMainCategory(cat);
+                    }}
+                    activeNetworkFilter={networkFilter}
+                    onSelectNetworkFilter={handleNetworkFilterSelect}
+                    priceFilter={priceFilter}
+                    onSelectPriceFilter={setPriceFilter}
+                    sortBy={sortBy}
+                    onSelectSortBy={setSortBy}
+                    categoryCounts={categoryCounts}
+                    isAgentUser={isAgentUser}
+                    onResetFilters={handleResetFilters}
+                    isFilterActive={isFilterActive}
+                  />
+                </div>
+
+                <div className="pt-4 border-t border-amber-500/20 mt-4 space-y-2">
+                  <Button
+                    type="button"
+                    onClick={() => setIsMobileSidebarOpen(false)}
+                    className="w-full bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-black rounded-xl h-11 shadow-lg cursor-pointer"
+                  >
+                    Apply Filters
+                  </Button>
+                  {isFilterActive && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={handleResetFilters}
+                      className="w-full text-slate-400 hover:text-white text-xs font-bold"
+                    >
+                      Reset All Filters
+                    </Button>
+                  )}
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* 2-Column Responsive Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
+          {/* Left Column: Desktop Category Filter Sidebar */}
+          <aside className="hidden lg:block lg:col-span-1 sticky top-24">
+            <CategoryFilterSidebar
+              activeCategory={serviceCategory}
+              onSelectCategory={handleSelectMainCategory}
+              activeNetworkFilter={networkFilter}
+              onSelectNetworkFilter={handleNetworkFilterSelect}
+              priceFilter={priceFilter}
+              onSelectPriceFilter={setPriceFilter}
+              sortBy={sortBy}
+              onSelectSortBy={setSortBy}
+              categoryCounts={categoryCounts}
+              isAgentUser={isAgentUser}
+              onResetFilters={handleResetFilters}
+              isFilterActive={isFilterActive}
+            />
+          </aside>
+
+          {/* Right Column: Main Catalog & Tabs Content */}
+          <div className="lg:col-span-3 min-w-0 space-y-5">
+            {/* Top Sub-Header for Data Bundles / Active Category Deals & Desktop Search */}
+            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-[#111C38]/90 p-3 rounded-2xl border border-amber-500/20 shadow-md">
               {currentMainCat === "DATA_BUNDLES" ? (
                 <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-hide">
                   <span className="text-[11px] font-black uppercase text-amber-400 px-1 shrink-0 hidden sm:inline-block tracking-wider">
@@ -652,7 +887,10 @@ export default function BundleList({
                       <button
                         key={net.id}
                         type="button"
-                        onClick={() => setActiveTab(net.id)}
+                        onClick={() => {
+                          setActiveTab(net.id);
+                          setNetworkFilter(net.id);
+                        }}
                         className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer border ${
                           isSelected
                             ? net.activeClass + " shadow-md scale-[1.02]"
@@ -666,6 +904,17 @@ export default function BundleList({
                       </button>
                     );
                   })}
+                </div>
+              ) : currentMainCat === "AIRTIME" ? (
+                <div className="flex items-center gap-2 px-2 text-xs font-extrabold text-slate-300">
+                  <PhoneCall className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>
+                    Viewing{" "}
+                    <strong className="text-amber-300 uppercase font-black tracking-wide">
+                      Airtime & Top-Up
+                    </strong>{" "}
+                    Deals 👑
+                  </span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2 px-2 text-xs font-extrabold text-slate-300">
@@ -688,11 +937,87 @@ export default function BundleList({
                   placeholder="Search products..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 rounded-xl border border-amber-500/30 bg-[#0B132B] text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-400 focus:border-amber-400 text-xs transition-all h-9 md:h-10 font-medium"
+                  className="w-full pl-9 pr-8 py-2 rounded-xl border border-amber-500/30 bg-[#0B132B] text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-400 focus:border-amber-400 text-xs transition-all h-9 md:h-10 font-medium"
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             </div>
-          </div>
+
+            {/* Active Filters Pill Bar */}
+            {isFilterActive && (
+              <div className="flex items-center flex-wrap gap-2 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs">
+                <span className="text-amber-400 font-black flex items-center gap-1">
+                  <SlidersHorizontal className="w-3.5 h-3.5" /> Active Filters:
+                </span>
+                {serviceCategory !== "DATA_BUNDLES" && (
+                  <Badge className="bg-[#0B132B] text-amber-300 border border-amber-500/30 text-[11px] gap-1 py-0.5 font-bold">
+                    {CATEGORIES_CONFIG.find((c) => c.id === serviceCategory)?.label}
+                    <X
+                      className="w-3 h-3 cursor-pointer hover:text-white"
+                      onClick={() => handleSelectMainCategory("DATA_BUNDLES")}
+                    />
+                  </Badge>
+                )}
+                {networkFilter !== "ALL" && (
+                  <Badge className="bg-[#0B132B] text-amber-300 border border-amber-500/30 text-[11px] gap-1 py-0.5 font-bold">
+                    Network: {networkFilter}
+                    <X
+                      className="w-3 h-3 cursor-pointer hover:text-white"
+                      onClick={() => handleNetworkFilterSelect("ALL")}
+                    />
+                  </Badge>
+                )}
+                {priceFilter !== "all" && (
+                  <Badge className="bg-[#0B132B] text-amber-300 border border-amber-500/30 text-[11px] gap-1 py-0.5 font-bold">
+                    Price: {priceFilter === "under_20" ? "< GH₵20" : priceFilter === "20_to_50" ? "GH₵20 - 50" : "> GH₵50"}
+                    <X
+                      className="w-3 h-3 cursor-pointer hover:text-white"
+                      onClick={() => setPriceFilter("all")}
+                    />
+                  </Badge>
+                )}
+                {sortBy !== "popular" && (
+                  <Badge className="bg-[#0B132B] text-amber-300 border border-amber-500/30 text-[11px] gap-1 py-0.5 font-bold">
+                    Sort: {sortBy === "price_asc" ? "Lowest Price" : "Highest Price"}
+                    <X
+                      className="w-3 h-3 cursor-pointer hover:text-white"
+                      onClick={() => setSortBy("popular")}
+                    />
+                  </Badge>
+                )}
+                {searchQuery && (
+                  <Badge className="bg-[#0B132B] text-amber-300 border border-amber-500/30 text-[11px] gap-1 py-0.5 font-bold">
+                    Search: "{searchQuery}"
+                    <X
+                      className="w-3 h-3 cursor-pointer hover:text-white"
+                      onClick={() => setSearchQuery("")}
+                    />
+                  </Badge>
+                )}
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="text-amber-400 hover:text-amber-300 font-bold underline ml-auto text-[11px] cursor-pointer"
+                >
+                  Reset All
+                </button>
+              </div>
+            )}
+
+            <Tabs
+              value={activeTab}
+              onValueChange={setActiveTab}
+              className="w-full"
+              id="bundle-tabs"
+            >
 
           {searchQuery.trim() !== "" ? (
             <div className="space-y-6">
@@ -919,6 +1244,13 @@ export default function BundleList({
                       </div>
                     )}
                   </div>
+                ) : tab === "Airtime" ? (
+                  <AirtimeSection
+                    onSelectBundle={onSelectBundle}
+                    isAgentUser={isAgentUser}
+                    agentContext={agentContext}
+                    activeNetworkFilter={networkFilter}
+                  />
                 ) : tab === "Result Checker" ? (
                   <ResultCheckerSection agentContext={agentContext} isAgentUser={isAgentUser} />
                 ) : tab === "Game Coins" ? (
@@ -1598,6 +1930,8 @@ export default function BundleList({
             ))
           )}
         </Tabs>
+          </div>
+        </div>
       </div>
     </section>
   );
