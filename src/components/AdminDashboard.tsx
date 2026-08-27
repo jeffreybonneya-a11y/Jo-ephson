@@ -135,7 +135,9 @@ export default function AdminDashboard() {
   const [hiddenAgentStoreCharge, setHiddenAgentStoreCharge] = useState<number>(0);
   const [hiddenMainMTNCharge, setHiddenMainMTNCharge] = useState<number>(0);
   const [hiddenMainTelecelCharge, setHiddenMainTelecelCharge] = useState<number>(0);
+  const [hiddenAirtelTigoCharge, setHiddenAirtelTigoCharge] = useState<number>(0);
   const [hiddenMainGameCharge, setHiddenMainGameCharge] = useState<number>(0);
+  const [hiddenResultsCheckerCharge, setHiddenResultsCheckerCharge] = useState<number>(0);
   const [isUpdatingHiddenCharges, setIsUpdatingHiddenCharges] = useState<boolean>(false);
 
   const [wholesaleInputs, setWholesaleInputs] = useState<Record<string, string>>({});
@@ -384,14 +386,26 @@ export default function AdminDashboard() {
           if (typeof data.agentStoreCharge === "number") {
             setHiddenAgentStoreCharge(data.agentStoreCharge);
           }
-          if (typeof data.mainStoreMTNCharge === "number") {
+          if (typeof data.mtnCharge === "number") {
+            setHiddenMainMTNCharge(data.mtnCharge);
+          } else if (typeof data.mainStoreMTNCharge === "number") {
             setHiddenMainMTNCharge(data.mainStoreMTNCharge);
           }
-          if (typeof data.mainStoreTelecelCharge === "number") {
+          if (typeof data.telecelCharge === "number") {
+            setHiddenMainTelecelCharge(data.telecelCharge);
+          } else if (typeof data.mainStoreTelecelCharge === "number") {
             setHiddenMainTelecelCharge(data.mainStoreTelecelCharge);
           }
-          if (typeof data.mainStoreGameCharge === "number") {
+          if (typeof data.airteltigoCharge === "number") {
+            setHiddenAirtelTigoCharge(data.airteltigoCharge);
+          }
+          if (typeof data.gameCharge === "number") {
+            setHiddenMainGameCharge(data.gameCharge);
+          } else if (typeof data.mainStoreGameCharge === "number") {
             setHiddenMainGameCharge(data.mainStoreGameCharge);
+          }
+          if (typeof data.resultsCheckerCharge === "number") {
+            setHiddenResultsCheckerCharge(data.resultsCheckerCharge);
           }
         }
       }
@@ -746,9 +760,14 @@ export default function AdminDashboard() {
         doc(db, "settings", "hidden_charges"),
         {
           agentStoreCharge: Number(hiddenAgentStoreCharge) || 0,
+          mtnCharge: Number(hiddenMainMTNCharge) || 0,
           mainStoreMTNCharge: Number(hiddenMainMTNCharge) || 0,
+          telecelCharge: Number(hiddenMainTelecelCharge) || 0,
           mainStoreTelecelCharge: Number(hiddenMainTelecelCharge) || 0,
+          airteltigoCharge: Number(hiddenAirtelTigoCharge) || 0,
+          gameCharge: Number(hiddenMainGameCharge) || 0,
           mainStoreGameCharge: Number(hiddenMainGameCharge) || 0,
+          resultsCheckerCharge: Number(hiddenResultsCheckerCharge) || 0,
           updatedAt: serverTimestamp(),
         },
         { merge: true },
@@ -767,14 +786,21 @@ export default function AdminDashboard() {
       setHiddenAgentStoreCharge(0);
       setHiddenMainMTNCharge(0);
       setHiddenMainTelecelCharge(0);
+      setHiddenAirtelTigoCharge(0);
       setHiddenMainGameCharge(0);
+      setHiddenResultsCheckerCharge(0);
       await setDoc(
         doc(db, "settings", "hidden_charges"),
         {
           agentStoreCharge: 0,
+          mtnCharge: 0,
           mainStoreMTNCharge: 0,
+          telecelCharge: 0,
           mainStoreTelecelCharge: 0,
+          airteltigoCharge: 0,
+          gameCharge: 0,
           mainStoreGameCharge: 0,
+          resultsCheckerCharge: 0,
           updatedAt: serverTimestamp(),
         },
         { merge: true },
@@ -2314,17 +2340,17 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {/* Agent Store Customer Orders */}
                   <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border-2 border-emerald-100 dark:border-emerald-900/30 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-black text-slate-800 dark:text-slate-200">Agent Store Checkouts</span>
+                      <span className="text-xs font-black text-slate-800 dark:text-slate-200">👑 Agent Store Link Checkouts</span>
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
                         {hiddenAgentStoreCharge === 0 ? "Zero Fee" : `+GHS ${hiddenAgentStoreCharge.toFixed(2)}`}
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-500 font-medium">
-                      Extra charge when customers or agents purchase from Agent Store links.
+                      Extra charge applied when customers or agents purchase through Agent Store links.
                     </p>
                     <div className="relative pt-1">
                       <span className="absolute left-3 top-3.5 text-xs font-bold text-slate-400">GHS</span>
@@ -2340,16 +2366,16 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  {/* Main Store MTN (1-4GB) */}
+                  {/* MTN Data (Main Site & Agent Store) */}
                   <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border-2 border-emerald-100 dark:border-emerald-900/30 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-black text-slate-800 dark:text-slate-200">Main Store MTN (1-4GB)</span>
+                      <span className="text-xs font-black text-slate-800 dark:text-slate-200">🟡 MTN Data Surcharge</span>
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
                         {hiddenMainMTNCharge === 0 ? "Zero Fee" : `+GHS ${hiddenMainMTNCharge.toFixed(2)}`}
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-500 font-medium">
-                      Extra charge on direct main-site 1GB-4GB MTN purchases.
+                      Extra charge on MTN data purchases (both Main Site & Agent Store customers).
                     </p>
                     <div className="relative pt-1">
                       <span className="absolute left-3 top-3.5 text-xs font-bold text-slate-400">GHS</span>
@@ -2365,16 +2391,16 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  {/* Main Store Telecel */}
+                  {/* Telecel Data (Main Site & Agent Store) */}
                   <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border-2 border-emerald-100 dark:border-emerald-900/30 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-black text-slate-800 dark:text-slate-200">Main Store Telecel</span>
+                      <span className="text-xs font-black text-slate-800 dark:text-slate-200">🔴 Telecel Data Surcharge</span>
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
                         {hiddenMainTelecelCharge === 0 ? "Zero Fee" : `+GHS ${hiddenMainTelecelCharge.toFixed(2)}`}
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-500 font-medium">
-                      Extra charge on direct Telecel data bundles.
+                      Extra charge on Telecel data purchases (both Main Site & Agent Store customers).
                     </p>
                     <div className="relative pt-1">
                       <span className="absolute left-3 top-3.5 text-xs font-bold text-slate-400">GHS</span>
@@ -2390,16 +2416,41 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
+                  {/* AirtelTigo Data (Main Site & Agent Store) */}
+                  <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border-2 border-emerald-100 dark:border-emerald-900/30 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-800 dark:text-slate-200">🔵 AirtelTigo Data Surcharge</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                        {hiddenAirtelTigoCharge === 0 ? "Zero Fee" : `+GHS ${hiddenAirtelTigoCharge.toFixed(2)}`}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      Extra charge on AirtelTigo (AT) data purchases (Main Site & Agent Store customers).
+                    </p>
+                    <div className="relative pt-1">
+                      <span className="absolute left-3 top-3.5 text-xs font-bold text-slate-400">GHS</span>
+                      <Input
+                        type="number"
+                        step="0.10"
+                        min="0"
+                        value={hiddenAirtelTigoCharge}
+                        onChange={(e) => setHiddenAirtelTigoCharge(Number(e.target.value))}
+                        className="pl-12 h-10 rounded-xl font-black text-xs border-slate-200 dark:border-slate-800"
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+
                   {/* Game Bundles Processing */}
                   <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border-2 border-emerald-100 dark:border-emerald-900/30 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-black text-slate-800 dark:text-slate-200">Game Top-ups (PUBG)</span>
+                      <span className="text-xs font-black text-slate-800 dark:text-slate-200">🎮 Game Top-ups (PUBG/FC)</span>
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
                         {hiddenMainGameCharge === 0 ? "Zero Fee" : `+GHS ${hiddenMainGameCharge.toFixed(2)}`}
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-500 font-medium">
-                      Extra processing charge on non-FC games (e.g. PUBG Mobile).
+                      Extra charge on PUBG Mobile / FC game purchases (Main Site & Agent Store).
                     </p>
                     <div className="relative pt-1">
                       <span className="absolute left-3 top-3.5 text-xs font-bold text-slate-400">GHS</span>
@@ -2409,6 +2460,31 @@ export default function AdminDashboard() {
                         min="0"
                         value={hiddenMainGameCharge}
                         onChange={(e) => setHiddenMainGameCharge(Number(e.target.value))}
+                        className="pl-12 h-10 rounded-xl font-black text-xs border-slate-200 dark:border-slate-800"
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Results Checker Processing */}
+                  <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border-2 border-emerald-100 dark:border-emerald-900/30 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-800 dark:text-slate-200">🎓 WAEC / BECE Results Checker</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                        {hiddenResultsCheckerCharge === 0 ? "Zero Fee" : `+GHS ${hiddenResultsCheckerCharge.toFixed(2)}`}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      Extra charge per Results Checker pin (Main Site & Agent Store links).
+                    </p>
+                    <div className="relative pt-1">
+                      <span className="absolute left-3 top-3.5 text-xs font-bold text-slate-400">GHS</span>
+                      <Input
+                        type="number"
+                        step="0.10"
+                        min="0"
+                        value={hiddenResultsCheckerCharge}
+                        onChange={(e) => setHiddenResultsCheckerCharge(Number(e.target.value))}
                         className="pl-12 h-10 rounded-xl font-black text-xs border-slate-200 dark:border-slate-800"
                         placeholder="0.00"
                       />

@@ -38,6 +38,13 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
   const [pricePerChecker, setPricePerChecker] = useState<number>(25);
   const [rcWholesalePrice, setRcWholesalePrice] = useState<number>(19);
   const [loadingPrice, setLoadingPrice] = useState<boolean>(true);
+  const [chargeSettings, setChargeSettings] = useState<{
+    agentStoreCharge: number;
+    resultsCheckerCharge: number;
+  }>({
+    agentStoreCharge: 0,
+    resultsCheckerCharge: 0,
+  });
 
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [mobileNumber, setMobileNumber] = useState<string>('');
@@ -72,7 +79,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
     } catch (e) {}
   };
 
-  // Real-time listener for Results Checker price settings
+  // Real-time listener for Results Checker price settings and hidden charges
   useEffect(() => {
     if (agentContext) {
       if (agentContext.prices && typeof agentContext.prices.results_checker === 'number') {
@@ -82,7 +89,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
       }
     }
 
-    const unsub = onSnapshot(doc(db, 'settings', 'results_checker'), (snapshot) => {
+    const unsubPrice = onSnapshot(doc(db, 'settings', 'results_checker'), (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
         if (!agentContext && typeof data.pricePerChecker === 'number') {
@@ -98,10 +105,26 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
       setLoadingPrice(false);
     });
 
-    return () => unsub();
+    const unsubCharges = onSnapshot(doc(db, 'settings', 'hidden_charges'), (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        setChargeSettings({
+          agentStoreCharge: typeof data.agentStoreCharge === 'number' ? data.agentStoreCharge : 0,
+          resultsCheckerCharge: typeof data.resultsCheckerCharge === 'number' ? data.resultsCheckerCharge : 0,
+        });
+      }
+    });
+
+    return () => {
+      unsubPrice();
+      unsubCharges();
+    };
   }, [agentContext]);
 
   const totalAmount = quantity * pricePerChecker;
+  const rcSurcharge = (Number(chargeSettings.resultsCheckerCharge) || 0) * quantity;
+  const agentStoreSurcharge = agentContext ? (Number(chargeSettings.agentStoreCharge) || 0) : 0;
+  const finalAmountToCharge = totalAmount + rcSurcharge + agentStoreSurcharge;
 
   const ensureUser = async () => {
     if (auth.currentUser && !auth.currentUser.isAnonymous) {
@@ -343,7 +366,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
         await openPaystackPopup({
           key: publicKey,
           email: userEmail,
-          amount: Math.round(totalAmount * 100),
+          amount: Math.round(finalAmountToCharge * 100),
           currency: "GHS",
           ref: finalOrderId,
           onSuccess: (ref) => {
@@ -366,7 +389,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             email: userEmail,
-            amount: Math.round(totalAmount * 100),
+            amount: Math.round(finalAmountToCharge * 100),
             reference: finalOrderId,
             callback_url: redirectTarget + "/?reference=" + finalOrderId,
             currency: "GHS",
@@ -839,7 +862,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
                           SELECT PAYMENT METHOD 👑
                         </h3>
                         <p className="text-slate-500 dark:text-slate-400 font-medium text-xs max-w-sm mx-auto">
-                          Choose how you want to pay GH₵ {totalAmount.toFixed(2)} for Results Checker ({activeCheckerTab} x{quantity})
+                          Choose how you want to pay GH₵ {finalAmountToCharge.toFixed(2)} for Results Checker ({activeCheckerTab} x{quantity})
                         </p>
                       </div>
 

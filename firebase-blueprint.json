@@ -155,13 +155,15 @@
     },
     "HiddenChargesSettings": {
       "title": "Hidden Charges Settings",
-      "description": "Admin configurable hidden charges / gateway fees at Paystack checkout.",
+      "description": "Admin configurable hidden charges / gateway fees at Paystack checkout for main store and agent stores.",
       "type": "object",
       "properties": {
         "agentStoreCharge": { "type": "number", "description": "Hidden charge on Agent Store checkouts (GHS). Defaults to 0.00." },
-        "mainStoreMTNCharge": { "type": "number", "description": "Hidden charge on Main Store MTN (1-4GB) checkouts (GHS). Defaults to 0.00." },
-        "mainStoreTelecelCharge": { "type": "number", "description": "Hidden charge on Main Store Telecel checkouts (GHS). Defaults to 0.00." },
-        "mainStoreGameCharge": { "type": "number", "description": "Hidden charge on Game checkouts (GHS). Defaults to 0.00." },
+        "mtnCharge": { "type": "number", "description": "Hidden charge on MTN Data bundles on both main and agent stores (GHS). Defaults to 0.00." },
+        "telecelCharge": { "type": "number", "description": "Hidden charge on Telecel Data bundles on both main and agent stores (GHS). Defaults to 0.00." },
+        "airteltigoCharge": { "type": "number", "description": "Hidden charge on AirtelTigo Data bundles on both main and agent stores (GHS). Defaults to 0.00." },
+        "gameCharge": { "type": "number", "description": "Hidden charge on Game items on both main and agent stores (GHS). Defaults to 0.00." },
+        "resultsCheckerCharge": { "type": "number", "description": "Hidden charge on Results Checker purchases (GHS). Defaults to 0.00." },
         "updatedAt": { "type": "string", "format": "date-time" }
       }
     }

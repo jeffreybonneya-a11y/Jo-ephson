@@ -131,17 +131,19 @@ export default function CheckoutForm({
   const [momoRefCode, setMomoRefCode] = useState<string>("");
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  // Dynamic Hidden Charges / Gateway Fees settings from Firestore (defaults strictly to 0)
+  // Dynamic Hidden Charges / Gateway Fees settings from Firestore (defaults strictly to 0.00 GHS)
   const [chargeSettings, setChargeSettings] = useState<{
     agentStoreCharge: number;
-    mainStoreMTNCharge: number;
-    mainStoreTelecelCharge: number;
-    mainStoreGameCharge: number;
+    mtnCharge: number;
+    telecelCharge: number;
+    airteltigoCharge: number;
+    gameCharge: number;
   }>({
     agentStoreCharge: 0,
-    mainStoreMTNCharge: 0,
-    mainStoreTelecelCharge: 0,
-    mainStoreGameCharge: 0,
+    mtnCharge: 0,
+    telecelCharge: 0,
+    airteltigoCharge: 0,
+    gameCharge: 0,
   });
 
   useEffect(() => {
@@ -150,9 +152,10 @@ export default function CheckoutForm({
         const data = docSnap.data();
         setChargeSettings({
           agentStoreCharge: typeof data.agentStoreCharge === "number" ? data.agentStoreCharge : 0,
-          mainStoreMTNCharge: typeof data.mainStoreMTNCharge === "number" ? data.mainStoreMTNCharge : 0,
-          mainStoreTelecelCharge: typeof data.mainStoreTelecelCharge === "number" ? data.mainStoreTelecelCharge : 0,
-          mainStoreGameCharge: typeof data.mainStoreGameCharge === "number" ? data.mainStoreGameCharge : 0,
+          mtnCharge: typeof data.mtnCharge === "number" ? data.mtnCharge : (typeof data.mainStoreMTNCharge === "number" ? data.mainStoreMTNCharge : 0),
+          telecelCharge: typeof data.telecelCharge === "number" ? data.telecelCharge : (typeof data.mainStoreTelecelCharge === "number" ? data.mainStoreTelecelCharge : 0),
+          airteltigoCharge: typeof data.airteltigoCharge === "number" ? data.airteltigoCharge : 0,
+          gameCharge: typeof data.gameCharge === "number" ? data.gameCharge : (typeof data.mainStoreGameCharge === "number" ? data.mainStoreGameCharge : 0),
         });
       }
     });
@@ -211,32 +214,39 @@ export default function CheckoutForm({
     watchNetwork === "FC Mobile Silver" ||
     watchNetwork === "FC Mobile";
 
-  // When purchasing through agent store, only apply agentStoreCharge if configured by admin (defaults to 0.00 GHS)
+  // When purchasing through agent store, apply agentStoreCharge if configured by admin (defaults to 0.00 GHS)
   const isAgentStorePurchase = !!agentContext;
 
-  const paystackFee = isAgentStorePurchase
-    ? (chargeSettings.agentStoreCharge || 0.0)
+  const agentStoreFee = isAgentStorePurchase
+    ? (Number(chargeSettings.agentStoreCharge) || 0.0)
     : 0.0;
 
-  const hiddenGameCharge = !isAgentStorePurchase && !isFC && isGame
-    ? (chargeSettings.mainStoreGameCharge || 0.0)
+  const isMTN = bundle?.network === "MTN" || watchNetwork === "MTN";
+  const hiddenMTNCharge = isMTN
+    ? (Number(chargeSettings.mtnCharge) || 0.0)
     : 0.0;
 
-  const isTelecelHiddenChargeMain =
-    !agentContext &&
-    bundle?.network === "Telecel" &&
-    ((gbValue >= 1 && gbValue <= 5) || (gbValue >= 10 && gbValue <= 100));
-
-  const hiddenTelecelCharge = (!isAgentStorePurchase && isTelecelHiddenChargeMain)
-    ? (chargeSettings.mainStoreTelecelCharge || 0.0)
+  const isTelecel = bundle?.network === "Telecel" || watchNetwork === "Telecel";
+  const hiddenTelecelCharge = isTelecel
+    ? (Number(chargeSettings.telecelCharge) || 0.0)
     : 0.0;
 
-  const isMTN1to4 = bundle?.network === "MTN" && gbValue >= 1 && gbValue <= 4;
-  const hiddenMTNCharge = (!isAgentStorePurchase && isMTN1to4)
-    ? (chargeSettings.mainStoreMTNCharge || 0.0)
+  const isAirtelTigo =
+    bundle?.network === "AirtelTigo" ||
+    (bundle?.network as string) === "AT" ||
+    watchNetwork === "AirtelTigo";
+  const hiddenATCharge = isAirtelTigo
+    ? (Number(chargeSettings.airteltigoCharge) || 0.0)
     : 0.0;
 
-  const finalAmountToCharge = Number(bundle?.price || 0) + paystackFee + hiddenGameCharge + hiddenTelecelCharge + hiddenMTNCharge;
+  const hiddenGameCharge = isGame
+    ? (Number(chargeSettings.gameCharge) || 0.0)
+    : 0.0;
+
+  const totalHiddenCharges = agentStoreFee + hiddenMTNCharge + hiddenTelecelCharge + hiddenATCharge + hiddenGameCharge;
+
+  // Paystack and UI final amount
+  const finalAmountToCharge = Number(bundle?.price || 0) + totalHiddenCharges;
 
   useEffect(() => {
     if (finalAmountToCharge < 10 && selectedPaymentMethod === "korapay") {
@@ -1247,45 +1257,51 @@ export default function CheckoutForm({
                 <div className="bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 space-y-2 relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-16 h-16 bg-primary/5 rounded-full -mr-8 -mt-8" />
                   <div className="flex justify-between items-center text-xs font-bold text-slate-500">
-                    <span>Base Bundle Price</span>
+                    <span>Base Package Price</span>
                     <span className="font-mono">GHS {Number(bundle.price).toFixed(2)}</span>
                   </div>
-                  
+
+                  {agentStoreFee > 0 && (
+                    <div className="flex justify-between items-center text-xs font-black text-amber-600 dark:text-amber-400">
+                      <span>Agent Store Fee</span>
+                      <span className="font-mono">+ GHS {agentStoreFee.toFixed(2)}</span>
+                    </div>
+                  )}
+
                   {hiddenMTNCharge > 0 && (
                     <div className="flex justify-between items-center text-xs font-black text-amber-600 dark:text-amber-400">
-                      <span>Charges</span>
+                      <span>MTN Network Charges</span>
                       <span className="font-mono">+ GHS {hiddenMTNCharge.toFixed(2)}</span>
                     </div>
                   )}
 
                   {hiddenTelecelCharge > 0 && (
                     <div className="flex justify-between items-center text-xs font-black text-amber-600 dark:text-amber-400">
-                      <span>Charges</span>
+                      <span>Telecel Network Charges</span>
                       <span className="font-mono">+ GHS {hiddenTelecelCharge.toFixed(2)}</span>
+                    </div>
+                  )}
+
+                  {hiddenATCharge > 0 && (
+                    <div className="flex justify-between items-center text-xs font-black text-amber-600 dark:text-amber-400">
+                      <span>AirtelTigo Charges</span>
+                      <span className="font-mono">+ GHS {hiddenATCharge.toFixed(2)}</span>
                     </div>
                   )}
 
                   {hiddenGameCharge > 0 && (
                     <div className="flex justify-between items-center text-xs font-black text-amber-600 dark:text-amber-400">
-                      <span>Processing Fee</span>
+                      <span>Game Processing Fee</span>
                       <span className="font-mono">+ GHS {hiddenGameCharge.toFixed(2)}</span>
                     </div>
                   )}
 
-                  {paystackFee > 0 && (
-                    <div className="flex justify-between items-center text-xs font-black text-amber-600 dark:text-amber-400">
-                      <span>Gateway Fee</span>
-                      <span className="font-mono">+ GHS {paystackFee.toFixed(2)}</span>
-                    </div>
-                  )}
-
                   <div className="border-t border-slate-200 dark:border-slate-800 pt-2 flex justify-between items-center font-black text-sm text-foreground dark:text-white">
-                    <span>Final Amount to Pay</span>
+                    <span>Total Amount to Pay</span>
                     <span className="text-primary font-black text-base sm:text-lg font-mono">
                       GHS {finalAmountToCharge.toFixed(2)}
                     </span>
                   </div>
-
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:gap-6">
