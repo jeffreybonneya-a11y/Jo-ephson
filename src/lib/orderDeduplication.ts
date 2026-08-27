@@ -59,86 +59,31 @@ export function isFcOrCoinsOrder(order: any): boolean {
 }
 
 /**
- * Strictly determines if an order's payment has been confirmed/verified as successful.
- * Excludes all unpaid, pending, failed, abandoned, cancelled, or unverified orders.
+ * Strictly determines if an order should be displayed on the Dashboard.
+ * Shows all active, successful, paid, processing, pending, and completed orders,
+ * excluding only explicitly failed, cancelled, abandoned, or declined transactions.
  */
 export function isOrderSuccessfullyPaid(order: any): boolean {
   if (!order) return false;
 
   const paymentStatus = normalizeStr(order.paymentStatus);
   const status = normalizeStr(order.status);
-  const net = normalizeStr(order.network);
-  const serviceType = normalizeStr(order.serviceType);
 
-  // 1. Explicit failure / cancelled / abandoned / unverified states MUST NOT appear
+  // 1. Explicit failure / cancelled / abandoned / declined states MUST NOT appear
   if (
     paymentStatus === "failed" ||
     paymentStatus === "abandoned" ||
     paymentStatus === "cancelled" ||
-    paymentStatus === "unverified" ||
+    paymentStatus === "declined" ||
     status === "failed" ||
     status === "cancelled" ||
-    status === "abandoned"
+    status === "abandoned" ||
+    status === "declined"
   ) {
     return false;
   }
 
-  // 2. Pending or unpaid payment states (checkout started, reference created, awaiting payment) MUST NOT appear
-  if (
-    paymentStatus === "pending" ||
-    paymentStatus === "pending_verification" ||
-    paymentStatus === "unpaid"
-  ) {
-    return false;
-  }
-
-  // 3. If fulfillment status is pending and payment has not been marked success/paid/free_promo, MUST NOT appear
-  if (
-    status === "pending" &&
-    paymentStatus !== "success" &&
-    paymentStatus !== "paid" &&
-    paymentStatus !== "free_promo"
-  ) {
-    return false;
-  }
-
-  // 4. Check for verified payment status
-  if (
-    paymentStatus === "success" ||
-    paymentStatus === "paid" ||
-    paymentStatus === "completed" ||
-    paymentStatus === "free_promo"
-  ) {
-    return true;
-  }
-
-  // 5. Check for post-payment fulfillment statuses (paid, processing, accepted, delivered, completed, declined, success)
-  if (
-    status === "paid" ||
-    status === "processing" ||
-    status === "accepted" ||
-    status === "delivered" ||
-    status === "completed" ||
-    status === "declined" ||
-    status === "success" ||
-    status === "successful"
-  ) {
-    return true;
-  }
-
-  // 6. Promotional Free Data wins that are verified
-  if (
-    (order.isFreeDataWin === true ||
-      serviceType === "free data win" ||
-      net.includes("free data")) &&
-    status !== "pending" &&
-    status !== "failed" &&
-    status !== "cancelled"
-  ) {
-    return true;
-  }
-
-  return false;
+  return true;
 }
 
 /**
@@ -228,22 +173,21 @@ export function deduplicateOrdersList<T extends { id?: string }>(orders: T[]): T
       return getOrderTimestamp(b) - getOrderTimestamp(a);
     });
 
-    // Check if duplicate submissions occurred within 24 hours of each other or exact duplicate parameters
+    // Check if duplicate submissions occurred within 15 seconds of each other with identical parameters
     const kept: T[] = [];
     for (const item of group) {
       const timeItem = getOrderTimestamp(item);
       const isDuplicateOfKept = kept.some((k: any) => {
         const timeK = getOrderTimestamp(k);
-        // If exact same reference or exact same fcUserId & bundle
-        if (item.id === k.id) return true;
-        if ((item as any).reference && (k as any).reference && (item as any).reference === (k as any).reference) return true;
+        // If exact same ID or exact same non-empty payment reference
+        if (item.id && k.id && item.id === k.id) return true;
+        if ((item as any).reference && (k as any).reference && String((item as any).reference).trim() === String((k as any).reference).trim()) return true;
         
-        // If timestamps are close (within 24 hours) with identical parameters
-        const diffMs = Math.abs(timeItem - timeK);
-        if (diffMs < 24 * 60 * 60 * 1000) return true;
-
-        // If both are FC Mobile orders with identical bundle and amounts
-        if (isFcOrCoinsOrder(item) && isFcOrCoinsOrder(k)) return true;
+        // If timestamps are extremely close (within 15 seconds) with identical parameters (accidental double submit)
+        if (timeItem > 0 && timeK > 0) {
+          const diffMs = Math.abs(timeItem - timeK);
+          if (diffMs < 15 * 1000) return true;
+        }
 
         return false;
       });

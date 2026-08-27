@@ -1384,13 +1384,13 @@ export default function AdminDashboard() {
             >
               TRACKING 👑
               {orders.filter(
-                (o) => (o.status === "paid" || o.status === "processing" || o.status === "success") && !o.agent_id && !o.agentId && !o.isAgentOrder && o.bundle !== "AGENT ACCESS UNLOCK",
+                (o) => (o.status === "paid" || o.status === "processing" || o.status === "success" || o.status === "pending" || o.status === "accepted" || o.status === "pending_verification") && !o.agent_id && !o.agentId && !o.isAgentOrder && o.bundle !== "AGENT ACCESS UNLOCK",
               ).length > 0 && (
                 <span className="absolute -top-1.5 -right-1 bg-red-600 text-white text-[8px] w-4.5 h-4.5 flex items-center justify-center rounded-full font-black shadow-lg">
                   {
                     orders.filter(
                       (o) =>
-                        (o.status === "paid" || o.status === "processing" || o.status === "success") && !o.agent_id && !o.agentId && !o.isAgentOrder && o.bundle !== "AGENT ACCESS UNLOCK",
+                        (o.status === "paid" || o.status === "processing" || o.status === "success" || o.status === "pending" || o.status === "accepted" || o.status === "pending_verification") && !o.agent_id && !o.agentId && !o.isAgentOrder && o.bundle !== "AGENT ACCESS UNLOCK",
                     ).length
                   }
                 </span>
@@ -1439,14 +1439,14 @@ export default function AdminDashboard() {
               AGENTS HUB 👑
               {profitRequests.filter((r) => r.status === "pending").length +
                 orders.filter(
-                  (o) => (o.status === "paid" || o.status === "processing" || o.status === "success") && (o.agent_id || o.agentId || o.isAgentOrder || o.bundle === "AGENT ACCESS UNLOCK"),
+                  (o) => (o.status === "paid" || o.status === "processing" || o.status === "success" || o.status === "pending" || o.status === "accepted" || o.status === "pending_verification") && (o.agent_id || o.agentId || o.isAgentOrder || o.bundle === "AGENT ACCESS UNLOCK"),
                 ).length >
                 0 && (
                 <span className="absolute -top-1.5 -right-1 bg-primary text-secondary text-[8px] w-4.5 h-4.5 flex items-center justify-center rounded-full font-black shadow-lg">
                   {profitRequests.filter((r) => r.status === "pending").length +
                     orders.filter(
                       (o) =>
-                        (o.status === "paid" || o.status === "processing" || o.status === "success") && (o.agent_id || o.agentId || o.isAgentOrder || o.bundle === "AGENT ACCESS UNLOCK"),
+                        (o.status === "paid" || o.status === "processing" || o.status === "success" || o.status === "pending" || o.status === "accepted" || o.status === "pending_verification") && (o.agent_id || o.agentId || o.isAgentOrder || o.bundle === "AGENT ACCESS UNLOCK"),
                     ).length}
                 </span>
               )}
