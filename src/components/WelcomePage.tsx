@@ -75,6 +75,7 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
           }
         }
 
+        localStorage.setItem('kj_session_last_active_at', Date.now().toString());
         toast.success(`Welcome to King J Deals, ${userFullName}! 👑`);
         if (onLoginSuccess) {
           onLoginSuccess();

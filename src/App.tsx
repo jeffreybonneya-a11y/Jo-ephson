@@ -26,6 +26,7 @@ import DownloadPage from './components/DownloadPage';
 import PriceDropNotifier from './components/PriceDropNotifier';
 import GetFreeDataWidget from './components/GetFreeDataWidget';
 import WelcomePage from './components/WelcomePage';
+import { useSessionTimeout } from './hooks/useSessionTimeout';
 import { getApiUrl } from './lib/api';
 
 export default function App() {
@@ -35,6 +36,9 @@ export default function App() {
   const [isHistoryView, setIsHistoryView] = useState(false);
   const [isStreamView, setIsStreamView] = useState(false);
   const [user, setUser] = useState<any>(null);
+
+  // 5-minute automatic session inactivity timeout
+  useSessionTimeout(user);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [announcement, setAnnouncement] = useState<{text: string, active: boolean, type: string, color?: string} | null>(null);
