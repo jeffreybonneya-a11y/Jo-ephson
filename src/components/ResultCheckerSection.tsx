@@ -40,10 +40,12 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
   const [loadingPrice, setLoadingPrice] = useState<boolean>(true);
   const [chargeSettings, setChargeSettings] = useState<{
     agentStoreCharge: number;
-    resultsCheckerCharge: number;
+    retailResultsCheckerCharge: number;
+    wholesaleResultsCheckerCharge: number;
   }>({
     agentStoreCharge: 0,
-    resultsCheckerCharge: 0,
+    retailResultsCheckerCharge: 0,
+    wholesaleResultsCheckerCharge: 0,
   });
 
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
@@ -110,7 +112,8 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
         const data = snapshot.data();
         setChargeSettings({
           agentStoreCharge: typeof data.agentStoreCharge === 'number' ? data.agentStoreCharge : 0,
-          resultsCheckerCharge: typeof data.resultsCheckerCharge === 'number' ? data.resultsCheckerCharge : 0,
+          retailResultsCheckerCharge: typeof data.retailResultsCheckerCharge === 'number' ? data.retailResultsCheckerCharge : (typeof data.resultsCheckerCharge === 'number' ? data.resultsCheckerCharge : 0),
+          wholesaleResultsCheckerCharge: typeof data.wholesaleResultsCheckerCharge === 'number' ? data.wholesaleResultsCheckerCharge : 0,
         });
       }
     });
@@ -121,8 +124,13 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
     };
   }, [agentContext]);
 
+  const isWholesaleRC = !!(agentContext || isAgentUser);
+  const rcUnitCharge = isWholesaleRC
+    ? (Number(chargeSettings.wholesaleResultsCheckerCharge) || 0)
+    : (Number(chargeSettings.retailResultsCheckerCharge) || 0);
+
   const totalAmount = quantity * pricePerChecker;
-  const rcSurcharge = (Number(chargeSettings.resultsCheckerCharge) || 0) * quantity;
+  const rcSurcharge = rcUnitCharge * quantity;
   const agentStoreSurcharge = agentContext ? (Number(chargeSettings.agentStoreCharge) || 0) : 0;
   const finalAmountToCharge = totalAmount + rcSurcharge + agentStoreSurcharge;
 

@@ -131,19 +131,27 @@ export default function CheckoutForm({
   const [momoRefCode, setMomoRefCode] = useState<string>("");
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  // Dynamic Hidden Charges / Gateway Fees settings from Firestore (defaults strictly to 0.00 GHS)
+  // Dynamic Hidden Charges / Gateway Fees settings from Firestore
   const [chargeSettings, setChargeSettings] = useState<{
     agentStoreCharge: number;
-    mtnCharge: number;
-    telecelCharge: number;
-    airteltigoCharge: number;
-    gameCharge: number;
+    retailMTNCharge: number;
+    retailTelecelCharge: number;
+    retailAirtelTigoCharge: number;
+    retailGameCharge: number;
+    wholesaleMTNCharge: number;
+    wholesaleTelecelCharge: number;
+    wholesaleAirtelTigoCharge: number;
+    wholesaleGameCharge: number;
   }>({
     agentStoreCharge: 0,
-    mtnCharge: 0,
-    telecelCharge: 0,
-    airteltigoCharge: 0,
-    gameCharge: 0,
+    retailMTNCharge: 0,
+    retailTelecelCharge: 0,
+    retailAirtelTigoCharge: 0,
+    retailGameCharge: 0,
+    wholesaleMTNCharge: 0,
+    wholesaleTelecelCharge: 0,
+    wholesaleAirtelTigoCharge: 0,
+    wholesaleGameCharge: 0,
   });
 
   useEffect(() => {
@@ -152,10 +160,16 @@ export default function CheckoutForm({
         const data = docSnap.data();
         setChargeSettings({
           agentStoreCharge: typeof data.agentStoreCharge === "number" ? data.agentStoreCharge : 0,
-          mtnCharge: typeof data.mtnCharge === "number" ? data.mtnCharge : (typeof data.mainStoreMTNCharge === "number" ? data.mainStoreMTNCharge : 0),
-          telecelCharge: typeof data.telecelCharge === "number" ? data.telecelCharge : (typeof data.mainStoreTelecelCharge === "number" ? data.mainStoreTelecelCharge : 0),
-          airteltigoCharge: typeof data.airteltigoCharge === "number" ? data.airteltigoCharge : 0,
-          gameCharge: typeof data.gameCharge === "number" ? data.gameCharge : (typeof data.mainStoreGameCharge === "number" ? data.mainStoreGameCharge : 0),
+
+          retailMTNCharge: typeof data.retailMTNCharge === "number" ? data.retailMTNCharge : (typeof data.mtnCharge === "number" ? data.mtnCharge : (typeof data.mainStoreMTNCharge === "number" ? data.mainStoreMTNCharge : 0)),
+          retailTelecelCharge: typeof data.retailTelecelCharge === "number" ? data.retailTelecelCharge : (typeof data.telecelCharge === "number" ? data.telecelCharge : (typeof data.mainStoreTelecelCharge === "number" ? data.mainStoreTelecelCharge : 0)),
+          retailAirtelTigoCharge: typeof data.retailAirtelTigoCharge === "number" ? data.retailAirtelTigoCharge : (typeof data.airteltigoCharge === "number" ? data.airteltigoCharge : 0),
+          retailGameCharge: typeof data.retailGameCharge === "number" ? data.retailGameCharge : (typeof data.gameCharge === "number" ? data.gameCharge : (typeof data.mainStoreGameCharge === "number" ? data.mainStoreGameCharge : 0)),
+
+          wholesaleMTNCharge: typeof data.wholesaleMTNCharge === "number" ? data.wholesaleMTNCharge : 0,
+          wholesaleTelecelCharge: typeof data.wholesaleTelecelCharge === "number" ? data.wholesaleTelecelCharge : 0,
+          wholesaleAirtelTigoCharge: typeof data.wholesaleAirtelTigoCharge === "number" ? data.wholesaleAirtelTigoCharge : 0,
+          wholesaleGameCharge: typeof data.wholesaleGameCharge === "number" ? data.wholesaleGameCharge : 0,
         });
       }
     });
@@ -214,36 +228,46 @@ export default function CheckoutForm({
     watchNetwork === "FC Mobile Silver" ||
     watchNetwork === "FC Mobile";
 
-  // When purchasing through agent store, apply agentStoreCharge if configured by admin (defaults to 0.00 GHS)
+  // Context check: Wholesale vs Retail
   const isAgentStorePurchase = !!agentContext;
+  const isWholesaleContext = isAgentStorePurchase || isAgentBuyingFromOwnStore || isAgentBuyingOnHomePage || isAgentUser;
+
+  const isMTN = bundle?.network === "MTN" || watchNetwork === "MTN";
+  const isTelecel = bundle?.network === "Telecel" || watchNetwork === "Telecel";
+  const isAirtelTigo =
+    bundle?.network === "AirtelTigo" ||
+    (bundle?.network as string) === "AT" ||
+    watchNetwork === "AirtelTigo";
+
+  let networkHiddenCharge = 0;
+
+  if (isWholesaleContext) {
+    // Check if bundle has a specific wholesaleHiddenFee override
+    if (bundle?.wholesaleHiddenFee !== undefined && bundle?.wholesaleHiddenFee !== null && !isNaN(Number(bundle.wholesaleHiddenFee))) {
+      networkHiddenCharge = Number(bundle.wholesaleHiddenFee);
+    } else {
+      if (isMTN) networkHiddenCharge = Number(chargeSettings.wholesaleMTNCharge) || 0;
+      else if (isTelecel) networkHiddenCharge = Number(chargeSettings.wholesaleTelecelCharge) || 0;
+      else if (isAirtelTigo) networkHiddenCharge = Number(chargeSettings.wholesaleAirtelTigoCharge) || 0;
+      else if (isGame) networkHiddenCharge = Number(chargeSettings.wholesaleGameCharge) || 0;
+    }
+  } else {
+    // Retail (non-agent main store) context
+    if (bundle?.retailHiddenFee !== undefined && bundle?.retailHiddenFee !== null && !isNaN(Number(bundle.retailHiddenFee))) {
+      networkHiddenCharge = Number(bundle.retailHiddenFee);
+    } else {
+      if (isMTN) networkHiddenCharge = Number(chargeSettings.retailMTNCharge) || 0;
+      else if (isTelecel) networkHiddenCharge = Number(chargeSettings.retailTelecelCharge) || 0;
+      else if (isAirtelTigo) networkHiddenCharge = Number(chargeSettings.retailAirtelTigoCharge) || 0;
+      else if (isGame) networkHiddenCharge = Number(chargeSettings.retailGameCharge) || 0;
+    }
+  }
 
   const agentStoreFee = isAgentStorePurchase
     ? (Number(chargeSettings.agentStoreCharge) || 0.0)
     : 0.0;
 
-  const isMTN = bundle?.network === "MTN" || watchNetwork === "MTN";
-  const hiddenMTNCharge = isMTN
-    ? (Number(chargeSettings.mtnCharge) || 0.0)
-    : 0.0;
-
-  const isTelecel = bundle?.network === "Telecel" || watchNetwork === "Telecel";
-  const hiddenTelecelCharge = isTelecel
-    ? (Number(chargeSettings.telecelCharge) || 0.0)
-    : 0.0;
-
-  const isAirtelTigo =
-    bundle?.network === "AirtelTigo" ||
-    (bundle?.network as string) === "AT" ||
-    watchNetwork === "AirtelTigo";
-  const hiddenATCharge = isAirtelTigo
-    ? (Number(chargeSettings.airteltigoCharge) || 0.0)
-    : 0.0;
-
-  const hiddenGameCharge = isGame
-    ? (Number(chargeSettings.gameCharge) || 0.0)
-    : 0.0;
-
-  const totalHiddenCharges = agentStoreFee + hiddenMTNCharge + hiddenTelecelCharge + hiddenATCharge + hiddenGameCharge;
+  const totalHiddenCharges = networkHiddenCharge + agentStoreFee;
 
   // Paystack and UI final amount
   const finalAmountToCharge = Number(bundle?.price || 0) + totalHiddenCharges;

@@ -109,6 +109,28 @@ function getOrderRank(order: any): number {
 }
 
 /**
+ * Checks if a reference is a unique payment gateway transaction reference (e.g. Paystack/Korapay ref)
+ */
+function isUniquePaymentReference(ref?: any): boolean {
+  if (!ref) return false;
+  const str = String(ref).trim().toLowerCase();
+  if (!str) return false;
+  // Standard phone numbers, short strings, and generic tags are NOT unique payment references
+  if (
+    str === "pc games" ||
+    str === "premium apps" ||
+    str === "game coins" ||
+    str === "fc mobile" ||
+    str === "momo_pay" ||
+    str === "momo_direct" ||
+    /^\d{8,12}$/.test(str)
+  ) {
+    return false;
+  }
+  return str.length >= 14 || str.includes("pstk") || str.includes("kora") || str.includes("pay") || str.includes("_");
+}
+
+/**
  * Generates a deduplication signature for an order.
  * Orders with the same signature created around the same time or identical details are duplicates.
  */
@@ -147,6 +169,8 @@ export function deduplicateOrdersList<T extends { id?: string }>(orders: T[]): T
     idUniqueOrders.push(o);
   }
 
+  if (idUniqueOrders.length <= 1) return idUniqueOrders;
+
   // 2. Group by signature and time window to deduplicate identical submissions
   const groups = new Map<string, T[]>();
 
@@ -173,20 +197,32 @@ export function deduplicateOrdersList<T extends { id?: string }>(orders: T[]): T
       return getOrderTimestamp(b) - getOrderTimestamp(a);
     });
 
-    // Check if duplicate submissions occurred within 15 seconds of each other with identical parameters
+    // Check if duplicate submissions occurred within 10 seconds of each other or share exact same payment reference
     const kept: T[] = [];
     for (const item of group) {
       const timeItem = getOrderTimestamp(item);
+      const refItem = (item as any).reference || (item as any).momoRefCode || "";
+
       const isDuplicateOfKept = kept.some((k: any) => {
         const timeK = getOrderTimestamp(k);
-        // If exact same ID or exact same non-empty payment reference
+        const refK = (k as any).reference || (k as any).momoRefCode || "";
+
+        // If exact same document ID
         if (item.id && k.id && item.id === k.id) return true;
-        if ((item as any).reference && (k as any).reference && String((item as any).reference).trim() === String((k as any).reference).trim()) return true;
-        
-        // If timestamps are extremely close (within 15 seconds) with identical parameters (accidental double submit)
+
+        // If exact same non-generic unique payment transaction reference
+        if (
+          isUniquePaymentReference(refItem) &&
+          isUniquePaymentReference(refK) &&
+          String(refItem).trim() === String(refK).trim()
+        ) {
+          return true;
+        }
+
+        // Only consider it an accidental duplicate if created within 10 seconds of each other
         if (timeItem > 0 && timeK > 0) {
           const diffMs = Math.abs(timeItem - timeK);
-          if (diffMs < 15 * 1000) return true;
+          if (diffMs <= 10 * 1000) return true;
         }
 
         return false;
@@ -244,17 +280,45 @@ export async function purgeDuplicateOrdersFromFirestore(
       return getOrderTimestamp(b) - getOrderTimestamp(a);
     });
 
-    const kept = group[0];
-    const duplicates = group.slice(1);
+    const keptInGroup: any[] = [];
 
-    for (const dup of duplicates) {
-      toDeleteIds.push(dup.id);
-      if (isFcOrCoinsOrder(dup)) {
-        fcRemovedCount++;
+    for (const item of group) {
+      const timeItem = getOrderTimestamp(item);
+      const refItem = item.reference || item.momoRefCode || "";
+
+      const isDuplicate = keptInGroup.some((k: any) => {
+        const timeK = getOrderTimestamp(k);
+        const refK = k.reference || k.momoRefCode || "";
+
+        if (item.id && k.id && item.id === k.id) return true;
+
+        if (
+          isUniquePaymentReference(refItem) &&
+          isUniquePaymentReference(refK) &&
+          String(refItem).trim() === String(refK).trim()
+        ) {
+          return true;
+        }
+
+        if (timeItem > 0 && timeK > 0) {
+          const diffMs = Math.abs(timeItem - timeK);
+          if (diffMs <= 10 * 1000) return true;
+        }
+
+        return false;
+      });
+
+      if (isDuplicate) {
+        toDeleteIds.push(item.id);
+        if (isFcOrCoinsOrder(item)) {
+          fcRemovedCount++;
+        }
+        details.push(
+          `Deleted duplicate order #${item.id.slice(-6)} (${item.bundle || item.network}) for ${item.customerName || item.phone || "Customer"}`
+        );
+      } else {
+        keptInGroup.push(item);
       }
-      details.push(
-        `Deleted duplicate order #${dup.id.slice(-6)} (${dup.bundle || dup.network}) for ${dup.customerName || dup.phone || "Customer"}`
-      );
     }
   }
 
