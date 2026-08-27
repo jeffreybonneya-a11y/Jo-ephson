@@ -131,6 +131,13 @@ export default function AdminDashboard() {
   const [isFreeDataDisabled, setIsFreeDataDisabled] = useState<boolean>(false);
   const [freeDataPrice, setFreeDataPrice] = useState<number>(1);
 
+  // Hidden Charges / Gateway Fees settings states
+  const [hiddenAgentStoreCharge, setHiddenAgentStoreCharge] = useState<number>(0);
+  const [hiddenMainMTNCharge, setHiddenMainMTNCharge] = useState<number>(0);
+  const [hiddenMainTelecelCharge, setHiddenMainTelecelCharge] = useState<number>(0);
+  const [hiddenMainGameCharge, setHiddenMainGameCharge] = useState<number>(0);
+  const [isUpdatingHiddenCharges, setIsUpdatingHiddenCharges] = useState<boolean>(false);
+
   const [wholesaleInputs, setWholesaleInputs] = useState<Record<string, string>>({});
   const [wholesaleSearch, setWholesaleSearch] = useState("");
   const [wholesaleCategoryFilter, setWholesaleCategoryFilter] = useState("ALL");
@@ -368,6 +375,28 @@ export default function AdminDashboard() {
       }
     );
 
+    // 12. Listen for Configurable Hidden Charges / Gateway Fees Setting
+    const unsubHiddenChargesSetting = onSnapshot(
+      doc(db, "settings", "hidden_charges"),
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          if (typeof data.agentStoreCharge === "number") {
+            setHiddenAgentStoreCharge(data.agentStoreCharge);
+          }
+          if (typeof data.mainStoreMTNCharge === "number") {
+            setHiddenMainMTNCharge(data.mainStoreMTNCharge);
+          }
+          if (typeof data.mainStoreTelecelCharge === "number") {
+            setHiddenMainTelecelCharge(data.mainStoreTelecelCharge);
+          }
+          if (typeof data.mainStoreGameCharge === "number") {
+            setHiddenMainGameCharge(data.mainStoreGameCharge);
+          }
+        }
+      }
+    );
+
     return () => {
       window.removeEventListener('RESET_ADMIN_NOTIFIER', handleResetNotifierEvent);
       unsubAnnouncement();
@@ -381,6 +410,7 @@ export default function AdminDashboard() {
       unsubResultsChecker();
       unsubFreeData();
       unsubAgentStoreSetting();
+      unsubHiddenChargesSetting();
     };
   }, []);
 
@@ -706,6 +736,54 @@ export default function AdminDashboard() {
       toast.error(`Failed to update Agent Store price: ${err.message}`);
     } finally {
       setIsUpdatingAgentStorePrice(false);
+    }
+  };
+
+  const handleSaveHiddenCharges = async () => {
+    setIsUpdatingHiddenCharges(true);
+    try {
+      await setDoc(
+        doc(db, "settings", "hidden_charges"),
+        {
+          agentStoreCharge: Number(hiddenAgentStoreCharge) || 0,
+          mainStoreMTNCharge: Number(hiddenMainMTNCharge) || 0,
+          mainStoreTelecelCharge: Number(hiddenMainTelecelCharge) || 0,
+          mainStoreGameCharge: Number(hiddenMainGameCharge) || 0,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+      toast.success("Checkout charges & gateway fees updated successfully! 💳✨");
+    } catch (err: any) {
+      toast.error(`Failed to save checkout charges: ${err.message}`);
+    } finally {
+      setIsUpdatingHiddenCharges(false);
+    }
+  };
+
+  const handleRemoveAllHiddenCharges = async () => {
+    setIsUpdatingHiddenCharges(true);
+    try {
+      setHiddenAgentStoreCharge(0);
+      setHiddenMainMTNCharge(0);
+      setHiddenMainTelecelCharge(0);
+      setHiddenMainGameCharge(0);
+      await setDoc(
+        doc(db, "settings", "hidden_charges"),
+        {
+          agentStoreCharge: 0,
+          mainStoreMTNCharge: 0,
+          mainStoreTelecelCharge: 0,
+          mainStoreGameCharge: 0,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+      toast.success("All hidden charges set to 0.00 GHS (Zero Extra Charges)! 🛡️");
+    } catch (err: any) {
+      toast.error(`Failed to zero charges: ${err.message}`);
+    } finally {
+      setIsUpdatingHiddenCharges(false);
     }
   };
 
@@ -2192,6 +2270,150 @@ export default function AdminDashboard() {
                     )}
                     Save Store Price
                   </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Paystack Checkout Hidden Charges & Gateway Fees Configuration */}
+            <Card className="rounded-3xl border-2 border-emerald-200 dark:border-emerald-900/40 bg-emerald-50/40 dark:bg-emerald-950/20 shadow-sm overflow-hidden">
+              <CardContent className="p-6 sm:p-8 space-y-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-emerald-100 dark:border-emerald-900/40 pb-4">
+                  <div className="space-y-1">
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-900 dark:text-emerald-300 text-[10px] font-black uppercase tracking-wider">
+                      <span>💳 Checkout Hidden Charges Control</span>
+                    </div>
+                    <h3 className="text-xl font-black text-emerald-950 dark:text-emerald-200 flex items-center gap-2">
+                      Paystack Gateway & Hidden Surcharges (GHS)
+                    </h3>
+                    <p className="text-xs text-emerald-800/80 dark:text-emerald-300/80 font-medium max-w-2xl">
+                      Control any extra hidden charges added on top of the base price during Paystack checkout. Set to <span className="font-bold underline">0.00 GHS</span> to ensure customers pay exactly the base price without extra fees.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      variant="outline"
+                      onClick={handleRemoveAllHiddenCharges}
+                      disabled={isUpdatingHiddenCharges}
+                      className="h-10 px-4 rounded-xl font-black text-xs border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100/50 cursor-pointer"
+                    >
+                      Clear All (0.00 GHS)
+                    </Button>
+                    <Button
+                      onClick={handleSaveHiddenCharges}
+                      disabled={isUpdatingHiddenCharges}
+                      className="h-10 px-5 rounded-xl font-black text-xs uppercase bg-emerald-600 hover:bg-emerald-700 text-white shadow-md cursor-pointer flex items-center gap-1.5"
+                    >
+                      {isUpdatingHiddenCharges ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <CheckCircle className="w-3.5 h-3.5" />
+                      )}
+                      Save Charges
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Agent Store Customer Orders */}
+                  <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border-2 border-emerald-100 dark:border-emerald-900/30 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-800 dark:text-slate-200">Agent Store Checkouts</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                        {hiddenAgentStoreCharge === 0 ? "Zero Fee" : `+GHS ${hiddenAgentStoreCharge.toFixed(2)}`}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      Extra charge when customers or agents purchase from Agent Store links.
+                    </p>
+                    <div className="relative pt-1">
+                      <span className="absolute left-3 top-3.5 text-xs font-bold text-slate-400">GHS</span>
+                      <Input
+                        type="number"
+                        step="0.10"
+                        min="0"
+                        value={hiddenAgentStoreCharge}
+                        onChange={(e) => setHiddenAgentStoreCharge(Number(e.target.value))}
+                        className="pl-12 h-10 rounded-xl font-black text-xs border-slate-200 dark:border-slate-800"
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Main Store MTN (1-4GB) */}
+                  <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border-2 border-emerald-100 dark:border-emerald-900/30 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-800 dark:text-slate-200">Main Store MTN (1-4GB)</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                        {hiddenMainMTNCharge === 0 ? "Zero Fee" : `+GHS ${hiddenMainMTNCharge.toFixed(2)}`}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      Extra charge on direct main-site 1GB-4GB MTN purchases.
+                    </p>
+                    <div className="relative pt-1">
+                      <span className="absolute left-3 top-3.5 text-xs font-bold text-slate-400">GHS</span>
+                      <Input
+                        type="number"
+                        step="0.10"
+                        min="0"
+                        value={hiddenMainMTNCharge}
+                        onChange={(e) => setHiddenMainMTNCharge(Number(e.target.value))}
+                        className="pl-12 h-10 rounded-xl font-black text-xs border-slate-200 dark:border-slate-800"
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Main Store Telecel */}
+                  <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border-2 border-emerald-100 dark:border-emerald-900/30 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-800 dark:text-slate-200">Main Store Telecel</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                        {hiddenMainTelecelCharge === 0 ? "Zero Fee" : `+GHS ${hiddenMainTelecelCharge.toFixed(2)}`}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      Extra charge on direct Telecel data bundles.
+                    </p>
+                    <div className="relative pt-1">
+                      <span className="absolute left-3 top-3.5 text-xs font-bold text-slate-400">GHS</span>
+                      <Input
+                        type="number"
+                        step="0.10"
+                        min="0"
+                        value={hiddenMainTelecelCharge}
+                        onChange={(e) => setHiddenMainTelecelCharge(Number(e.target.value))}
+                        className="pl-12 h-10 rounded-xl font-black text-xs border-slate-200 dark:border-slate-800"
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Game Bundles Processing */}
+                  <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border-2 border-emerald-100 dark:border-emerald-900/30 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-800 dark:text-slate-200">Game Top-ups (PUBG)</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                        {hiddenMainGameCharge === 0 ? "Zero Fee" : `+GHS ${hiddenMainGameCharge.toFixed(2)}`}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      Extra processing charge on non-FC games (e.g. PUBG Mobile).
+                    </p>
+                    <div className="relative pt-1">
+                      <span className="absolute left-3 top-3.5 text-xs font-bold text-slate-400">GHS</span>
+                      <Input
+                        type="number"
+                        step="0.10"
+                        min="0"
+                        value={hiddenMainGameCharge}
+                        onChange={(e) => setHiddenMainGameCharge(Number(e.target.value))}
+                        className="pl-12 h-10 rounded-xl font-black text-xs border-slate-200 dark:border-slate-800"
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>

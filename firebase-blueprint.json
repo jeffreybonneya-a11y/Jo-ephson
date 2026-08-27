@@ -152,6 +152,18 @@
         "price": { "type": "number", "description": "One-time registration fee to unlock agent store access in GHS" },
         "updatedAt": { "type": "string", "format": "date-time" }
       }
+    },
+    "HiddenChargesSettings": {
+      "title": "Hidden Charges Settings",
+      "description": "Admin configurable hidden charges / gateway fees at Paystack checkout.",
+      "type": "object",
+      "properties": {
+        "agentStoreCharge": { "type": "number", "description": "Hidden charge on Agent Store checkouts (GHS). Defaults to 0.00." },
+        "mainStoreMTNCharge": { "type": "number", "description": "Hidden charge on Main Store MTN (1-4GB) checkouts (GHS). Defaults to 0.00." },
+        "mainStoreTelecelCharge": { "type": "number", "description": "Hidden charge on Main Store Telecel checkouts (GHS). Defaults to 0.00." },
+        "mainStoreGameCharge": { "type": "number", "description": "Hidden charge on Game checkouts (GHS). Defaults to 0.00." },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "firestore": {

@@ -131,6 +131,34 @@ export default function CheckoutForm({
   const [momoRefCode, setMomoRefCode] = useState<string>("");
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
+  // Dynamic Hidden Charges / Gateway Fees settings from Firestore (defaults strictly to 0)
+  const [chargeSettings, setChargeSettings] = useState<{
+    agentStoreCharge: number;
+    mainStoreMTNCharge: number;
+    mainStoreTelecelCharge: number;
+    mainStoreGameCharge: number;
+  }>({
+    agentStoreCharge: 0,
+    mainStoreMTNCharge: 0,
+    mainStoreTelecelCharge: 0,
+    mainStoreGameCharge: 0,
+  });
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "settings", "hidden_charges"), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setChargeSettings({
+          agentStoreCharge: typeof data.agentStoreCharge === "number" ? data.agentStoreCharge : 0,
+          mainStoreMTNCharge: typeof data.mainStoreMTNCharge === "number" ? data.mainStoreMTNCharge : 0,
+          mainStoreTelecelCharge: typeof data.mainStoreTelecelCharge === "number" ? data.mainStoreTelecelCharge : 0,
+          mainStoreGameCharge: typeof data.mainStoreGameCharge === "number" ? data.mainStoreGameCharge : 0,
+        });
+      }
+    });
+    return () => unsub();
+  }, []);
+
   const {
     register,
     handleSubmit,
@@ -183,24 +211,30 @@ export default function CheckoutForm({
     watchNetwork === "FC Mobile Silver" ||
     watchNetwork === "FC Mobile";
 
-  const paystackFee =
-    (isAgentBuyingFromOwnStore || isAgentBuyingOnHomePage) && !(!!agentContext && isTelecel1to5) && !(bundle?.network === "MTN" && isAgentActive) ? 1.0 : 0.0;
-  const hiddenGameCharge = isFC ? 0.0 : (isGame ? 1.0 : 0.0);
+  // When purchasing through agent store, only apply agentStoreCharge if configured by admin (defaults to 0.00 GHS)
+  const isAgentStorePurchase = !!agentContext;
 
-  const isTelecelHiddenChargeMain = 
-    !agentContext && 
+  const paystackFee = isAgentStorePurchase
+    ? (chargeSettings.agentStoreCharge || 0.0)
+    : 0.0;
+
+  const hiddenGameCharge = !isAgentStorePurchase && !isFC && isGame
+    ? (chargeSettings.mainStoreGameCharge || 0.0)
+    : 0.0;
+
+  const isTelecelHiddenChargeMain =
+    !agentContext &&
     bundle?.network === "Telecel" &&
     ((gbValue >= 1 && gbValue <= 5) || (gbValue >= 10 && gbValue <= 100));
 
-  const hiddenTelecelCharge = isTelecelHiddenChargeMain ? 1.0 : (!!agentContext && isTelecel1to5 ? 2.0 : 0.0);
+  const hiddenTelecelCharge = (!isAgentStorePurchase && isTelecelHiddenChargeMain)
+    ? (chargeSettings.mainStoreTelecelCharge || 0.0)
+    : 0.0;
 
   const isMTN1to4 = bundle?.network === "MTN" && gbValue >= 1 && gbValue <= 4;
-  const isMTN5 = bundle?.network === "MTN" && gbValue > 4 && gbValue <= 5;
-  const hiddenMTNCharge = (!agentContext && isMTN1to4)
-    ? 0.50
-    : (isMTN5
-        ? 0.0
-        : (bundle?.network === "MTN" ? (isAgentActive ? 1.0 : (agentContext ? 0.0 : 1.0)) : 0.0));
+  const hiddenMTNCharge = (!isAgentStorePurchase && isMTN1to4)
+    ? (chargeSettings.mainStoreMTNCharge || 0.0)
+    : 0.0;
 
   const finalAmountToCharge = Number(bundle?.price || 0) + paystackFee + hiddenGameCharge + hiddenTelecelCharge + hiddenMTNCharge;
 
