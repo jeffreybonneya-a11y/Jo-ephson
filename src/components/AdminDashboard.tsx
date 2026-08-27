@@ -125,6 +125,8 @@ export default function AdminDashboard() {
 
   const [pricePerChecker, setPricePerChecker] = useState<number>(25);
   const [rcWholesalePrice, setRcWholesalePrice] = useState<number>(19);
+  const [agentStorePrice, setAgentStorePrice] = useState<number>(50);
+  const [isUpdatingAgentStorePrice, setIsUpdatingAgentStorePrice] = useState<boolean>(false);
   const [isUpdatingPrice, setIsUpdatingPrice] = useState<boolean>(false);
   const [isFreeDataDisabled, setIsFreeDataDisabled] = useState<boolean>(false);
   const [freeDataPrice, setFreeDataPrice] = useState<number>(1);
@@ -353,6 +355,19 @@ export default function AdminDashboard() {
       }
     );
 
+    // 11. Listen for General Agent Store Wholesale / Creation Price Setting
+    const unsubAgentStoreSetting = onSnapshot(
+      doc(db, "settings", "agent_store"),
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          if (typeof data.price === "number") {
+            setAgentStorePrice(data.price);
+          }
+        }
+      }
+    );
+
     return () => {
       window.removeEventListener('RESET_ADMIN_NOTIFIER', handleResetNotifierEvent);
       unsubAnnouncement();
@@ -365,6 +380,7 @@ export default function AdminDashboard() {
       unsubProfitRequests();
       unsubResultsChecker();
       unsubFreeData();
+      unsubAgentStoreSetting();
     };
   }, []);
 
@@ -655,11 +671,41 @@ export default function AdminDashboard() {
           }
         }
       }
-      toast.success(`Updated wholesale prices for ${count} package(s)! 🏷️`);
+
+      // Also ensure Agent Store wholesale access price is saved
+      await setDoc(
+        doc(db, "settings", "agent_store"),
+        {
+          price: Number(agentStorePrice),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+
+      toast.success(`Updated wholesale prices for ${count} package(s) and Agent Store price! 🏷️`);
     } catch (err: any) {
       toast.error(`Error saving wholesale prices: ${err.message}`);
     } finally {
       setIsSavingWholesale(false);
+    }
+  };
+
+  const handleSaveAgentStorePrice = async () => {
+    setIsUpdatingAgentStorePrice(true);
+    try {
+      await setDoc(
+        doc(db, "settings", "agent_store"),
+        {
+          price: Number(agentStorePrice),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+      toast.success(`General Agent Store price updated to GHS ${Number(agentStorePrice).toFixed(2)}! 👑`);
+    } catch (err: any) {
+      toast.error(`Failed to update Agent Store price: ${err.message}`);
+    } finally {
+      setIsUpdatingAgentStorePrice(false);
     }
   };
 
@@ -2106,6 +2152,50 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
 
+            {/* General Agent Store Creation & Wholesale Access Fee Section */}
+            <Card className="rounded-3xl border-2 border-amber-200 dark:border-amber-900/40 bg-amber-50/60 dark:bg-amber-950/20 shadow-sm overflow-hidden">
+              <CardContent className="p-6 sm:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-900 dark:text-amber-300 text-[10px] font-black uppercase tracking-wider">
+                    <Crown className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                    Agent Store Wholesale Access
+                  </div>
+                  <h3 className="text-lg font-black text-amber-950 dark:text-amber-200 flex items-center gap-2">
+                    <span>👑 General Agent Store Price</span>
+                  </h3>
+                  <p className="text-xs text-amber-800/80 dark:text-amber-300/80 font-medium max-w-xl">
+                    Configure the one-time unlock / registration price for users to open their wholesale Agent Store (previously hardcoded to 50 GHS). Set any price you desire.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">GHS</span>
+                    <Input
+                      type="number"
+                      step="0.50"
+                      min="0"
+                      value={agentStorePrice}
+                      onChange={(e) => setAgentStorePrice(Number(e.target.value))}
+                      className="pl-12 w-32 h-11 rounded-xl font-black text-sm border-2 border-amber-300 dark:border-amber-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                      placeholder="50"
+                    />
+                  </div>
+                  <Button
+                    onClick={handleSaveAgentStorePrice}
+                    disabled={isUpdatingAgentStorePrice}
+                    className="h-11 px-5 rounded-xl font-black text-xs uppercase bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-md cursor-pointer flex items-center gap-1.5"
+                  >
+                    {isUpdatingAgentStorePrice ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <CheckCircle className="w-3.5 h-3.5" />
+                    )}
+                    Save Store Price
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Results Checker Wholesale Section */}
             <Card className="rounded-3xl border-2 border-indigo-200 dark:border-indigo-900/40 bg-indigo-50/50 dark:bg-indigo-950/20 shadow-sm overflow-hidden">
               <CardContent className="p-6 sm:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
@@ -2845,11 +2935,47 @@ export default function AdminDashboard() {
 
         <TabsContent value="agents" className="mt-0 outline-none">
           <Card className="rounded-3xl border-2 bg-white dark:bg-slate-950 dark:border-slate-800 shadow-sm overflow-hidden">
-            <CardHeader className="p-8 bg-slate-50 dark:bg-slate-900/50 border-b dark:border-slate-800">
-              <CardTitle className="text-xl font-black flex items-center gap-2 text-slate-900 dark:text-white">
-                <Crown className="w-5 h-5 text-primary" />
-                AGENTS COMMAND CENTER 👑
-              </CardTitle>
+            <CardHeader className="p-6 sm:p-8 bg-slate-50 dark:bg-slate-900/50 border-b dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <CardTitle className="text-xl font-black flex items-center gap-2 text-slate-900 dark:text-white">
+                  <Crown className="w-5 h-5 text-primary" />
+                  AGENTS COMMAND CENTER 👑
+                </CardTitle>
+                <p className="text-xs text-slate-500 font-medium mt-1">
+                  Manage agent requests, storefronts, and unlock fees.
+                </p>
+              </div>
+
+              {/* Quick Agent Store Unlock Price Setting */}
+              <div className="flex flex-wrap items-center gap-2.5 p-2 rounded-2xl bg-amber-500/10 border border-amber-500/20">
+                <div className="flex items-center gap-1.5 px-2 text-amber-900 dark:text-amber-300 text-xs font-black">
+                  <span>👑 Unlock Fee:</span>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">GHS</span>
+                  <Input
+                    type="number"
+                    step="0.50"
+                    min="0"
+                    value={agentStorePrice}
+                    onChange={(e) => setAgentStorePrice(Number(e.target.value))}
+                    className="pl-10 w-24 h-8 rounded-lg font-black text-xs border-amber-300 dark:border-amber-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  onClick={handleSaveAgentStorePrice}
+                  disabled={isUpdatingAgentStorePrice}
+                  className="h-8 px-3 rounded-lg font-black text-[10px] uppercase bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-sm cursor-pointer flex items-center gap-1"
+                >
+                  {isUpdatingAgentStorePrice ? (
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <CheckCircle className="w-3 h-3" />
+                  )}
+                  Save Price
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="p-6">
               <Tabs defaultValue="requests" className="space-y-6">

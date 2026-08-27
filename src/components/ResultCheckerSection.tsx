@@ -41,6 +41,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
 
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [mobileNumber, setMobileNumber] = useState<string>('');
+  const [showDetailedSteps, setShowDetailedSteps] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [showSuccessScreen, setShowSuccessScreen] = useState<boolean>(false);
 
@@ -51,6 +52,25 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
   const [orderId, setOrderId] = useState<string>('');
 
   const MOMO_NUMBER = agentContext?.momo_number ? agentContext.momo_number.trim() : "0535884851";
+
+  // Pre-load saved phone number if available
+  useEffect(() => {
+    try {
+      const savedPhone = localStorage.getItem('last_recipient_phone');
+      if (savedPhone && !mobileNumber) {
+        setMobileNumber(savedPhone);
+      }
+    } catch (e) {
+      // ignore storage errors
+    }
+  }, []);
+
+  const handlePhoneChange = (val: string) => {
+    setMobileNumber(val);
+    try {
+      localStorage.setItem('last_recipient_phone', val);
+    } catch (e) {}
+  };
 
   // Real-time listener for Results Checker price settings
   useEffect(() => {
@@ -554,11 +574,31 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
               </div>
             </div>
 
+            {/* Recipient Phone Input (Quick Fill) */}
+            <div className="space-y-1.5 pt-4 border-t border-dashed">
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-black uppercase tracking-wide text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <Smartphone className="w-3.5 h-3.5 text-indigo-600 dark:text-amber-400" />
+                  Recipient Mobile Number
+                </label>
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                  SMS Voucher Delivery
+                </span>
+              </div>
+              <Input
+                type="tel"
+                value={mobileNumber}
+                onChange={(e) => handlePhoneChange(e.target.value)}
+                placeholder="e.g. 0244123456"
+                className="rounded-xl h-11 border-2 dark:bg-slate-900 dark:border-slate-800 text-foreground text-sm font-bold"
+              />
+            </div>
+
             {/* Pricing Summary & Buy Button */}
-            <div className="pt-6 border-t flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="pt-5 border-t flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="text-center sm:text-left">
                 <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Total Amount</span>
-                <div className="text-3xl font-black text-indigo-600 font-mono">
+                <div className="text-2xl sm:text-3xl font-black text-indigo-600 dark:text-amber-400 font-mono">
                   {loadingPrice ? (
                     <span className="animate-pulse">Loading...</span>
                   ) : (
@@ -570,7 +610,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
               <Button
                 disabled={quantity < 1 || loadingPrice}
                 onClick={handleOpenPurchaseFlow}
-                className="w-full sm:w-auto h-14 px-8 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-all"
+                className="w-full sm:w-auto h-13 px-8 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer"
               >
                 Buy for {totalAmount} GHS <ChevronRight className="w-4 h-4" />
               </Button>
@@ -606,10 +646,10 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
         </div>
       </div>
 
-      {/* Step Flow Instructions Modal & Mobile Input form */}
+      {/* ONE-TAP INSTRUCTIONS & RECIPIENT DETAILS MODAL (NO SCROLLING) */}
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
             {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
@@ -619,188 +659,166 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             />
 
-            {/* Modal Card */}
+            {/* Modal Card - Single Screen Compact Layout */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="relative w-full max-w-xl bg-white dark:bg-slate-950 rounded-[2.5rem] border-4 border-slate-100 dark:border-slate-800 shadow-2xl overflow-hidden z-10"
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-lg bg-white dark:bg-[#0B132B] rounded-3xl border-2 border-slate-100 dark:border-slate-800 shadow-2xl z-10 p-5 sm:p-6 space-y-4 max-h-[95vh] overflow-y-auto"
             >
               {/* Success Screen Overlay */}
               {showSuccessScreen ? (
-                <div className="p-8 md:p-12 text-center flex flex-col items-center justify-center min-h-[400px] bg-white dark:bg-slate-950">
+                <div className="p-6 sm:p-8 text-center flex flex-col items-center justify-center min-h-[300px]">
                   <motion.div
                     initial={{ scale: 0.8, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    className="w-20 h-20 bg-green-100 dark:bg-green-950/50 text-green-600 rounded-full flex items-center justify-center mb-6 shadow-inner"
+                    className="w-16 h-16 bg-green-100 dark:bg-green-950/50 text-green-600 rounded-full flex items-center justify-center mb-4 shadow-inner"
                   >
-                    <CheckCircle2 className="w-12 h-12" />
+                    <CheckCircle2 className="w-10 h-10" />
                   </motion.div>
-                  <h2 className="text-2xl md:text-3xl font-black text-slate-950 dark:text-white uppercase tracking-tight mb-4">
+                  <h2 className="text-xl sm:text-2xl font-black text-slate-950 dark:text-white uppercase tracking-tight mb-2">
                     Payment Successful ✅
                   </h2>
-                  <p className="text-slate-600 dark:text-slate-400 font-bold text-sm md:text-base leading-relaxed max-w-sm mx-auto">
-                    Your Serial Number and PIN will be sent via SMS shortly.
+                  <p className="text-slate-600 dark:text-slate-400 font-bold text-xs sm:text-sm leading-relaxed max-w-sm mx-auto">
+                    Your Serial Number and PIN will be sent via SMS to <span className="font-mono text-indigo-600 dark:text-amber-400">{mobileNumber}</span> shortly.
                   </p>
                 </div>
-              ) : (
-                <div className="flex flex-col h-[85vh] max-h-[650px]">
-                  {checkoutStep === 'form' ? (
-                    <>
-                      {/* Header */}
-                      <div className="p-6 border-b bg-slate-50 dark:bg-slate-900/50 flex justify-between items-center">
-                        <div>
-                          <h3 className="font-black text-lg text-slate-900 dark:text-white uppercase tracking-tight">
-                            Instructions & Recipient Details
-                          </h3>
-                          <p className="text-xs text-slate-500 font-medium">
-                            Review the steps for purchasing and using your checker below
-                          </p>
-                        </div>
-                        <button
-                          disabled={isSubmitting}
-                          onClick={() => setIsModalOpen(false)}
-                          className="text-slate-400 hover:text-slate-600 dark:hover:text-white text-xs font-bold uppercase transition-colors"
-                        >
-                          Close
-                        </button>
+              ) : checkoutStep === 'form' ? (
+                <div className="space-y-4">
+                  {/* Header */}
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-indigo-600/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-amber-400 flex items-center justify-center font-black shrink-0">
+                        <GraduationCap className="w-5 h-5" />
                       </div>
-
-                      {/* Body Content */}
-                      <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
-                        {(!auth.currentUser || auth.currentUser.isAnonymous) && (
-                          <div className="bg-amber-500/10 border-2 border-amber-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 animate-pulse">
-                            <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 text-xs font-bold text-center sm:text-left">
-                              <Crown className="w-5 h-5 text-amber-500 shrink-0" />
-                              <span>Login Required: Sign in before purchasing Results Checkers.</span>
-                            </div>
-                            <Button
-                              type="button"
-                              size="sm"
-                              onClick={() => window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'))}
-                              className="h-9 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs uppercase shadow-md cursor-pointer shrink-0"
-                            >
-                              Sign In 👑
-                            </Button>
-                          </div>
-                        )}
-                        {/* Instructions List */}
-                        <div className="space-y-4">
-                          <h4 className="font-black text-xs uppercase tracking-widest text-indigo-600">
-                            Follow these steps:
-                          </h4>
-
-                          <div className="space-y-4">
-                            <div className="flex gap-3">
-                              <span className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-600 font-black text-xs flex items-center justify-center shrink-0">
-                                1
-                              </span>
-                              <div className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                                <p className="font-black text-slate-900 dark:text-white">Buy the Results Checker Voucher:</p>
-                                <p className="mt-0.5">Enter your mobile number so the Serial Number and 12-digit PIN can be sent via SMS.</p>
-                              </div>
-                            </div>
-
-                            <div className="flex gap-3">
-                              <span className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-600 font-black text-xs flex items-center justify-center shrink-0">
-                                2
-                              </span>
-                              <div className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                                <p className="font-black text-slate-900 dark:text-white">After receiving:</p>
-                                <p className="mt-0.5">Visit WAECDIRECT Ghana.</p>
-                              </div>
-                            </div>
-
-                            <div className="flex gap-3">
-                              <span className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-600 font-black text-xs flex items-center justify-center shrink-0">
-                                3
-                              </span>
-                              <div className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                                <p className="font-black text-slate-900 dark:text-white">Enter Candidate Details:</p>
-                                <ul className="list-disc pl-4 mt-1 space-y-0.5">
-                                  <li>Enter 10-digit Index Number.</li>
-                                  <li>Select Type of Examination.</li>
-                                  <li>Select Examination Year.</li>
-                                </ul>
-                              </div>
-                            </div>
-
-                            <div className="flex gap-3">
-                              <span className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-600 font-black text-xs flex items-center justify-center shrink-0">
-                                4
-                              </span>
-                              <div className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                                <p className="font-black text-slate-900 dark:text-white">Enter Voucher Details:</p>
-                                <ul className="list-disc pl-4 mt-1 space-y-0.5">
-                                  <li>Serial Number</li>
-                                  <li>12-digit PIN</li>
-                                </ul>
-                              </div>
-                            </div>
-
-                            <div className="flex gap-3">
-                              <span className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-600 font-black text-xs flex items-center justify-center shrink-0">
-                                5
-                              </span>
-                              <div className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                                <p className="font-black text-slate-900 dark:text-white">Submit and wait.</p>
-                                <p className="mt-0.5 text-[10px] text-amber-600 font-black uppercase">Note: Save screenshot or print result.</p>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Form Section */}
-                        <div className="border-t pt-6 space-y-4">
-                          <div className="space-y-2">
-                            <label className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                              Recipient Mobile Number <span className="text-red-500">*</span>
-                            </label>
-                            <Input
-                              type="tel"
-                              disabled={isSubmitting}
-                              value={mobileNumber}
-                              onChange={(e) => setMobileNumber(e.target.value)}
-                              placeholder="e.g. 0244123456"
-                              className="rounded-xl h-12 border-2 dark:bg-slate-900 dark:border-slate-800 text-foreground text-sm font-bold"
-                            />
-                          </div>
-
-                          {/* Warning Message */}
-                          <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200/50 dark:border-amber-900/50 rounded-2xl p-4 flex gap-3 items-start">
-                            <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-500 shrink-0 mt-0.5" />
-                            <div className="text-[11px] font-bold text-amber-800 dark:text-amber-400 leading-relaxed">
-                              Ensure the mobile number is correct. Your Serial Number and PIN will be sent via SMS.
-                            </div>
-                          </div>
-                        </div>
+                      <div>
+                        <h3 className="font-black text-base sm:text-lg text-slate-900 dark:text-white uppercase tracking-tight leading-tight">
+                          Instructions & Recipient Details
+                        </h3>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold">
+                          Direct SMS voucher delivery to recipient phone
+                        </p>
                       </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={() => setIsModalOpen(false)}
+                      className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white flex items-center justify-center font-bold text-xs transition-colors cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
 
-                      {/* Footer */}
-                      <div className="p-6 border-t bg-slate-50 dark:bg-slate-900/50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-                        <div className="text-center sm:text-left">
-                          <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Total Price</span>
-                          <p className="text-lg font-black text-slate-900 dark:text-white font-mono">{totalAmount.toFixed(2)} GHS</p>
-                        </div>
+                  {/* Summary & Price Banner */}
+                  <div className="flex items-center justify-between p-3 rounded-2xl bg-indigo-50/60 dark:bg-slate-900 border border-indigo-100 dark:border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-black text-xs uppercase tracking-wide">
+                        {activeCheckerTab}
+                      </span>
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                        Qty: <strong className="text-slate-900 dark:text-white">{quantity}</strong>
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[9px] uppercase font-black text-slate-400 block tracking-wider">Total Due</span>
+                      <span className="text-base font-black text-indigo-600 dark:text-amber-400 font-mono">
+                        GH₵ {totalAmount.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
 
-                        <Button
-                          disabled={!mobileNumber.trim() || isSubmitting}
-                          onClick={handleFormSubmit}
-                          className="h-12 px-8 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-xs tracking-wider shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95"
-                        >
-                          {isSubmitting ? (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin" /> Processing...
-                            </>
-                          ) : (
-                            <>
-                              Confirm & Proceed <ChevronRight className="w-4 h-4" />
-                            </>
-                          )}
-                        </Button>
+                  {/* Recipient Phone Input (Front & Center) */}
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <label className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-slate-200 flex items-center gap-1.5">
+                        <Smartphone className="w-3.5 h-3.5 text-indigo-600 dark:text-amber-400" />
+                        Recipient Mobile Number <span className="text-red-500">*</span>
+                      </label>
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                        ⚡ Instant SMS delivery
+                      </span>
+                    </div>
+                    <Input
+                      type="tel"
+                      autoFocus
+                      disabled={isSubmitting}
+                      value={mobileNumber}
+                      onChange={(e) => handlePhoneChange(e.target.value)}
+                      placeholder="e.g. 0244123456"
+                      className="rounded-2xl h-12 text-sm sm:text-base font-black border-2 border-indigo-200 dark:border-slate-700 focus:border-indigo-600 dark:focus:border-amber-400 dark:bg-slate-900 text-foreground"
+                    />
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                      Your Serial Number & 12-digit PIN will be sent via SMS to this phone.
+                    </p>
+                  </div>
+
+                  {/* Quick 3-Step Instant Instructions Strip (Zero Scroll Required) */}
+                  <div className="grid grid-cols-3 gap-2 pt-1">
+                    <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 text-center space-y-0.5">
+                      <div className="w-5 h-5 mx-auto rounded-full bg-indigo-600 text-white font-black text-[10px] flex items-center justify-center">
+                        1
                       </div>
-                    </>
-                  ) : checkoutStep === 'select_method' ? (
+                      <p className="text-[11px] font-black text-slate-900 dark:text-white leading-tight">Instant SMS</p>
+                      <p className="text-[9px] text-slate-500 dark:text-slate-400 font-medium leading-tight">PIN & Serial sent instantly</p>
+                    </div>
+
+                    <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 text-center space-y-0.5">
+                      <div className="w-5 h-5 mx-auto rounded-full bg-indigo-600 text-white font-black text-[10px] flex items-center justify-center">
+                        2
+                      </div>
+                      <p className="text-[11px] font-black text-slate-900 dark:text-white leading-tight">WAEC Portal</p>
+                      <p className="text-[9px] text-slate-500 dark:text-slate-400 font-medium leading-tight">ghana.waecdirect.org</p>
+                    </div>
+
+                    <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 text-center space-y-0.5">
+                      <div className="w-5 h-5 mx-auto rounded-full bg-indigo-600 text-white font-black text-[10px] flex items-center justify-center">
+                        3
+                      </div>
+                      <p className="text-[11px] font-black text-slate-900 dark:text-white leading-tight">3 Checks</p>
+                      <p className="text-[9px] text-slate-500 dark:text-slate-400 font-medium leading-tight">Check 1 student up to 3x</p>
+                    </div>
+                  </div>
+
+                  {/* Optional Collapsible Detail Toggle */}
+                  <div className="text-center pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setShowDetailedSteps(!showDetailedSteps)}
+                      className="text-[11px] font-bold text-indigo-600 dark:text-amber-400 hover:underline inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      {showDetailedSteps ? "▲ Hide detailed portal guide" : "▼ View full step-by-step portal instructions"}
+                    </button>
+                    {showDetailedSteps && (
+                      <div className="mt-2 p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border text-left text-[11px] space-y-1 text-slate-600 dark:text-slate-300">
+                        <p>1. Enter 10-digit Index Number & Examination Year on WAECDIRECT.</p>
+                        <p>2. Enter the Serial Number and 12-digit PIN received via SMS.</p>
+                        <p>3. Click Submit and save/screenshot your results.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* One-Tap Action Button */}
+                  <div className="pt-2">
+                    <Button
+                      disabled={!mobileNumber.trim() || isSubmitting}
+                      onClick={handleFormSubmit}
+                      className="w-full h-12 sm:h-13 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-xs sm:text-sm tracking-wider shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" /> Processing...
+                        </>
+                      ) : (
+                        <>
+                          <span>Pay GH₵ {totalAmount.toFixed(2)} Now</span>
+                          <ChevronRight className="w-4 h-4" />
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              ) : checkoutStep === 'select_method' ? (
                     <div className="p-6 md:p-8 space-y-6 overflow-y-auto">
                       <div className="flex items-center gap-2">
                         <Button
@@ -1081,8 +1099,6 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
                       </div>
                     </div>
                   )}
-                </div>
-              )}
             </motion.div>
           </div>
         )}

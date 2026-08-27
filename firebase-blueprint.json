@@ -143,6 +143,15 @@
         "logoShape": { "type": "string", "enum": ["rounded", "circle", "square", "original"], "description": "Display crop style of the logo" },
         "updatedAt": { "type": "string", "format": "date-time" }
       }
+    },
+    "AgentStoreSettings": {
+      "title": "Agent Store Settings",
+      "description": "Wholesale and general agent store access configuration.",
+      "type": "object",
+      "properties": {
+        "price": { "type": "number", "description": "One-time registration fee to unlock agent store access in GHS" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "firestore": {

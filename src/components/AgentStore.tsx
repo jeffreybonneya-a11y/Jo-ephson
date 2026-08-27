@@ -63,6 +63,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
   // Price setup states
   const [customPrices, setCustomPrices] = useState<{ [bundleId: string]: string }>({});
   const [rcWholesalePrice, setRcWholesalePrice] = useState<number>(19.0);
+  const [agentStorePrice, setAgentStorePrice] = useState<number>(50);
 
   // Withdrawal States
   const [withdrawAmount, setWithdrawAmount] = useState('');
@@ -165,12 +166,22 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
       }
     });
 
+    const unsubAgentStoreSetting = onSnapshot(doc(db, 'settings', 'agent_store'), (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        if (typeof data.price === 'number') {
+          setAgentStorePrice(data.price);
+        }
+      }
+    });
+
     return () => {
       unsubAgent();
       unsubWithdrawals();
       unsubBundles();
       unsubOrders();
       unsubRC();
+      unsubAgentStoreSetting();
     };
   }, []);
 
@@ -180,6 +191,15 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
     setIsPaying(true);
 
     try {
+      const priceToPay = typeof agentStorePrice === 'number' && !isNaN(agentStorePrice) ? agentStorePrice : 50;
+
+      if (priceToPay <= 0) {
+        await updateDoc(doc(db, 'users', auth.currentUser.uid), { isAgent: true });
+        toast.success("Agent Access Unlocked! Welcome 👑");
+        setIsPaying(false);
+        return;
+      }
+
       // 1. Generate ID synchronously client-side
       const finalOrderId = doc(collection(db, 'orders')).id;
 
@@ -189,7 +209,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
         phone: profile?.phoneNumber || "0000000000",
         network: "SYSTEM",
         bundle: "AGENT ACCESS UNLOCK",
-        amount: 50,
+        amount: priceToPay,
         status: "pending",
         createdAt: serverTimestamp(),
         userId: auth.currentUser?.uid,
@@ -231,7 +251,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
             await openPaystackPopup({
               key: publicKey,
               email: paystackEmail,
-              amount: 5000,
+              amount: Math.round(priceToPay * 100),
               currency: "GHS",
               ref: finalOrderId,
               onSuccess: (ref) => {
@@ -256,7 +276,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 email: paystackEmail,
-                amount: 5000,
+                amount: Math.round(priceToPay * 100),
                 reference: finalOrderId,
                 callback_url: redirectTarget + "/?reference=" + finalOrderId,
                 currency: "GHS",
@@ -541,11 +561,25 @@ Reference Code: ${refCode}
              </p>
 
              <Button 
-               className="w-full h-14 sm:h-16 text-lg sm:text-xl font-black rounded-xl sm:rounded-2xl bg-slate-900 text-white hover:bg-black transition-all gap-3 shadow-[0_10px_30px_rgba(0,0,0,0.1)]"
+               className="w-full h-14 sm:h-16 text-lg sm:text-xl font-black rounded-xl sm:rounded-2xl bg-slate-900 text-white hover:bg-black transition-all gap-3 shadow-[0_10px_30px_rgba(0,0,0,0.1)] cursor-pointer"
                onClick={handlePayForAccess}
                disabled={isPaying}
              >
-                {isPaying ? <Loader2 className="w-6 h-6 animate-spin" /> : <><Crown className="w-5 h-5 sm:w-6 sm:h-6 text-primary" /> UNLOCK ACCESS: <span className="line-through text-slate-400 mr-1 sm:mr-2">GHS 100</span> <span className="text-primary font-black">GHS 50</span></>}
+                {isPaying ? (
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                ) : (
+                  <>
+                    <Crown className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
+                    UNLOCK ACCESS: {agentStorePrice <= 0 ? (
+                      <span className="text-primary font-black">FREE (GHS 0.00)</span>
+                    ) : (
+                      <>
+                        <span className="line-through text-slate-400 mr-1 sm:mr-2">GHS {(agentStorePrice * 2).toFixed(0)}</span>
+                        <span className="text-primary font-black">GHS {agentStorePrice.toFixed(2)}</span>
+                      </>
+                    )}
+                  </>
+                )}
              </Button>
           </div>
       </div>
