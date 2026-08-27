@@ -1331,31 +1331,10 @@ export default function CheckoutForm({
                     </div>
                   )}
 
-                  {hiddenMTNCharge > 0 && (
+                  {networkHiddenCharge > 0 && (
                     <div className="flex justify-between items-center text-xs font-black text-amber-600 dark:text-amber-400">
-                      <span>MTN Network Charges</span>
-                      <span className="font-mono">+ GHS {hiddenMTNCharge.toFixed(2)}</span>
-                    </div>
-                  )}
-
-                  {hiddenTelecelCharge > 0 && (
-                    <div className="flex justify-between items-center text-xs font-black text-amber-600 dark:text-amber-400">
-                      <span>Telecel Network Charges</span>
-                      <span className="font-mono">+ GHS {hiddenTelecelCharge.toFixed(2)}</span>
-                    </div>
-                  )}
-
-                  {hiddenATCharge > 0 && (
-                    <div className="flex justify-between items-center text-xs font-black text-amber-600 dark:text-amber-400">
-                      <span>AirtelTigo Charges</span>
-                      <span className="font-mono">+ GHS {hiddenATCharge.toFixed(2)}</span>
-                    </div>
-                  )}
-
-                  {hiddenGameCharge > 0 && (
-                    <div className="flex justify-between items-center text-xs font-black text-amber-600 dark:text-amber-400">
-                      <span>Game Processing Fee</span>
-                      <span className="font-mono">+ GHS {hiddenGameCharge.toFixed(2)}</span>
+                      <span>{isMTN ? "MTN Network Charges" : isTelecel ? "Telecel Network Charges" : isAirtelTigo ? "AirtelTigo Charges" : isGame ? "Game Processing Fee" : "Service Charge"}</span>
+                      <span className="font-mono">+ GHS {networkHiddenCharge.toFixed(2)}</span>
                     </div>
                   )}
 
