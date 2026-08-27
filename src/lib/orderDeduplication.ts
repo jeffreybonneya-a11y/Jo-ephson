@@ -59,6 +59,89 @@ export function isFcOrCoinsOrder(order: any): boolean {
 }
 
 /**
+ * Strictly determines if an order's payment has been confirmed/verified as successful.
+ * Excludes all unpaid, pending, failed, abandoned, cancelled, or unverified orders.
+ */
+export function isOrderSuccessfullyPaid(order: any): boolean {
+  if (!order) return false;
+
+  const paymentStatus = normalizeStr(order.paymentStatus);
+  const status = normalizeStr(order.status);
+  const net = normalizeStr(order.network);
+  const serviceType = normalizeStr(order.serviceType);
+
+  // 1. Explicit failure / cancelled / abandoned / unverified states MUST NOT appear
+  if (
+    paymentStatus === "failed" ||
+    paymentStatus === "abandoned" ||
+    paymentStatus === "cancelled" ||
+    paymentStatus === "unverified" ||
+    status === "failed" ||
+    status === "cancelled" ||
+    status === "abandoned"
+  ) {
+    return false;
+  }
+
+  // 2. Pending or unpaid payment states (checkout started, reference created, awaiting payment) MUST NOT appear
+  if (
+    paymentStatus === "pending" ||
+    paymentStatus === "pending_verification" ||
+    paymentStatus === "unpaid"
+  ) {
+    return false;
+  }
+
+  // 3. If fulfillment status is pending and payment has not been marked success/paid/free_promo, MUST NOT appear
+  if (
+    status === "pending" &&
+    paymentStatus !== "success" &&
+    paymentStatus !== "paid" &&
+    paymentStatus !== "free_promo"
+  ) {
+    return false;
+  }
+
+  // 4. Check for verified payment status
+  if (
+    paymentStatus === "success" ||
+    paymentStatus === "paid" ||
+    paymentStatus === "completed" ||
+    paymentStatus === "free_promo"
+  ) {
+    return true;
+  }
+
+  // 5. Check for post-payment fulfillment statuses (paid, processing, accepted, delivered, completed, declined, success)
+  if (
+    status === "paid" ||
+    status === "processing" ||
+    status === "accepted" ||
+    status === "delivered" ||
+    status === "completed" ||
+    status === "declined" ||
+    status === "success" ||
+    status === "successful"
+  ) {
+    return true;
+  }
+
+  // 6. Promotional Free Data wins that are verified
+  if (
+    (order.isFreeDataWin === true ||
+      serviceType === "free data win" ||
+      net.includes("free data")) &&
+    status !== "pending" &&
+    status !== "failed" &&
+    status !== "cancelled"
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Ranks an order's completeness/quality so we always keep the best one when deduplicating
  */
 function getOrderRank(order: any): number {

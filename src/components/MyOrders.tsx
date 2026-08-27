@@ -9,7 +9,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db, auth } from "../lib/firebase";
-import { deduplicateOrdersList } from "@/src/lib/orderDeduplication";
+import { deduplicateOrdersList, isOrderSuccessfullyPaid } from "@/src/lib/orderDeduplication";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -60,29 +60,7 @@ export default function MyOrders() {
           ...doc.data(),
         }));
         // Show only orders with verified successful payment status
-        const completedOrders = fetchedOrders.filter(
-          (o: any) => {
-            const isExplicitFailed = 
-              o.paymentStatus === "failed" ||
-              o.paymentStatus === "abandoned" ||
-              o.paymentStatus === "unverified" ||
-              o.status === "failed" ||
-              o.status === "cancelled" ||
-              o.status === "abandoned" ||
-              o.status === "declined";
-
-            const isPaidOrVerified =
-              o.paymentStatus === "success" ||
-              o.status === "paid" ||
-              o.status === "delivered" ||
-              o.status === "completed" ||
-              o.status === "processing" ||
-              o.status === "accepted" ||
-              o.status === "success";
-
-            return isPaidOrVerified && !isExplicitFailed;
-          }
-        );
+        const completedOrders = fetchedOrders.filter(isOrderSuccessfullyPaid);
         const uniqueOrders = deduplicateOrdersList(completedOrders);
         setOrders(uniqueOrders);
         setLoading(false);

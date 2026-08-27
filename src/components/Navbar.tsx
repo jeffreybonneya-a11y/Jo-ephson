@@ -7,6 +7,7 @@ import { LogIn, LogOut, LayoutDashboard, History, User, Crown, Home, MessageCirc
 import { onSnapshot, collection, query, where } from 'firebase/firestore';
 import { UserProfile } from '@/src/types';
 import { useBranding } from '@/src/hooks/useBranding';
+import { isOrderSuccessfullyPaid } from '@/src/lib/orderDeduplication';
 import AuthModal from './AuthModal';
 import SupportModal from './SupportModal';
 
@@ -103,17 +104,8 @@ export default function Navbar({
       const unsubOrders = onSnapshot(qOrders, (snapshot) => {
         const resetTimeMs = getResetTime();
         const visibleOrders = snapshot.docs.filter((doc) => {
-          const o = doc.data();
-          const isExplicitFailed =
-            o.status === "failed" ||
-            o.status === "cancelled" ||
-            o.status === "abandoned" ||
-            o.status === "declined" ||
-            o.paymentStatus === "failed" ||
-            o.paymentStatus === "cancelled" ||
-            o.paymentStatus === "abandoned";
-
-          if (isExplicitFailed) return false;
+          const o = { id: doc.id, ...doc.data() };
+          if (!isOrderSuccessfullyPaid(o)) return false;
           const orderTime = getOrderMillis(doc);
           return orderTime > resetTimeMs;
         });

@@ -12,6 +12,7 @@ import MyOrders from './MyOrders';
 import { Bundle } from '../types';
 import { getApiUrl } from '../lib/api';
 import { openPaystackPopup } from '../lib/paystack';
+import { isOrderSuccessfullyPaid } from '../lib/orderDeduplication';
 
 interface AgentStoreProps {
   profile: any;
@@ -143,10 +144,11 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
       )
     );
     const unsubOrders = onSnapshot(qOrders, (snapshot) => {
-      const fetchedOrders = snapshot.docs.map(doc => ({
+      const allFetched = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
+      const fetchedOrders = allFetched.filter(isOrderSuccessfullyPaid);
       // Sort orders by timestamp descending
       fetchedOrders.sort((a: any, b: any) => {
         const timeA = a.createdAt?.seconds || Date.now() / 1000;

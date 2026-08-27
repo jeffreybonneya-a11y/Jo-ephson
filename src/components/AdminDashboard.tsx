@@ -31,6 +31,7 @@ import {
   deduplicateOrdersList,
   purgeDuplicateOrdersFromFirestore,
   isFcOrCoinsOrder,
+  isOrderSuccessfullyPaid,
 } from "@/src/lib/orderDeduplication";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -229,12 +230,14 @@ export default function AdminDashboard() {
       setLoading(false);
     });
 
-    // 3. Listen for Orders
+    // 3. Listen for Orders (Strictly display only confirmed successfully paid orders)
     const unsubOrders = onSnapshot(
       collection(db, "orders"),
       (snapshot) => {
         const allOrders = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() as any }));
-        const cleanOrders = deduplicateOrdersList(allOrders);
+        // CRITICAL: Filter out any orders that are unpaid, pending, failed, abandoned, cancelled, or unverified
+        const paidOrders = allOrders.filter(isOrderSuccessfullyPaid);
+        const cleanOrders = deduplicateOrdersList(paidOrders);
         
         const getOrderTime = (o: any) => {
           if (!o) return Date.now();
@@ -255,15 +258,7 @@ export default function AdminDashboard() {
         const resetTime = resetTimeStr ? parseInt(resetTimeStr, 10) : 0;
         const unreadNewOrders = cleanOrders.filter((o) => {
           const orderTime = getOrderTime(o);
-          const isExplicitFailed =
-            o.paymentStatus === "failed" ||
-            o.paymentStatus === "abandoned" ||
-            o.paymentStatus === "cancelled" ||
-            o.status === "failed" ||
-            o.status === "cancelled" ||
-            o.status === "abandoned" ||
-            o.status === "declined";
-          return orderTime > resetTime && !isExplicitFailed;
+          return orderTime > resetTime;
         }).length;
         
         setNotifierCount(unreadNewOrders);
@@ -1389,13 +1384,13 @@ export default function AdminDashboard() {
             >
               TRACKING 👑
               {orders.filter(
-                (o) => (o.status === "paid" || o.status === "processing" || o.status === "pending" || o.status === "success") && !o.agent_id && !o.agentId,
+                (o) => (o.status === "paid" || o.status === "processing" || o.status === "success") && !o.agent_id && !o.agentId && !o.isAgentOrder && o.bundle !== "AGENT ACCESS UNLOCK",
               ).length > 0 && (
                 <span className="absolute -top-1.5 -right-1 bg-red-600 text-white text-[8px] w-4.5 h-4.5 flex items-center justify-center rounded-full font-black shadow-lg">
                   {
                     orders.filter(
                       (o) =>
-                        (o.status === "paid" || o.status === "processing" || o.status === "pending" || o.status === "success") && !o.agent_id && !o.agentId,
+                        (o.status === "paid" || o.status === "processing" || o.status === "success") && !o.agent_id && !o.agentId && !o.isAgentOrder && o.bundle !== "AGENT ACCESS UNLOCK",
                     ).length
                   }
                 </span>
@@ -1444,14 +1439,14 @@ export default function AdminDashboard() {
               AGENTS HUB 👑
               {profitRequests.filter((r) => r.status === "pending").length +
                 orders.filter(
-                  (o) => (o.status === "paid" || o.status === "processing" || o.status === "pending" || o.status === "success") && (o.agent_id || o.agentId),
+                  (o) => (o.status === "paid" || o.status === "processing" || o.status === "success") && (o.agent_id || o.agentId || o.isAgentOrder || o.bundle === "AGENT ACCESS UNLOCK"),
                 ).length >
                 0 && (
                 <span className="absolute -top-1.5 -right-1 bg-primary text-secondary text-[8px] w-4.5 h-4.5 flex items-center justify-center rounded-full font-black shadow-lg">
                   {profitRequests.filter((r) => r.status === "pending").length +
                     orders.filter(
                       (o) =>
-                        (o.status === "paid" || o.status === "processing" || o.status === "pending" || o.status === "success") && (o.agent_id || o.agentId),
+                        (o.status === "paid" || o.status === "processing" || o.status === "success") && (o.agent_id || o.agentId || o.isAgentOrder || o.bundle === "AGENT ACCESS UNLOCK"),
                     ).length}
                 </span>
               )}
@@ -1598,7 +1593,7 @@ export default function AdminDashboard() {
                         colSpan={5}
                         className="h-32 text-center text-slate-400 font-bold dark:bg-slate-950"
                       >
-                        No matching orders found. They show up here immediately on "BUY NOW" 👑
+                        No matching paid orders found. Successfully paid orders will appear here in real time 👑
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -3317,14 +3312,15 @@ export default function AdminDashboard() {
                     <span>Agent Orders</span>
                     {orders.filter(
                       (o) =>
-                        o.status === "pending" && (o.agent_id || o.agentId),
+                        (o.status === "paid" || o.status === "processing") &&
+                        (o.agent_id || o.agentId || o.isAgentOrder || o.bundle === "AGENT ACCESS UNLOCK"),
                     ).length > 0 && (
                       <span className="bg-blue-600 text-white text-[8px] px-1.5 py-0.5 rounded-full font-black animate-pulse">
                         {
                           orders.filter(
                             (o) =>
-                              o.status === "pending" &&
-                              (o.agent_id || o.agentId),
+                              (o.status === "paid" || o.status === "processing") &&
+                              (o.agent_id || o.agentId || o.isAgentOrder || o.bundle === "AGENT ACCESS UNLOCK"),
                           ).length
                         }
                       </span>
