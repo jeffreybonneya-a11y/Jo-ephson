@@ -123,12 +123,29 @@ async function updateFirestoreOrderPaymentStatus(reference: string, paymentStatu
         console.log(`[Firebase Admin] Attempting to update order ${reference} to paymentStatus: ${paymentStatus}`);
         const orderRef = dbAdmin.collection('orders').doc(reference);
         const orderSnap = await orderRef.get();
+
+        const agentOrderRef = dbAdmin.collection('agent_orders').doc(reference);
+        const agentOrderSnap = await agentOrderRef.get();
+        const agentData = agentOrderSnap.exists ? agentOrderSnap.data() : null;
+
         if (orderSnap.exists) {
             const orderData = orderSnap.data();
             const newStatus = paymentStatus === "success" ? "paid" : (paymentStatus === "failed" ? "failed" : (orderData?.status || "pending"));
             await orderRef.update({
                 paymentStatus,
-                status: newStatus
+                status: newStatus,
+                ...(agentData ? {
+                    agentId: agentData.agent_id || orderData?.agentId || orderData?.agent_id,
+                    agent_id: agentData.agent_id || orderData?.agent_id || orderData?.agentId,
+                    wholesalePrice: agentData.wholesale_price || orderData?.wholesalePrice,
+                    wholesale_price: agentData.wholesale_price || orderData?.wholesale_price,
+                    agentPrice: agentData.agent_price || orderData?.agentPrice,
+                    agent_price: agentData.agent_price || orderData?.agent_price,
+                    profit: agentData.profit || orderData?.profit,
+                    agent_profit: agentData.profit || orderData?.agent_profit,
+                    isAgentOrder: true
+                } : {}),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
             });
             console.log(`[Firebase Admin] Successfully updated order ${reference} to paymentStatus: ${paymentStatus}, status: ${newStatus}`);
             
@@ -139,15 +156,40 @@ async function updateFirestoreOrderPaymentStatus(reference: string, paymentStatu
                 });
                 console.log(`[Firebase Admin] Successfully unlocked Agent Access for user: ${orderData.userId}`);
             }
+        } else if (agentData && paymentStatus === "success") {
+            // Order existed in agent_orders but not in orders collection - create it in orders
+            await orderRef.set({
+                id: reference,
+                reference: reference,
+                paymentStatus: "success",
+                status: "paid",
+                email: agentData.customer_details?.email || "",
+                phone: agentData.customer_details?.phone || "",
+                customerName: agentData.customer_details?.name || "Agent Store Customer",
+                network: agentData.customer_details?.network || "Data Bundle",
+                bundle: agentData.bundle || "Agent Store Bundle",
+                amount: agentData.agent_price || 0,
+                agentId: agentData.agent_id,
+                agent_id: agentData.agent_id,
+                wholesalePrice: agentData.wholesale_price || 0,
+                wholesale_price: agentData.wholesale_price || 0,
+                agentPrice: agentData.agent_price || 0,
+                agent_price: agentData.agent_price || 0,
+                profit: agentData.profit || 0,
+                agent_profit: agentData.profit || 0,
+                isAgentOrder: true,
+                createdAt: agentData.created_at || admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            console.log(`[Firebase Admin] Reconstructed order ${reference} from agent_orders doc`);
         } else {
             console.log(`[Firebase Admin] Order document ${reference} not found in Firestore.`);
         }
 
-        const agentOrderRef = dbAdmin.collection('agent_orders').doc(reference);
-        const agentOrderSnap = await agentOrderRef.get();
         if (agentOrderSnap.exists) {
             await agentOrderRef.update({
-                status: paymentStatus
+                status: paymentStatus === "success" ? "success" : paymentStatus,
+                paymentStatus: paymentStatus
             });
             console.log(`[Firebase Admin] Successfully updated agent_orders document ${reference} to status: ${paymentStatus}`);
         }
@@ -291,6 +333,7 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
             const agentOrderRef = dbAdmin.collection('agent_orders').doc(reference);
             const agentOrderSnap = await agentOrderRef.get();
             if (agentOrderSnap.exists) {
+                const agentData = agentOrderSnap.data();
                 await agentOrderRef.update({
                     status: "success",
                     paymentStatus: "success",
@@ -299,6 +342,19 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
                     paymentReference: reference,
                     paymentTimestamp
                 });
+
+                // Ensure orders collection document contains all agent details
+                await orderRef.set({
+                    agentId: agentData.agent_id,
+                    agent_id: agentData.agent_id,
+                    wholesalePrice: agentData.wholesale_price,
+                    wholesale_price: agentData.wholesale_price,
+                    agentPrice: agentData.agent_price,
+                    agent_price: agentData.agent_price,
+                    profit: agentData.profit,
+                    agent_profit: agentData.profit,
+                    isAgentOrder: true,
+                }, { merge: true });
             }
         } catch (fsErr: any) {
             console.error(`[Firebase Admin Error] Failed updating Firestore for reference ${reference}:`, fsErr.message);
@@ -583,6 +639,7 @@ async function handleKorapayVerificationRequest(req: express.Request, res: expre
             const agentOrderRef = dbAdmin.collection('agent_orders').doc(reference);
             const agentOrderSnap = await agentOrderRef.get();
             if (agentOrderSnap.exists) {
+                const agentData = agentOrderSnap.data();
                 await agentOrderRef.update({
                     status: "success",
                     paymentStatus: "success",
@@ -590,6 +647,19 @@ async function handleKorapayVerificationRequest(req: express.Request, res: expre
                     payment_provider: "korapay",
                     paymentReference: reference
                 });
+
+                // Ensure orders collection document contains all agent details
+                await orderRef.set({
+                    agentId: agentData.agent_id,
+                    agent_id: agentData.agent_id,
+                    wholesalePrice: agentData.wholesale_price,
+                    wholesale_price: agentData.wholesale_price,
+                    agentPrice: agentData.agent_price,
+                    agent_price: agentData.agent_price,
+                    profit: agentData.profit,
+                    agent_profit: agentData.profit,
+                    isAgentOrder: true,
+                }, { merge: true });
             }
         } catch (fsErr: any) {
             console.error(`[Firebase Admin Error] Failed updating Firestore for Korapay reference ${reference}:`, fsErr.message);
@@ -626,6 +696,67 @@ async function handleKorapayVerificationRequest(req: express.Request, res: expre
 
 app.post('/korapay-verify', handleKorapayVerificationRequest);
 app.post('/api/korapay-verify', handleKorapayVerificationRequest);
+
+// REST Endpoint: Paystack Webhook Event Receiver
+app.post('/api/paystack-webhook', async (req, res) => {
+    try {
+        const secretKey = getSanitizedKey(
+            process.env.PAYSTACK_SECRET_KEY || 
+            process.env.VITE_PAYSTACK_SECRET_KEY || 
+            process.env.PAYSTACK_KEY
+        );
+        const signature = req.headers['x-paystack-signature'] as string;
+        
+        console.log('[Paystack Webhook] Incoming webhook call with signature header:', signature ? 'Present' : 'None');
+        
+        if (secretKey && signature) {
+            const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+            const computedSignature = crypto.createHmac('sha512', secretKey)
+                .update(rawBody)
+                .digest('hex');
+            
+            if (signature !== computedSignature) {
+                console.warn('[Paystack Webhook Error] Signature verification failed!');
+                return res.status(401).json({ status: false, message: 'Invalid webhook signature' });
+            }
+            console.log('[Paystack Webhook] Signature verified successfully.');
+        }
+
+        const payload = req.body;
+        const event = payload?.event;
+        const data = payload?.data || {};
+        const reference = data.reference || data.id;
+        
+        console.log(`[Paystack Webhook Details] Event: ${event}, Reference: ${reference}, Status: ${data.status}`);
+        
+        if (event === 'charge.success' || data.status === 'success') {
+            if (reference) {
+                await updateFirestoreOrderPaymentStatus(reference, "success");
+                try {
+                    const orderRef = dbAdmin.collection('orders').doc(reference);
+                    await orderRef.update({
+                        payment_provider: "paystack",
+                        paymentMethod: "Paystack",
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                } catch (fsErr) {
+                    console.warn('[Paystack Webhook] Firestore provider update notice:', fsErr);
+                }
+                console.log(`[Paystack Webhook Success] Processed charge.success for ${reference}`);
+            }
+        } else if (event === 'charge.failed' || data.status === 'failed') {
+            if (reference) {
+                await updateFirestoreOrderPaymentStatus(reference, "failed");
+                console.log(`[Paystack Webhook Failed] Processed charge.failed for ${reference}`);
+            }
+        }
+        
+        return res.status(200).json({ status: true, message: 'Webhook processed' });
+    } catch (err: any) {
+        console.error('[Paystack Webhook Exception]:', err.message || err);
+        return res.status(500).json({ status: false, error: err.message || 'Internal webhook error' });
+    }
+});
 
 // REST Endpoint: Korapay Webhook Event Receiver
 app.post('/api/korapay-webhook', async (req, res) => {

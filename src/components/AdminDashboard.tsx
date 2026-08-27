@@ -836,6 +836,17 @@ export default function AdminDashboard() {
     try {
       await updateDoc(doc(db, "orders", orderId), { status });
 
+      // Keep agent_orders synchronized if document exists
+      try {
+        const agentOrderRef = doc(db, "agent_orders", orderId);
+        const agentOrderSnap = await getDoc(agentOrderRef);
+        if (agentOrderSnap.exists()) {
+          await updateDoc(agentOrderRef, { status });
+        }
+      } catch (agentErr) {
+        console.warn("Notice: agent_orders sync:", agentErr);
+      }
+
       // If admin delivers an agent unlock order, automatically mark user as regular agent
       if (
         status === "delivered" &&
@@ -1497,7 +1508,7 @@ export default function AdminDashboard() {
                           : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
                       }`}
                     >
-                      Direct Shop ({orders.filter(o => !o.agent_id && !o.agentId && !o.isFreeDataWin && o.serviceType !== "Free Data Win" && o.network !== "Free Data").length})
+                      Direct Shop ({orders.filter(o => !o.agent_id && !o.agentId && !o.isAgentOrder && o.bundle !== "AGENT ACCESS UNLOCK" && !o.isFreeDataWin && o.serviceType !== "Free Data Win" && o.network !== "Free Data").length})
                     </button>
                     <button
                       type="button"
@@ -1508,7 +1519,7 @@ export default function AdminDashboard() {
                           : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
                       }`}
                     >
-                      Agent Stores ({orders.filter(o => o.agent_id || o.agentId).length})
+                      Agent Stores ({orders.filter(o => o.agent_id || o.agentId || o.isAgentOrder || o.bundle === "AGENT ACCESS UNLOCK").length})
                     </button>
                     <button
                       type="button"
@@ -1577,8 +1588,8 @@ export default function AdminDashboard() {
                 <TableBody>
                   {orders.filter((o) => {
                     if (orderSourceFilter === 'all') return true;
-                    if (orderSourceFilter === 'direct') return !o.agent_id && !o.agentId && !o.isFreeDataWin && o.serviceType !== "Free Data Win" && o.network !== "Free Data";
-                    if (orderSourceFilter === 'agent') return !!(o.agent_id || o.agentId);
+                    if (orderSourceFilter === 'direct') return !o.agent_id && !o.agentId && !o.isAgentOrder && o.bundle !== "AGENT ACCESS UNLOCK" && !o.isFreeDataWin && o.serviceType !== "Free Data Win" && o.network !== "Free Data";
+                    if (orderSourceFilter === 'agent') return !!(o.agent_id || o.agentId || o.isAgentOrder || o.bundle === "AGENT ACCESS UNLOCK");
                     if (orderSourceFilter === 'freedata') return !!(o.isFreeDataWin || o.serviceType === "Free Data Win" || o.network === "Free Data");
                     return true;
                   }).length === 0 ? (
@@ -1594,8 +1605,8 @@ export default function AdminDashboard() {
                     orders
                       .filter((o) => {
                         if (orderSourceFilter === 'all') return true;
-                        if (orderSourceFilter === 'direct') return !o.agent_id && !o.agentId && !o.isFreeDataWin && o.serviceType !== "Free Data Win" && o.network !== "Free Data";
-                        if (orderSourceFilter === 'agent') return !!(o.agent_id || o.agentId);
+                        if (orderSourceFilter === 'direct') return !o.agent_id && !o.agentId && !o.isAgentOrder && o.bundle !== "AGENT ACCESS UNLOCK" && !o.isFreeDataWin && o.serviceType !== "Free Data Win" && o.network !== "Free Data";
+                        if (orderSourceFilter === 'agent') return !!(o.agent_id || o.agentId || o.isAgentOrder || o.bundle === "AGENT ACCESS UNLOCK");
                         if (orderSourceFilter === 'freedata') return !!(o.isFreeDataWin || o.serviceType === "Free Data Win" || o.network === "Free Data");
                         return true;
                       })

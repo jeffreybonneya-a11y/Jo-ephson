@@ -110,13 +110,28 @@ export default function App() {
                 if (response.ok && resData.success && resData.verified !== false) {
                     try {
                         const orderSnap = await getDoc(orderDocRef);
+                        const agentOrderDocRef = doc(db, 'agent_orders', reference);
+                        const agentOrderSnap = await getDoc(agentOrderDocRef);
+                        const agentData = agentOrderSnap.exists() ? agentOrderSnap.data() : null;
+
                         if (orderSnap.exists()) {
                             const orderData = orderSnap.data();
                             await updateDoc(orderDocRef, {
                                 paymentStatus: "success",
                                 status: "paid",
                                 paymentMethod: orderData.paymentMethod || method,
-                                payment_provider: orderData.payment_provider || provider
+                                payment_provider: orderData.payment_provider || provider,
+                                ...(agentData ? {
+                                    agentId: agentData.agent_id || orderData.agentId || orderData.agent_id,
+                                    agent_id: agentData.agent_id || orderData.agent_id || orderData.agentId,
+                                    wholesalePrice: agentData.wholesale_price || orderData.wholesalePrice,
+                                    wholesale_price: agentData.wholesale_price || orderData.wholesale_price,
+                                    agentPrice: agentData.agent_price || orderData.agentPrice,
+                                    agent_price: agentData.agent_price || orderData.agent_price,
+                                    profit: agentData.profit || orderData.profit,
+                                    agent_profit: agentData.profit || orderData.agent_profit,
+                                    isAgentOrder: true,
+                                } : {})
                             });
                             if (orderData.bundle === "AGENT ACCESS UNLOCK" && orderData.userId) {
                                 await updateDoc(doc(db, "users", orderData.userId), { isAgent: true });
@@ -130,8 +145,32 @@ export default function App() {
                                 paymentMethod: method,
                                 payment_provider: provider,
                                 createdAt: new Date(),
-                                reference
+                                reference,
+                                ...(agentData ? {
+                                    agentId: agentData.agent_id,
+                                    agent_id: agentData.agent_id,
+                                    customerName: agentData.customer_details?.name || "Agent Customer",
+                                    phone: agentData.customer_details?.phone || "",
+                                    email: agentData.customer_details?.email || "",
+                                    network: agentData.customer_details?.network || "Data Bundle",
+                                    bundle: agentData.bundle || "Agent Store Bundle",
+                                    amount: agentData.agent_price || 0,
+                                    wholesalePrice: agentData.wholesale_price || 0,
+                                    wholesale_price: agentData.wholesale_price || 0,
+                                    agentPrice: agentData.agent_price || 0,
+                                    agent_price: agentData.agent_price || 0,
+                                    profit: agentData.profit || 0,
+                                    agent_profit: agentData.profit || 0,
+                                    isAgentOrder: true,
+                                } : {})
                             }, { merge: true });
+                        }
+
+                        if (agentOrderSnap.exists()) {
+                            await updateDoc(agentOrderDocRef, {
+                                paymentStatus: "success",
+                                status: "success"
+                            });
                         }
                     } catch (fsErr) {
                         console.warn("[Payment Verification] Firestore client update:", fsErr);

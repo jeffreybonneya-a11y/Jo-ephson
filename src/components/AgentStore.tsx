@@ -214,8 +214,13 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
         createdAt: serverTimestamp(),
         userId: auth.currentUser?.uid,
         customerName: profile?.fullName || auth.currentUser?.displayName || 'Aspiring Agent',
-        reference: "MANUAL-" + Math.random().toString(36).substring(2, 8).toUpperCase(),
-        paymentStatus: "pending"
+        reference: finalOrderId,
+        paymentStatus: "pending",
+        isAgentOrder: true,
+        agentId: auth.currentUser?.uid,
+        agent_id: auth.currentUser?.uid,
+        agentName: profile?.fullName || auth.currentUser?.displayName || 'Aspiring Agent',
+        agent_name: profile?.fullName || auth.currentUser?.displayName || 'Aspiring Agent',
       });
 
       // Show immediate feedback to user that the order has reached the admin
@@ -244,9 +249,9 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
 
           try {
             toast.info("Launching secure checkout... 👑");
-            const redirectTarget = (typeof window !== 'undefined' && window.location.origin && window.location.origin.includes('king-j-deals.onrender.com'))
+            const redirectTarget = (typeof window !== 'undefined' && window.location.origin)
               ? window.location.origin
-              : 'https://king-j-deals.onrender.com';
+              : 'https://kingjdeals.onrender.com';
 
             await openPaystackPopup({
               key: publicKey,
@@ -266,9 +271,9 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
             });
           } catch (popError) {
             console.warn("Paystack Inline popup failed or blocked. Falling back to secure redirect mode:", popError);
-            const redirectTarget = (typeof window !== 'undefined' && window.location.origin && window.location.origin.includes('king-j-deals.onrender.com'))
+            const redirectTarget = (typeof window !== 'undefined' && window.location.origin)
               ? window.location.origin
-              : 'https://king-j-deals.onrender.com';
+              : 'https://kingjdeals.onrender.com';
 
             // Fallback to server-side redirect initialization
             const initResponse = await fetch(getApiUrl("/api/paystack-initialize"), {

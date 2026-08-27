@@ -434,7 +434,20 @@ export default function CheckoutForm({
               profitAwarded: false,
               profit_credited: false,
             }
-          : {}),
+          : (profile?.isAgent && (profile.uid || activeUser?.uid) ? {
+              agentId: profile.uid || activeUser?.uid,
+              agent_id: profile.uid || activeUser?.uid,
+              agentName: profile.fullName || profile.username || "Agent",
+              agent_name: profile.fullName || profile.username || "Agent",
+              wholesalePrice: wsPrice,
+              wholesale_price: wsPrice,
+              agentPrice: agPrice,
+              agent_price: agPrice,
+              profit: calculatedProfit,
+              agent_profit: calculatedProfit,
+              profitAwarded: false,
+              profit_credited: false,
+            } : {})),
       };
 
       await setDoc(doc(db, "orders", finalOrderId), momoOrderData);
@@ -526,7 +539,20 @@ export default function CheckoutForm({
               profitAwarded: false,
               profit_credited: false,
             }
-          : {}),
+          : (profile?.isAgent && (profile.uid || currentUid) ? {
+              agentId: profile.uid || currentUid,
+              agent_id: profile.uid || currentUid,
+              agentName: profile.fullName || profile.username || "Agent",
+              agent_name: profile.fullName || profile.username || "Agent",
+              wholesalePrice: wsPrice,
+              wholesale_price: wsPrice,
+              agentPrice: agPrice,
+              agent_price: agPrice,
+              profit: calculatedProfit,
+              agent_profit: calculatedProfit,
+              profitAwarded: false,
+              profit_credited: false,
+            } : {})),
       };
 
       await setDoc(doc(db, "orders", finalOrderId), initialOrderData);
@@ -694,7 +720,20 @@ export default function CheckoutForm({
               profitAwarded: false,
               profit_credited: false,
             }
-          : {}),
+          : (profile?.isAgent && (profile.uid || currentUid) ? {
+              agentId: profile.uid || currentUid,
+              agent_id: profile.uid || currentUid,
+              agentName: profile.fullName || profile.username || "Agent",
+              agent_name: profile.fullName || profile.username || "Agent",
+              wholesalePrice: wsPrice,
+              wholesale_price: wsPrice,
+              agentPrice: agPrice,
+              agent_price: agPrice,
+              profit: calculatedProfit,
+              agent_profit: calculatedProfit,
+              profitAwarded: false,
+              profit_credited: false,
+            } : {})),
       };
 
       await setDoc(doc(db, "orders", finalOrderId), initialOrderData);

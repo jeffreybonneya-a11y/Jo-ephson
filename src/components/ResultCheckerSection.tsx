@@ -235,7 +235,20 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
           agent_profit: (pricePerChecker - rcWholesalePrice) * quantity,
           profit_credited: false,
           profitAwarded: false,
-        } : {})
+        } : (isAgentUser && userUid ? {
+          agentId: userUid,
+          agent_id: userUid,
+          agentName: userName,
+          agent_name: userName,
+          wholesalePrice: rcWholesalePrice * quantity,
+          wholesale_price: rcWholesalePrice * quantity,
+          agentPrice: pricePerChecker * quantity,
+          agent_price: pricePerChecker * quantity,
+          profit: (pricePerChecker - rcWholesalePrice) * quantity,
+          agent_profit: (pricePerChecker - rcWholesalePrice) * quantity,
+          profit_credited: false,
+          profitAwarded: false,
+        } : {}))
       };
 
       await setDoc(doc(db, "orders", finalOrderId), momoOrderData);
@@ -319,7 +332,20 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
           agent_profit: (pricePerChecker - rcWholesalePrice) * quantity,
           profit_credited: false,
           profitAwarded: false,
-        } : {})
+        } : (isAgentUser && userUid ? {
+          agentId: userUid,
+          agent_id: userUid,
+          agentName: userName,
+          agent_name: userName,
+          wholesalePrice: rcWholesalePrice * quantity,
+          wholesale_price: rcWholesalePrice * quantity,
+          agentPrice: pricePerChecker * quantity,
+          agent_price: pricePerChecker * quantity,
+          profit: (pricePerChecker - rcWholesalePrice) * quantity,
+          agent_profit: (pricePerChecker - rcWholesalePrice) * quantity,
+          profit_credited: false,
+          profitAwarded: false,
+        } : {}))
       };
 
       await setDoc(doc(db, "orders", finalOrderId), initialOrderData);
@@ -460,9 +486,59 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
         userId: userUid,
         customerName: userName,
         reference: finalOrderId,
+        ...(isAgentUser ? { isAgentOrder: true } : {}),
+        ...(agentContext ? {
+          agentId: agentContext.id,
+          agent_id: agentContext.id,
+          agentName: agentContext.agent_name,
+          agent_name: agentContext.agent_name,
+          wholesalePrice: rcWholesalePrice * quantity,
+          wholesale_price: rcWholesalePrice * quantity,
+          agentPrice: pricePerChecker * quantity,
+          agent_price: pricePerChecker * quantity,
+          profit: (pricePerChecker - rcWholesalePrice) * quantity,
+          agent_profit: (pricePerChecker - rcWholesalePrice) * quantity,
+          profit_credited: false,
+          profitAwarded: false,
+        } : (isAgentUser && userUid ? {
+          agentId: userUid,
+          agent_id: userUid,
+          agentName: userName,
+          agent_name: userName,
+          wholesalePrice: rcWholesalePrice * quantity,
+          wholesale_price: rcWholesalePrice * quantity,
+          agentPrice: pricePerChecker * quantity,
+          agent_price: pricePerChecker * quantity,
+          profit: (pricePerChecker - rcWholesalePrice) * quantity,
+          agent_profit: (pricePerChecker - rcWholesalePrice) * quantity,
+          profit_credited: false,
+          profitAwarded: false,
+        } : {}))
       };
 
       await setDoc(doc(db, "orders", finalOrderId), orderData);
+
+      if (agentContext) {
+        const initialAgentOrderData = {
+          id: finalOrderId,
+          agent_id: agentContext.id,
+          customer_details: {
+            name: userName,
+            email: userEmail,
+            phone: phoneClean,
+            network: "Result Checker",
+          },
+          wholesale_price: rcWholesalePrice * quantity,
+          agent_price: pricePerChecker * quantity,
+          profit: (pricePerChecker - rcWholesalePrice) * quantity,
+          status: "pending",
+          created_at: serverTimestamp(),
+          paymentReference: finalOrderId,
+          paymentMethod: "korapay",
+          payment_provider: "korapay",
+        };
+        await setDoc(doc(db, "agent_orders", finalOrderId), initialAgentOrderData);
+      }
 
       const initResponse = await fetch(getApiUrl("/api/korapay-initialize"), {
         method: "POST",
