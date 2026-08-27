@@ -25,6 +25,7 @@ import TopPromosRow from './components/TopPromosRow';
 import DownloadPage from './components/DownloadPage';
 import PriceDropNotifier from './components/PriceDropNotifier';
 import GetFreeDataWidget from './components/GetFreeDataWidget';
+import WelcomePage from './components/WelcomePage';
 import { getApiUrl } from './lib/api';
 
 export default function App() {
@@ -411,6 +412,30 @@ export default function App() {
     }
     setSelectedBundle(bundle);
   };
+
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-[#070D1E] text-white flex flex-col items-center justify-center gap-4 select-none px-4">
+        <Toaster position="top-center" richColors />
+        <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shadow-[0_0_30px_rgba(245,158,11,0.2)] animate-pulse">
+          <Crown className="w-9 h-9 text-amber-400" />
+        </div>
+        <div className="flex items-center gap-2 text-amber-400 font-black text-xs uppercase tracking-widest">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span>KING J DEALS 👑</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <>
+        <Toaster position="top-center" richColors />
+        <WelcomePage />
+      </>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background font-sans antialiased">
