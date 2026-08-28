@@ -540,68 +540,7 @@ export default function App() {
       />
       
       <Footer />
-      <ThemeCustomizer />
-
-      {/* Movable WhatsApp Buttons */}
-      <div className="fixed bottom-48 md:bottom-24 right-6 z-50 flex flex-col gap-4 pointer-events-none">
-        {agentContext ? (
-          <motion.a 
-            drag
-            dragConstraints={{ left: -300, right: 0, top: -600, bottom: 0 }}
-            dragElastic={0.1}
-            dragMomentum={false}
-            href={`https://wa.me/233${agentContext.momo_number ? agentContext.momo_number.trim().replace(/^0/, '') : ''}?text=${encodeURIComponent(`Hello, I'm visiting your store on King J Deals! 👑`)}`} 
-            target="_blank" 
-            rel="noreferrer"
-            className="pointer-events-auto flex items-center gap-3 bg-[#25D366] text-white px-4 md:px-6 py-3 md:py-4 rounded-full shadow-[0_10px_40px_rgba(37,211,102,0.4)] hover:scale-110 transition-all group active:scale-95 cursor-move uppercase"
-            style={{ touchAction: 'none' }}
-          >
-            <div className="relative">
-              <MessageSquare className="w-6 h-6 md:w-8 md:h-8" />
-              <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-ping" />
-            </div>
-            <span className="font-black text-sm md:text-lg">CHAT WITH {agentContext.agent_name || 'AGENT'} 👑</span>
-          </motion.a>
-        ) : (
-          <>
-            <motion.a 
-              drag
-              dragConstraints={{ left: -300, right: 0, top: -600, bottom: 0 }}
-              dragElastic={0.1}
-              dragMomentum={false}
-              href="https://wa.me/233535884851" 
-              target="_blank" 
-              rel="noreferrer"
-              className="pointer-events-auto flex items-center gap-3 bg-[#25D366] text-white px-4 md:px-6 py-3 md:py-4 rounded-full shadow-[0_10px_40px_rgba(37,211,102,0.4)] hover:scale-110 transition-all group active:scale-95 cursor-move"
-              style={{ touchAction: 'none' }}
-            >
-              <div className="relative">
-                <MessageSquare className="w-6 h-6 md:w-8 md:h-8" />
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-ping" />
-              </div>
-              <span className="font-black text-sm md:text-lg">CHAT WITH KING J 👑</span>
-            </motion.a>
-
-            <motion.a 
-              drag
-              dragConstraints={{ left: -300, right: 0, top: -600, bottom: 0 }}
-              dragElastic={0.1}
-              dragMomentum={false}
-              href="https://wa.me/233541557530" 
-              target="_blank" 
-              rel="noreferrer"
-              className="pointer-events-auto flex items-center gap-3 bg-[#25D366] text-white px-4 md:px-6 py-3 md:py-4 rounded-full shadow-[0_10px_40px_rgba(37,211,102,0.4)] hover:scale-110 transition-all group active:scale-95 cursor-move"
-              style={{ touchAction: 'none' }}
-            >
-              <div className="relative">
-                <MessageSquare className="w-6 h-6 md:w-8 md:h-8" />
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-white animate-ping" />
-              </div>
-              <span className="font-black text-sm md:text-lg">CHAT WITH YHAW 👑</span>
-            </motion.a>
-          </>
-        )}
-      </div>
+      {/* Disabled floating site customization and chat buttons as requested */}
       <PriceDropNotifier />
       <GetFreeDataWidget />
     </div>

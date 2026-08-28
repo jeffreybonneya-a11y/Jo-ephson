@@ -1333,7 +1333,15 @@ export default function CheckoutForm({
 
                   {networkHiddenCharge > 0 && (
                     <div className="flex justify-between items-center text-xs font-black text-amber-600 dark:text-amber-400">
-                      <span>{isMTN ? "MTN Network Charges" : isTelecel ? "Telecel Network Charges" : isAirtelTigo ? "AirtelTigo Charges" : isGame ? "Game Processing Fee" : "Service Charge"}</span>
+                      <span>
+                        {isMTN
+                          ? "MTN Network Charges"
+                          : isTelecel
+                          ? "Telecel Network Charges"
+                          : isAirtelTigo
+                          ? "AirtelTigo Charges"
+                          : "Game Processing Fee"}
+                      </span>
                       <span className="font-mono">+ GHS {networkHiddenCharge.toFixed(2)}</span>
                     </div>
                   )}
