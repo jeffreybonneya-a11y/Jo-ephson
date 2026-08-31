@@ -114,6 +114,251 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
 
   return (
     <div id="kingj-welcome-screen" className="relative min-h-screen w-full bg-[#070D1E] text-white flex flex-col justify-between items-center px-4 py-8 sm:py-12 overflow-x-hidden select-none">
+      {/* SCOPED SPEEDER LOADER STYLES */}
+      <style>{`
+        .kingj-speeder-canvas {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          overflow: hidden;
+          pointer-events: none;
+          z-index: 1;
+        }
+
+        .kingj-speeder-canvas .loader {
+          position: absolute;
+          top: 30%;
+          left: 50%;
+          margin-left: -75px;
+          margin-top: -30px;
+          opacity: 0.35;
+          transform: scale(0.85);
+        }
+
+        @media (min-width: 640px) {
+          .kingj-speeder-canvas .loader {
+            top: 25%;
+            margin-left: -90px;
+            transform: scale(1.1);
+            opacity: 0.45;
+          }
+        }
+
+        .kingj-speeder-canvas .speeder {
+          animation: kj_speeder 0.45s linear infinite;
+        }
+
+        .kingj-speeder-canvas .speeder > span {
+          height: 4px;
+          width: 32px;
+          background: #f59e0b;
+          position: absolute;
+          top: -17px;
+          left: 55px;
+          border-radius: 2px 10px 1px 0;
+        }
+
+        .kingj-speeder-canvas .base span {
+          position: absolute;
+          width: 0;
+          height: 0;
+          border-top: 6px solid transparent;
+          border-right: 90px solid #f59e0b;
+          border-bottom: 6px solid transparent;
+        }
+
+        .kingj-speeder-canvas .base span:before {
+          content: "";
+          height: 20px;
+          width: 20px;
+          border-radius: 50%;
+          background: #f59e0b;
+          position: absolute;
+          right: -98px;
+          top: -15px;
+        }
+
+        .kingj-speeder-canvas .base span:after {
+          content: "";
+          position: absolute;
+          width: 0;
+          height: 0;
+          border-top: 0 solid transparent;
+          border-right: 48px solid #1e293b;
+          border-bottom: 15px solid transparent;
+          top: -15px;
+          right: -88px;
+        }
+
+        .kingj-speeder-canvas .face {
+          position: absolute;
+          height: 11px;
+          width: 18px;
+          background: #f59e0b;
+          border-radius: 20px 20px 0 0;
+          transform: rotate(-40deg);
+          right: -112px;
+          top: -14px;
+        }
+
+        .kingj-speeder-canvas .face:after {
+          content: "";
+          height: 11px;
+          width: 11px;
+          background: #070d1e;
+          right: 3px;
+          top: 6px;
+          position: absolute;
+          transform: rotate(40deg);
+          transform-origin: 50% 50%;
+          border-radius: 0 0 0 2px;
+        }
+
+        .kingj-speeder-canvas .loader > span > span {
+          width: 28px;
+          height: 1.5px;
+          background: #fbbf24;
+          position: absolute;
+        }
+
+        .kingj-speeder-canvas .fazer1 {
+          top: -4px;
+          animation: kj_fazer1 0.3s linear infinite;
+        }
+
+        .kingj-speeder-canvas .fazer2 {
+          top: 3px;
+          animation: kj_fazer2 0.45s linear infinite;
+        }
+
+        .kingj-speeder-canvas .fazer3 {
+          top: 1px;
+          animation: kj_fazer3 0.35s linear infinite;
+          animation-delay: -0.6s;
+        }
+
+        .kingj-speeder-canvas .fazer4 {
+          top: 6px;
+          animation: kj_fazer4 0.7s linear infinite;
+          animation-delay: -0.8s;
+        }
+
+        @keyframes kj_fazer1 {
+          0% { left: 20px; opacity: 1; }
+          100% { left: -90px; opacity: 0; }
+        }
+
+        @keyframes kj_fazer2 {
+          0% { left: 20px; opacity: 1; }
+          100% { left: -110px; opacity: 0; }
+        }
+
+        @keyframes kj_fazer3 {
+          0% { left: 20px; opacity: 1; }
+          100% { left: -70px; opacity: 0; }
+        }
+
+        @keyframes kj_fazer4 {
+          0% { left: 20px; opacity: 1; }
+          100% { left: -140px; opacity: 0; }
+        }
+
+        @keyframes kj_speeder {
+          0% { transform: translate(2px, 1px) rotate(0deg); }
+          10% { transform: translate(-1px, -3px) rotate(-1deg); }
+          20% { transform: translate(-2px, 0px) rotate(1deg); }
+          30% { transform: translate(1px, 2px) rotate(0deg); }
+          40% { transform: translate(1px, -1px) rotate(1deg); }
+          50% { transform: translate(-1px, 2px) rotate(-1deg); }
+          60% { transform: translate(-2px, 1px) rotate(0deg); }
+          70% { transform: translate(2px, 1px) rotate(-1deg); }
+          80% { transform: translate(-1px, -1px) rotate(1deg); }
+          90% { transform: translate(2px, 1px) rotate(0deg); }
+          100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+
+        .kingj-speeder-canvas .longfazers {
+          position: absolute;
+          width: 100%;
+          height: 100%;
+          top: 0;
+          left: 0;
+          opacity: 0.3;
+        }
+
+        .kingj-speeder-canvas .longfazers span {
+          position: absolute;
+          height: 1.5px;
+          width: 25%;
+          background: linear-gradient(90deg, transparent, #f59e0b, transparent);
+        }
+
+        .kingj-speeder-canvas .lf {
+          top: 15%;
+          animation: kj_lf 0.7s linear infinite;
+          animation-delay: -3s;
+        }
+
+        .kingj-speeder-canvas .lf2 {
+          top: 38%;
+          animation: kj_lf2 0.9s linear infinite;
+          animation-delay: -1s;
+        }
+
+        .kingj-speeder-canvas .lf3 {
+          top: 62%;
+          animation: kj_lf3 0.65s linear infinite;
+        }
+
+        .kingj-speeder-canvas .lf4 {
+          top: 85%;
+          animation: kj_lf4 0.55s linear infinite;
+          animation-delay: -2s;
+        }
+
+        @keyframes kj_lf {
+          0% { transform: translate(400%, 0); }
+          100% { transform: translate(-400%, 0); opacity: 0; }
+        }
+
+        @keyframes kj_lf2 {
+          0% { transform: translate(400%, 0); }
+          100% { transform: translate(-400%, 0); opacity: 0; }
+        }
+
+        @keyframes kj_lf3 {
+          0% { transform: translate(400%, 0); }
+          100% { transform: translate(-400%, 0); opacity: 0; }
+        }
+
+        @keyframes kj_lf4 {
+          0% { transform: translate(400%, 0); }
+          100% { transform: translate(-400%, 0); opacity: 0; }
+        }
+      `}</style>
+
+      {/* SPEEDER LOADER ANIMATION BACKGROUND */}
+      <div className="kingj-speeder-canvas" aria-hidden="true">
+        <div className="loader speeder">
+          <span>
+            <span className="fazer1"></span>
+            <span className="fazer2"></span>
+            <span className="fazer3"></span>
+            <span className="fazer4"></span>
+          </span>
+          <div className="base">
+            <span></span>
+            <div className="face"></div>
+          </div>
+        </div>
+        <div className="longfazers">
+          <span className="lf"></span>
+          <span className="lf2"></span>
+          <span className="lf3"></span>
+          <span className="lf4"></span>
+        </div>
+      </div>
       {/* Atmospheric Royal Glow Backdrop */}
       <div className="absolute inset-0 bg-radial from-amber-500/10 via-transparent to-transparent pointer-events-none z-[2]" />
       <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[500px] h-[350px] bg-primary/15 blur-[120px] rounded-full pointer-events-none z-[2]" />
