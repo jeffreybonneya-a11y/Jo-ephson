@@ -179,12 +179,13 @@ export default function AdminDashboard() {
   const [deleteSearchQuery, setDeleteSearchQuery] = useState("");
 
   // Customer Management States
+  const [rawAllOrders, setRawAllOrders] = useState<any[]>([]);
   const [customerSearchQuery, setCustomerSearchQuery] = useState("");
   const [customerRoleFilter, setCustomerRoleFilter] = useState<'all' | 'user' | 'agent' | 'admin'>('all');
   const [customerProviderFilter, setCustomerProviderFilter] = useState<'all' | 'google' | 'password' | 'gmail' | 'guest'>('all');
   const [customerSortBy, setCustomerSortBy] = useState<'newest' | 'oldest' | 'lastActive' | 'balance' | 'orders' | 'name'>('newest');
   const [customerPage, setCustomerPage] = useState(1);
-  const [customersPerPage, setCustomersPerPage] = useState(15);
+  const [customersPerPage, setCustomersPerPage] = useState(100);
   const [isRefreshingCustomers, setIsRefreshingCustomers] = useState(false);
   const [editingBalanceUserId, setEditingBalanceUserId] = useState<string | null>(null);
   const [tempBalanceValue, setTempBalanceValue] = useState("");
@@ -311,6 +312,7 @@ export default function AdminDashboard() {
       collection(db, "orders"),
       (snapshot) => {
         const allOrders = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() as any }));
+        setRawAllOrders(allOrders);
         // CRITICAL: Filter out any orders that are unpaid, pending, failed, abandoned, cancelled, or unverified
         const paidOrders = allOrders.filter(isOrderSuccessfullyPaid);
         const cleanOrders = deduplicateOrdersList(paidOrders);
@@ -1428,79 +1430,187 @@ export default function AdminDashboard() {
     }
   };
 
-  // Customers tab statistics and filtering (consolidating registered users and orders)
+  // Customers tab statistics and filtering (consolidating all registered users, Google accounts, and orders)
   const allCustomers = React.useMemo(() => {
     const userMap = new Map<string, any>();
-    
-    // 1. Add all registered users from Firestore users collection
-    users.forEach((u) => {
-      const email = (u.email || u.gmail || '').trim();
-      const uid = (u.uid || u.id || (email ? email.toLowerCase() : '')).trim();
-      if (!uid && !email) return;
+    const emailIndex = new Map<string, string>(); // normalized email -> userMap key
+    const uidIndex = new Map<string, string>();   // uid -> userMap key
 
-      const key = uid || email.toLowerCase();
-      const derivedUsername = u.username || (u.displayName ? u.displayName.toLowerCase().replace(/\s+/g, '_') : (email ? email.split('@')[0] : "customer"));
-      const derivedFullName = u.fullName || u.displayName || (email ? email.split('@')[0] : "Customer");
-      
-      const rawProvider = u.authProvider || u.providerId || '';
-      const isGmail = email.toLowerCase().includes('@gmail.com');
-      const authProvider = rawProvider
-        ? (rawProvider.toLowerCase().includes('google') ? 'Google' : rawProvider.toLowerCase().includes('password') ? 'Email/Password' : rawProvider)
-        : (isGmail ? 'Google' : 'Email/Password');
+    const registerOrMerge = (candidate: {
+      uid?: string;
+      id?: string;
+      email?: string;
+      gmail?: string;
+      fullName?: string;
+      displayName?: string;
+      username?: string;
+      phoneNumber?: string;
+      photoURL?: string;
+      authProvider?: string;
+      providerId?: string;
+      createdAt?: any;
+      lastLoginAt?: any;
+      lastSignInTime?: any;
+      updatedAt?: any;
+      walletBalance?: number;
+      role?: string;
+      isAgent?: boolean;
+    }) => {
+      const rawEmail = (candidate.email || candidate.gmail || "").trim();
+      const cleanEmail = rawEmail.toLowerCase();
+      const isGmail = cleanEmail.includes("@gmail.com");
+      const uid = (candidate.uid || candidate.id || "").trim();
 
-      userMap.set(key, {
-        ...u,
-        id: u.id || uid,
-        uid: u.uid || uid,
-        email: email,
-        gmail: u.gmail || (isGmail ? email : ''),
+      if (!cleanEmail && !uid) return;
+
+      // Check if candidate already has an established record
+      let existingKey: string | undefined;
+      if (cleanEmail && emailIndex.has(cleanEmail)) {
+        existingKey = emailIndex.get(cleanEmail);
+      } else if (uid && uidIndex.has(uid)) {
+        existingKey = uidIndex.get(uid);
+      }
+
+      const primaryKey = existingKey || cleanEmail || uid;
+      const existing = existingKey ? userMap.get(existingKey) : null;
+
+      const derivedFullName = candidate.fullName || candidate.displayName || existing?.fullName || (cleanEmail ? cleanEmail.split("@")[0] : "Customer");
+      const derivedUsername = candidate.username || existing?.username || (cleanEmail ? cleanEmail.split("@")[0].toLowerCase().replace(/\s+/g, "_") : "customer");
+      const photoURL = candidate.photoURL || existing?.photoURL || "";
+      const phoneNumber = candidate.phoneNumber || existing?.phoneNumber || "";
+
+      let authProvider = candidate.authProvider || existing?.authProvider || "";
+      if (!authProvider) {
+        if (candidate.providerId?.toLowerCase().includes("google") || isGmail) {
+          authProvider = "Google";
+        } else if (candidate.providerId?.toLowerCase().includes("password")) {
+          authProvider = "Email/Password";
+        } else {
+          authProvider = isGmail ? "Google" : "Email/Password";
+        }
+      } else if (authProvider.toLowerCase().includes("google") || isGmail) {
+        authProvider = "Google";
+      }
+
+      const merged = {
+        ...existing,
+        ...candidate,
+        id: existing?.id || uid || primaryKey,
+        uid: existing?.uid || uid || primaryKey,
+        email: cleanEmail || existing?.email || "",
+        gmail: isGmail ? (cleanEmail || existing?.email) : (existing?.gmail || ""),
         fullName: derivedFullName,
-        displayName: u.displayName || derivedFullName,
+        displayName: derivedFullName,
         username: derivedUsername,
-        authProvider: authProvider,
-        createdAt: u.createdAt || null,
-        lastLoginAt: u.lastLoginAt || u.lastSignInTime || u.updatedAt || u.createdAt || null,
-        lastSignInTime: u.lastSignInTime || u.lastLoginAt || u.updatedAt || null,
-        phoneNumber: u.phoneNumber || u.phone || '',
+        photoURL,
+        phoneNumber,
+        authProvider,
+        createdAt: existing?.createdAt || candidate.createdAt || null,
+        lastLoginAt: candidate.lastLoginAt || candidate.lastSignInTime || existing?.lastLoginAt || candidate.createdAt || null,
+        lastSignInTime: candidate.lastSignInTime || candidate.lastLoginAt || existing?.lastSignInTime || candidate.createdAt || null,
+        walletBalance: typeof candidate.walletBalance === "number" ? candidate.walletBalance : (existing?.walletBalance || 0),
+        role: candidate.role || existing?.role || "user",
+        isAgent: candidate.isAgent !== undefined ? !!candidate.isAgent : (!!existing?.isAgent),
+      };
+
+      userMap.set(primaryKey, merged);
+      if (cleanEmail) emailIndex.set(cleanEmail, primaryKey);
+      if (uid) uidIndex.set(uid, primaryKey);
+    };
+
+    // 1. Process all registered users from Firestore users collection
+    users.forEach((u: any) => {
+      registerOrMerge({
+        ...u,
+        uid: u.uid || u.id,
+        id: u.id || u.uid,
+        email: u.email || u.gmail,
+        fullName: u.fullName || u.displayName,
+        phoneNumber: u.phoneNumber || u.phone,
         walletBalance: Number(u.walletBalance) || 0,
-        role: u.role || 'user',
+        role: u.role || "user",
         isAgent: !!u.isAgent,
       });
     });
 
-    // 2. Supplement with any customers from orders (deduplicating by userId or email)
-    orders.forEach((o) => {
-      const email = (o.email || o.userEmail || '').trim();
-      const userId = (o.userId || '').trim();
-      const key = userId || (email ? email.toLowerCase() : '');
-      if (!key) return;
+    // 2. Process all orders (from rawAllOrders and orders collection)
+    const combinedOrders = [...rawAllOrders, ...orders];
+    combinedOrders.forEach((o: any) => {
+      const orderEmail = (o.email || o.userEmail || o.customerEmail || o.customerGmail || o.gmail || o.buyerEmail || o.paystackEmail || o.customerDetails?.email || "").trim();
+      const orderUserId = (o.userId || o.uid || "").trim();
+      if (!orderEmail && !orderUserId) return;
 
-      if (!userMap.has(key)) {
-        const isGmail = email.toLowerCase().includes('@gmail.com');
-        const derivedUsername = o.customerName ? o.customerName.toLowerCase().replace(/\s+/g, '_') : (email ? email.split('@')[0] : "customer");
-        const derivedFullName = o.customerName || (email ? email.split('@')[0] : "Customer");
-        userMap.set(key, {
-          id: key,
-          uid: userId || key,
-          email: email,
-          gmail: isGmail ? email : '',
-          fullName: derivedFullName,
-          displayName: derivedFullName,
-          username: derivedUsername,
-          authProvider: isGmail ? 'Google' : 'Order Guest',
-          createdAt: o.createdAt || null,
-          lastLoginAt: o.createdAt || null,
-          lastSignInTime: o.createdAt || null,
-          phoneNumber: o.recipientPhone || o.phone || o.customerPhone || '',
-          role: 'user',
-          walletBalance: 0,
-          isAgent: false,
-        });
-      }
+      registerOrMerge({
+        uid: orderUserId,
+        id: orderUserId,
+        email: orderEmail,
+        fullName: o.customerName || o.recipientUsername || o.name || (orderEmail ? orderEmail.split("@")[0] : "Customer"),
+        phoneNumber: o.recipientPhone || o.customerPhone || o.phone || "",
+        authProvider: orderEmail.toLowerCase().includes("@gmail.com") ? "Google" : "Order Guest",
+        createdAt: o.createdAt || null,
+        lastLoginAt: o.createdAt || null,
+      });
+    });
+
+    // 3. Process all agents
+    agents.forEach((a: any) => {
+      const agentEmail = (a.ownerEmail || a.email || a.userEmail || a.agentEmail || "").trim();
+      const agentUserId = (a.userId || a.ownerId || a.id || "").trim();
+      if (!agentEmail && !agentUserId) return;
+
+      registerOrMerge({
+        uid: agentUserId,
+        id: agentUserId,
+        email: agentEmail,
+        fullName: a.agent_name || a.agentName || a.name || a.ownerName || "Agent Store Owner",
+        phoneNumber: a.phone || a.phoneNumber || "",
+        isAgent: true,
+        role: "agent",
+        createdAt: a.createdAt || null,
+      });
+    });
+
+    // 4. Process all complaints
+    complaints.forEach((c: any) => {
+      const cEmail = (c.userEmail || c.email || c.gmail || "").trim();
+      const cUid = (c.userId || "").trim();
+      if (!cEmail && !cUid) return;
+      registerOrMerge({
+        uid: cUid,
+        email: cEmail,
+        fullName: c.userName || c.fullName,
+        createdAt: c.createdAt || null,
+      });
+    });
+
+    // 5. Process all messages
+    messages.forEach((m: any) => {
+      const mEmail = (m.userEmail || m.email || m.gmail || "").trim();
+      const mUid = (m.userId || "").trim();
+      if (!mEmail && !mUid) return;
+      registerOrMerge({
+        uid: mUid,
+        email: mEmail,
+        fullName: m.userName || m.fullName,
+        createdAt: m.createdAt || null,
+      });
+    });
+
+    // 6. Process profit requests
+    profitRequests.forEach((p: any) => {
+      const pEmail = (p.email || p.userEmail || "").trim();
+      const pUid = (p.agent_id || p.userId || "").trim();
+      if (!pEmail && !pUid) return;
+      registerOrMerge({
+        uid: pUid,
+        email: pEmail,
+        fullName: p.agent_name || p.momo_name,
+        createdAt: p.created_at || null,
+      });
     });
 
     return Array.from(userMap.values());
-  }, [users, orders]);
+  }, [users, rawAllOrders, orders, agents, complaints, messages, profitRequests]);
 
   const totalRegistered = allCustomers.length;
   const totalGoogleCustomers = allCustomers.filter((u) => u.authProvider === 'Google' || (u.email && u.email.toLowerCase().includes('@gmail.com'))).length;
@@ -3641,6 +3751,89 @@ export default function AdminDashboard() {
                 </Select>
               </div>
             </div>
+            {/* Quick Filter Tags */}
+            <div className="flex items-center gap-2 pt-2 border-t dark:border-slate-800/60 overflow-x-auto pb-1">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 shrink-0">Quick Filter:</span>
+              <button
+                onClick={() => {
+                  setCustomerProviderFilter("all");
+                  setCustomerRoleFilter("all");
+                  setCustomerSearchQuery("");
+                  setCustomerPage(1);
+                }}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                  customerProviderFilter === "all" && customerRoleFilter === "all" && !customerSearchQuery
+                    ? "bg-primary text-secondary shadow-sm"
+                    : "bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700"
+                }`}
+              >
+                All Customers ({allCustomers.length})
+              </button>
+              <button
+                onClick={() => {
+                  setCustomerProviderFilter("gmail");
+                  setCustomerRoleFilter("all");
+                  setCustomerPage(1);
+                }}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
+                  customerProviderFilter === "gmail"
+                    ? "bg-red-500 text-white shadow-sm"
+                    : "bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20"
+                }`}
+              >
+                <span>Gmail Accounts Only ✉️</span>
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/15 font-mono">
+                  {allCustomers.filter(u => (u.email || u.gmail || "").toLowerCase().includes("@gmail.com")).length}
+                </span>
+              </button>
+              <button
+                onClick={() => {
+                  setCustomerProviderFilter("google");
+                  setCustomerRoleFilter("all");
+                  setCustomerPage(1);
+                }}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
+                  customerProviderFilter === "google"
+                    ? "bg-red-600 text-white shadow-sm"
+                    : "bg-red-600/10 text-red-600 dark:text-red-400 hover:bg-red-600/20"
+                }`}
+              >
+                <span>Google Auth 🌐</span>
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/15 font-mono">
+                  {allCustomers.filter(u => u.authProvider === "Google" || (u.email && u.email.toLowerCase().includes("@gmail.com"))).length}
+                </span>
+              </button>
+              <button
+                onClick={() => {
+                  setCustomerRoleFilter("agent");
+                  setCustomerProviderFilter("all");
+                  setCustomerPage(1);
+                }}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
+                  customerRoleFilter === "agent"
+                    ? "bg-primary text-secondary shadow-sm"
+                    : "bg-primary/10 text-primary hover:bg-primary/20"
+                }`}
+              >
+                <span>Agents 👑</span>
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/15 font-mono">
+                  {allCustomers.filter(u => u.isAgent).length}
+                </span>
+              </button>
+              <button
+                onClick={() => {
+                  setCustomersPerPage(1000);
+                  setCustomerPage(1);
+                }}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1 ${
+                  customersPerPage >= 1000
+                    ? "bg-emerald-600 text-white shadow-sm"
+                    : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20"
+                }`}
+              >
+                <span>Show All {allCustomers.length} on 1 Page 🚀</span>
+              </button>
+            </div>
           </div>
 
           {/* Customers Table Card */}
@@ -3649,10 +3842,10 @@ export default function AdminDashboard() {
               <div>
                 <CardTitle className="text-xl font-black flex items-center gap-2 text-slate-900 dark:text-white">
                   <Users className="w-5 h-5 text-primary" />
-                  Registered Customers Directory 👑
+                  Registered Customers & Gmail Directory 👑
                 </CardTitle>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
-                  Displaying {filteredUsers.length} customer account{filteredUsers.length === 1 ? "" : "s"} authenticated on King J Deals.
+                  Displaying {filteredUsers.length} of {allCustomers.length} customer account{allCustomers.length === 1 ? "" : "s"} (Google / Gmail accounts).
                 </p>
               </div>
 
@@ -3666,15 +3859,16 @@ export default function AdminDashboard() {
                     setCustomerPage(1);
                   }}
                 >
-                  <SelectTrigger className="h-9 w-24 rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 font-bold text-xs">
+                  <SelectTrigger className="h-9 min-w-28 rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 font-bold text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="10">10 / page</SelectItem>
                     <SelectItem value="15">15 / page</SelectItem>
                     <SelectItem value="25">25 / page</SelectItem>
                     <SelectItem value="50">50 / page</SelectItem>
                     <SelectItem value="100">100 / page</SelectItem>
+                    <SelectItem value="250">250 / page</SelectItem>
+                    <SelectItem value="1000">Show All ({allCustomers.length})</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
