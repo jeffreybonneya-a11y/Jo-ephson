@@ -260,6 +260,16 @@ export default function App() {
           const userFullName = user.displayName || (user.email ? user.email.split('@')[0] : "Customer");
           const userUsername = user.displayName ? user.displayName.toLowerCase().replace(/\s+/g, '_') : (user.email ? user.email.split('@')[0] : "customer");
           
+          const rawProvider = user.providerData?.[0]?.providerId || '';
+          const authProvider = rawProvider === 'google.com' || user.email?.toLowerCase().endsWith('@gmail.com')
+            ? 'Google'
+            : rawProvider === 'password'
+            ? 'Email/Password'
+            : rawProvider || 'Google';
+
+          const creationTime = user.metadata?.creationTime ? new Date(user.metadata.creationTime).toISOString() : new Date().toISOString();
+          const lastSignIn = user.metadata?.lastSignInTime ? new Date(user.metadata.lastSignInTime).toISOString() : new Date().toISOString();
+
           if (!snap.exists()) {
             setDoc(userRef, {
               uid: user.uid,
@@ -272,22 +282,33 @@ export default function App() {
               role: isEmailAdmin ? 'admin' : 'user',
               walletBalance: 0,
               photoURL: user.photoURL || '',
+              authProvider: authProvider,
+              providerId: rawProvider || 'google.com',
+              createdAt: creationTime,
+              lastLoginAt: lastSignIn,
+              lastSignInTime: lastSignIn,
               topupReference: 'KJ-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
             }, { merge: true }).catch(console.error);
           } else {
             const data = snap.data();
-            const updates: any = {};
+            const updates: any = {
+              lastLoginAt: lastSignIn,
+              lastSignInTime: lastSignIn,
+            };
             if (!data.email && user.email) updates.email = user.email;
             if (!data.gmail && user.email) updates.gmail = user.email;
             if (!data.fullName && userFullName) updates.fullName = userFullName;
             if (!data.displayName && user.displayName) updates.displayName = user.displayName;
             if (!data.username && userUsername) updates.username = userUsername;
             if (!data.id) updates.id = user.uid;
+            if (!data.uid) updates.uid = user.uid;
+            if (!data.createdAt) updates.createdAt = creationTime;
+            if (!data.authProvider) updates.authProvider = authProvider;
+            if (!data.providerId && rawProvider) updates.providerId = rawProvider;
             if (user.photoURL && !data.photoURL) updates.photoURL = user.photoURL;
+            if (user.phoneNumber && !data.phoneNumber) updates.phoneNumber = user.phoneNumber;
             if (isEmailAdmin && data.role !== 'admin') updates.role = 'admin';
-            if (Object.keys(updates).length > 0) {
-              setDoc(userRef, updates, { merge: true }).catch(console.error);
-            }
+            setDoc(userRef, updates, { merge: true }).catch(console.error);
           }
         }).catch(console.error);
 

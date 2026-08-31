@@ -45,6 +45,16 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       const adminEmails = ['kingjdeals@gmail.com', 'jeffreybonneya@gmail.com', 'emmagyapong62@gmail.com'];
       const isEmailAdmin = adminEmails.includes(user.email?.toLowerCase() || '');
 
+      const rawProvider = user.providerData?.[0]?.providerId || '';
+      const authProvider = rawProvider === 'google.com' || user.email?.toLowerCase().endsWith('@gmail.com')
+        ? 'Google'
+        : rawProvider === 'password'
+        ? 'Email/Password'
+        : rawProvider || 'Google';
+
+      const creationTime = user.metadata?.creationTime ? new Date(user.metadata.creationTime).toISOString() : new Date().toISOString();
+      const lastSignIn = user.metadata?.lastSignInTime ? new Date(user.metadata.lastSignInTime).toISOString() : new Date().toISOString();
+
       if (!userDoc.exists()) {
         await setDoc(doc(db, 'users', user.uid), {
           uid: user.uid,
@@ -57,22 +67,33 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           role: isEmailAdmin ? 'admin' : 'user',
           walletBalance: 0,
           photoURL: user.photoURL || '',
+          authProvider: authProvider,
+          providerId: rawProvider || 'google.com',
+          createdAt: creationTime,
+          lastLoginAt: lastSignIn,
+          lastSignInTime: lastSignIn,
           topupReference: 'KJ-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
         });
       } else {
         const existingData = userDoc.data();
-        const updates: any = {};
+        const updates: any = {
+          lastLoginAt: lastSignIn,
+          lastSignInTime: lastSignIn,
+        };
         if (!existingData.email && user.email) updates.email = user.email;
         if (!existingData.gmail && user.email) updates.gmail = user.email;
         if (!existingData.fullName && userFullName) updates.fullName = userFullName;
         if (!existingData.displayName && user.displayName) updates.displayName = user.displayName;
         if (!existingData.username && userUsername) updates.username = userUsername;
         if (!existingData.id) updates.id = user.uid;
+        if (!existingData.uid) updates.uid = user.uid;
+        if (!existingData.createdAt) updates.createdAt = creationTime;
+        if (!existingData.authProvider) updates.authProvider = authProvider;
+        if (!existingData.providerId && rawProvider) updates.providerId = rawProvider;
         if (user.photoURL && !existingData.photoURL) updates.photoURL = user.photoURL;
+        if (user.phoneNumber && !existingData.phoneNumber) updates.phoneNumber = user.phoneNumber;
         if (isEmailAdmin && existingData.role !== 'admin') updates.role = 'admin';
-        if (Object.keys(updates).length > 0) {
-          await setDoc(doc(db, 'users', user.uid), updates, { merge: true });
-        }
+        await setDoc(doc(db, 'users', user.uid), updates, { merge: true });
       }
       
       toast.success("Logged in with Google!");

@@ -82,6 +82,16 @@ import {
   Sparkles,
   Palette,
   Image as ImageIcon,
+  Calendar,
+  Clock,
+  ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  ExternalLink,
+  ShieldCheck,
+  UserCheck,
+  Globe,
 } from "lucide-react";
 import { toast } from "sonner";
 import AdminBrandingManager from "./AdminBrandingManager";
@@ -100,6 +110,56 @@ const parseDataAmountToMB = (amountStr: string): number => {
   }
   // Default to GB
   return val * 1024;
+};
+
+const formatCustomerDateTime = (val: any): string => {
+  if (!val) return "Not Recorded";
+  try {
+    let date: Date | null = null;
+    if (val?.toDate && typeof val.toDate === "function") {
+      date = val.toDate();
+    } else if (val?.seconds) {
+      date = new Date(val.seconds * 1000);
+    } else if (typeof val?.toMillis === "function") {
+      date = new Date(val.toMillis());
+    } else if (val instanceof Date) {
+      date = val;
+    } else if (typeof val === "number") {
+      date = new Date(val);
+    } else if (typeof val === "string") {
+      const parsed = Date.parse(val);
+      if (!isNaN(parsed) && parsed > 0) {
+        date = new Date(parsed);
+      }
+    }
+    if (!date || isNaN(date.getTime())) return "Not Recorded";
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "Not Recorded";
+  }
+};
+
+const getCustomerTimestampMillis = (val: any): number => {
+  if (!val) return 0;
+  try {
+    if (val?.seconds) return val.seconds * 1000;
+    if (typeof val?.toMillis === "function") return val.toMillis();
+    if (val instanceof Date) return val.getTime();
+    if (typeof val === "number") return val;
+    if (typeof val === "string") {
+      const parsed = Date.parse(val);
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+  } catch {
+    return 0;
+  }
+  return 0;
 };
 
 export default function AdminDashboard() {
@@ -121,6 +181,11 @@ export default function AdminDashboard() {
   // Customer Management States
   const [customerSearchQuery, setCustomerSearchQuery] = useState("");
   const [customerRoleFilter, setCustomerRoleFilter] = useState<'all' | 'user' | 'agent' | 'admin'>('all');
+  const [customerProviderFilter, setCustomerProviderFilter] = useState<'all' | 'google' | 'password' | 'gmail' | 'guest'>('all');
+  const [customerSortBy, setCustomerSortBy] = useState<'newest' | 'oldest' | 'lastActive' | 'balance' | 'orders' | 'name'>('newest');
+  const [customerPage, setCustomerPage] = useState(1);
+  const [customersPerPage, setCustomersPerPage] = useState(15);
+  const [isRefreshingCustomers, setIsRefreshingCustomers] = useState(false);
   const [editingBalanceUserId, setEditingBalanceUserId] = useState<string | null>(null);
   const [tempBalanceValue, setTempBalanceValue] = useState("");
 
@@ -1364,46 +1429,72 @@ export default function AdminDashboard() {
   };
 
   // Customers tab statistics and filtering (consolidating registered users and orders)
-  const allCustomers: UserProfile[] = React.useMemo(() => {
-    const userMap = new Map<string, UserProfile>();
+  const allCustomers = React.useMemo(() => {
+    const userMap = new Map<string, any>();
     
     // 1. Add all registered users from Firestore users collection
     users.forEach((u) => {
       const email = (u.email || u.gmail || '').trim();
-      const key = u.id || u.uid || email.toLowerCase();
+      const uid = (u.uid || u.id || (email ? email.toLowerCase() : '')).trim();
+      if (!uid && !email) return;
+
+      const key = uid || email.toLowerCase();
       const derivedUsername = u.username || (u.displayName ? u.displayName.toLowerCase().replace(/\s+/g, '_') : (email ? email.split('@')[0] : "customer"));
       const derivedFullName = u.fullName || u.displayName || (email ? email.split('@')[0] : "Customer");
+      
+      const rawProvider = u.authProvider || u.providerId || '';
+      const isGmail = email.toLowerCase().includes('@gmail.com');
+      const authProvider = rawProvider
+        ? (rawProvider.toLowerCase().includes('google') ? 'Google' : rawProvider.toLowerCase().includes('password') ? 'Email/Password' : rawProvider)
+        : (isGmail ? 'Google' : 'Email/Password');
+
       userMap.set(key, {
         ...u,
-        id: u.id || u.uid || key,
-        uid: u.uid || u.id || key,
-        email: u.email || u.gmail || email,
-        gmail: u.gmail || u.email || email,
+        id: u.id || uid,
+        uid: u.uid || uid,
+        email: email,
+        gmail: u.gmail || (isGmail ? email : ''),
         fullName: derivedFullName,
         displayName: u.displayName || derivedFullName,
         username: derivedUsername,
+        authProvider: authProvider,
+        createdAt: u.createdAt || null,
+        lastLoginAt: u.lastLoginAt || u.lastSignInTime || u.updatedAt || u.createdAt || null,
+        lastSignInTime: u.lastSignInTime || u.lastLoginAt || u.updatedAt || null,
+        phoneNumber: u.phoneNumber || u.phone || '',
+        walletBalance: Number(u.walletBalance) || 0,
+        role: u.role || 'user',
+        isAgent: !!u.isAgent,
       });
     });
 
-    // 2. Supplement with any customers from orders
+    // 2. Supplement with any customers from orders (deduplicating by userId or email)
     orders.forEach((o) => {
-      const email = (o.email || '').trim();
+      const email = (o.email || o.userEmail || '').trim();
       const userId = (o.userId || '').trim();
-      const key = userId || email.toLowerCase();
-      if (key && !userMap.has(key) && (email || o.customerName)) {
+      const key = userId || (email ? email.toLowerCase() : '');
+      if (!key) return;
+
+      if (!userMap.has(key)) {
+        const isGmail = email.toLowerCase().includes('@gmail.com');
         const derivedUsername = o.customerName ? o.customerName.toLowerCase().replace(/\s+/g, '_') : (email ? email.split('@')[0] : "customer");
         const derivedFullName = o.customerName || (email ? email.split('@')[0] : "Customer");
         userMap.set(key, {
           id: key,
           uid: userId || key,
           email: email,
-          gmail: email,
+          gmail: isGmail ? email : '',
           fullName: derivedFullName,
           displayName: derivedFullName,
           username: derivedUsername,
-          phoneNumber: o.phone || o.customerPhone || '',
+          authProvider: isGmail ? 'Google' : 'Order Guest',
+          createdAt: o.createdAt || null,
+          lastLoginAt: o.createdAt || null,
+          lastSignInTime: o.createdAt || null,
+          phoneNumber: o.recipientPhone || o.phone || o.customerPhone || '',
           role: 'user',
           walletBalance: 0,
+          isAgent: false,
         });
       }
     });
@@ -1412,28 +1503,107 @@ export default function AdminDashboard() {
   }, [users, orders]);
 
   const totalRegistered = allCustomers.length;
+  const totalGoogleCustomers = allCustomers.filter((u) => u.authProvider === 'Google' || (u.email && u.email.toLowerCase().includes('@gmail.com'))).length;
   const totalAgents = allCustomers.filter((u) => u.isAgent).length;
   const totalWalletBalances = allCustomers.reduce((sum, u) => sum + (u.walletBalance || 0), 0);
   const totalCompletedOrders = orders.filter((o) => o.status === "completed" || o.status === "delivered" || o.status === "paid" || o.status === "success").length;
 
-  const filteredUsers = allCustomers.filter((u) => {
-    const q = customerSearchQuery.toLowerCase().trim();
-    const matchesSearch =
-      !q ||
-      (u.fullName || "").toLowerCase().includes(q) ||
-      (u.displayName || "").toLowerCase().includes(q) ||
-      (u.username || "").toLowerCase().includes(q) ||
-      (u.email || "").toLowerCase().includes(q) ||
-      (u.gmail || "").toLowerCase().includes(q) ||
-      (u.phoneNumber || "").toLowerCase().includes(q) ||
-      (u.id || "").toLowerCase().includes(q);
+  const filteredUsers = React.useMemo(() => {
+    const list = allCustomers.filter((u) => {
+      const q = customerSearchQuery.toLowerCase().trim();
+      const matchesSearch =
+        !q ||
+        (u.fullName || "").toLowerCase().includes(q) ||
+        (u.displayName || "").toLowerCase().includes(q) ||
+        (u.username || "").toLowerCase().includes(q) ||
+        (u.email || "").toLowerCase().includes(q) ||
+        (u.gmail || "").toLowerCase().includes(q) ||
+        (u.phoneNumber || "").toLowerCase().includes(q) ||
+        (u.uid || "").toLowerCase().includes(q) ||
+        (u.id || "").toLowerCase().includes(q);
 
-    if (customerRoleFilter === "all") return matchesSearch;
-    if (customerRoleFilter === "admin") return matchesSearch && u.role === "admin";
-    if (customerRoleFilter === "agent") return matchesSearch && !!u.isAgent;
-    if (customerRoleFilter === "user") return matchesSearch && u.role === "user" && !u.isAgent;
-    return matchesSearch;
-  });
+      if (!matchesSearch) return false;
+
+      // Role filter
+      if (customerRoleFilter === "admin" && u.role !== "admin") return false;
+      if (customerRoleFilter === "agent" && !u.isAgent) return false;
+      if (customerRoleFilter === "user" && (u.role === "admin" || u.isAgent)) return false;
+
+      // Provider filter
+      const userEmailLower = (u.email || u.gmail || "").toLowerCase();
+      if (customerProviderFilter === "google" && u.authProvider !== "Google" && !userEmailLower.includes("@gmail.com")) return false;
+      if (customerProviderFilter === "password" && u.authProvider !== "Email/Password") return false;
+      if (customerProviderFilter === "gmail" && !userEmailLower.includes("@gmail.com")) return false;
+      if (customerProviderFilter === "guest" && u.authProvider !== "Order Guest") return false;
+
+      return true;
+    });
+
+    // Sorting
+    list.sort((a, b) => {
+      if (customerSortBy === "newest") {
+        return getCustomerTimestampMillis(b.createdAt) - getCustomerTimestampMillis(a.createdAt);
+      }
+      if (customerSortBy === "oldest") {
+        return getCustomerTimestampMillis(a.createdAt) - getCustomerTimestampMillis(b.createdAt);
+      }
+      if (customerSortBy === "lastActive") {
+        const timeA = getCustomerTimestampMillis(a.lastLoginAt || a.lastSignInTime || a.createdAt);
+        const timeB = getCustomerTimestampMillis(b.lastLoginAt || b.lastSignInTime || b.createdAt);
+        return timeB - timeA;
+      }
+      if (customerSortBy === "balance") {
+        return (b.walletBalance || 0) - (a.walletBalance || 0);
+      }
+      if (customerSortBy === "orders") {
+        const aOrders = orders.filter((o) => o.userId === a.id || (o.email && o.email.toLowerCase() === (a.email || '').toLowerCase())).length;
+        const bOrders = orders.filter((o) => o.userId === b.id || (o.email && o.email.toLowerCase() === (b.email || '').toLowerCase())).length;
+        return bOrders - aOrders;
+      }
+      if (customerSortBy === "name") {
+        return (a.fullName || a.email || "").localeCompare(b.fullName || b.email || "");
+      }
+      return 0;
+    });
+
+    return list;
+  }, [allCustomers, customerSearchQuery, customerRoleFilter, customerProviderFilter, customerSortBy, orders]);
+
+  const totalCustomerPages = Math.max(1, Math.ceil(filteredUsers.length / customersPerPage));
+  const safeCustomerPage = Math.min(customerPage, totalCustomerPages);
+  const paginatedCustomers = React.useMemo(() => {
+    const start = (safeCustomerPage - 1) * customersPerPage;
+    return filteredUsers.slice(start, start + customersPerPage);
+  }, [filteredUsers, safeCustomerPage, customersPerPage]);
+
+  const handleCopyAllCustomerEmails = () => {
+    const validEmails = filteredUsers
+      .map((u) => (u.email || u.gmail || "").trim())
+      .filter((e) => e && e.includes("@"));
+    
+    // Deduplicate emails
+    const uniqueEmails = Array.from(new Set(validEmails));
+
+    if (uniqueEmails.length === 0) {
+      toast.error("No customer emails found in current filtered results.");
+      return;
+    }
+
+    navigator.clipboard.writeText(uniqueEmails.join(", "));
+    toast.success(`Copied ${uniqueEmails.length} customer email(s) to clipboard! 📋`, {
+      description: "Comma-separated list ready for support or email announcements.",
+    });
+  };
+
+  const handleRefreshCustomers = () => {
+    setIsRefreshingCustomers(true);
+    setTimeout(() => {
+      setIsRefreshingCustomers(false);
+      toast.success("Customer list refreshed with live Firestore accounts! 👑", {
+        description: `Total registered accounts: ${totalRegistered}`,
+      });
+    }, 500);
+  };
 
   const filteredWholesaleBundles = bundles.filter((b) => {
     const matchesCat =
@@ -3296,18 +3466,22 @@ export default function AdminDashboard() {
                 <Users className="w-6 h-6" />
               </div>
               <div>
-                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Customers</p>
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Registered Customers</p>
                 <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">{totalRegistered}</h3>
+                <span className="text-[10px] text-slate-400 font-bold">Unique customer accounts</span>
               </div>
             </Card>
 
             <Card className="rounded-2xl border bg-white dark:bg-slate-900 shadow-sm p-6 flex items-center gap-4">
-              <div className="p-3 rounded-xl bg-amber-500/10 text-amber-500">
-                <Crown className="w-6 h-6" />
+              <div className="p-3 rounded-xl bg-red-500/10 text-red-500">
+                <Globe className="w-6 h-6" />
               </div>
               <div>
-                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Active Agents</p>
-                <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">{totalAgents}</h3>
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Google / Gmail Accounts</p>
+                <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">{totalGoogleCustomers}</h3>
+                <span className="text-[10px] text-red-500/80 font-bold">
+                  {totalRegistered > 0 ? `${((totalGoogleCustomers / totalRegistered) * 100).toFixed(0)}% of total users` : "0%"}
+                </span>
               </div>
             </Card>
 
@@ -3318,6 +3492,7 @@ export default function AdminDashboard() {
               <div>
                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Wallet Balances</p>
                 <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">GHS {totalWalletBalances.toFixed(2)}</h3>
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">Live customer funds</span>
               </div>
             </Card>
 
@@ -3328,63 +3503,202 @@ export default function AdminDashboard() {
               <div>
                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Successful Orders</p>
                 <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">{totalCompletedOrders}</h3>
+                <span className="text-[10px] text-indigo-500 font-bold">{totalAgents} active agent stores</span>
               </div>
             </Card>
           </div>
 
-          {/* Search & Filter Controls */}
-          <div className="flex flex-col md:flex-row gap-4 mb-6 p-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border dark:border-slate-800">
-            <div className="relative flex-1">
-              <Search className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" />
-              <Input
-                placeholder="Search by name, email or phone..."
-                value={customerSearchQuery}
-                onChange={(e) => setCustomerSearchQuery(e.target.value)}
-                className="pl-10 h-11 rounded-xl bg-white dark:bg-slate-950 focus-visible:ring-primary border-slate-200 dark:border-slate-800 font-medium"
-              />
+          {/* Search, Filters & Action Controls */}
+          <div className="flex flex-col gap-4 mb-6 p-5 bg-slate-50 dark:bg-slate-900/40 rounded-3xl border dark:border-slate-800">
+            <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between">
+              {/* Search Bar */}
+              <div className="relative flex-1">
+                <Search className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" />
+                <Input
+                  placeholder="Search customer by email, Gmail, name, phone, or User ID / UID..."
+                  value={customerSearchQuery}
+                  onChange={(e) => {
+                    setCustomerSearchQuery(e.target.value);
+                    setCustomerPage(1);
+                  }}
+                  className="pl-10 h-11 rounded-xl bg-white dark:bg-slate-950 focus-visible:ring-primary border-slate-200 dark:border-slate-800 font-medium text-sm"
+                />
+                {customerSearchQuery && (
+                  <button
+                    onClick={() => {
+                      setCustomerSearchQuery("");
+                      setCustomerPage(1);
+                    }}
+                    className="absolute right-3.5 top-3.5 text-xs text-slate-400 hover:text-slate-600 font-bold"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+                <Button
+                  onClick={handleCopyAllCustomerEmails}
+                  variant="outline"
+                  className="h-11 rounded-xl bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 font-bold text-xs flex items-center gap-2 hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer"
+                  title="Copy all customer emails in current filter"
+                >
+                  <Copy className="w-4 h-4" />
+                  <span>Copy All Filtered Emails</span>
+                  <Badge className="bg-primary/20 text-primary hover:bg-primary/20 text-[10px] px-1.5 py-0 font-mono">
+                    {filteredUsers.length}
+                  </Badge>
+                </Button>
+
+                <Button
+                  onClick={handleRefreshCustomers}
+                  disabled={isRefreshingCustomers}
+                  variant="outline"
+                  className="h-11 rounded-xl bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 font-bold text-xs flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                  title="Refresh customer database"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isRefreshingCustomers ? "animate-spin text-primary" : ""}`} />
+                  <span>Refresh</span>
+                </Button>
+              </div>
             </div>
-            <div className="w-full md:w-56">
-              <Select
-                value={customerRoleFilter}
-                onValueChange={(val: any) => setCustomerRoleFilter(val)}
-              >
-                <SelectTrigger className="h-11 rounded-xl bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 font-bold text-xs uppercase tracking-wider">
-                  <SelectValue placeholder="Filter Role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Roles</SelectItem>
-                  <SelectItem value="user">Regular Customers</SelectItem>
-                  <SelectItem value="agent">Agents Only</SelectItem>
-                  <SelectItem value="admin">Admins Only</SelectItem>
-                </SelectContent>
-              </Select>
+
+            {/* Filter & Sorting Controls */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2 border-t dark:border-slate-800/60">
+              {/* Role Filter */}
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1 block">
+                  Customer Role
+                </label>
+                <Select
+                  value={customerRoleFilter}
+                  onValueChange={(val: any) => {
+                    setCustomerRoleFilter(val);
+                    setCustomerPage(1);
+                  }}
+                >
+                  <SelectTrigger className="h-10 rounded-xl bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 font-bold text-xs">
+                    <SelectValue placeholder="Filter Role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Roles ({allCustomers.length})</SelectItem>
+                    <SelectItem value="user">Regular Customers ({allCustomers.filter(u => u.role === 'user' && !u.isAgent).length})</SelectItem>
+                    <SelectItem value="agent">Agents Only ({allCustomers.filter(u => u.isAgent).length})</SelectItem>
+                    <SelectItem value="admin">Admins Only ({allCustomers.filter(u => u.role === 'admin').length})</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Provider Filter */}
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1 block">
+                  Auth Provider / Email Type
+                </label>
+                <Select
+                  value={customerProviderFilter}
+                  onValueChange={(val: any) => {
+                    setCustomerProviderFilter(val);
+                    setCustomerPage(1);
+                  }}
+                >
+                  <SelectTrigger className="h-10 rounded-xl bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 font-bold text-xs">
+                    <SelectValue placeholder="Filter Provider" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Providers ({allCustomers.length})</SelectItem>
+                    <SelectItem value="google">Google Auth ({allCustomers.filter(u => u.authProvider === 'Google' || (u.email && u.email.toLowerCase().includes('@gmail.com'))).length})</SelectItem>
+                    <SelectItem value="gmail">Gmail Addresses ({allCustomers.filter(u => (u.email || '').toLowerCase().includes('@gmail.com')).length})</SelectItem>
+                    <SelectItem value="password">Email & Password ({allCustomers.filter(u => u.authProvider === 'Email/Password').length})</SelectItem>
+                    <SelectItem value="guest">Order Guests ({allCustomers.filter(u => u.authProvider === 'Order Guest').length})</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Sort By */}
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1 block">
+                  Sort Customers By
+                </label>
+                <Select
+                  value={customerSortBy}
+                  onValueChange={(val: any) => {
+                    setCustomerSortBy(val);
+                    setCustomerPage(1);
+                  }}
+                >
+                  <SelectTrigger className="h-10 rounded-xl bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 font-bold text-xs">
+                    <SelectValue placeholder="Sort Customers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="newest">📅 Newest Registered First</SelectItem>
+                    <SelectItem value="oldest">⏳ Oldest Registered First</SelectItem>
+                    <SelectItem value="lastActive">⚡ Recently Signed In / Active</SelectItem>
+                    <SelectItem value="balance">💰 Highest Wallet Balance</SelectItem>
+                    <SelectItem value="orders">📦 Most Orders Placed</SelectItem>
+                    <SelectItem value="name">🔤 Customer Name (A-Z)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 
-          <Card className="rounded-3xl border-2 bg-white dark:bg-slate-950 dark:border-slate-800 shadow-sm overflow-hidden">
-            <CardHeader className="p-8 bg-slate-50 dark:bg-slate-900/50 border-b dark:border-slate-800">
-              <CardTitle className="text-xl font-black flex items-center gap-2 text-slate-900 dark:text-white">
-                <Users className="w-5 h-5 text-primary" />
-                Customer Base
-              </CardTitle>
+          {/* Customers Table Card */}
+          <Card className="rounded-3xl border-2 bg-white dark:bg-slate-950 dark:border-slate-800 shadow-sm overflow-hidden mb-6">
+            <CardHeader className="p-6 sm:p-8 bg-slate-50 dark:bg-slate-900/50 border-b dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <CardTitle className="text-xl font-black flex items-center gap-2 text-slate-900 dark:text-white">
+                  <Users className="w-5 h-5 text-primary" />
+                  Registered Customers Directory 👑
+                </CardTitle>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
+                  Displaying {filteredUsers.length} customer account{filteredUsers.length === 1 ? "" : "s"} authenticated on King J Deals.
+                </p>
+              </div>
+
+              {/* Rows Per Page */}
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                <span className="text-xs font-bold text-slate-500">Rows:</span>
+                <Select
+                  value={customersPerPage.toString()}
+                  onValueChange={(val) => {
+                    setCustomersPerPage(parseInt(val, 10));
+                    setCustomerPage(1);
+                  }}
+                >
+                  <SelectTrigger className="h-9 w-24 rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 font-bold text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10 / page</SelectItem>
+                    <SelectItem value="15">15 / page</SelectItem>
+                    <SelectItem value="25">25 / page</SelectItem>
+                    <SelectItem value="50">50 / page</SelectItem>
+                    <SelectItem value="100">100 / page</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </CardHeader>
             <CardContent className="p-0 overflow-x-auto">
               <Table>
                 <TableHeader className="bg-slate-50 dark:bg-slate-900">
                   <TableRow className="border-b dark:border-slate-800">
-                    <TableHead className="p-6 font-black text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-200">
-                      Customer & User Name
+                    <TableHead className="p-5 font-black text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-200">
+                      Customer & Identification
                     </TableHead>
                     <TableHead className="font-black text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-200">
-                      Gmail / Email Address
+                      Email / Gmail & Provider
                     </TableHead>
                     <TableHead className="font-black text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-200">
-                      Orders & Activity
+                      Registered & Last Sign-In
+                    </TableHead>
+                    <TableHead className="font-black text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-200">
+                      Orders & Spending
                     </TableHead>
                     <TableHead className="font-black text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-200">
                       Wallet Balance
                     </TableHead>
-                    <TableHead className="font-black text-[10px] uppercase tracking-wider text-right p-6 text-slate-600 dark:text-slate-200">
+                    <TableHead className="font-black text-[10px] uppercase tracking-wider text-right p-5 text-slate-600 dark:text-slate-200">
                       Actions
                     </TableHead>
                   </TableRow>
@@ -3392,39 +3706,63 @@ export default function AdminDashboard() {
                 <TableBody>
                   {filteredUsers.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="p-12 text-center text-sm font-bold text-slate-400">
-                        No customers found matching the search criteria. 👑
+                      <TableCell colSpan={6} className="p-12 text-center text-sm font-bold text-slate-400">
+                        No customer accounts found matching your search and filter criteria. 👑
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredUsers.map((u) => {
+                    paginatedCustomers.map((u) => {
                       const userOrders = orders.filter(
-                        (o) => o.userId === u.id || (o.email && o.email.toLowerCase() === (u.email || '').toLowerCase())
+                        (o) => o.userId === u.id || o.userId === u.uid || (o.email && o.email.toLowerCase() === (u.email || '').toLowerCase())
                       );
                       const ordersCount = userOrders.length;
                       const totalSpent = userOrders
                         .filter((o) => o.status === "paid" || o.status === "completed" || o.status === "success" || o.status === "delivered")
-                        .reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
+                        .reduce((sum, o) => sum + (Number(o.amount) || Number(o.amountSent) || 0), 0);
 
-                      const isEditingBalance = editingBalanceUserId === u.id;
-                      const displayEmail = u.gmail || u.email || "";
+                      const isEditingBalance = editingBalanceUserId === (u.id || u.uid);
+                      const displayEmail = (u.gmail || u.email || "").trim();
                       const isGmailAddress = displayEmail.toLowerCase().includes("@gmail.com");
                       const displayUsername = u.username || (u.displayName ? u.displayName.toLowerCase().replace(/\s+/g, '_') : (displayEmail ? displayEmail.split('@')[0] : "customer"));
+                      const userId = u.uid || u.id || "";
+                      const shortUserId = userId ? (userId.length > 14 ? `${userId.substring(0, 8)}...${userId.substring(userId.length - 4)}` : userId) : "N/A";
+
+                      const authProviderLabel = u.authProvider === 'Google'
+                        ? 'Google 🌐'
+                        : u.authProvider === 'Email/Password'
+                        ? 'Email/Pass 🔑'
+                        : u.authProvider === 'Order Guest'
+                        ? 'Order Guest 📦'
+                        : isGmailAddress
+                        ? 'Google 🌐'
+                        : (u.authProvider || 'Google 🌐');
+
+                      const createdDateStr = formatCustomerDateTime(u.createdAt);
+                      const lastSignInStr = formatCustomerDateTime(u.lastLoginAt || u.lastSignInTime || u.createdAt);
 
                       return (
                         <TableRow
-                          key={u.id}
+                          key={userId || displayEmail}
                           className="hover:bg-slate-50/50 transition-colors dark:border-slate-800 animate-fade-in"
                         >
-                          {/* Name & User Name Badge */}
-                          <TableCell className="p-6 min-w-[220px]">
+                          {/* 1. Customer & User Identification */}
+                          <TableCell className="p-5 min-w-[240px]">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-black text-sm shrink-0 shadow-sm border border-primary/20">
-                                {(u.fullName || "U").split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase()}
-                              </div>
+                              {u.photoURL ? (
+                                <img
+                                  src={u.photoURL}
+                                  alt={u.fullName || "User"}
+                                  referrerPolicy="no-referrer"
+                                  className="w-10 h-10 rounded-full object-cover shrink-0 shadow-sm border border-primary/20"
+                                />
+                              ) : (
+                                <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-black text-xs shrink-0 shadow-sm border border-primary/20">
+                                  {(u.fullName || u.displayName || "Customer").split(" ").map((n: string) => n[0]).join("").substring(0, 2).toUpperCase()}
+                                </div>
+                              )}
                               <div className="space-y-1">
                                 <div className="font-black text-slate-900 dark:text-slate-100 flex items-center gap-1.5 flex-wrap">
-                                  <span>{u.fullName || u.displayName || "Customer"}</span>
+                                  <span className="text-sm">{u.fullName || u.displayName || "Customer"}</span>
                                   {u.role === "admin" && (
                                     <Badge className="bg-red-500 hover:bg-red-600 text-white font-black text-[8px] tracking-widest px-1.5 py-0.5 rounded-md uppercase">
                                       Admin
@@ -3440,19 +3778,37 @@ export default function AdminDashboard() {
                                   <Badge variant="outline" className="bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 font-mono text-[10px] px-1.5 py-0">
                                     @{displayUsername}
                                   </Badge>
-                                  <span className="text-[9px] text-slate-400 font-mono">ID: {u.id?.substring(0, 10)}...</span>
+                                  {userId && (
+                                    <button
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(userId);
+                                        toast.success("User ID copied to clipboard! 📋", {
+                                          description: userId,
+                                        });
+                                      }}
+                                      className="text-[9px] text-slate-400 hover:text-primary font-mono flex items-center gap-0.5 transition-colors"
+                                      title={`Click to copy full UID: ${userId}`}
+                                    >
+                                      <span>UID: {shortUserId}</span>
+                                      <Copy className="w-2.5 h-2.5" />
+                                    </button>
+                                  )}
                                 </div>
                               </div>
                             </div>
                           </TableCell>
 
-                          {/* Contact & Gmail Details */}
-                          <TableCell className="min-w-[220px]">
-                            <div className="flex flex-col gap-1">
+                          {/* 2. Contact, Gmail & Provider */}
+                          <TableCell className="min-w-[240px]">
+                            <div className="flex flex-col gap-1.5">
                               <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-mono text-xs font-bold text-slate-900 dark:text-slate-100 select-all">
+                                <a
+                                  href={displayEmail ? `mailto:${displayEmail}` : undefined}
+                                  className="font-mono text-xs font-bold text-slate-900 dark:text-slate-100 hover:text-primary transition-colors select-all"
+                                  title="Send Email"
+                                >
                                   {displayEmail || "No Email Provided"}
-                                </span>
+                                </a>
                                 {isGmailAddress && (
                                   <Badge className="bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 font-black text-[8px] px-1.5 py-0 border border-red-300 dark:border-red-800">
                                     Gmail ✉️
@@ -3462,27 +3818,49 @@ export default function AdminDashboard() {
                                   <button
                                     onClick={() => {
                                       navigator.clipboard.writeText(displayEmail);
-                                      toast.success("Gmail / Email copied to clipboard! 📋");
+                                      toast.success("Email copied to clipboard! 📋", {
+                                        description: displayEmail,
+                                      });
                                     }}
-                                    className="text-slate-400 hover:text-primary transition-colors p-0.5"
-                                    title="Copy Email"
+                                    className="text-slate-400 hover:text-primary transition-colors p-0.5 cursor-pointer"
+                                    title="Copy Email Address"
                                   >
                                     <Copy className="w-3 h-3" />
                                   </button>
                                 )}
                               </div>
-                              {u.phoneNumber && (
-                                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1 font-mono">
-                                  📞 {u.phoneNumber}
-                                </span>
-                              )}
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <Badge variant="secondary" className="text-[9px] font-bold px-1.5 py-0 tracking-tight">
+                                  {authProviderLabel}
+                                </Badge>
+                                {u.phoneNumber && (
+                                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1 font-mono">
+                                    📞 {u.phoneNumber}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </TableCell>
 
-                          {/* Orders Stats */}
+                          {/* 3. Account Creation & Last Sign-In Date */}
+                          <TableCell className="min-w-[180px]">
+                            <div className="flex flex-col gap-1 text-[11px]">
+                              <div className="flex items-center gap-1 text-slate-700 dark:text-slate-300 font-semibold" title="Account Creation Date">
+                                <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+                                <span className="font-mono text-[10px]">{createdDateStr}</span>
+                              </div>
+                              <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 font-medium" title="Last Sign-in / Active Timestamp">
+                                <Clock className="w-3 h-3 text-amber-500 shrink-0" />
+                                <span className="font-mono text-[10px]">Active: {lastSignInStr}</span>
+                              </div>
+                            </div>
+                          </TableCell>
+
+                          {/* 4. Orders Stats & Total Spending */}
                           <TableCell className="min-w-[140px]">
                             <div className="flex flex-col gap-0.5">
-                              <span className="text-xs font-black text-slate-800 dark:text-slate-200">
+                              <span className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-1">
+                                <ShoppingBag className="w-3 h-3 text-primary" />
                                 {ordersCount} {ordersCount === 1 ? "order" : "orders"}
                               </span>
                               <span className="text-[11px] font-black text-emerald-600 dark:text-emerald-400">
@@ -3491,8 +3869,8 @@ export default function AdminDashboard() {
                             </div>
                           </TableCell>
 
-                          {/* Wallet Balance (with Inline Editing) */}
-                          <TableCell className="p-6 min-w-[200px]">
+                          {/* 5. Wallet Balance (with Inline Editing) */}
+                          <TableCell className="p-5 min-w-[190px]">
                             <div className="flex items-center gap-2">
                               {isEditingBalance ? (
                                 <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border dark:border-slate-800">
@@ -3507,7 +3885,7 @@ export default function AdminDashboard() {
                                     autoFocus
                                     onKeyDown={(e) => {
                                       if (e.key === "Enter") {
-                                        handleUpdateBalance(u.id, parseFloat(tempBalanceValue));
+                                        handleUpdateBalance(userId, parseFloat(tempBalanceValue));
                                       } else if (e.key === "Escape") {
                                         setEditingBalanceUserId(null);
                                       }
@@ -3516,8 +3894,8 @@ export default function AdminDashboard() {
                                   <Button
                                     size="icon"
                                     variant="ghost"
-                                    onClick={() => handleUpdateBalance(u.id, parseFloat(tempBalanceValue))}
-                                    className="w-7 h-7 rounded-lg text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                                    onClick={() => handleUpdateBalance(userId, parseFloat(tempBalanceValue))}
+                                    className="w-7 h-7 rounded-lg text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 cursor-pointer"
                                   >
                                     <Check className="w-3.5 h-3.5" />
                                   </Button>
@@ -3525,7 +3903,7 @@ export default function AdminDashboard() {
                                     size="icon"
                                     variant="ghost"
                                     onClick={() => setEditingBalanceUserId(null)}
-                                    className="w-7 h-7 rounded-lg text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
+                                    className="w-7 h-7 rounded-lg text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 cursor-pointer"
                                   >
                                     <XCircle className="w-3.5 h-3.5" />
                                   </Button>
@@ -3539,11 +3917,11 @@ export default function AdminDashboard() {
                                     size="icon"
                                     variant="ghost"
                                     onClick={() => {
-                                      setEditingBalanceUserId(u.id);
+                                      setEditingBalanceUserId(userId);
                                       setTempBalanceValue((u.walletBalance || 0).toString());
                                     }}
-                                    className="w-7 h-7 rounded-lg text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800"
-                                    title="Edit Balance"
+                                    className="w-7 h-7 rounded-lg text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                                    title="Edit Wallet Balance"
                                   >
                                     <Wallet className="w-3.5 h-3.5" />
                                   </Button>
@@ -3552,26 +3930,38 @@ export default function AdminDashboard() {
                             </div>
                           </TableCell>
 
-                          {/* Action Controls */}
-                          <TableCell className="p-6 text-right min-w-[150px]">
-                            {u.role !== "admin" && (
-                              <Button
-                                size="sm"
-                                variant={u.isAgent ? "destructive" : "outline"}
-                                onClick={() => handleToggleAgentStatus(u.id, !!u.isAgent)}
-                                className="h-8 font-black text-[9px] uppercase tracking-wider rounded-xl px-3 flex items-center gap-1 ml-auto cursor-pointer"
-                              >
-                                {u.isAgent ? (
-                                  <>
-                                    <Lock className="w-3 h-3" /> Relock Store
-                                  </>
-                                ) : (
-                                  <>
-                                    <LockOpen className="w-3 h-3" /> Unlock Store
-                                  </>
-                                )}
-                              </Button>
-                            )}
+                          {/* 6. Action Controls */}
+                          <TableCell className="p-5 text-right min-w-[160px]">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {displayEmail && (
+                                <a
+                                  href={`mailto:${displayEmail}`}
+                                  className="inline-flex items-center justify-center h-8 w-8 rounded-xl bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-primary/10 hover:text-primary transition-colors"
+                                  title={`Send Email to ${displayEmail}`}
+                                >
+                                  <MailIcon className="w-3.5 h-3.5" />
+                                </a>
+                              )}
+
+                              {u.role !== "admin" && (
+                                <Button
+                                  size="sm"
+                                  variant={u.isAgent ? "destructive" : "outline"}
+                                  onClick={() => handleToggleAgentStatus(userId, !!u.isAgent)}
+                                  className="h-8 font-black text-[9px] uppercase tracking-wider rounded-xl px-2.5 flex items-center gap-1 cursor-pointer"
+                                >
+                                  {u.isAgent ? (
+                                    <>
+                                      <Lock className="w-3 h-3" /> Relock
+                                    </>
+                                  ) : (
+                                    <>
+                                      <LockOpen className="w-3 h-3" /> Unlock Store
+                                    </>
+                                  )}
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -3580,6 +3970,45 @@ export default function AdminDashboard() {
                 </TableBody>
               </Table>
             </CardContent>
+
+            {/* Pagination Controls */}
+            {filteredUsers.length > 0 && (
+              <div className="p-4 sm:p-6 bg-slate-50 dark:bg-slate-900/50 border-t dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="text-xs text-slate-500 font-bold">
+                  Showing <span className="text-slate-900 dark:text-white font-black">{Math.min(filteredUsers.length, (safeCustomerPage - 1) * customersPerPage + 1)}</span> to{" "}
+                  <span className="text-slate-900 dark:text-white font-black">{Math.min(filteredUsers.length, safeCustomerPage * customersPerPage)}</span> of{" "}
+                  <span className="text-slate-900 dark:text-white font-black">{filteredUsers.length}</span> customer{filteredUsers.length === 1 ? "" : "s"}
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={safeCustomerPage <= 1}
+                    onClick={() => setCustomerPage(prev => Math.max(1, prev - 1))}
+                    className="h-8 rounded-lg font-bold text-xs px-2.5 cursor-pointer disabled:opacity-40"
+                  >
+                    <ChevronLeft className="w-4 h-4 mr-1" />
+                    Previous
+                  </Button>
+
+                  <div className="px-3 py-1 bg-white dark:bg-slate-950 rounded-lg border dark:border-slate-800 font-mono font-bold text-xs text-slate-700 dark:text-slate-300">
+                    Page {safeCustomerPage} of {totalCustomerPages}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={safeCustomerPage >= totalCustomerPages}
+                    onClick={() => setCustomerPage(prev => Math.min(totalCustomerPages, prev + 1))}
+                    className="h-8 rounded-lg font-bold text-xs px-2.5 cursor-pointer disabled:opacity-40"
+                  >
+                    Next
+                    <ChevronRight className="w-4 h-4 ml-1" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </Card>
         </TabsContent>
 

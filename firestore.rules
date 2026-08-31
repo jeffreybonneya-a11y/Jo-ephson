@@ -149,6 +149,10 @@ service cloud.firestore {
              (!('username' in data) || data.username is string) &&
              (!('photoURL' in data) || data.photoURL is string) &&
              (!('topupReference' in data) || data.topupReference is string) &&
+             (!('authProvider' in data) || data.authProvider is string) &&
+             (!('providerId' in data) || data.providerId is string) &&
+             (!('lastLoginAt' in data) || data.lastLoginAt is timestamp || data.lastLoginAt is string) &&
+             (!('lastSignInTime' in data) || data.lastSignInTime is timestamp || data.lastSignInTime is string) &&
              (!('createdAt' in data) || data.createdAt is timestamp || data.createdAt is string) &&
              (!('updatedAt' in data) || data.updatedAt is timestamp || data.updatedAt is string);
     }

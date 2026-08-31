@@ -110,7 +110,11 @@ export interface UserProfile {
   photoURL?: string;
   createdAt?: any;
   lastLoginAt?: any;
+  lastSignInTime?: any;
+  authProvider?: string;
+  providerId?: string;
   topupReference?: string;
+  updatedAt?: any;
 }
 
 export interface Complaint {
