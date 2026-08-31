@@ -60,12 +60,20 @@ export default function Footer() {
           <div>
             <h4 className="text-white font-bold mb-6">Contact Us</h4>
             <ul className="space-y-4 text-sm">
-              <li className="flex items-center gap-3"><Phone className="w-4 h-4 text-primary" /> +233 53 588 4851</li>
-              <li className="flex items-center gap-3"><Mail className="w-4 h-4 text-primary" /> kingjdeals@gmail.com</li>
-              <li className="flex items-center gap-3"><MapPin className="w-4 h-4 text-primary" /> Accra, Ghana</li>
+              <li className="flex items-center gap-3">
+                <a href="tel:+233535884851" className="flex items-center gap-3 hover:text-primary transition-colors">
+                  <Phone className="w-4 h-4 text-primary shrink-0" /> +233 53 588 4851
+                </a>
+              </li>
+              <li className="flex items-center gap-3">
+                <a href="mailto:support@kingjdeals.site" className="flex items-center gap-3 hover:text-primary transition-colors">
+                  <Mail className="w-4 h-4 text-primary shrink-0" /> support@kingjdeals.site
+                </a>
+              </li>
+              <li className="flex items-center gap-3"><MapPin className="w-4 h-4 text-primary shrink-0" /> Accra, Ghana</li>
               <li className="flex items-center gap-3">
                 <a href="https://wa.me/233535884851" target="_blank" rel="noreferrer" className="flex items-center gap-3 hover:text-primary transition-colors">
-                  <MessageSquare className="w-4 h-4 text-primary" /> WhatsApp Support
+                  <MessageSquare className="w-4 h-4 text-primary shrink-0" /> WhatsApp Support
                 </a>
               </li>
             </ul>

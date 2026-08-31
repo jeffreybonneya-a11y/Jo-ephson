@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Loader2, Send, MessageSquare, Crown } from 'lucide-react';
+import { Loader2, Send, MessageSquare, Crown, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { UserProfile } from '@/src/types';
 
@@ -128,10 +128,26 @@ export default function SupportModal({ isOpen, onClose, profile, agentContext }:
 
           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/30 p-4 rounded-xl flex items-start gap-3">
             <Crown className="w-5 h-5 text-amber-600 dark:text-amber-500 mt-0.5" />
-            <div className="space-y-2">
+            <div className="space-y-2.5 w-full">
               <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed font-bold">
-                Your messages are handled with royal priority. Reach us instantly via WhatsApp for faster response:
+                Your messages are handled with royal priority. Reach us directly:
               </p>
+              
+              {/* Official Email Support */}
+              <div className="bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-lg border border-amber-200/60 dark:border-amber-800/40">
+                <div className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider mb-0.5">
+                  Email Support
+                </div>
+                <a 
+                  href="mailto:support@kingjdeals.site" 
+                  className="inline-flex items-center gap-1.5 text-xs text-primary font-black hover:underline"
+                >
+                  <Mail className="w-3.5 h-3.5 text-primary shrink-0" />
+                  <span>support@kingjdeals.site</span>
+                </a>
+              </div>
+
+              {/* Instant WhatsApp Support */}
               <div className="flex flex-col gap-1">
                 {agentContext ? (
                   <a 
