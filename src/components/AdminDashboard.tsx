@@ -3957,14 +3957,17 @@ export default function AdminDashboard() {
                               <div className="space-y-1">
                                 <div className="font-black text-slate-900 dark:text-slate-100 flex items-center gap-1.5 flex-wrap">
                                   <span className="text-sm">{u.fullName || u.displayName || "Customer"}</span>
-                                  {u.role === "admin" && (
+                                  {u.role === "admin" ? (
                                     <Badge className="bg-red-500 hover:bg-red-600 text-white font-black text-[8px] tracking-widest px-1.5 py-0.5 rounded-md uppercase">
                                       Admin
                                     </Badge>
-                                  )}
-                                  {u.isAgent && (
+                                  ) : u.isAgent ? (
                                     <Badge className="bg-primary text-secondary font-black text-[8px] tracking-widest px-1.5 py-0.5 rounded-md uppercase flex items-center gap-0.5">
                                       <Crown className="w-2.5 h-2.5" /> Agent
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-[8px] font-bold px-1.5 py-0 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800">
+                                      Active
                                     </Badge>
                                   )}
                                 </div>
@@ -3976,11 +3979,11 @@ export default function AdminDashboard() {
                                     <button
                                       onClick={() => {
                                         navigator.clipboard.writeText(userId);
-                                        toast.success("User ID copied to clipboard! 📋", {
+                                        toast.success("Firebase UID copied to clipboard! 📋", {
                                           description: userId,
                                         });
                                       }}
-                                      className="text-[9px] text-slate-400 hover:text-primary font-mono flex items-center gap-0.5 transition-colors"
+                                      className="text-[9px] text-slate-400 hover:text-primary font-mono flex items-center gap-0.5 transition-colors cursor-pointer"
                                       title={`Click to copy full UID: ${userId}`}
                                     >
                                       <span>UID: {shortUserId}</span>
@@ -3992,35 +3995,41 @@ export default function AdminDashboard() {
                             </div>
                           </TableCell>
 
-                          {/* 2. Contact, Gmail & Provider */}
+                          {/* 2. Contact, Email & Provider */}
                           <TableCell className="min-w-[240px]">
                             <div className="flex flex-col gap-1.5">
                               <div className="flex items-center gap-1.5 flex-wrap">
-                                <a
-                                  href={displayEmail ? `mailto:${displayEmail}` : undefined}
-                                  className="font-mono text-xs font-bold text-slate-900 dark:text-slate-100 hover:text-primary transition-colors select-all"
-                                  title="Send Email"
-                                >
-                                  {displayEmail || "No Email Provided"}
-                                </a>
-                                {isGmailAddress && (
-                                  <Badge className="bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 font-black text-[8px] px-1.5 py-0 border border-red-300 dark:border-red-800">
-                                    Gmail ✉️
-                                  </Badge>
-                                )}
-                                {displayEmail && (
-                                  <button
-                                    onClick={() => {
-                                      navigator.clipboard.writeText(displayEmail);
-                                      toast.success("Email copied to clipboard! 📋", {
-                                        description: displayEmail,
-                                      });
-                                    }}
-                                    className="text-slate-400 hover:text-primary transition-colors p-0.5 cursor-pointer"
-                                    title="Copy Email Address"
-                                  >
-                                    <Copy className="w-3 h-3" />
-                                  </button>
+                                {displayEmail ? (
+                                  <>
+                                    <a
+                                      href={`mailto:${displayEmail}`}
+                                      className="font-mono text-xs font-bold text-slate-900 dark:text-slate-100 hover:text-primary transition-colors select-all"
+                                      title="Send Email"
+                                    >
+                                      {displayEmail}
+                                    </a>
+                                    {isGmailAddress && (
+                                      <Badge className="bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 font-black text-[8px] px-1.5 py-0 border border-red-300 dark:border-red-800">
+                                        Gmail ✉️
+                                      </Badge>
+                                    )}
+                                    <button
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(displayEmail);
+                                        toast.success("Email copied to clipboard! 📋", {
+                                          description: displayEmail,
+                                        });
+                                      }}
+                                      className="text-slate-400 hover:text-primary transition-colors p-0.5 cursor-pointer"
+                                      title="Copy Email Address"
+                                    >
+                                      <Copy className="w-3 h-3" />
+                                    </button>
+                                  </>
+                                ) : (
+                                  <span className="text-slate-400 dark:text-slate-500 italic text-xs font-medium">
+                                    Email unavailable
+                                  </span>
                                 )}
                               </div>
                               <div className="flex items-center gap-2 flex-wrap">

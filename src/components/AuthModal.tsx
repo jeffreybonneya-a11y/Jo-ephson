@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { auth, db } from '@/src/lib/firebase';
+import { auth } from '@/src/lib/firebase';
+import { syncUserCustomerRecord } from '@/src/lib/userSync';
 import { 
   GoogleAuthProvider,
   signInWithPopup,
   signInWithRedirect
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Loader2, Chrome, Crown, ShieldCheck } from 'lucide-react';
@@ -38,62 +38,9 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
-      // Check if user profile exists
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      const userFullName = user.displayName || (user.email ? user.email.split('@')[0] : "Customer");
-      const userUsername = user.displayName ? user.displayName.toLowerCase().replace(/\s+/g, '_') : (user.email ? user.email.split('@')[0] : "customer");
-      const adminEmails = ['kingjdeals@gmail.com', 'jeffreybonneya@gmail.com', 'emmagyapong62@gmail.com'];
-      const isEmailAdmin = adminEmails.includes(user.email?.toLowerCase() || '');
-
-      const rawProvider = user.providerData?.[0]?.providerId || '';
-      const authProvider = rawProvider === 'google.com' || user.email?.toLowerCase().endsWith('@gmail.com')
-        ? 'Google'
-        : rawProvider === 'password'
-        ? 'Email/Password'
-        : rawProvider || 'Google';
-
-      const creationTime = user.metadata?.creationTime ? new Date(user.metadata.creationTime).toISOString() : new Date().toISOString();
-      const lastSignIn = user.metadata?.lastSignInTime ? new Date(user.metadata.lastSignInTime).toISOString() : new Date().toISOString();
-
-      if (!userDoc.exists()) {
-        await setDoc(doc(db, 'users', user.uid), {
-          uid: user.uid,
-          id: user.uid,
-          email: user.email || '',
-          gmail: user.email || '',
-          fullName: userFullName,
-          displayName: user.displayName || userFullName,
-          username: userUsername,
-          role: isEmailAdmin ? 'admin' : 'user',
-          walletBalance: 0,
-          photoURL: user.photoURL || '',
-          authProvider: authProvider,
-          providerId: rawProvider || 'google.com',
-          createdAt: creationTime,
-          lastLoginAt: lastSignIn,
-          lastSignInTime: lastSignIn,
-          topupReference: 'KJ-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
-        });
-      } else {
-        const existingData = userDoc.data();
-        const updates: any = {
-          lastLoginAt: lastSignIn,
-          lastSignInTime: lastSignIn,
-        };
-        if (!existingData.email && user.email) updates.email = user.email;
-        if (!existingData.gmail && user.email) updates.gmail = user.email;
-        if (!existingData.fullName && userFullName) updates.fullName = userFullName;
-        if (!existingData.displayName && user.displayName) updates.displayName = user.displayName;
-        if (!existingData.username && userUsername) updates.username = userUsername;
-        if (!existingData.id) updates.id = user.uid;
-        if (!existingData.uid) updates.uid = user.uid;
-        if (!existingData.createdAt) updates.createdAt = creationTime;
-        if (!existingData.authProvider) updates.authProvider = authProvider;
-        if (!existingData.providerId && rawProvider) updates.providerId = rawProvider;
-        if (user.photoURL && !existingData.photoURL) updates.photoURL = user.photoURL;
-        if (user.phoneNumber && !existingData.phoneNumber) updates.phoneNumber = user.phoneNumber;
-        if (isEmailAdmin && existingData.role !== 'admin') updates.role = 'admin';
-        await setDoc(doc(db, 'users', user.uid), updates, { merge: true });
+      if (user) {
+        // Safely synchronize user customer record with Firebase Auth
+        await syncUserCustomerRecord(user);
       }
       
       toast.success("Logged in with Google!");

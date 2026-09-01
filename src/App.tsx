@@ -11,6 +11,7 @@ import { Bundle } from './types';
 import { Toaster, toast } from 'sonner';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { syncUserCustomerRecord, ADMIN_EMAILS } from '@/src/lib/userSync';
 import { doc, onSnapshot, query, collection, where, updateDoc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { MessageSquare, Zap, Loader2, Crown } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -239,8 +240,7 @@ export default function App() {
     const authUnsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       setIsAuthLoading(false);
-      const adminEmails = ['kingjdeals@gmail.com', 'jeffreybonneya@gmail.com', 'emmagyapong62@gmail.com'];
-      const userIsAdmin = user?.email ? adminEmails.includes(user.email.toLowerCase()) : false;
+      const userIsAdmin = user?.email ? ADMIN_EMAILS.includes(user.email.toLowerCase()) : false;
       setIsAdmin(userIsAdmin);
       
       if (profileUnsubscribe) {
@@ -253,73 +253,19 @@ export default function App() {
       }
 
       if (user && !user.isAnonymous) {
-        // Ensure user profile in Firestore
-        const userRef = doc(db, 'users', user.uid);
-        getDoc(userRef).then((snap) => {
-          const isEmailAdmin = adminEmails.includes(user.email?.toLowerCase() || '');
-          const userFullName = user.displayName || (user.email ? user.email.split('@')[0] : "Customer");
-          const userUsername = user.displayName ? user.displayName.toLowerCase().replace(/\s+/g, '_') : (user.email ? user.email.split('@')[0] : "customer");
-          
-          const rawProvider = user.providerData?.[0]?.providerId || '';
-          const authProvider = rawProvider === 'google.com' || user.email?.toLowerCase().endsWith('@gmail.com')
-            ? 'Google'
-            : rawProvider === 'password'
-            ? 'Email/Password'
-            : rawProvider || 'Google';
-
-          const creationTime = user.metadata?.creationTime ? new Date(user.metadata.creationTime).toISOString() : new Date().toISOString();
-          const lastSignIn = user.metadata?.lastSignInTime ? new Date(user.metadata.lastSignInTime).toISOString() : new Date().toISOString();
-
-          if (!snap.exists()) {
-            setDoc(userRef, {
-              uid: user.uid,
-              id: user.uid,
-              email: user.email || '',
-              gmail: user.email || '',
-              fullName: userFullName,
-              displayName: user.displayName || userFullName,
-              username: userUsername,
-              role: isEmailAdmin ? 'admin' : 'user',
-              walletBalance: 0,
-              photoURL: user.photoURL || '',
-              authProvider: authProvider,
-              providerId: rawProvider || 'google.com',
-              createdAt: creationTime,
-              lastLoginAt: lastSignIn,
-              lastSignInTime: lastSignIn,
-              topupReference: 'KJ-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
-            }, { merge: true }).catch(console.error);
-          } else {
-            const data = snap.data();
-            const updates: any = {
-              lastLoginAt: lastSignIn,
-              lastSignInTime: lastSignIn,
-            };
-            if (!data.email && user.email) updates.email = user.email;
-            if (!data.gmail && user.email) updates.gmail = user.email;
-            if (!data.fullName && userFullName) updates.fullName = userFullName;
-            if (!data.displayName && user.displayName) updates.displayName = user.displayName;
-            if (!data.username && userUsername) updates.username = userUsername;
-            if (!data.id) updates.id = user.uid;
-            if (!data.uid) updates.uid = user.uid;
-            if (!data.createdAt) updates.createdAt = creationTime;
-            if (!data.authProvider) updates.authProvider = authProvider;
-            if (!data.providerId && rawProvider) updates.providerId = rawProvider;
-            if (user.photoURL && !data.photoURL) updates.photoURL = user.photoURL;
-            if (user.phoneNumber && !data.phoneNumber) updates.phoneNumber = user.phoneNumber;
-            if (isEmailAdmin && data.role !== 'admin') updates.role = 'admin';
-            setDoc(userRef, updates, { merge: true }).catch(console.error);
-          }
-        }).catch(console.error);
+        // Ensure user profile and email in Firestore safely with zero damage
+        syncUserCustomerRecord(user).catch((err) => {
+          console.warn("[App Auth] Non-blocking customer email sync notice:", err);
+        });
 
         // Real-time profile listener
         profileUnsubscribe = onSnapshot(doc(db, 'users', user.uid), async (docSnapshot) => {
           if (docSnapshot.exists()) {
             const data = docSnapshot.data() as UserProfile;
             setProfile(data);
-            const isEmailAdmin = adminEmails.includes(user.email?.trim().toLowerCase() || '') || 
-                                 adminEmails.includes(data.email?.trim().toLowerCase() || '') || 
-                                 adminEmails.includes(data.gmail?.trim().toLowerCase() || '') || 
+            const isEmailAdmin = ADMIN_EMAILS.includes(user.email?.trim().toLowerCase() || '') || 
+                                 ADMIN_EMAILS.includes(data.email?.trim().toLowerCase() || '') || 
+                                 ADMIN_EMAILS.includes(data.gmail?.trim().toLowerCase() || '') || 
                                  data.role === 'admin';
             setIsAdmin(isEmailAdmin);
           }
