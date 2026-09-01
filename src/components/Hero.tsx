@@ -31,11 +31,11 @@ export default function Hero() {
               <span>GHANA'S PREMIER DATA & DIGITAL HUB</span>
             </div>
 
-            {/* Bold Confident Two-Line Headline */}
+            {/* Bold Confident Headline */}
             <h1 className="font-serif text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight leading-[1.15] text-slate-100">
-              High-Speed Digital Deals. <br className="hidden sm:inline" />
+              Great Deals on <br className="hidden sm:inline" />
               <span className="bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-500 bg-clip-text text-transparent drop-shadow-[0_2px_12px_rgba(245,158,11,0.25)]">
-                Instant, Reliable & Unmatched.
+                Products You Love
               </span>
             </h1>
 

@@ -394,7 +394,7 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
         </div>
 
         <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight">
-          Welcome to <span className="bg-gradient-to-r from-amber-300 via-amber-400 to-yellow-500 bg-clip-text text-transparent">King J Deals</span>
+          Great Deals on <span className="bg-gradient-to-r from-amber-300 via-amber-400 to-yellow-500 bg-clip-text text-transparent">Products You Love</span>
         </h1>
 
         <p className="text-xs sm:text-sm text-slate-300 font-medium max-w-md mx-auto leading-relaxed px-2">
