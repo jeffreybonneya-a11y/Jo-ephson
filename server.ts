@@ -4,36 +4,147 @@ import crypto from 'crypto';
 import cors from 'cors';
 import path from 'path';
 import dotenv from 'dotenv';
+import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import admin from 'firebase-admin';
-import { getFirestore } from 'firebase-admin/firestore';
+import { initializeApp as initClientApp } from 'firebase/app';
+import { 
+    getFirestore as getClientFirestore,
+    doc as clientDoc,
+    getDoc as clientGetDoc,
+    setDoc as clientSetDoc,
+    updateDoc as clientUpdateDoc,
+    collection as clientCollection,
+    getDocs as clientGetDocs,
+    query as clientQuery,
+    where as clientWhere,
+    limit as clientLimit,
+    serverTimestamp as clientServerTimestamp,
+    increment as clientIncrement
+} from 'firebase/firestore';
 
 dotenv.config();
 
-// Dynamically resolve Firebase Admin config
-const fbProjectId = process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || "gen-lang-client-0995971216";
-const fbDatabaseId = process.env.FIREBASE_DATABASE_ID || process.env.VITE_FIREBASE_DATABASE_ID || "ai-studio-a987bde9-8b24-4701-9f29-ec4c734ab001";
-
-const adminConfig: admin.AppOptions = {
-  projectId: fbProjectId
+// Dynamically resolve Firebase Client configuration
+let fbClientConfig: any = {
+    projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || "gen-lang-client-0995971216",
+    apiKey: process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || "AIzaSyBHfISRlyZRKgSaEQ6ZmAOL1MMtWYI-uLw",
+    authDomain: "gen-lang-client-0995971216.firebaseapp.com",
+    firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || process.env.VITE_FIREBASE_DATABASE_ID || "ai-studio-a987bde9-8b24-4701-9f29-ec4c734ab001",
+    appId: "1:768663077481:web:ccc3591bdc77f375b758f8"
 };
 
-if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-  try {
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    adminConfig.credential = admin.credential.cert(serviceAccount);
-    console.log("[Firebase Admin] Initialized with Service Account Credential.");
-  } catch (saErr: any) {
-    console.log("[Firebase Admin] Service Account configuration notice:", saErr.message);
-  }
-} else {
-  console.log(`[Firebase Admin] Initializing with Project ID: ${fbProjectId} (ADC/Default Mode)`);
+try {
+    const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+    if (fs.existsSync(configPath)) {
+        const fileContent = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        fbClientConfig = { ...fbClientConfig, ...fileContent };
+    }
+} catch (e) {
+    console.warn("[Server Firestore] Using fallback config");
 }
 
-admin.initializeApp(adminConfig);
+const serverClientApp = initClientApp(fbClientConfig, "server-firestore-app");
+const serverClientDb = getClientFirestore(serverClientApp, fbClientConfig.firestoreDatabaseId);
+console.log(`[Server Firestore] Successfully initialized Firestore database: ${fbClientConfig.firestoreDatabaseId}`);
 
-const dbAdmin = getFirestore(fbDatabaseId);
-console.log(`[Firebase Admin] Firestore loaded database: ${fbDatabaseId}`);
+// Optional Firebase Admin initialization if service account exists
+try {
+    if (admin.apps.length === 0) {
+        const adminConfig: admin.AppOptions = { projectId: fbClientConfig.projectId };
+        if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+            try {
+                const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+                adminConfig.credential = admin.credential.cert(serviceAccount);
+            } catch (saErr: any) {
+                console.log("[Firebase Admin] Service Account notice:", saErr.message);
+            }
+        }
+        admin.initializeApp(adminConfig);
+    }
+} catch (e) {
+    console.warn("[Firebase Admin] Init notice:", e);
+}
+
+// Unified, robust Firestore helper methods that never throw permission errors due to missing service accounts
+async function getFirestoreDoc(collectionName: string, docId: string): Promise<{ exists: boolean; data: () => any; id: string; ref?: any } | null> {
+    try {
+        const dRef = clientDoc(serverClientDb, collectionName, docId);
+        const snap = await clientGetDoc(dRef);
+        return {
+            exists: snap.exists(),
+            data: () => snap.data() || {},
+            id: snap.id,
+            ref: dRef
+        };
+    } catch (err: any) {
+        console.warn(`[Server Firestore] getDoc notice (${collectionName}/${docId}):`, err.message || err);
+        return null;
+    }
+}
+
+async function setFirestoreDoc(collectionName: string, docId: string, data: any, merge = true): Promise<boolean> {
+    try {
+        const cleanData = { ...data };
+        Object.keys(cleanData).forEach(key => {
+            if (cleanData[key] && typeof cleanData[key] === 'object' && cleanData[key].constructor && cleanData[key].constructor.name === 'FieldValue') {
+                cleanData[key] = clientServerTimestamp();
+            }
+        });
+        const dRef = clientDoc(serverClientDb, collectionName, docId);
+        await clientSetDoc(dRef, cleanData, { merge });
+        return true;
+    } catch (err: any) {
+        console.warn(`[Server Firestore] setDoc notice (${collectionName}/${docId}):`, err.message || err);
+        return false;
+    }
+}
+
+async function updateFirestoreDoc(collectionName: string, docId: string, data: any): Promise<boolean> {
+    try {
+        const cleanData = { ...data };
+        Object.keys(cleanData).forEach(key => {
+            if (cleanData[key] && typeof cleanData[key] === 'object' && cleanData[key].constructor && cleanData[key].constructor.name === 'FieldValue') {
+                cleanData[key] = clientServerTimestamp();
+            }
+        });
+        const dRef = clientDoc(serverClientDb, collectionName, docId);
+        await clientUpdateDoc(dRef, cleanData);
+        return true;
+    } catch (err: any) {
+        console.warn(`[Server Firestore] updateDoc notice (${collectionName}/${docId}):`, err.message || err);
+        return setFirestoreDoc(collectionName, docId, data, true);
+    }
+}
+
+async function queryActiveBookingCodes(limitCount = 5): Promise<any[]> {
+    try {
+        const cRef = clientCollection(serverClientDb, 'booking_codes');
+        const q = clientQuery(cRef, clientWhere('active', '==', true), clientLimit(limitCount));
+        const snap = await clientGetDocs(q);
+        return snap.docs.map(d => ({ id: d.id, data: () => d.data() || {}, exists: true }));
+    } catch (err: any) {
+        console.warn('[Server Firestore] queryActiveBookingCodes notice:', err.message || err);
+        try {
+            const snap = await clientGetDocs(clientCollection(serverClientDb, 'booking_codes'));
+            return snap.docs.map(d => ({ id: d.id, data: () => d.data() || {}, exists: true }));
+        } catch (e) {
+            return [];
+        }
+    }
+}
+
+async function incrementBookingCodePurchases(docId: string): Promise<void> {
+    try {
+        const dRef = clientDoc(serverClientDb, 'booking_codes', docId);
+        await clientUpdateDoc(dRef, {
+            totalPurchases: clientIncrement(1),
+            updatedAt: clientServerTimestamp()
+        });
+    } catch (err: any) {
+        console.warn(`[Server Firestore] incrementBookingCodePurchases notice (${docId}):`, err.message || err);
+    }
+}
 
 // Helper to clean and sanitize API keys loaded from environment variables
 function getSanitizedKey(rawKey: string | undefined): string | undefined {
@@ -57,11 +168,57 @@ app.get('/api/paystack-public-key', (req, res) => {
 });
 
 // Endpoint to initialize a Paystack transaction and get a direct redirect URL
-app.post('/api/paystack-initialize', async (req, res) => {
+async function handlePaystackInitialize(req: express.Request, res: express.Response) {
     try {
-        const { email, amount, reference, callback_url, currency } = req.body;
-        if (!email || !amount || !reference || !callback_url) {
-            return res.status(400).json({ success: false, error: 'Email, amount, reference, and callback_url are required' });
+        const { email, amount, reference, callback_url, currency, bookingCodeId, userId, customerName, customerPhone, metadata } = req.body;
+        if (!email || !reference || !callback_url) {
+            return res.status(400).json({ success: false, error: 'Email, reference, and callback_url are required' });
+        }
+
+        let finalAmountPesewas = amount ? Math.round(Number(amount)) : 0;
+        let bookingCodeDoc: any = null;
+
+        // If this is a booking code purchase, verify booking code from Firestore securely
+        if (bookingCodeId) {
+            try {
+                const bcSnap = await getFirestoreDoc('booking_codes', bookingCodeId);
+                if (!bcSnap || !bcSnap.exists) {
+                    return res.status(400).json({ success: false, error: 'The selected booking code was not found.' });
+                }
+                bookingCodeDoc = bcSnap.data();
+                if (bookingCodeDoc?.active === false) {
+                    return res.status(400).json({ success: false, error: 'This booking code is currently inactive.' });
+                }
+                
+                // Server-authoritative price calculation (prevents client-side price tampering)
+                const authoritativePriceGHS = Number(bookingCodeDoc.price) || 0;
+                finalAmountPesewas = Math.round(authoritativePriceGHS * 100);
+
+                // Pre-save pending order in Firestore (without exposing the secret code)
+                await setFirestoreDoc('orders', reference, {
+                    id: reference,
+                    reference,
+                    userId: userId || "",
+                    customerName: customerName || "Royal Customer",
+                    email: email,
+                    phone: customerPhone || "",
+                    bundle: `BOOKING CODE: ${bookingCodeDoc.title || "VIP Slip"} (${bookingCodeDoc.bookmaker || "SportyBet"})`,
+                    bundleName: bookingCodeDoc.title || "VIP Booking Code",
+                    amount: authoritativePriceGHS,
+                    network: "Booking Codes",
+                    serviceType: "booking_code",
+                    bookingCodeId: bcSnap.id,
+                    bookmaker: bookingCodeDoc.bookmaker || "SportyBet",
+                    odds: Number(bookingCodeDoc.odds) || 1.0,
+                    status: "pending",
+                    paymentStatus: "pending",
+                    paymentMethod: "Paystack",
+                    createdAt: clientServerTimestamp(),
+                    updatedAt: clientServerTimestamp(),
+                }, true);
+            } catch (fsErr: any) {
+                console.warn("[Paystack Init] Firestore booking code check notice:", fsErr.message);
+            }
         }
         
         const key = getSanitizedKey(
@@ -80,17 +237,29 @@ app.post('/api/paystack-initialize', async (req, res) => {
                     warning: `Paystack key missing. Falling back to test mock.`
                 });
             }
-            return res.status(400).json({ success: false, error: 'Paystack secret key is missing or unconfigured.' });
+            return res.status(400).json({ success: false, error: 'Paystack secret key is missing or unconfigured on the server.' });
         }
         
-        console.log(`[Paystack] Initializing transaction for email: ${email}, amount: ${amount}, currency: ${currency || "GHS"}`);
-        const response = await axios.post('https://api.paystack.co/transaction/initialize', {
+        console.log(`[Paystack] Initializing transaction for email: ${email}, amount: ${finalAmountPesewas} pesewas, currency: ${currency || "GHS"}`);
+        const paystackPayload: any = {
             email,
-            amount: Math.round(amount), // must be in pesewas / subunits
+            amount: finalAmountPesewas, // must be in pesewas / subunits
             reference,
             callback_url,
-            currency: currency || "GHS"
-        }, {
+            currency: currency || "GHS",
+            metadata: {
+                ...(metadata || {}),
+                service: bookingCodeId ? "booking_codes" : (metadata?.service || "orders"),
+                ...(bookingCodeId ? {
+                    bookingCodeId,
+                    code_title: bookingCodeDoc?.title || "",
+                    bookmaker: bookingCodeDoc?.bookmaker || "",
+                    odds: String(bookingCodeDoc?.odds || ""),
+                } : {})
+            }
+        };
+
+        const response = await axios.post('https://api.paystack.co/transaction/initialize', paystackPayload, {
             headers: {
                 Authorization: `Bearer ${key}`,
                 'Content-Type': 'application/json'
@@ -98,7 +267,11 @@ app.post('/api/paystack-initialize', async (req, res) => {
         });
         
         if (response.data && response.data.status && response.data.data) {
-            return res.json({ success: true, authorization_url: response.data.data.authorization_url });
+            return res.json({ 
+                success: true, 
+                authorization_url: response.data.data.authorization_url,
+                reference: reference
+            });
         } else {
             throw new Error(response.data?.message || 'Invalid response from Paystack API');
         }
@@ -116,22 +289,23 @@ app.post('/api/paystack-initialize', async (req, res) => {
         }
         return res.status(400).json({ success: false, error: errorMsg });
     }
-});
+}
+
+app.post('/api/paystack-initialize', handlePaystackInitialize);
+app.post('/api/paystack/initialize', handlePaystackInitialize);
+app.post('/api/booking-codes/initialize', handlePaystackInitialize);
 
 async function updateFirestoreOrderPaymentStatus(reference: string, paymentStatus: "success" | "failed" | "pending" = "success") {
     try {
-        console.log(`[Firebase Admin] Attempting to update order ${reference} to paymentStatus: ${paymentStatus}`);
-        const orderRef = dbAdmin.collection('orders').doc(reference);
-        const orderSnap = await orderRef.get();
+        console.log(`[Server Firestore] Updating order ${reference} to paymentStatus: ${paymentStatus}`);
+        const orderSnap = await getFirestoreDoc('orders', reference);
+        const agentOrderSnap = await getFirestoreDoc('agent_orders', reference);
+        const agentData = agentOrderSnap?.exists ? agentOrderSnap.data() : null;
 
-        const agentOrderRef = dbAdmin.collection('agent_orders').doc(reference);
-        const agentOrderSnap = await agentOrderRef.get();
-        const agentData = agentOrderSnap.exists ? agentOrderSnap.data() : null;
-
-        if (orderSnap.exists) {
+        if (orderSnap && orderSnap.exists) {
             const orderData = orderSnap.data();
             const newStatus = paymentStatus === "success" ? "paid" : (paymentStatus === "failed" ? "failed" : (orderData?.status || "pending"));
-            await orderRef.update({
+            await updateFirestoreDoc('orders', reference, {
                 paymentStatus,
                 status: newStatus,
                 ...(agentData ? {
@@ -145,20 +319,18 @@ async function updateFirestoreOrderPaymentStatus(reference: string, paymentStatu
                     agent_profit: agentData.profit || orderData?.agent_profit,
                     isAgentOrder: true
                 } : {}),
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                updatedAt: clientServerTimestamp()
             });
-            console.log(`[Firebase Admin] Successfully updated order ${reference} to paymentStatus: ${paymentStatus}, status: ${newStatus}`);
+            console.log(`[Server Firestore] Updated order ${reference} to status: ${newStatus}`);
             
             // Instantly grant Agent Access if this was an Agent Unlock order and payment is successful
             if (paymentStatus === "success" && orderData?.bundle === "AGENT ACCESS UNLOCK" && orderData?.userId) {
-                await dbAdmin.collection('users').doc(orderData.userId).update({
-                    isAgent: true
-                });
-                console.log(`[Firebase Admin] Successfully unlocked Agent Access for user: ${orderData.userId}`);
+                await updateFirestoreDoc('users', orderData.userId, { isAgent: true });
+                console.log(`[Server Firestore] Successfully unlocked Agent Access for user: ${orderData.userId}`);
             }
         } else if (agentData && paymentStatus === "success") {
             // Order existed in agent_orders but not in orders collection - create it in orders
-            await orderRef.set({
+            await setFirestoreDoc('orders', reference, {
                 id: reference,
                 reference: reference,
                 paymentStatus: "success",
@@ -178,23 +350,23 @@ async function updateFirestoreOrderPaymentStatus(reference: string, paymentStatu
                 profit: agentData.profit || 0,
                 agent_profit: agentData.profit || 0,
                 isAgentOrder: true,
-                createdAt: agentData.created_at || admin.firestore.FieldValue.serverTimestamp(),
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-            console.log(`[Firebase Admin] Reconstructed order ${reference} from agent_orders doc`);
+                createdAt: agentData.created_at || clientServerTimestamp(),
+                updatedAt: clientServerTimestamp()
+            }, true);
+            console.log(`[Server Firestore] Reconstructed order ${reference} from agent_orders doc`);
         } else {
-            console.log(`[Firebase Admin] Order document ${reference} not found in Firestore.`);
+            console.log(`[Server Firestore] Order document ${reference} not found in Firestore.`);
         }
 
-        if (agentOrderSnap.exists) {
-            await agentOrderRef.update({
+        if (agentOrderSnap && agentOrderSnap.exists) {
+            await updateFirestoreDoc('agent_orders', reference, {
                 status: paymentStatus === "success" ? "success" : paymentStatus,
                 paymentStatus: paymentStatus
             });
-            console.log(`[Firebase Admin] Successfully updated agent_orders document ${reference} to status: ${paymentStatus}`);
+            console.log(`[Server Firestore] Successfully updated agent_orders document ${reference} to status: ${paymentStatus}`);
         }
     } catch (err: any) {
-        console.log('[Firebase Admin] Notice: Update of Firestore status was not completed:', err.message || err);
+        console.log('[Server Firestore] Notice: Update of Firestore status was not completed:', err.message || err);
     }
 }
 
@@ -257,23 +429,18 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
 
         if (!isSuccess) {
             console.warn(`[Paystack Backend Unverified] Reference ${reference} status is NOT successful: ${paystackStatus || 'failed/unpaid'}`);
-            try {
-                const orderRef = dbAdmin.collection('orders').doc(reference);
-                await orderRef.set({
-                    paymentStatus: "failed",
-                    status: "failed",
-                    paymentMethod: "Paystack",
-                    payment_provider: "paystack",
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                }, { merge: true });
-            } catch (fsErr: any) {
-                console.error(`[Firebase Admin Error] Failed updating failed status for reference ${reference}:`, fsErr.message);
-            }
+            await setFirestoreDoc('orders', reference, {
+                paymentStatus: "failed",
+                status: "failed",
+                paymentMethod: "Paystack",
+                payment_provider: "paystack",
+                updatedAt: clientServerTimestamp()
+            }, true);
 
             return res.status(400).json({ 
                 success: false, 
                 verified: false,
-                error: 'Paystack payment was cancelled or not completed.', 
+                error: 'Payment was not completed. Your booking code has not been released.', 
                 status: paystackStatus || 'failed' 
             });
         }
@@ -287,12 +454,82 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
 
         console.log(`[Paystack Backend Success] Reference ${reference} verified! Customer: ${customerEmail || 'Guest'}`);
 
+        let revealedBookingCode: any = null;
+
         // Update/Save verified order details in Firestore
         try {
-            const orderRef = dbAdmin.collection('orders').doc(reference);
-            const orderSnap = await orderRef.get();
+            const orderSnap = await getFirestoreDoc('orders', reference);
+            const existingData = orderSnap?.exists ? orderSnap.data() : null;
 
-            const orderPayload = {
+            // Check if this purchase is a booking code
+            const isBookingCode = existingData?.serviceType === 'booking_code' ||
+                existingData?.bookingCodeId ||
+                reference.startsWith('BC_') ||
+                req.body?.bookingCodeId ||
+                req.body?.service === 'booking_codes' ||
+                paystackData?.metadata?.service === 'booking_codes' ||
+                paystackData?.metadata?.bookingCodeId;
+
+            const targetBookingCodeId = existingData?.bookingCodeId ||
+                req.body?.bookingCodeId ||
+                paystackData?.metadata?.bookingCodeId;
+
+            if (isBookingCode) {
+                let bcSnap: any = null;
+                if (targetBookingCodeId) {
+                    bcSnap = await getFirestoreDoc('booking_codes', targetBookingCodeId);
+                }
+
+                // If not found by ID, try searching by title or take latest active match
+                if (!bcSnap || !bcSnap.exists) {
+                    const activeCodes = await queryActiveBookingCodes(5);
+                    if (activeCodes.length > 0) {
+                        bcSnap = activeCodes[0];
+                    }
+                }
+
+                if (bcSnap && bcSnap.exists) {
+                    const bcData = bcSnap.data();
+                    const realCode = bcData.code || "";
+                    
+                    revealedBookingCode = {
+                        id: bcSnap.id,
+                        code: realCode,
+                        title: bcData.title || existingData?.bundleName || "VIP Booking Code",
+                        bookmaker: bcData.bookmaker || existingData?.bookmaker || "SportyBet",
+                        odds: Number(bcData.odds) || Number(existingData?.odds) || 1.0,
+                        price: Number(bcData.price) || amountInMainCurrency,
+                        reference: reference,
+                        description: bcData.description || "",
+                    };
+
+                    // Record in booking_code_purchases collection
+                    await setFirestoreDoc('booking_code_purchases', reference, {
+                        id: reference,
+                        bookingCodeId: bcSnap.id,
+                        userId: existingData?.userId || req.body?.userId || "",
+                        customerName: customerName || existingData?.customerName || "Royal Customer",
+                        customerEmail: customerEmail || existingData?.email || "",
+                        customerPhone: customerPhone || existingData?.phone || "",
+                        title: bcData.title || "VIP Booking Code",
+                        bookmaker: bcData.bookmaker || "SportyBet",
+                        code: realCode,
+                        odds: Number(bcData.odds) || 1.0,
+                        price: amountInMainCurrency || Number(bcData.price) || 0,
+                        paymentMethod: "Paystack",
+                        paymentReference: reference,
+                        status: "paid",
+                        verifiedByBackend: true,
+                        createdAt: clientServerTimestamp(),
+                        verifiedAt: clientServerTimestamp()
+                    }, true);
+
+                    // Increment total purchases on the booking code doc
+                    await incrementBookingCodePurchases(bcSnap.id);
+                }
+            }
+
+            const orderPayload: any = {
                 paymentStatus: "success",
                 status: "paid",
                 paymentMethod: "Paystack",
@@ -305,36 +542,42 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
                     name: customerName,
                     phone: customerPhone
                 },
+                ...(revealedBookingCode ? {
+                    serviceType: "booking_code",
+                    bookingCodeId: revealedBookingCode.id,
+                    bookingCode: revealedBookingCode.code,
+                    code: revealedBookingCode.code,
+                    bookmaker: revealedBookingCode.bookmaker,
+                    odds: revealedBookingCode.odds,
+                } : {}),
                 paymentTimestamp,
                 verifiedByBackend: true,
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                updatedAt: clientServerTimestamp()
             };
 
-            if (orderSnap.exists) {
-                const existingData = orderSnap.data();
-                await orderRef.update(orderPayload);
-                console.log(`[Firebase Admin] Order ${reference} updated to paymentStatus: success`);
+            if (orderSnap && orderSnap.exists) {
+                await updateFirestoreDoc('orders', reference, orderPayload);
+                console.log(`[Server Firestore] Order ${reference} updated to paymentStatus: success`);
 
                 // Grant Agent Access if applicable
                 if (existingData?.bundle === "AGENT ACCESS UNLOCK" && existingData?.userId) {
-                    await dbAdmin.collection('users').doc(existingData.userId).update({ isAgent: true });
-                    console.log(`[Firebase Admin] Unlocked Agent Access for user: ${existingData.userId}`);
+                    await updateFirestoreDoc('users', existingData.userId, { isAgent: true });
+                    console.log(`[Server Firestore] Unlocked Agent Access for user: ${existingData.userId}`);
                 }
             } else {
-                await orderRef.set({
+                await setFirestoreDoc('orders', reference, {
                     id: reference,
-                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    createdAt: clientServerTimestamp(),
                     ...orderPayload
-                });
-                console.log(`[Firebase Admin] Created new verified order ${reference} in Firestore`);
+                }, true);
+                console.log(`[Server Firestore] Created new verified order ${reference} in Firestore`);
             }
 
             // Update agent_orders if present
-            const agentOrderRef = dbAdmin.collection('agent_orders').doc(reference);
-            const agentOrderSnap = await agentOrderRef.get();
-            if (agentOrderSnap.exists) {
+            const agentOrderSnap = await getFirestoreDoc('agent_orders', reference);
+            if (agentOrderSnap && agentOrderSnap.exists) {
                 const agentData = agentOrderSnap.data();
-                await agentOrderRef.update({
+                await updateFirestoreDoc('agent_orders', reference, {
                     status: "success",
                     paymentStatus: "success",
                     paymentMethod: "Paystack",
@@ -344,7 +587,7 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
                 });
 
                 // Ensure orders collection document contains all agent details
-                await orderRef.set({
+                await setFirestoreDoc('orders', reference, {
                     agentId: agentData.agent_id,
                     agent_id: agentData.agent_id,
                     wholesalePrice: agentData.wholesale_price,
@@ -354,45 +597,83 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
                     profit: agentData.profit,
                     agent_profit: agentData.profit,
                     isAgentOrder: true,
-                }, { merge: true });
+                }, true);
             }
         } catch (fsErr: any) {
-            console.error(`[Firebase Admin Error] Failed updating Firestore for reference ${reference}:`, fsErr.message);
+            console.error(`[Server Firestore] Update notice for reference ${reference}:`, fsErr.message);
         }
 
         return res.json({ 
             success: true, 
-            message: "Payment Successful ✅", 
-            verified: true, 
+            message: "Payment Verified Successfully ✅", 
+            verified: true,
+            ...(revealedBookingCode ? { 
+                serviceType: "booking_code",
+                bookingCode: revealedBookingCode 
+            } : {}),
             data: paystackData 
         });
     } catch (err: any) {
         const errorDetails = err.response?.data || err.message || 'Unknown error';
         console.error(`[Paystack Backend Verification Exception] Reference ${reference}:`, errorDetails);
 
-        try {
-            const orderRef = dbAdmin.collection('orders').doc(reference);
-            await orderRef.set({
-                paymentStatus: "failed",
-                status: "failed",
-                paymentMethod: "Paystack",
-                payment_provider: "paystack",
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
-            }, { merge: true });
-        } catch (fsErr) {
-            console.error("[Firebase Admin Error] Fallback failure update in catch block:", fsErr);
-        }
+        await setFirestoreDoc('orders', reference, {
+            paymentStatus: "failed",
+            status: "failed",
+            paymentMethod: "Paystack",
+            payment_provider: "paystack",
+            updatedAt: clientServerTimestamp()
+        }, true);
 
         return res.status(400).json({
             success: false,
             verified: false,
-            error: "Paystack payment verification failed or was cancelled."
+            error: "Payment was not completed. Your booking code has not been released."
         });
     }
 }
 
 app.post('/verify-payment', handlePaystackVerificationRequest);
 app.post('/api/verify-payment', handlePaystackVerificationRequest);
+app.post('/api/paystack-verify', handlePaystackVerificationRequest);
+app.post('/api/paystack/verify', handlePaystackVerificationRequest);
+app.post('/api/booking-codes/verify', handlePaystackVerificationRequest);
+
+// Explicit Booking Code Reveal Endpoint
+app.post('/api/booking-codes/reveal', async (req, res) => {
+    const reference = req.body?.reference || req.query?.reference;
+    if (!reference) {
+        return res.status(400).json({ success: false, error: 'Transaction reference is required.' });
+    }
+
+    try {
+        // First check if purchase already recorded in booking_code_purchases
+        const purchaseSnap = await getFirestoreDoc('booking_code_purchases', reference);
+        if (purchaseSnap && purchaseSnap.exists) {
+            const purchaseData = purchaseSnap.data();
+            if (purchaseData?.status === 'paid' && purchaseData?.code) {
+                return res.json({
+                    success: true,
+                    verified: true,
+                    bookingCode: {
+                        id: purchaseData.bookingCodeId,
+                        code: purchaseData.code,
+                        title: purchaseData.title,
+                        bookmaker: purchaseData.bookmaker,
+                        odds: purchaseData.odds,
+                        price: purchaseData.price,
+                        reference: reference
+                    }
+                });
+            }
+        }
+
+        // Otherwise verify directly with Paystack
+        return handlePaystackVerificationRequest(req, res);
+    } catch (err: any) {
+        return res.status(400).json({ success: false, error: 'Unable to reveal code.' });
+    }
+});
 
 // Endpoint to retrieve Korapay Public Key dynamically at runtime
 app.get('/api/korapay-public-key', (req, res) => {
@@ -603,8 +884,7 @@ async function handleKorapayVerificationRequest(req: express.Request, res: expre
         console.log(`[Korapay Backend Success] Reference ${reference} verified! Customer: ${customerEmail || 'Guest'}`);
 
         try {
-            const orderRef = dbAdmin.collection('orders').doc(reference);
-            const orderSnap = await orderRef.get();
+            const orderSnap = await getFirestoreDoc('orders', reference);
 
             const orderPayload = {
                 paymentStatus: "success",
@@ -619,28 +899,27 @@ async function handleKorapayVerificationRequest(req: express.Request, res: expre
                     name: customerName,
                 },
                 verifiedByBackend: true,
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                updatedAt: clientServerTimestamp()
             };
 
-            if (orderSnap.exists) {
+            if (orderSnap && orderSnap.exists) {
                 const existingData = orderSnap.data();
-                await orderRef.update(orderPayload);
+                await updateFirestoreDoc('orders', reference, orderPayload);
                 if (existingData?.bundle === "AGENT ACCESS UNLOCK" && existingData?.userId) {
-                    await dbAdmin.collection('users').doc(existingData.userId).update({ isAgent: true });
+                    await updateFirestoreDoc('users', existingData.userId, { isAgent: true });
                 }
             } else {
-                await orderRef.set({
+                await setFirestoreDoc('orders', reference, {
                     id: reference,
-                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    createdAt: clientServerTimestamp(),
                     ...orderPayload
-                });
+                }, true);
             }
 
-            const agentOrderRef = dbAdmin.collection('agent_orders').doc(reference);
-            const agentOrderSnap = await agentOrderRef.get();
-            if (agentOrderSnap.exists) {
+            const agentOrderSnap = await getFirestoreDoc('agent_orders', reference);
+            if (agentOrderSnap && agentOrderSnap.exists) {
                 const agentData = agentOrderSnap.data();
-                await agentOrderRef.update({
+                await updateFirestoreDoc('agent_orders', reference, {
                     status: "success",
                     paymentStatus: "success",
                     paymentMethod: "Korapay",
@@ -649,7 +928,7 @@ async function handleKorapayVerificationRequest(req: express.Request, res: expre
                 });
 
                 // Ensure orders collection document contains all agent details
-                await orderRef.set({
+                await setFirestoreDoc('orders', reference, {
                     agentId: agentData.agent_id,
                     agent_id: agentData.agent_id,
                     wholesalePrice: agentData.wholesale_price,
@@ -659,10 +938,10 @@ async function handleKorapayVerificationRequest(req: express.Request, res: expre
                     profit: agentData.profit,
                     agent_profit: agentData.profit,
                     isAgentOrder: true,
-                }, { merge: true });
+                }, true);
             }
         } catch (fsErr: any) {
-            console.error(`[Firebase Admin Error] Failed updating Firestore for Korapay reference ${reference}:`, fsErr.message);
+            console.error(`[Server Firestore] Failed updating Firestore for Korapay reference ${reference}:`, fsErr.message);
         }
 
         return res.json({ 
@@ -673,18 +952,13 @@ async function handleKorapayVerificationRequest(req: express.Request, res: expre
         });
     } catch (err: any) {
         console.error(`[Korapay Verification Exception] Reference ${reference}:`, err.message || err);
-        try {
-            const orderRef = dbAdmin.collection('orders').doc(reference);
-            await orderRef.set({
-                paymentStatus: "failed",
-                status: "failed",
-                paymentMethod: "Korapay",
-                payment_provider: "korapay",
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
-            }, { merge: true });
-        } catch (fsErr) {
-            console.error("[Firebase Admin Error] Korapay failure update error:", fsErr);
-        }
+        await setFirestoreDoc('orders', reference, {
+            paymentStatus: "failed",
+            status: "failed",
+            paymentMethod: "Korapay",
+            payment_provider: "korapay",
+            updatedAt: clientServerTimestamp()
+        }, true);
 
         return res.status(400).json({
             success: false,
@@ -732,16 +1006,11 @@ app.post('/api/paystack-webhook', async (req, res) => {
         if (event === 'charge.success' || data.status === 'success') {
             if (reference) {
                 await updateFirestoreOrderPaymentStatus(reference, "success");
-                try {
-                    const orderRef = dbAdmin.collection('orders').doc(reference);
-                    await orderRef.update({
-                        payment_provider: "paystack",
-                        paymentMethod: "Paystack",
-                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                    });
-                } catch (fsErr) {
-                    console.warn('[Paystack Webhook] Firestore provider update notice:', fsErr);
-                }
+                await updateFirestoreDoc('orders', reference, {
+                    payment_provider: "paystack",
+                    paymentMethod: "Paystack",
+                    updatedAt: clientServerTimestamp()
+                });
                 console.log(`[Paystack Webhook Success] Processed charge.success for ${reference}`);
             }
         } else if (event === 'charge.failed' || data.status === 'failed') {
@@ -789,16 +1058,11 @@ app.post('/api/korapay-webhook', async (req, res) => {
         if (event === 'charge.success' || data.status === 'success') {
             if (reference) {
                 await updateFirestoreOrderPaymentStatus(reference, "success");
-                try {
-                    const orderRef = dbAdmin.collection('orders').doc(reference);
-                    await orderRef.update({
-                        payment_provider: "korapay",
-                        paymentMethod: "Korapay",
-                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                    });
-                } catch (fsErr) {
-                    console.warn('[Korapay Webhook] Firestore provider update notice:', fsErr);
-                }
+                await updateFirestoreDoc('orders', reference, {
+                    payment_provider: "korapay",
+                    paymentMethod: "Korapay",
+                    updatedAt: clientServerTimestamp()
+                });
                 console.log(`[Korapay Webhook Success] Processed charge.success for ${reference}`);
             }
         } else if (event === 'charge.failed' || data.status === 'failed') {

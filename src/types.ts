@@ -191,3 +191,40 @@ export interface BrandingSettings {
   removeWhiteBackground?: boolean;
   updatedAt?: any;
 }
+
+export interface BookingCode {
+  id: string;
+  title: string;
+  bookmaker: string; // e.g. "SportyBet", "Betway", "1xBet", "Mozzart", "22Bet", "Bet9ja", "General"
+  code: string; // The secret booking code
+  odds: number; // e.g. 15.5 or 45.0
+  price: number; // e.g. 10.00 GHS
+  expiresAt: any; // Date, timestamp, or ISO string
+  description?: string;
+  previewImageUrl?: string;
+  sport?: string; // e.g. "Football", "Basketball", "Multi-Sport"
+  category?: string; // "VIP Banker", "Mega Odds", "Weekend Special", "Daily Safe 2+", etc.
+  active: boolean;
+  totalPurchases?: number;
+  createdAt?: any;
+  updatedAt?: any;
+}
+
+export interface BookingCodePurchase {
+  id: string;
+  bookingCodeId: string;
+  userId?: string;
+  customerName?: string;
+  customerEmail: string;
+  customerPhone?: string;
+  title: string;
+  bookmaker: string;
+  code: string;
+  odds: number;
+  price: number;
+  paymentMethod?: string;
+  paymentReference?: string;
+  status: "paid" | "completed";
+  createdAt: any;
+}
+

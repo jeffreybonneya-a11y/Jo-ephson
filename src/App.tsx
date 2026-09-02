@@ -183,7 +183,12 @@ export default function App() {
                     }
 
                     toast.success("Payment Successful ✅");
-                    setIsHistoryView(true); // Take user to view their orders
+                    if (resData.bookingCode) {
+                        window.dispatchEvent(new CustomEvent("BOOKING_CODE_REVEALED", { detail: resData.bookingCode }));
+                    }
+                    if (!reference.startsWith("BC_") && params.get("service") !== "booking_codes") {
+                        setIsHistoryView(true); // Take user to view their orders for standard data/bundle orders
+                    }
                     try {
                       if (window.location.hostname !== 'kingjdeals.onrender.com' && window.location.hostname !== 'king-j-deals.onrender.com') {
                         window.history.replaceState({}, document.title, window.location.pathname);
@@ -478,7 +483,7 @@ export default function App() {
               <TopPromosRow />
             </div>
             <Hero />
-            <BundleList onSelectBundle={handleSelectBundle} isAgentUser={hasRegisteredAgent || !!profile?.isAgent} />
+            <BundleList onSelectBundle={handleSelectBundle} isAgentUser={hasRegisteredAgent || !!profile?.isAgent} profile={profile} />
           </>
         )}
       </main>

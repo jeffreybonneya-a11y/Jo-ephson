@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { auth, db } from '@/src/lib/firebase';
 import { signOut } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
-import { LogIn, LogOut, LayoutDashboard, History, User, Crown, Home, MessageCircle, Download } from 'lucide-react';
+import { LogIn, LogOut, LayoutDashboard, History, User, Crown, Home, MessageCircle, Download, DollarSign } from 'lucide-react';
 import { onSnapshot, collection, query, where } from 'firebase/firestore';
 import { UserProfile } from '@/src/types';
 import { useBranding } from '@/src/hooks/useBranding';
@@ -248,6 +248,21 @@ export default function Navbar({
                  >
                    <Home className="w-4 h-4" />
                    HOME
+                 </button>
+                 <button 
+                  onClick={() => {
+                    onAdminView(false);
+                    onHistoryView(false);
+                    onStreamView(false);
+                    onDownloadView(false);
+                    setTimeout(() => {
+                      window.dispatchEvent(new Event('NAVIGATE_TO_BOOKING_CODES'));
+                    }, 50);
+                  }}
+                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-extrabold text-xs tracking-wider text-slate-300 hover:text-amber-400 hover:bg-slate-800/60 transition-all cursor-pointer"
+                 >
+                   <DollarSign className="w-4 h-4 text-amber-400" />
+                   BOOKING CODES $
                  </button>
                  <button 
                   onClick={() => user ? onStreamView(!isStreamView) : openAuth()}

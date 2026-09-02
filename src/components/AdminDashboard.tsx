@@ -92,9 +92,12 @@ import {
   ShieldCheck,
   UserCheck,
   Globe,
+  DollarSign,
 } from "lucide-react";
 import { toast } from "sonner";
 import AdminBrandingManager from "./AdminBrandingManager";
+import AdminBookingCodesManager from "./AdminBookingCodesManager";
+import { CloudinaryImageUploader } from "@/src/components/CloudinaryImageUploader";
 
 const parseDataAmountToMB = (amountStr: string): number => {
   if (!amountStr) return 0;
@@ -687,6 +690,7 @@ export default function AdminDashboard() {
         wholesaleHiddenFee: bundleForm.wholesaleHiddenFee !== "" ? Number(bundleForm.wholesaleHiddenFee) : null,
         category: bundleForm.category,
         description: bundleForm.description,
+        imageUrl: bundleForm.imageUrl || "",
         active: bundleForm.active,
         updatedAt: serverTimestamp(),
       };
@@ -1838,6 +1842,13 @@ export default function AdminDashboard() {
               )}
             </TabsTrigger>
             <TabsTrigger
+              value="booking_codes"
+              className="h-9 px-4 rounded-lg font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-400 data-[state=active]:via-yellow-300 data-[state=active]:to-amber-500 data-[state=active]:text-slate-950 data-[state=active]:shadow-sm transition-all focus-visible:ring-0 flex items-center gap-1"
+            >
+              <DollarSign className="w-3.5 h-3.5" />
+              BOOKING CODES $
+            </TabsTrigger>
+            <TabsTrigger
               value="branding"
               className="h-9 px-4 rounded-lg font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-400 data-[state=active]:via-yellow-300 data-[state=active]:to-amber-500 data-[state=active]:text-slate-950 data-[state=active]:shadow-sm transition-all focus-visible:ring-0"
             >
@@ -2525,6 +2536,23 @@ export default function AdminDashboard() {
                       }
                       placeholder="e.g. Valid for 30 days"
                       className="rounded-xl border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white"
+                    />
+                  </div>
+
+                  {/* Cloudinary Image Upload for Bundle */}
+                  <div className="pt-1">
+                    <CloudinaryImageUploader
+                      label="Product / Bundle Image (Cloudinary)"
+                      description="Upload custom graphic or icon for this item."
+                      currentImageUrl={bundleForm.imageUrl}
+                      folder="products"
+                      onImageUploaded={(url) =>
+                        setBundleForm((prev) => ({ ...prev, imageUrl: url }))
+                      }
+                      onImageRemoved={() =>
+                        setBundleForm((prev) => ({ ...prev, imageUrl: "" }))
+                      }
+                      previewAspectRatio="square"
                     />
                   </div>
 
@@ -5195,6 +5223,10 @@ export default function AdminDashboard() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="booking_codes" className="mt-0 outline-none">
+          <AdminBookingCodesManager />
         </TabsContent>
       </Tabs>
     </div>

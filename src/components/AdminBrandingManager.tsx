@@ -16,125 +16,31 @@ import {
   Crown,
   FileImage,
   Sliders,
-  Check
+  Check,
+  Loader2,
+  ExternalLink,
+  UploadCloud
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { uploadToCloudinary, isCloudinaryUrl, CLOUDINARY_CLOUD_NAME } from '@/src/lib/cloudinary';
 
 /**
- * Utility to process local image file to a compressed Base64 Data URL, with optional background removal
- */
-function processLocalImageFile(
-  file: File, 
-  maxDimension = 768, 
-  options: { removeBlackBg?: boolean; removeWhiteBg?: boolean; threshold?: number } = {}
-): Promise<string> {
-  return new Promise((resolve, reject) => {
-    if (!file.type.startsWith('image/')) {
-      reject(new Error('Selected file is not an image.'));
-      return;
-    }
-
-    // For SVGs when no pixel manipulation is needed
-    if (file.type === 'image/svg+xml' && !options.removeBlackBg && !options.removeWhiteBg) {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = (err) => reject(err);
-      reader.readAsDataURL(file);
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        let { width, height } = img;
-        if (width > maxDimension || height > maxDimension) {
-          if (width > height) {
-            height = Math.round((height * maxDimension) / width);
-            width = maxDimension;
-          } else {
-            width = Math.round((width * maxDimension) / height);
-            height = maxDimension;
-          }
-        }
-
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        if (!ctx) {
-          resolve(e.target?.result as string);
-          return;
-        }
-
-        // Draw image cleanly
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(img, 0, 0, width, height);
-
-        // Background transparency filtering if requested
-        if (options.removeBlackBg || options.removeWhiteBg) {
-          const imgData = ctx.getImageData(0, 0, width, height);
-          const data = imgData.data;
-          const thresh = options.threshold ?? 45;
-
-          for (let i = 0; i < data.length; i += 4) {
-            const r = data[i];
-            const g = data[i + 1];
-            const b = data[i + 2];
-            const a = data[i + 3];
-
-            if (a === 0) continue;
-
-            if (options.removeBlackBg) {
-              // Measure brightness distance from black
-              const maxVal = Math.max(r, g, b);
-              if (maxVal < thresh) {
-                // Completely transparent for very dark/black pixels
-                data[i + 3] = 0;
-              } else if (maxVal < thresh * 1.5) {
-                // Smooth feathering
-                const alphaFactor = (maxVal - thresh) / (thresh * 0.5);
-                data[i + 3] = Math.round(a * Math.max(0, Math.min(1, alphaFactor)));
-              }
-            } else if (options.removeWhiteBg) {
-              const minVal = Math.min(r, g, b);
-              if (minVal > 255 - thresh) {
-                data[i + 3] = 0;
-              }
-            }
-          }
-          ctx.putImageData(imgData, 0, 0);
-        }
-
-        // Export as PNG for transparency support
-        const compressedDataUrl = canvas.toDataURL('image/png', 0.95);
-        resolve(compressedDataUrl);
-      };
-      img.onerror = () => reject(new Error('Failed to load image for processing.'));
-      img.src = e.target?.result as string;
-    };
-    reader.onerror = (err) => reject(err);
-    reader.readAsDataURL(file);
-  });
-}
-
-/**
- * Filter an existing image data URL to remove black or white background
+ * Filter an existing image data URL / remote image to remove black or white background and re-export
  */
 function filterExistingImageDataUrl(
-  dataUrl: string,
+  imageUrl: string,
   options: { removeBlackBg?: boolean; removeWhiteBg?: boolean; threshold?: number }
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    img.crossOrigin = 'anonymous';
     img.onload = () => {
       const canvas = document.createElement('canvas');
       canvas.width = img.width;
       canvas.height = img.height;
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
       if (!ctx) {
-        resolve(dataUrl);
+        resolve(imageUrl);
         return;
       }
       ctx.drawImage(img, 0, 0);
@@ -169,7 +75,7 @@ function filterExistingImageDataUrl(
       resolve(canvas.toDataURL('image/png', 0.95));
     };
     img.onerror = () => reject(new Error('Failed to process image transparency.'));
-    img.src = dataUrl;
+    img.src = imageUrl;
   });
 }
 
@@ -191,6 +97,8 @@ export default function AdminBrandingManager() {
   );
 
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [fileName, setFileName] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -215,26 +123,43 @@ export default function AdminBrandingManager() {
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error('File is too large. Please select an image under 10MB.');
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error('File is too large. Please select an image under 15MB.');
       return;
     }
 
+    setIsUploading(true);
+    setUploadProgress(0);
+    const toastId = toast.loading(`Uploading "${file.name}" to Cloudinary...`);
+
     try {
-      toast.loading('Processing image from disk...', { id: 'img-load' });
-      const dataUrl = await processLocalImageFile(file);
-      setLogoUrl(dataUrl);
-      setFileName(file.name);
-      toast.success(`Loaded "${file.name}"! Click "Save to Site" to apply.`, { id: 'img-load' });
+      const result = await uploadToCloudinary(file, {
+        folder: 'branding',
+        onProgress: (percent) => setUploadProgress(percent),
+      });
+
+      if (result.success && result.url) {
+        setLogoUrl(result.url);
+        setFileName(file.name);
+        toast.success(`Uploaded to Cloudinary! Click "Save to Site" to make it live for customers. ☁️👑`, { id: toastId });
+      } else {
+        toast.error(`Cloudinary Upload Failed: ${result.error || 'Unknown error'}`, { id: toastId });
+      }
     } catch (err: any) {
-      console.error('Failed to read image:', err);
-      toast.error('Failed to load image: ' + (err.message || 'Unknown error'), { id: 'img-load' });
+      console.error('Failed to upload image to Cloudinary:', err);
+      toast.error('Failed to upload image: ' + (err.message || 'Unknown error'), { id: toastId });
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragging(true);
+    if (!isUploading) setIsDragging(true);
   };
 
   const handleDragLeave = () => {
@@ -244,7 +169,7 @@ export default function AdminBrandingManager() {
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    if (!isUploading && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       await handleFileSelect(e.dataTransfer.files[0]);
     }
   };
@@ -264,6 +189,7 @@ export default function AdminBrandingManager() {
     setIsSaving(false);
     if (success) {
       setFileName('');
+      toast.success('Branding saved to Firestore & live on website for all customers! 🚀');
     }
   };
 
@@ -397,41 +323,61 @@ export default function AdminBrandingManager() {
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => {
+                  if (!isUploading) fileInputRef.current?.click();
+                }}
                 className={`relative border-2 border-dashed rounded-2xl p-6 sm:p-8 text-center cursor-pointer transition-all ${
                   isDragging
                     ? 'border-amber-400 bg-amber-500/10 scale-[1.01]'
                     : logoUrl
                     ? 'border-amber-400/50 bg-amber-500/5 hover:border-amber-400 hover:bg-amber-500/10'
                     : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 hover:border-amber-400/60 hover:bg-slate-100 dark:hover:bg-slate-900/80'
-                }`}
+                } ${isUploading ? 'opacity-80 pointer-events-none' : ''}`}
               >
-                <div className="flex flex-col items-center justify-center space-y-3">
-                  <div className="w-14 h-14 rounded-2xl bg-amber-400/15 border border-amber-400/40 flex items-center justify-center text-amber-400 shadow-inner">
-                    <FileImage className="w-7 h-7" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-black text-slate-900 dark:text-white">
-                      Click to Browse or Drag & Drop Image Here
+                {isUploading ? (
+                  <div className="flex flex-col items-center justify-center space-y-3 py-2">
+                    <Loader2 className="w-10 h-10 text-amber-400 animate-spin" />
+                    <p className="text-sm font-black text-white uppercase tracking-wider">
+                      Uploading to Cloudinary... {uploadProgress}%
                     </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      Supports PNG, JPG, JPEG, SVG, WebP (Transparent PNG recommended)
+                    <div className="w-48 h-2 bg-slate-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-amber-400 to-yellow-500 transition-all duration-300"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      Cloud Name: {CLOUDINARY_CLOUD_NAME} • Preset: kingjdeals_uploads
                     </p>
                   </div>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    className="rounded-xl font-black text-xs uppercase px-4 h-9 bg-amber-400 text-slate-950 hover:bg-amber-500"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      fileInputRef.current?.click();
-                    }}
-                  >
-                    <Upload className="w-3.5 h-3.5 mr-1.5" />
-                    Choose File from Disk
-                  </Button>
-                </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center space-y-3">
+                    <div className="w-14 h-14 rounded-2xl bg-amber-400/15 border border-amber-400/40 flex items-center justify-center text-amber-400 shadow-inner">
+                      <UploadCloud className="w-7 h-7" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-slate-900 dark:text-white">
+                        Click to Browse or Drag & Drop Image Here
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                        PNG, JPG, SVG, WebP (Max 15MB) • Auto-uploads to Cloudinary
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="rounded-xl font-black text-xs uppercase px-4 h-9 bg-amber-400 text-slate-950 hover:bg-amber-500"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        fileInputRef.current?.click();
+                      }}
+                    >
+                      <Upload className="w-3.5 h-3.5 mr-1.5" />
+                      Choose Image from Disk
+                    </Button>
+                  </div>
+                )}
               </div>
 
               {/* Uploaded image details card */}
@@ -449,17 +395,26 @@ export default function AdminBrandingManager() {
                       <div>
                         <div className="flex items-center gap-1.5">
                           <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                          <span className="text-xs font-black uppercase text-amber-300">
-                            Image Loaded Successfully
+                          <span className="text-xs font-black uppercase text-amber-300 flex items-center gap-1">
+                            {isCloudinaryUrl(logoUrl) ? 'Cloudinary Hosted & Verified ☁️' : 'Image Loaded'}
                           </span>
                         </div>
                         <p className="text-[11px] text-slate-400 font-mono mt-0.5 truncate max-w-[200px] sm:max-w-xs">
-                          {fileName || 'Custom Logo Ready for Deployment'}
+                          {logoUrl}
                         </p>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-1.5">
+                      <a
+                        href={logoUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="h-8 px-2.5 text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1 font-semibold"
+                        title="View full image in new tab"
+                      >
+                        View <ExternalLink className="w-3 h-3" />
+                      </a>
                       <Button
                         type="button"
                         variant="ghost"
@@ -494,7 +449,7 @@ export default function AdminBrandingManager() {
                         Background Transparency Tool
                       </div>
                       <p className="text-[11px] text-slate-300">
-                        Does your logo have a black background? Click below to make it transparent instantly.
+                        Does your logo have a black background? Click below to make it transparent & upload to Cloudinary.
                       </p>
                     </div>
                     <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -503,10 +458,16 @@ export default function AdminBrandingManager() {
                         size="sm"
                         onClick={async () => {
                           try {
-                            toast.loading('Removing black background...', { id: 'bg-remove' });
-                            const transparentUrl = await filterExistingImageDataUrl(logoUrl, { removeBlackBg: true, threshold: 48 });
-                            setLogoUrl(transparentUrl);
-                            toast.success('Black background removed! Click "Save to Site" to apply.', { id: 'bg-remove' });
+                            toast.loading('Removing black background & saving to Cloudinary...', { id: 'bg-remove' });
+                            const transparentDataUrl = await filterExistingImageDataUrl(logoUrl, { removeBlackBg: true, threshold: 48 });
+                            const uploadRes = await uploadToCloudinary(transparentDataUrl, { folder: 'branding' });
+                            if (uploadRes.success && uploadRes.url) {
+                              setLogoUrl(uploadRes.url);
+                              toast.success('Black background removed and uploaded to Cloudinary! Click "Save to Site" to apply. ☁️✨', { id: 'bg-remove' });
+                            } else {
+                              setLogoUrl(transparentDataUrl);
+                              toast.success('Black background removed! Click "Save to Site" to apply.', { id: 'bg-remove' });
+                            }
                           } catch (err: any) {
                             toast.error('Failed to remove background: ' + err.message, { id: 'bg-remove' });
                           }
@@ -522,10 +483,16 @@ export default function AdminBrandingManager() {
                         size="sm"
                         onClick={async () => {
                           try {
-                            toast.loading('Removing white background...', { id: 'bg-remove' });
-                            const transparentUrl = await filterExistingImageDataUrl(logoUrl, { removeWhiteBg: true, threshold: 30 });
-                            setLogoUrl(transparentUrl);
-                            toast.success('White background removed! Click "Save to Site" to apply.', { id: 'bg-remove' });
+                            toast.loading('Removing white background & saving to Cloudinary...', { id: 'bg-remove' });
+                            const transparentDataUrl = await filterExistingImageDataUrl(logoUrl, { removeWhiteBg: true, threshold: 30 });
+                            const uploadRes = await uploadToCloudinary(transparentDataUrl, { folder: 'branding' });
+                            if (uploadRes.success && uploadRes.url) {
+                              setLogoUrl(uploadRes.url);
+                              toast.success('White background removed and uploaded to Cloudinary! Click "Save to Site" to apply. ☁️✨', { id: 'bg-remove' });
+                            } else {
+                              setLogoUrl(transparentDataUrl);
+                              toast.success('White background removed! Click "Save to Site" to apply.', { id: 'bg-remove' });
+                            }
                           } catch (err: any) {
                             toast.error('Failed to remove background: ' + err.message, { id: 'bg-remove' });
                           }

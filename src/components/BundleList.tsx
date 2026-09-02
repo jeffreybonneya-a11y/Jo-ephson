@@ -17,10 +17,12 @@ import {
   Gamepad2,
   Monitor,
   Sparkles,
+  DollarSign,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import StreamingTab from "./StreamingTab";
 import ResultCheckerSection from "./ResultCheckerSection";
+import BookingCodesSection from "./BookingCodesSection";
 import fcMobileIcon from "@/src/assets/images/ea_sports_fc_mobile_cover_fixed_1782486697588.jpg";
 import pubgMobileIcon from "@/src/assets/images/pubg_mobile_cover_1782399506286.jpg";
 import fc26Icon from "@/src/assets/images/ea_sports_fc_26_cover_1782485615642.jpg";
@@ -30,6 +32,7 @@ interface BundleListProps {
   isAgentMode?: boolean;
   isAgentUser?: boolean;
   agentContext?: any;
+  profile?: any;
 }
 
 const fallbackPUBGBundles: any[] = [];
@@ -55,6 +58,7 @@ export default function BundleList({
   isAgentMode = false,
   isAgentUser = false,
   agentContext = null,
+  profile = null,
 }: BundleListProps) {
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,6 +77,7 @@ export default function BundleList({
     "MTN",
     "Telecel",
     "AirtelTigo",
+    "Booking Codes",
     "Result Checker",
     "PC Games",
     "Premium Apps",
@@ -85,11 +90,13 @@ export default function BundleList({
 
   const mainCategories = [
     { id: "DATA_BUNDLES", label: "Data Bundles", icon: Wifi },
+    { id: "BOOKING_CODES", label: "Booking Codes $", icon: DollarSign },
     { id: "RESULT_CHECKER", label: "Result Checker", icon: GraduationCap },
     { id: "GAME_COINS", label: "Game Coins", icon: Gamepad2 },
     { id: "PC_GAMES", label: "PC Games", icon: Monitor },
     { id: "PREMIUM_APPS", label: "Premium Apps", icon: Sparkles },
   ].filter((cat) => {
+    if (cat.id === "BOOKING_CODES" && hiddenTabs.includes("Booking Codes")) return false;
     if (cat.id === "RESULT_CHECKER" && hiddenTabs.includes("Result Checker")) return false;
     if (cat.id === "GAME_COINS" && hiddenTabs.includes("Game Coins")) return false;
     if (cat.id === "PC_GAMES" && hiddenTabs.includes("PC Games")) return false;
@@ -105,6 +112,8 @@ export default function BundleList({
 
   const currentMainCat = ["MTN", "Telecel", "AirtelTigo"].includes(activeTab)
     ? "DATA_BUNDLES"
+    : activeTab === "Booking Codes"
+    ? "BOOKING_CODES"
     : activeTab === "Result Checker"
     ? "RESULT_CHECKER"
     : activeTab === "Game Coins"
@@ -120,6 +129,8 @@ export default function BundleList({
       if (!["MTN", "Telecel", "AirtelTigo"].includes(activeTab)) {
         setActiveTab("MTN");
       }
+    } else if (catId === "BOOKING_CODES") {
+      setActiveTab("Booking Codes");
     } else if (catId === "RESULT_CHECKER") {
       setActiveTab("Result Checker");
     } else if (catId === "GAME_COINS") {
@@ -139,6 +150,8 @@ export default function BundleList({
         return "bg-red-600 text-white border-red-600";
       case "AirtelTigo":
         return "bg-blue-600 text-white border-blue-600";
+      case "Booking Codes":
+        return "bg-amber-400 text-slate-950 border-amber-400";
       case "Game Coins":
       case "FC Mobile":
         return "bg-[#00FF87] text-black border-[#00FF87]";
@@ -161,6 +174,8 @@ export default function BundleList({
         return "bg-red-600 text-white";
       case "AirtelTigo":
         return "bg-blue-600 text-white";
+      case "Booking Codes":
+        return "bg-amber-400 text-slate-950";
       case "Game Coins":
       case "FC Mobile":
         return "bg-[#00FF87] text-black";
@@ -194,13 +209,36 @@ export default function BundleList({
         }
       }, 100);
     };
+    const handleNavBookingCodes = () => {
+      setActiveTab("Booking Codes");
+      setTimeout(() => {
+        const tabsElement = document.getElementById("bundle-tabs");
+        if (tabsElement) {
+          tabsElement.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 100);
+    };
+
+    // Auto-detect if landing from Booking Codes payment redirect
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const s = urlParams.get("service");
+      const r = urlParams.get("reference") || urlParams.get("trxref");
+      if (s === "booking_codes" || (r && r.startsWith("BC_"))) {
+        setActiveTab("Booking Codes");
+      }
+    } catch (e) {
+      console.warn("URL check notice:", e);
+    }
     window.addEventListener("NAVIGATE_TO_PC_GAMES", handleNav);
     window.addEventListener("NAVIGATE_TO_RESULT_CHECKER", handleNavChecker);
     window.addEventListener("NAVIGATE_TO_RESULTS_CHECKER", handleNavChecker);
+    window.addEventListener("NAVIGATE_TO_BOOKING_CODES", handleNavBookingCodes);
     return () => {
       window.removeEventListener("NAVIGATE_TO_PC_GAMES", handleNav);
       window.removeEventListener("NAVIGATE_TO_RESULT_CHECKER", handleNavChecker);
       window.removeEventListener("NAVIGATE_TO_RESULTS_CHECKER", handleNavChecker);
+      window.removeEventListener("NAVIGATE_TO_BOOKING_CODES", handleNavBookingCodes);
     };
   }, []);
 
@@ -926,6 +964,8 @@ export default function BundleList({
                       </div>
                     )}
                   </div>
+                ) : tab === "Booking Codes" ? (
+                  <BookingCodesSection profile={profile} agentContext={agentContext} />
                 ) : tab === "Result Checker" ? (
                   <ResultCheckerSection agentContext={agentContext} isAgentUser={isAgentUser} />
                 ) : tab === "Game Coins" ? (

@@ -5,7 +5,11 @@ import pubgMobileCover from '../assets/images/pubg_mobile_cover_1782399506286.jp
  * Automatically maps a bundle/product to its actual, high-quality product image URL online.
  * This guarantees the exact and correct brand visual representation without any guessing or manual input.
  */
-export function getProductImage(bundle: { name: string; category?: string; network?: string }): string {
+export function getProductImage(bundle: { name: string; category?: string; network?: string; imageUrl?: string }): string {
+  if (bundle.imageUrl && typeof bundle.imageUrl === 'string' && bundle.imageUrl.trim() !== '') {
+    return bundle.imageUrl.trim();
+  }
+
   const nameLower = bundle.name.toLowerCase();
   const categoryLower = (bundle.category || bundle.network || '').toLowerCase();
 

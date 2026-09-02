@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { initializeFirestore, setLogLevel } from 'firebase/firestore';
+import { getFirestore, setLogLevel } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import firebaseConfigData from '../../firebase-applet-config.json';
 
@@ -27,9 +27,6 @@ const storageBucketUrl = firebaseConfig.storageBucket
 
 export const storage = getStorage(app, storageBucketUrl);
 
-// Use auto-detection for long polling to establish fast connection in sandboxed iframe environments
-export const db = initializeFirestore(app, {
-  experimentalAutoDetectLongPolling: true,
-} as any, firebaseConfig.firestoreDatabaseId);
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 
 

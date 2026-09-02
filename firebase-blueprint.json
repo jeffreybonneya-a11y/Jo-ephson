@@ -166,6 +166,45 @@
         "resultsCheckerCharge": { "type": "number", "description": "Hidden charge on Results Checker purchases (GHS). Defaults to 0.00." },
         "updatedAt": { "type": "string", "format": "date-time" }
       }
+    },
+    "BookingCode": {
+      "title": "Booking Code",
+      "description": "Betting booking slip code with odds and price.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "bookmaker": { "type": "string" },
+        "code": { "type": "string" },
+        "odds": { "type": "number" },
+        "price": { "type": "number" },
+        "active": { "type": "boolean" },
+        "category": { "type": "string" },
+        "sport": { "type": "string" },
+        "previewImageUrl": { "type": "string" },
+        "description": { "type": "string" },
+        "totalPurchases": { "type": "number" },
+        "expiresAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "bookmaker", "code", "odds", "price"]
+    },
+    "BookingCodePurchase": {
+      "title": "Booking Code Purchase",
+      "description": "User purchase of a booking code.",
+      "type": "object",
+      "properties": {
+        "bookingCodeId": { "type": "string" },
+        "userId": { "type": "string" },
+        "customerEmail": { "type": "string" },
+        "customerPhone": { "type": "string" },
+        "title": { "type": "string" },
+        "bookmaker": { "type": "string" },
+        "code": { "type": "string" },
+        "odds": { "type": "number" },
+        "price": { "type": "number" },
+        "paymentReference": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["bookingCodeId", "code", "price", "status"]
     }
   },
   "firestore": {
@@ -208,6 +247,14 @@
     "/settings/{settingId}": {
       "schema": "BrandingSettings",
       "description": "Site global and branding settings."
+    },
+    "/booking_codes/{codeId}": {
+      "schema": "BookingCode",
+      "description": "Betting booking slip codes."
+    },
+    "/booking_code_purchases/{purchaseId}": {
+      "schema": "BookingCodePurchase",
+      "description": "Booking code purchase records."
     }
   }
 }
