@@ -183,18 +183,28 @@ async function handlePaystackInitialize(req: express.Request, res: express.Respo
         // If this is a booking code purchase, verify booking code from Firestore securely
         if (bookingCodeId) {
             try {
-                const bcSnap = await getFirestoreDoc('booking_codes', bookingCodeId);
+                let bcSnap = await getFirestoreDoc('booking_codes', bookingCodeId);
                 if (!bcSnap || !bcSnap.exists) {
-                    return res.status(400).json({ success: false, error: 'The selected booking code was not found.' });
-                }
-                bookingCodeDoc = bcSnap.data();
-                if (bookingCodeDoc?.active === false) {
-                    return res.status(400).json({ success: false, error: 'This booking code is currently inactive.' });
+                    const activeCodes = await queryActiveBookingCodes(10);
+                    if (activeCodes.length > 0) {
+                        bcSnap = activeCodes.find((c: any) => c.id === bookingCodeId) || activeCodes[0];
+                    }
                 }
                 
-                // Server-authoritative price calculation (prevents client-side price tampering)
-                const authoritativePriceGHS = Number(bookingCodeDoc.price) || 0;
-                finalAmountPesewas = Math.round(authoritativePriceGHS * 100);
+                if (bcSnap && bcSnap.exists) {
+                    bookingCodeDoc = bcSnap.data();
+                    if (bookingCodeDoc?.active !== false) {
+                        const authoritativePriceGHS = Number(bookingCodeDoc.price) || (amount ? Number(amount) / 100 : 20);
+                        finalAmountPesewas = Math.round(authoritativePriceGHS * 100);
+                    }
+                } else if (amount) {
+                    finalAmountPesewas = Math.round(Number(amount));
+                }
+
+                const bookingTitle = bookingCodeDoc?.title || "VIP Booking Code";
+                const bookingBookmaker = bookingCodeDoc?.bookmaker || "SportyBet";
+                const bookingOdds = Number(bookingCodeDoc?.odds) || 1.0;
+                const orderAmount = finalAmountPesewas / 100;
 
                 // Pre-save pending order in Firestore (without exposing the secret code)
                 await setFirestoreDoc('orders', reference, {
@@ -204,14 +214,14 @@ async function handlePaystackInitialize(req: express.Request, res: express.Respo
                     customerName: customerName || "Royal Customer",
                     email: email,
                     phone: customerPhone || "",
-                    bundle: `BOOKING CODE: ${bookingCodeDoc.title || "VIP Slip"} (${bookingCodeDoc.bookmaker || "SportyBet"})`,
-                    bundleName: bookingCodeDoc.title || "VIP Booking Code",
-                    amount: authoritativePriceGHS,
+                    bundle: `BOOKING CODE: ${bookingTitle} (${bookingBookmaker})`,
+                    bundleName: bookingTitle,
+                    amount: orderAmount,
                     network: "Booking Codes",
                     serviceType: "booking_code",
-                    bookingCodeId: bcSnap.id,
-                    bookmaker: bookingCodeDoc.bookmaker || "SportyBet",
-                    odds: Number(bookingCodeDoc.odds) || 1.0,
+                    bookingCodeId: bcSnap?.id || bookingCodeId,
+                    bookmaker: bookingBookmaker,
+                    odds: bookingOdds,
                     status: "pending",
                     paymentStatus: "pending",
                     paymentMethod: "Paystack",

@@ -77,6 +77,7 @@ export default function BookingCodesSection({
   const [customerPhone, setCustomerPhone] = useState<string>("");
   const [customerEmail, setCustomerEmail] = useState<string>("");
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [paystackAuthUrl, setPaystackAuthUrl] = useState<string | null>(null);
 
   // Success / Revealed Code Modal
   const [revealedCodeData, setRevealedCodeData] = useState<{
@@ -109,7 +110,7 @@ export default function BookingCodesSection({
     if (profile?.phoneNumber || profile?.phone) {
       setCustomerPhone(profile?.phoneNumber || profile?.phone || "");
     }
-  }, [profile]);
+  }, [profile, auth.currentUser]);
 
   // Listen for Paystack redirect verification and automatic code reveal
   useEffect(() => {
@@ -395,11 +396,6 @@ export default function BookingCodesSection({
       return;
     }
 
-    if (!phoneToUse || phoneToUse.length < 9) {
-      toast.error("Please enter a valid phone number.");
-      return;
-    }
-
     // Safety check: is it expired?
     const expiryStatus = getRemainingTime(checkoutCode.expiresAt);
     if (expiryStatus.isExpired) {
@@ -409,6 +405,7 @@ export default function BookingCodesSection({
     }
 
     setIsProcessingPayment(true);
+    setPaystackAuthUrl(null);
     const orderRefId = `BC_${Date.now()}_${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
 
     try {
@@ -425,14 +422,45 @@ export default function BookingCodesSection({
           bookingCodeId: checkoutCode.id,
           userId: auth.currentUser?.uid || profile?.uid || "",
           customerName: profile?.fullName || auth.currentUser?.displayName || "Royal Customer",
-          customerPhone: phoneToUse,
+          customerPhone: phoneToUse || undefined,
         }),
       });
 
       const initData = await initRes.json();
       if (initData.success && initData.authorization_url) {
-        toast.loading("Redirecting to Paystack Checkout 👑...", { duration: 2500 });
-        window.location.href = initData.authorization_url;
+        const authUrl = initData.authorization_url;
+        setPaystackAuthUrl(authUrl);
+        toast.success("Paystack checkout ready! Redirecting 👑...", { duration: 3000 });
+
+        // Multi-tier redirection strategy to escape iframes and prevent X-Frame-Options blocks:
+        let navigated = false;
+
+        // 1. If inside an iframe (e.g. preview or wrapper), attempt top-level navigation
+        if (window.self !== window.top) {
+          try {
+            window.top.location.href = authUrl;
+            navigated = true;
+          } catch (topErr) {
+            console.warn("[BookingCodes] Top-level navigation blocked by iframe sandbox:", topErr);
+          }
+        }
+
+        // 2. Open new tab/window to bypass iframe X-Frame-Options restriction
+        if (!navigated) {
+          try {
+            const win = window.open(authUrl, "_blank", "noopener,noreferrer");
+            if (win && !win.closed) {
+              navigated = true;
+            }
+          } catch (winErr) {
+            console.warn("[BookingCodes] window.open blocked by browser:", winErr);
+          }
+        }
+
+        // 3. Fallback to direct location assignment
+        if (!navigated) {
+          window.location.href = authUrl;
+        }
       } else {
         throw new Error(initData.error || "Failed to initialize payment gateway.");
       }
@@ -1012,35 +1040,75 @@ export default function BookingCodesSection({
                 </div>
 
                 <div>
-                  <Label className="text-xs font-bold text-slate-300">MoMo / Phone Number</Label>
+                  <Label className="text-xs font-bold text-slate-300">
+                    MoMo / Phone Number <span className="text-slate-400 font-normal">(Optional)</span>
+                  </Label>
                   <Input
                     type="tel"
                     value={customerPhone}
                     onChange={(e) => setCustomerPhone(e.target.value)}
-                    placeholder="e.g. 0541234567"
+                    placeholder="e.g. 0541234567 (optional)"
                     className="mt-1 h-11 bg-slate-900 border-slate-700 text-white rounded-xl text-sm font-mono"
                   />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">
+                    You can also enter or choose your Mobile Money network directly on Paystack.
+                  </span>
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="pt-2 flex flex-col gap-2">
-                <Button
-                  onClick={handleProceedToPayment}
-                  disabled={isProcessingPayment}
-                  className="h-12 w-full rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 font-black text-xs sm:text-sm uppercase tracking-wider hover:brightness-110 shadow-lg border border-amber-300/40 cursor-pointer"
-                >
-                  {isProcessingPayment ? "Processing Payment..." : `Pay GH₵ ${Number(checkoutCode.price).toFixed(2)} & Reveal Code 👑`}
-                </Button>
+              {/* Action Buttons / Paystack Redirect Fallback */}
+              {paystackAuthUrl ? (
+                <div className="pt-2 flex flex-col gap-2.5">
+                  <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs space-y-1 text-center">
+                    <p className="font-bold">Paystack Checkout is ready!</p>
+                    <p className="text-[11px] text-slate-300">
+                      If your browser did not automatically open Paystack, tap below to proceed:
+                    </p>
+                  </div>
 
-                <Button
-                  variant="ghost"
-                  onClick={() => setCheckoutCode(null)}
-                  className="text-xs text-slate-400 hover:text-white rounded-xl"
-                >
-                  Cancel
-                </Button>
-              </div>
+                  <a
+                    href={paystackAuthUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="h-12 w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 font-black text-xs sm:text-sm uppercase tracking-wider hover:brightness-110 shadow-lg border border-amber-300/40 cursor-pointer text-center"
+                  >
+                    <span>Proceed to Paystack 👑 &rarr;</span>
+                  </a>
+
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setCheckoutCode(null);
+                      setPaystackAuthUrl(null);
+                      setIsProcessingPayment(false);
+                    }}
+                    className="text-xs text-slate-400 hover:text-white rounded-xl cursor-pointer"
+                  >
+                    Close
+                  </Button>
+                </div>
+              ) : (
+                <div className="pt-2 flex flex-col gap-2">
+                  <Button
+                    onClick={handleProceedToPayment}
+                    disabled={isProcessingPayment}
+                    className="h-12 w-full rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 font-black text-xs sm:text-sm uppercase tracking-wider hover:brightness-110 shadow-lg border border-amber-300/40 cursor-pointer"
+                  >
+                    {isProcessingPayment ? "Connecting to Paystack..." : `Pay GH₵ ${Number(checkoutCode.price).toFixed(2)} & Reveal Code 👑`}
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setCheckoutCode(null);
+                      setPaystackAuthUrl(null);
+                    }}
+                    className="text-xs text-slate-400 hover:text-white rounded-xl cursor-pointer"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>
