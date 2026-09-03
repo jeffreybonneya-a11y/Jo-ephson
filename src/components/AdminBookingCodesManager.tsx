@@ -854,9 +854,15 @@ export default function AdminBookingCodesManager() {
                         {p.paymentReference || p.id}
                       </TableCell>
                       <TableCell>
-                        <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-black text-[10px] uppercase">
-                          PAID ✅
-                        </Badge>
+                        {p.status === "pending" ? (
+                          <Badge className="bg-amber-500/20 text-amber-400 border border-amber-500/40 font-black text-[10px] uppercase">
+                            PENDING ⏳
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-black text-[10px] uppercase">
+                            PAID ✅
+                          </Badge>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))

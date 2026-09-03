@@ -158,14 +158,52 @@ function getSanitizedKey(rawKey: string | undefined): string | undefined {
     return key;
 }
 
+// Centralized Helper to retrieve and sanitize Paystack Secret Key safely from server environment variables
+function getPaystackSecretKey(): string {
+    const key = getSanitizedKey(
+        process.env.PAYSTACK_SECRET_KEY || 
+        process.env.PAYSTACK_SECRET || 
+        process.env.PAYSTACK_SECRET_KEY_LIVE || 
+        process.env.PAYSTACK_SECRET_KEY_TEST || 
+        process.env.PAYSTACK_KEY ||
+        process.env.VITE_PAYSTACK_SECRET_KEY
+    ) || "";
+    return key;
+}
+
+// Centralized Helper to retrieve Paystack Public Key
+function getPaystackPublicKey(): string {
+    const pubKey = getSanitizedKey(
+        process.env.PAYSTACK_PUBLIC_KEY || 
+        process.env.VITE_PAYSTACK_PUBLIC_KEY || 
+        process.env.PAYSTACK_PUBLIC_KEY_LIVE || 
+        process.env.PAYSTACK_PUBLIC_KEY_TEST || 
+        process.env.PAYSTACK_PK
+    ) || "pk_live_1a324af248d2bb1e2f784e7c27981f58f7d66b2c";
+    return pubKey;
+}
+
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
+// Safe Health and Diagnostic Endpoint
+app.get('/api/health', (req, res) => {
+    const hasPaystackSecret = Boolean(getPaystackSecretKey());
+    const hasPaystackPublic = Boolean(getPaystackPublicKey());
+    res.json({ 
+        status: "ok", 
+        service: "King J Deals Gateway", 
+        PAYSTACK_SECRET_KEY_CONFIGURED: hasPaystackSecret ? "YES" : "NO",
+        PAYSTACK_PUBLIC_KEY_CONFIGURED: hasPaystackPublic ? "YES" : "NO",
+        timestamp: new Date().toISOString()
+    });
+});
+
 // Endpoint to retrieve Paystack Public Key dynamically at runtime
 app.get('/api/paystack-public-key', (req, res) => {
-    const pubKey = getSanitizedKey(process.env.VITE_PAYSTACK_PUBLIC_KEY || process.env.PAYSTACK_PUBLIC_KEY) || "pk_live_1a324af248d2bb1e2f784e7c27981f58f7d66b2c";
+    const pubKey = getPaystackPublicKey();
     res.json({ publicKey: pubKey });
 });
 
@@ -233,14 +271,9 @@ async function handlePaystackInitialize(req: express.Request, res: express.Respo
             }
         }
         
-        const key = getSanitizedKey(
-            process.env.PAYSTACK_SECRET_KEY || 
-            process.env.VITE_PAYSTACK_SECRET_KEY || 
-            process.env.PAYSTACK_KEY
-        );
+        const key = getPaystackSecretKey();
         if (!key || (!key.startsWith('sk_') && !key.startsWith('sat_'))) {
-            const reason = !key ? "is missing" : "does not start with 'sk_'";
-            console.warn(`[Paystack] PAYSTACK_SECRET_KEY ${reason}.`);
+            console.error('[Paystack Server Error] PAYSTACK_SECRET_KEY is missing or invalid on server environment.');
             if (reference && (reference.includes('mock') || reference.startsWith('PSTK'))) {
                 const fallbackUrl = `${req.body.callback_url}${req.body.callback_url.includes('?') ? '&' : '?'}reference=${req.body.reference}&mock=true`;
                 return res.json({ 
@@ -249,7 +282,7 @@ async function handlePaystackInitialize(req: express.Request, res: express.Respo
                     warning: `Paystack key missing. Falling back to test mock.`
                 });
             }
-            return res.status(400).json({ success: false, error: 'Paystack secret key is missing or unconfigured on the server.' });
+            return res.status(400).json({ success: false, error: 'Payment could not be initialized. Please try again.' });
         }
         
         console.log(`[Paystack] Initializing transaction for email: ${email}, amount: ${finalAmountPesewas} pesewas, currency: ${currency || "GHS"}`);
@@ -289,8 +322,8 @@ async function handlePaystackInitialize(req: express.Request, res: express.Respo
         }
     } catch (err: any) {
         const errorDetails = err.response?.data || {};
-        const errorMsg = errorDetails.message || err.message || "Paystack initialization failed";
-        console.error(`[Paystack Initialization Error]:`, errorDetails);
+        const errorMsg = errorDetails.message || err.message || "Payment could not be initialized. Please try again.";
+        console.error(`[Paystack Initialization Error]:`, errorDetails || err.message);
         
         if (req.body?.reference && (req.body.reference.includes('mock') || req.body.reference.startsWith('PSTK'))) {
             const fallbackUrl = `${req.body.callback_url}${req.body.callback_url.includes('?') ? '&' : '?'}reference=${req.body.reference}&mock=true`;
@@ -299,7 +332,7 @@ async function handlePaystackInitialize(req: express.Request, res: express.Respo
                 authorization_url: fallbackUrl
             });
         }
-        return res.status(400).json({ success: false, error: errorMsg });
+        return res.status(400).json({ success: false, error: errorDetails.message ? errorDetails.message : 'Payment could not be initialized. Please try again.' });
     }
 }
 
@@ -387,11 +420,7 @@ async function updateFirestoreOrderPaymentSuccess(reference: string) {
 }
 
 async function verifyPaystackReference(reference: string) {
-    const key = getSanitizedKey(
-        process.env.PAYSTACK_SECRET_KEY || 
-        process.env.VITE_PAYSTACK_SECRET_KEY || 
-        process.env.PAYSTACK_KEY
-    );
+    const key = getPaystackSecretKey();
     if (!key || (!key.startsWith('sk_') && !key.startsWith('sat_'))) {
         console.warn('[Paystack Backend Warning] PAYSTACK_SECRET_KEY is missing or invalid in server environment. Defaulting to resilient verification.');
         return { status: true, data: { status: 'success', gateway_response: 'Successful (Resilient Fallback Verification)' } };
@@ -610,6 +639,17 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
                     agent_profit: agentData.profit,
                     isAgentOrder: true,
                 }, true);
+            }
+            // Update booking_code_orders if present
+            try {
+                await setFirestoreDoc('booking_code_orders', reference, {
+                    status: "delivered",
+                    paymentStatus: "success",
+                    ...(revealedBookingCode ? { bookingCode: revealedBookingCode.code } : {}),
+                    updatedAt: clientServerTimestamp()
+                }, true);
+            } catch (bcoErr: any) {
+                console.warn(`[Server Firestore] booking_code_orders update notice for ${reference}:`, bcoErr?.message);
             }
         } catch (fsErr: any) {
             console.error(`[Server Firestore] Update notice for reference ${reference}:`, fsErr.message);
@@ -985,11 +1025,7 @@ app.post('/api/korapay-verify', handleKorapayVerificationRequest);
 // REST Endpoint: Paystack Webhook Event Receiver
 app.post('/api/paystack-webhook', async (req, res) => {
     try {
-        const secretKey = getSanitizedKey(
-            process.env.PAYSTACK_SECRET_KEY || 
-            process.env.VITE_PAYSTACK_SECRET_KEY || 
-            process.env.PAYSTACK_KEY
-        );
+        const secretKey = getPaystackSecretKey();
         const signature = req.headers['x-paystack-signature'] as string;
         
         console.log('[Paystack Webhook] Incoming webhook call with signature header:', signature ? 'Present' : 'None');
@@ -1311,15 +1347,15 @@ app.get('/sitemap.xml', (req, res) => {
 
 // React App Serving
 async function startServer() {
-  console.log("[Startup] Checking payment keys from environment...");
-  const envSecretKey = getSanitizedKey(process.env.PAYSTACK_SECRET_KEY);
-  const envPublicKey = getSanitizedKey(process.env.VITE_PAYSTACK_PUBLIC_KEY || process.env.PAYSTACK_PUBLIC_KEY);
+  console.log("[Startup] Checking payment gateway configuration...");
+  const hasPaystackSecret = Boolean(getPaystackSecretKey());
+  const hasPaystackPublic = Boolean(getPaystackPublicKey());
   const koraSecretKey = getSanitizedKey(process.env.KORAPAY_SECRET_KEY);
   const koraPublicKey = getSanitizedKey(process.env.KORAPAY_PUBLIC_KEY || process.env.VITE_KORAPAY_PUBLIC_KEY);
-  console.log(`[Startup] PAYSTACK_SECRET_KEY: ${envSecretKey ? `Loaded (len: ${envSecretKey.length})` : "Missing"}`);
-  console.log(`[Startup] PAYSTACK_PUBLIC_KEY: ${envPublicKey ? `Loaded (len: ${envPublicKey.length})` : "Missing"}`);
-  console.log(`[Startup] KORAPAY_SECRET_KEY: ${koraSecretKey ? `Loaded (len: ${koraSecretKey.length})` : "Missing"}`);
-  console.log(`[Startup] KORAPAY_PUBLIC_KEY: ${koraPublicKey ? `Loaded (len: ${koraPublicKey.length})` : "Missing"}`);
+  console.log(`[Startup] PAYSTACK_SECRET_KEY Configured: ${hasPaystackSecret ? "YES" : "NO"}`);
+  console.log(`[Startup] PAYSTACK_PUBLIC_KEY Configured: ${hasPaystackPublic ? "YES" : "NO"}`);
+  console.log(`[Startup] KORAPAY_SECRET_KEY Configured: ${koraSecretKey ? "YES" : "NO"}`);
+  console.log(`[Startup] KORAPAY_PUBLIC_KEY Configured: ${koraPublicKey ? "YES" : "NO"}`);
 
   const isProd = process.env.NODE_ENV === "production" || (typeof __filename !== 'undefined' && __filename.includes('dist'));
 

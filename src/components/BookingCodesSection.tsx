@@ -44,6 +44,7 @@ import {
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
 import { getApiUrl } from "@/src/lib/api";
+import { openPaystackPopup } from "@/src/lib/paystack";
 import {
   PlatformLogo,
   PLATFORMS_CONFIG,
@@ -384,7 +385,7 @@ export default function BookingCodesSection({
     setCheckoutCode(code);
   };
 
-  // Execute payment via secure server-side Paystack redirect
+  // Execute payment via Paystack Popup or direct hosted checkout
   const handleProceedToPayment = async () => {
     if (!checkoutCode) return;
 
@@ -407,15 +408,145 @@ export default function BookingCodesSection({
     setIsProcessingPayment(true);
     setPaystackAuthUrl(null);
     const orderRefId = `BC_${Date.now()}_${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+    const amountInPesewas = Math.round(Number(checkoutCode.price) * 100);
 
+    // Retrieve public key
+    let publicKey = "pk_live_1a324af248d2bb1e2f784e7c27981f58f7d66b2c";
     try {
-      // Initialize transaction directly through server backend
+      const pkRes = await fetch(getApiUrl("/api/paystack-public-key"));
+      if (pkRes.ok) {
+        const pkData = await pkRes.json();
+        if (pkData.publicKey) {
+          publicKey = pkData.publicKey;
+        }
+      }
+    } catch (pkErr) {
+      console.warn("Could not fetch Paystack public key, using default:", pkErr);
+    }
+
+    const customerFullName = profile?.fullName || auth.currentUser?.displayName || (phoneToUse ? `Customer (${phoneToUse})` : "Royal Customer");
+    const currentUserId = auth.currentUser?.uid || profile?.uid || "";
+
+    const bookingOrderPayload = {
+      id: orderRefId,
+      orderId: orderRefId,
+      reference: orderRefId,
+      userId: currentUserId,
+      customerName: customerFullName,
+      customerEmail: emailToUse,
+      email: emailToUse,
+      customerPhone: phoneToUse || "",
+      phone: phoneToUse || "",
+      bundle: `VIP BOOKING CODE: ${checkoutCode.title || checkoutCode.bookmaker} (${checkoutCode.bookmaker} ${Number(checkoutCode.odds).toFixed(2)}x)`,
+      bundleName: checkoutCode.title || `${checkoutCode.bookmaker} VIP Code`,
+      serviceType: "Booking Codes",
+      network: "Booking Codes",
+      bookmaker: checkoutCode.bookmaker || "SportyBet",
+      odds: Number(checkoutCode.odds) || 1.0,
+      amount: Number(checkoutCode.price),
+      price: Number(checkoutCode.price),
+      bookingCodeId: checkoutCode.id,
+      bookingCodeTitle: checkoutCode.title || "VIP Booking Code",
+      status: "pending",
+      paymentStatus: "pending",
+      paymentMethod: "Paystack",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+
+    // Save pending order immediately to Firestore so it appears instantly across all Admin & Customer dashboards
+    try {
+      await Promise.all([
+        // 1. Primary `orders` collection: shows in Admin Dashboard live orders & customer's My Orders
+        setDoc(doc(db, "orders", orderRefId), bookingOrderPayload, { merge: true }),
+        // 2. `booking_code_purchases` collection: shows in Admin Booking Codes Manager Sales log
+        setDoc(doc(db, "booking_code_purchases", orderRefId), {
+          id: orderRefId,
+          bookingCodeId: checkoutCode.id,
+          userId: currentUserId,
+          customerName: customerFullName,
+          customerEmail: emailToUse,
+          customerPhone: phoneToUse || "",
+          title: checkoutCode.title || "VIP Booking Code",
+          bookmaker: checkoutCode.bookmaker || "SportyBet",
+          code: "Pending Payment ⏳",
+          odds: Number(checkoutCode.odds) || 1.0,
+          price: Number(checkoutCode.price) || 0,
+          paymentMethod: "Paystack",
+          paymentReference: orderRefId,
+          status: "pending",
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        }, { merge: true }),
+        // 3. Dedicated `booking_code_orders` collection
+        setDoc(doc(db, "booking_code_orders", orderRefId), bookingOrderPayload, { merge: true }),
+      ]);
+    } catch (dbErr) {
+      console.warn("Could not pre-save booking code order to Firestore:", dbErr);
+    }
+
+    // Attempt 1: Try Paystack Inline Popup directly in browser (works seamlessly across all domains & mobile)
+    try {
+      toast.info("Opening Paystack Checkout 👑...");
+      await openPaystackPopup({
+        key: publicKey,
+        email: emailToUse,
+        amount: amountInPesewas,
+        currency: "GHS",
+        ref: orderRefId,
+        onSuccess: async (verifiedRef: string) => {
+          const finalRef = verifiedRef || orderRefId;
+          toast.success("Payment completed successfully! Revealing code... 👑");
+          setIsProcessingPayment(true);
+
+          // Attempt direct verification & immediate modal reveal
+          try {
+            const res = await fetch(getApiUrl("/api/verify-payment"), {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ reference: finalRef, orderId: finalRef }),
+            });
+            const data = await res.json();
+            if (res.ok && data.success && data.bookingCode) {
+              const pCfg = getPlatformConfig(data.bookingCode.bookmaker || checkoutCode.bookmaker || "SportyBet");
+              setRevealedCodeData({
+                code: data.bookingCode.code,
+                title: data.bookingCode.title || checkoutCode.title,
+                bookmaker: data.bookingCode.bookmaker || checkoutCode.bookmaker,
+                odds: Number(data.bookingCode.odds) || Number(checkoutCode.odds) || 1.0,
+                reference: finalRef,
+                price: Number(data.bookingCode.price) || Number(checkoutCode.price) || 0,
+                officialUrl: pCfg?.officialUrl,
+              });
+              setCheckoutCode(null);
+              setIsProcessingPayment(false);
+              return;
+            }
+          } catch (vErr) {
+            console.warn("Direct verification notice:", vErr);
+          }
+
+          const targetUrl = `${window.location.origin}/?reference=${finalRef}&service=booking_codes`;
+          window.location.href = targetUrl;
+        },
+        onClose: () => {
+          toast.info("Payment window closed.");
+          setIsProcessingPayment(false);
+        },
+      });
+      return;
+    } catch (popupErr) {
+      console.warn("[BookingCodes] Popup could not open, falling back to hosted checkout URL:", popupErr);
+    }
+
+    // Attempt 2: Fallback to Server-Side Paystack Hosted URL
+    try {
       const initRes = await fetch(getApiUrl("/api/paystack-initialize"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: emailToUse,
-          amount: Math.round(Number(checkoutCode.price) * 100),
+          amount: amountInPesewas,
           reference: orderRefId,
           callback_url: `${window.location.origin}/?reference=${orderRefId}&service=booking_codes`,
           currency: "GHS",
@@ -432,20 +563,19 @@ export default function BookingCodesSection({
         setPaystackAuthUrl(authUrl);
         toast.success("Paystack checkout ready! Redirecting 👑...", { duration: 3000 });
 
-        // Multi-tier redirection strategy to escape iframes and prevent X-Frame-Options blocks:
         let navigated = false;
 
-        // 1. If inside an iframe (e.g. preview or wrapper), attempt top-level navigation
+        // 1. If inside an iframe (e.g. preview), attempt top-level navigation
         if (window.self !== window.top) {
           try {
             window.top.location.href = authUrl;
             navigated = true;
           } catch (topErr) {
-            console.warn("[BookingCodes] Top-level navigation blocked by iframe sandbox:", topErr);
+            console.warn("[BookingCodes] Top navigation blocked:", topErr);
           }
         }
 
-        // 2. Open new tab/window to bypass iframe X-Frame-Options restriction
+        // 2. Open new tab/window
         if (!navigated) {
           try {
             const win = window.open(authUrl, "_blank", "noopener,noreferrer");
@@ -453,7 +583,7 @@ export default function BookingCodesSection({
               navigated = true;
             }
           } catch (winErr) {
-            console.warn("[BookingCodes] window.open blocked by browser:", winErr);
+            console.warn("[BookingCodes] window.open blocked:", winErr);
           }
         }
 
@@ -462,11 +592,11 @@ export default function BookingCodesSection({
           window.location.href = authUrl;
         }
       } else {
-        throw new Error(initData.error || "Failed to initialize payment gateway.");
+        throw new Error(initData.error || "Payment could not be initialized. Please try again.");
       }
     } catch (err: any) {
       console.error("[BookingCodes] Payment error:", err);
-      toast.error(err.message || "Failed to process payment. Please try again.");
+      toast.error(err.message || "Payment could not be initialized. Please try again.");
       setIsProcessingPayment(false);
     }
   };
