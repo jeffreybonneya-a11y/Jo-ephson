@@ -32,10 +32,10 @@ export default function Hero() {
             </div>
 
             {/* Bold Confident Headline */}
-            <h1 className="font-serif text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight leading-[1.15] text-slate-100">
-              Great Deals on <br className="hidden sm:inline" />
+            <h1 className="font-serif text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight leading-[1.15] text-slate-100">
+              Affordable Data Deals &amp; <br className="hidden sm:inline" />
               <span className="bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-500 bg-clip-text text-transparent drop-shadow-[0_2px_12px_rgba(245,158,11,0.25)]">
-                Products You Love
+                Digital Services in Ghana
               </span>
             </h1>
 

@@ -58,9 +58,7 @@ export default function App() {
   const { settings } = useTheme();
 
   useEffect(() => {
-    if (branding.brandName) {
-      document.title = `${branding.brandName} | Data Deals & Digital Hub 👑`;
-    }
+    document.title = "King J Deals | Data Deals & Digital Services in Ghana";
     if (branding.logoUrl) {
       let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
       if (!link) {
@@ -456,9 +454,9 @@ export default function App() {
                   <Crown className="w-4 h-4 text-primary" />
                   VERIFIED ROYAL AGENT
                 </div>
-                <h1 className="text-4xl md:text-6xl font-black mb-4 dark:text-white uppercase tracking-tight">
+                <h2 className="text-4xl md:text-6xl font-black mb-4 dark:text-white uppercase tracking-tight">
                   {agentContext.agent_name.toUpperCase()}'S DEALS 👑
-                </h1>
+                </h2>
                 <p className="text-slate-500 font-bold max-w-xl mx-auto text-base md:text-lg">
                   Welcome to my store! Tap any bundle below to purchase with instant auto-delivery.
                 </p>

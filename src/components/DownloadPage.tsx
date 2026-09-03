@@ -27,9 +27,9 @@ export default function DownloadPage({ url, onBack }: DownloadPageProps) {
             <Gamepad2 className="w-12 h-12" />
           </div>
 
-          <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tight mb-4">
+          <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tight mb-4">
             Download Game Here
-          </h1>
+          </h2>
           
           <p className="text-lg text-muted-foreground font-medium mb-12 max-w-md mx-auto">
             Click the button below to download your purchased FC 26 PC game.

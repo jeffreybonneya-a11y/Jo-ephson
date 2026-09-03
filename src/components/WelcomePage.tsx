@@ -336,9 +336,9 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
           <Crown className="w-3.5 h-3.5 text-amber-400" />
         </div>
 
-        <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight">
-          Great Deals on <span className="bg-gradient-to-r from-amber-300 via-amber-400 to-yellow-500 bg-clip-text text-transparent">Products You Love</span>
-        </h1>
+        <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight">
+          Affordable Data Deals &amp; <span className="bg-gradient-to-r from-amber-300 via-amber-400 to-yellow-500 bg-clip-text text-transparent">Digital Services in Ghana</span>
+        </h2>
 
         <p className="text-xs sm:text-sm text-slate-300 font-medium max-w-md mx-auto leading-relaxed px-2">
           Access affordable digital services, data bundles, results checkers, entertainment and more.

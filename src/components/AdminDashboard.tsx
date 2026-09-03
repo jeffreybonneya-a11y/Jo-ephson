@@ -1735,9 +1735,9 @@ export default function AdminDashboard() {
     <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
         <div>
-          <h1 className="text-4xl font-black tracking-tight mb-2">
+          <h2 className="text-4xl font-black tracking-tight mb-2">
             ROYAL COMMAND CENTER 👑
-          </h1>
+          </h2>
           <p className="text-slate-500 font-medium italic">
             Order Fulfillment Dashboard
           </p>

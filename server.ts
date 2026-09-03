@@ -856,16 +856,15 @@ async function handleKorapayVerificationRequest(req: express.Request, res: expre
         if (!isSuccess) {
             console.warn(`[Korapay Backend Unverified] Reference ${reference} status is NOT successful: ${koraStatus || 'failed/unpaid'}`);
             try {
-                const orderRef = dbAdmin.collection('orders').doc(reference);
-                await orderRef.set({
+                await setFirestoreDoc('orders', reference, {
                     paymentStatus: "failed",
                     status: "failed",
                     paymentMethod: "Korapay",
                     payment_provider: "korapay",
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                }, { merge: true });
+                    updatedAt: clientServerTimestamp()
+                }, true);
             } catch (fsErr: any) {
-                console.error(`[Firebase Admin Error] Failed updating failed status for reference ${reference}:`, fsErr.message);
+                console.error(`[Server Firestore] Failed updating failed status for reference ${reference}:`, fsErr.message);
             }
 
             return res.status(400).json({ 
@@ -1141,6 +1140,66 @@ app.get('/api/stream/player/:orderId', async (req, res) => {
 
 
 
+// Explicit SEO Endpoints
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.send(`User-agent: *
+Allow: /
+
+# Private & Administrative Routes
+Disallow: /admin
+Disallow: /api/
+
+# Sitemap Indexing
+Sitemap: https://kingjdeals.site/sitemap.xml`);
+});
+
+app.get('/sitemap.xml', (req, res) => {
+  res.type('application/xml');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  const today = new Date().toISOString().split('T')[0];
+  res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://kingjdeals.site/</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://kingjdeals.site/about</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://kingjdeals.site/contact</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://kingjdeals.site/privacy</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://kingjdeals.site/terms</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://kingjdeals.site/refund-policy</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+</urlset>`);
+});
+
 // React App Serving
 async function startServer() {
   console.log("[Startup] Checking payment keys from environment...");
@@ -1153,12 +1212,18 @@ async function startServer() {
   console.log(`[Startup] KORAPAY_SECRET_KEY: ${koraSecretKey ? `Loaded (len: ${koraSecretKey.length})` : "Missing"}`);
   console.log(`[Startup] KORAPAY_PUBLIC_KEY: ${koraPublicKey ? `Loaded (len: ${koraPublicKey.length})` : "Missing"}`);
 
-  if (process.env.NODE_ENV !== "production") {
+  const isProd = process.env.NODE_ENV === "production" || (typeof __filename !== 'undefined' && __filename.includes('dist'));
+
+  if (!isProd) {
     const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.join(process.cwd(), 'dist')));
-    app.get('*', (req, res) => res.sendFile(path.join(process.cwd(), 'dist', 'index.html')));
+    const distPath = path.join(process.cwd(), 'dist');
+    app.use(express.static(distPath));
+    app.get('*', (req, res) => {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
   }
   app.listen(3000, "0.0.0.0", () => console.log('Server running on 3000'));
 }

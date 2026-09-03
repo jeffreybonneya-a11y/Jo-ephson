@@ -79,9 +79,9 @@ export default function StreamView() {
           <Badge className="bg-primary text-secondary font-black px-4 py-1 rounded-full text-xs uppercase tracking-widest">
             Royal Entertainment
           </Badge>
-          <h1 className="text-4xl md:text-6xl font-black tracking-tighter text-slate-900 leading-[0.9]">
+          <h2 className="text-4xl md:text-6xl font-black tracking-tighter text-slate-900 leading-[0.9]">
             LIVE <span className="text-primary italic">STREAM</span> ACCESS 👑
-          </h1>
+          </h2>
           <p className="text-slate-500 font-medium max-w-lg mx-auto">
             Experience premium entertainment and private streams exclusively for the Royals.
           </p>

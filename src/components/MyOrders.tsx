@@ -107,10 +107,10 @@ export default function MyOrders() {
       >
         <div className="flex items-center justify-between mb-8 text-center md:text-left flex-col md:flex-row gap-4">
           <div>
-            <h1 className="text-3xl font-black tracking-tighter text-slate-900 dark:text-white flex items-center gap-3">
+            <h2 className="text-3xl font-black tracking-tighter text-slate-900 dark:text-white flex items-center gap-3">
               <Package className="w-8 h-8 text-primary" />
               MY ROYAL ORDERS 👑
-            </h1>
+            </h2>
             <p className="text-slate-500 dark:text-slate-400 font-medium">
               Tracking your data bundle purchases
             </p>

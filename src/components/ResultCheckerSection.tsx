@@ -605,9 +605,9 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
             <GraduationCap className="w-3.5 h-3.5 text-yellow-400" />
             Official WAEC Ghana
           </div>
-          <h1 className="text-2xl md:text-4xl font-black text-white uppercase tracking-tight drop-shadow-md">
+          <h2 className="text-2xl md:text-4xl font-black text-white uppercase tracking-tight drop-shadow-md">
             WAEC Results Checker Portal
-          </h1>
+          </h2>
           <p className="text-yellow-400 font-black tracking-widest text-xs md:text-sm uppercase drop-shadow-sm">
             WASSCE • BECE • NOVDEC
           </p>

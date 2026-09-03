@@ -61,7 +61,7 @@ export default function OrderHistory() {
     <div className="container mx-auto px-4 py-12 max-w-4xl">
       <div className="flex items-center gap-3 mb-8">
         <Package className="w-8 h-8 text-primary" />
-        <h1 className="text-3xl font-bold">Your Orders</h1>
+        <h2 className="text-3xl font-bold">Your Orders</h2>
       </div>
 
       {orders.length === 0 ? (
