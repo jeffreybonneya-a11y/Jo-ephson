@@ -27,11 +27,14 @@ import DownloadPage from './components/DownloadPage';
 import PriceDropNotifier from './components/PriceDropNotifier';
 import GetFreeDataWidget from './components/GetFreeDataWidget';
 import WelcomePage from './components/WelcomePage';
+import SeoPageLayout from './components/SeoPageLayout';
+import { getSeoPageData, SeoPageData } from './data/seoPages';
 import { useSessionTimeout } from './hooks/useSessionTimeout';
 import { getApiUrl } from './lib/api';
 
 export default function App() {
   const { branding } = useBranding();
+  const [currentSeoPage, setCurrentSeoPage] = useState<SeoPageData | null>(() => getSeoPageData(typeof window !== 'undefined' ? window.location.pathname : '/'));
   const [selectedBundle, setSelectedBundle] = useState<Bundle | null>(null);
   const [isAdminView, setIsAdminView] = useState(false);
   const [isHistoryView, setIsHistoryView] = useState(false);
@@ -58,7 +61,40 @@ export default function App() {
   const { settings } = useTheme();
 
   useEffect(() => {
-    document.title = "King J Deals | Data Deals & Digital Services in Ghana";
+    const handleRouteCheck = () => {
+      const page = getSeoPageData(window.location.pathname);
+      setCurrentSeoPage(page);
+      if (page) {
+        document.title = page.metaTitle;
+        const canonical = document.querySelector("link[rel='canonical']") as HTMLLinkElement;
+        if (canonical) canonical.href = page.canonicalUrl;
+        const metaDesc = document.querySelector("meta[name='description']") as HTMLMetaElement;
+        if (metaDesc) metaDesc.content = page.metaDescription;
+      } else {
+        document.title = "King J Deals | Data Deals & Digital Services in Ghana";
+        const canonical = document.querySelector("link[rel='canonical']") as HTMLLinkElement;
+        if (canonical) canonical.href = "https://kingjdeals.site/";
+        const metaDesc = document.querySelector("meta[name='description']") as HTMLMetaElement;
+        if (metaDesc) metaDesc.content = "King J Deals provides affordable mobile data bundles and digital services in Ghana. Browse available data deals and digital products with convenient online ordering.";
+      }
+    };
+
+    handleRouteCheck();
+    window.addEventListener('popstate', handleRouteCheck);
+    return () => window.removeEventListener('popstate', handleRouteCheck);
+  }, []);
+
+  const handleNavigateToStore = (targetCategory?: string, targetTab?: string) => {
+    window.history.pushState({}, '', '/');
+    setCurrentSeoPage(null);
+    if (targetTab) {
+      sessionStorage.setItem('preferred_bundle_tab', targetTab);
+      window.dispatchEvent(new CustomEvent('SELECT_BUNDLE_TAB', { detail: { tab: targetTab, category: targetCategory } }));
+    }
+  };
+
+  useEffect(() => {
+    document.title = currentSeoPage ? currentSeoPage.metaTitle : "King J Deals | Data Deals & Digital Services in Ghana";
     if (branding.logoUrl) {
       let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
       if (!link) {
@@ -386,6 +422,19 @@ export default function App() {
     }
     setSelectedBundle(bundle);
   };
+
+  if (currentSeoPage) {
+    return (
+      <>
+        <Toaster position="top-center" richColors />
+        <SeoPageLayout 
+          data={currentSeoPage} 
+          onNavigateToStore={handleNavigateToStore} 
+          user={user} 
+        />
+      </>
+    );
+  }
 
   if (!user) {
     return (

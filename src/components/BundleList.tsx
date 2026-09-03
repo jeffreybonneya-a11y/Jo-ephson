@@ -142,6 +142,30 @@ export default function BundleList({
     }
   };
 
+  useEffect(() => {
+    const handleSelectTabEvent = (e: any) => {
+      const tab = e?.detail?.tab;
+      if (tab) {
+        if (["MTN", "Telecel", "AirtelTigo", "Booking Codes", "Result Checker", "PC Games", "Premium Apps", "Game Coins"].includes(tab)) {
+          setActiveTab(tab);
+        } else if (tab === "FC_MOBILE" || tab === "PUBG_MOBILE") {
+          setActiveTab("Game Coins");
+          setActiveGameCoinSubTab(tab);
+        } else if (tab === "FC_26") {
+          setActiveTab("PC Games");
+          setActivePCGamesSubTab(tab);
+        }
+      }
+    };
+    const preferredTab = sessionStorage.getItem('preferred_bundle_tab');
+    if (preferredTab) {
+      sessionStorage.removeItem('preferred_bundle_tab');
+      handleSelectTabEvent({ detail: { tab: preferredTab } });
+    }
+    window.addEventListener('SELECT_BUNDLE_TAB', handleSelectTabEvent);
+    return () => window.removeEventListener('SELECT_BUNDLE_TAB', handleSelectTabEvent);
+  }, []);
+
   const getNetworkColor = (tab: string) => {
     switch (tab) {
       case "MTN":

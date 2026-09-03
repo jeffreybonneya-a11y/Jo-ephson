@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, MouseEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { MessageSquare, Phone, Mail, MapPin, Facebook, Twitter, Instagram } from 'lucide-react';
 import { useBranding } from '@/src/hooks/useBranding';
@@ -12,12 +12,21 @@ export default function Footer() {
   const firstWord = nameParts[0] || 'KING';
   const restWords = nameParts.slice(1).join(' ') || 'J DEALS';
 
+  const handleLinkClick = (e: MouseEvent<HTMLAnchorElement>, path: string) => {
+    if (path.startsWith('/')) {
+      e.preventDefault();
+      window.history.pushState({}, '', path);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   return (
     <>
       <footer className="bg-slate-950 text-slate-400 py-12 border-t border-slate-900">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
-            <div className="col-span-1 md:col-span-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-8 mb-12">
+            <div className="col-span-1 sm:col-span-2 lg:col-span-2">
               <div className="flex items-center gap-3 font-black text-2xl tracking-tighter text-white mb-6">
                 {branding.logoUrl && (
                   <img
@@ -53,10 +62,31 @@ export default function Footer() {
             </div>
             
             <div>
+              <h4 className="text-white font-bold mb-6">Data Bundles</h4>
+              <ul className="space-y-3 text-sm">
+                <li><a href="/data-bundles" onClick={(e) => handleLinkClick(e, '/data-bundles')} className="hover:text-primary transition-colors">All Data Bundles</a></li>
+                <li><a href="/mtn-data-bundles" onClick={(e) => handleLinkClick(e, '/mtn-data-bundles')} className="hover:text-primary transition-colors">MTN Data Ghana</a></li>
+                <li><a href="/telecel-data-bundles" onClick={(e) => handleLinkClick(e, '/telecel-data-bundles')} className="hover:text-primary transition-colors">Telecel Data Ghana</a></li>
+                <li><a href="/airteltigo-data-bundles" onClick={(e) => handleLinkClick(e, '/airteltigo-data-bundles')} className="hover:text-primary transition-colors">AirtelTigo Data</a></li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="text-white font-bold mb-6">Digital Services</h4>
+              <ul className="space-y-3 text-sm">
+                <li><a href="/results-checker" onClick={(e) => handleLinkClick(e, '/results-checker')} className="hover:text-primary transition-colors">WAEC Checkers</a></li>
+                <li><a href="/wassce-results-checker" onClick={(e) => handleLinkClick(e, '/wassce-results-checker')} className="hover:text-primary transition-colors">WASSCE Checker</a></li>
+                <li><a href="/bece-results-checker" onClick={(e) => handleLinkClick(e, '/bece-results-checker')} className="hover:text-primary transition-colors">BECE Checker</a></li>
+                <li><a href="/booking-codes" onClick={(e) => handleLinkClick(e, '/booking-codes')} className="hover:text-primary transition-colors">Booking Codes</a></li>
+                <li><a href="/game-coins" onClick={(e) => handleLinkClick(e, '/game-coins')} className="hover:text-primary transition-colors">Game Coins & Points</a></li>
+                <li><a href="/pc-games" onClick={(e) => handleLinkClick(e, '/pc-games')} className="hover:text-primary transition-colors">PC Offline Games</a></li>
+              </ul>
+            </div>
+
+            <div>
               <h4 className="text-white font-bold mb-6">Quick Links</h4>
               <ul className="space-y-3 text-sm">
-                <li><a href="/" className="hover:text-primary transition-colors">Home</a></li>
-                <li><a href="#pricing" className="hover:text-primary transition-colors">Data Packages</a></li>
+                <li><a href="/" onClick={(e) => handleLinkClick(e, '/')} className="hover:text-primary transition-colors">Home Store</a></li>
                 <li><button onClick={() => setPolicyModal('about')} className="hover:text-primary transition-colors text-left">About Us</button></li>
                 <li><button onClick={() => setPolicyModal('terms')} className="hover:text-primary transition-colors text-left">Terms of Service</button></li>
                 <li><button onClick={() => setPolicyModal('privacy')} className="hover:text-primary transition-colors text-left">Privacy Policy</button></li>

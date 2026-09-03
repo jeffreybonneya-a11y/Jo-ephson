@@ -6,6 +6,8 @@ import path from 'path';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
+import { getSeoPageData } from './src/data/seoPages';
+import { renderSeoHtml } from './src/lib/serverSeoHtml';
 import admin from 'firebase-admin';
 import { initializeApp as initClientApp } from 'firebase/app';
 import { 
@@ -1161,41 +1163,138 @@ app.get('/sitemap.xml', (req, res) => {
   const today = new Date().toISOString().split('T')[0];
   res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- Homepage -->
   <url>
     <loc>https://kingjdeals.site/</loc>
     <lastmod>${today}</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
+
+  <!-- Category Hubs -->
+  <url>
+    <loc>https://kingjdeals.site/data-bundles</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://kingjdeals.site/results-checker</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://kingjdeals.site/booking-codes</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://kingjdeals.site/game-coins</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://kingjdeals.site/pc-games</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://kingjdeals.site/premium-apps</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- Specific Service Pages -->
+  <url>
+    <loc>https://kingjdeals.site/mtn-data-bundles</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://kingjdeals.site/telecel-data-bundles</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://kingjdeals.site/airteltigo-data-bundles</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://kingjdeals.site/wassce-results-checker</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://kingjdeals.site/bece-results-checker</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://kingjdeals.site/novdec-results-checker</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://kingjdeals.site/fc-mobile-points</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://kingjdeals.site/pubg-mobile-uc</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://kingjdeals.site/fc-26</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Informational and Policy Pages -->
   <url>
     <loc>https://kingjdeals.site/about</loc>
     <lastmod>${today}</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.6</priority>
   </url>
   <url>
     <loc>https://kingjdeals.site/contact</loc>
     <lastmod>${today}</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.6</priority>
   </url>
   <url>
     <loc>https://kingjdeals.site/privacy</loc>
     <lastmod>${today}</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
+    <priority>0.4</priority>
   </url>
   <url>
     <loc>https://kingjdeals.site/terms</loc>
     <lastmod>${today}</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
+    <priority>0.4</priority>
   </url>
   <url>
     <loc>https://kingjdeals.site/refund-policy</loc>
     <lastmod>${today}</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
+    <priority>0.4</priority>
   </url>
 </urlset>`);
 });
@@ -1216,13 +1315,47 @@ async function startServer() {
 
   if (!isProd) {
     const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
+    
+    // SEO Routes Middleware in Development
+    app.use(async (req, res, next) => {
+      if (req.method !== 'GET') return next();
+      const seo = getSeoPageData(req.path);
+      if (!seo) return next();
+      try {
+        const indexPath = path.join(process.cwd(), 'index.html');
+        if (fs.existsSync(indexPath)) {
+          let template = fs.readFileSync(indexPath, 'utf8');
+          template = await vite.transformIndexHtml(req.url, template);
+          const html = renderSeoHtml(template, seo);
+          res.setHeader('Content-Type', 'text/html; charset=utf-8');
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+          return res.status(200).send(html);
+        }
+      } catch (err) {
+        console.warn("[Dev SEO Route Middleware Error]", err);
+      }
+      next();
+    });
+
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      res.sendFile(path.join(distPath, 'index.html'));
+      const seo = getSeoPageData(req.path);
+      const indexPath = path.join(distPath, 'index.html');
+      if (seo && fs.existsSync(indexPath)) {
+        try {
+          const template = fs.readFileSync(indexPath, 'utf8');
+          const html = renderSeoHtml(template, seo);
+          res.setHeader('Content-Type', 'text/html; charset=utf-8');
+          return res.status(200).send(html);
+        } catch (err) {
+          console.error("[Prod SEO Serve Error]", err);
+        }
+      }
+      res.sendFile(indexPath);
     });
   }
   app.listen(3000, "0.0.0.0", () => console.log('Server running on 3000'));
