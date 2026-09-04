@@ -26,6 +26,7 @@ import TopPromosRow from './components/TopPromosRow';
 import DownloadPage from './components/DownloadPage';
 import PriceDropNotifier from './components/PriceDropNotifier';
 import GetFreeDataWidget from './components/GetFreeDataWidget';
+import WhatsAppChannelButton from './components/WhatsAppChannelButton';
 import WelcomePage from './components/WelcomePage';
 import SeoPageLayout from './components/SeoPageLayout';
 import { getSeoPageData, SeoPageData } from './data/seoPages';
@@ -547,6 +548,7 @@ export default function App() {
       {/* Disabled floating site customization and chat buttons as requested */}
       <PriceDropNotifier />
       <GetFreeDataWidget />
+      <WhatsAppChannelButton />
     </div>
   );
 }
