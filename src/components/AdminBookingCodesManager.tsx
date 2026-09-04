@@ -50,6 +50,7 @@ import {
   Trophy,
   History,
   TrendingUp,
+  Gift,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformLogo } from "./BookingCodePlatformLogos";
@@ -218,8 +219,8 @@ export default function AdminBookingCodesManager() {
       toast.error("Please enter valid odds (e.g. 15.5).");
       return;
     }
-    if (!formPrice || Number(formPrice) < 0) {
-      toast.error("Please enter a valid price in GHS.");
+    if (formPrice === "" || isNaN(Number(formPrice)) || Number(formPrice) < 0) {
+      toast.error("Please enter a valid price in GHS (set 0 for FREE).");
       return;
     }
 
@@ -533,17 +534,56 @@ export default function AdminBookingCodesManager() {
 
                 {/* Price in GHS */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-300">Price (GH₵) *</Label>
-                  <Input
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    value={formPrice}
-                    onChange={(e) => setFormPrice(e.target.value)}
-                    placeholder="e.g. 15.00"
-                    className="h-10 bg-slate-900 border-slate-700 text-white rounded-xl text-sm"
-                    required
-                  />
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold text-slate-300">Price (GH₵) *</Label>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setFormPrice("0")}
+                        className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer border ${
+                          formPrice === "0" || Number(formPrice) === 0 && formPrice !== ""
+                            ? "bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm"
+                            : "bg-emerald-950/60 text-emerald-400 border-emerald-500/40 hover:bg-emerald-900/60"
+                        }`}
+                      >
+                        🎁 Free (0 GHS)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormPrice("10")}
+                        className="px-1.5 py-0.5 rounded-lg text-[10px] font-bold text-slate-400 bg-slate-800 border border-slate-700 hover:text-white"
+                      >
+                        10
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormPrice("20")}
+                        className="px-1.5 py-0.5 rounded-lg text-[10px] font-bold text-slate-400 bg-slate-800 border border-slate-700 hover:text-white"
+                      >
+                        20
+                      </button>
+                    </div>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      value={formPrice}
+                      onChange={(e) => setFormPrice(e.target.value)}
+                      placeholder="0 for FREE or e.g. 15.00"
+                      className="h-10 bg-slate-900 border-slate-700 text-white rounded-xl text-sm pr-20"
+                      required
+                    />
+                    {(formPrice === "0" || (Number(formPrice) === 0 && formPrice !== "")) && (
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-black uppercase text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded-md border border-emerald-500/40">
+                        FREE 🎁
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-slate-400 block">
+                    Set price to <strong>0</strong> to allow all users to claim and unlock this slip for free!
+                  </span>
                 </div>
 
                 {/* Expiration Date & Time */}
@@ -728,7 +768,13 @@ export default function AdminBookingCodesManager() {
                           {Number(c.odds).toFixed(2)}x
                         </TableCell>
                         <TableCell className="font-bold text-white text-xs">
-                          GH₵ {Number(c.price).toFixed(2)}
+                          {Number(c.price) === 0 ? (
+                            <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-black text-[10px] uppercase">
+                              FREE 🎁
+                            </Badge>
+                          ) : (
+                            `GH₵ ${Number(c.price).toFixed(2)}`
+                          )}
                         </TableCell>
                         <TableCell className="text-xs">
                           {formatExpiryString(c.expiresAt)}
@@ -848,7 +894,11 @@ export default function AdminBookingCodesManager() {
                         </span>
                       </TableCell>
                       <TableCell className="font-black text-white text-xs">
-                        GH₵ {Number(p.price).toFixed(2)}
+                        {Number(p.price) === 0 ? (
+                          <span className="text-emerald-400 font-black text-xs">FREE 🎁</span>
+                        ) : (
+                          `GH₵ ${Number(p.price).toFixed(2)}`
+                        )}
                       </TableCell>
                       <TableCell className="font-mono text-[11px] text-slate-400">
                         {p.paymentReference || p.id}

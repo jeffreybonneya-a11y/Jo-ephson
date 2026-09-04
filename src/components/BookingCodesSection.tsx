@@ -6,6 +6,8 @@ import {
   orderBy,
   doc,
   setDoc,
+  updateDoc,
+  increment,
   serverTimestamp,
   getDoc,
 } from "firebase/firestore";
@@ -40,6 +42,7 @@ import {
   History,
   Check,
   Zap,
+  Gift,
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
@@ -408,24 +411,104 @@ export default function BookingCodesSection({
     setIsProcessingPayment(true);
     setPaystackAuthUrl(null);
     const orderRefId = `BC_${Date.now()}_${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
-    const amountInPesewas = Math.round(Number(checkoutCode.price) * 100);
-
-    // Retrieve public key
-    let publicKey = "pk_live_1a324af248d2bb1e2f784e7c27981f58f7d66b2c";
-    try {
-      const pkRes = await fetch(getApiUrl("/api/paystack-public-key"));
-      if (pkRes.ok) {
-        const pkData = await pkRes.json();
-        if (pkData.publicKey) {
-          publicKey = pkData.publicKey;
-        }
-      }
-    } catch (pkErr) {
-      console.warn("Could not fetch Paystack public key, using default:", pkErr);
-    }
 
     const customerFullName = profile?.fullName || auth.currentUser?.displayName || (phoneToUse ? `Customer (${phoneToUse})` : "Royal Customer");
     const currentUserId = auth.currentUser?.uid || profile?.uid || "";
+
+    // 🎁 CHECK IF FREE BOOKING CODE (price === 0) -> UNLOCK IMMEDIATELY WITHOUT PAYSTACK
+    if (Number(checkoutCode.price) <= 0) {
+      const loadingToast = toast.loading("Unlocking your free booking code... 🎁");
+      try {
+        const pCfg = getPlatformConfig(checkoutCode.bookmaker || "SportyBet");
+
+        const freeOrderPayload = {
+          id: orderRefId,
+          orderId: orderRefId,
+          reference: orderRefId,
+          userId: currentUserId,
+          customerName: customerFullName,
+          customerEmail: emailToUse,
+          email: emailToUse,
+          customerPhone: phoneToUse || "",
+          phone: phoneToUse || "",
+          bundle: `FREE VIP BOOKING CODE: ${checkoutCode.title || checkoutCode.bookmaker} (${checkoutCode.bookmaker} ${Number(checkoutCode.odds).toFixed(2)}x)`,
+          bundleName: checkoutCode.title || `${checkoutCode.bookmaker} VIP Code`,
+          serviceType: "Booking Codes",
+          network: "Booking Codes",
+          bookmaker: checkoutCode.bookmaker || "SportyBet",
+          odds: Number(checkoutCode.odds) || 1.0,
+          amount: 0,
+          price: 0,
+          bookingCodeId: checkoutCode.id,
+          bookingCodeTitle: checkoutCode.title || "VIP Booking Code",
+          code: checkoutCode.code,
+          status: "completed",
+          paymentStatus: "success",
+          paymentMethod: "Free Claim",
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        };
+
+        await Promise.all([
+          // 1. Primary orders collection
+          setDoc(doc(db, "orders", orderRefId), freeOrderPayload, { merge: true }),
+          // 2. booking_code_purchases collection (with secret code unlocked)
+          setDoc(
+            doc(db, "booking_code_purchases", orderRefId),
+            {
+              id: orderRefId,
+              bookingCodeId: checkoutCode.id,
+              userId: currentUserId,
+              customerName: customerFullName,
+              customerEmail: emailToUse,
+              customerPhone: phoneToUse || "",
+              title: checkoutCode.title || "VIP Booking Code",
+              bookmaker: checkoutCode.bookmaker || "SportyBet",
+              code: checkoutCode.code,
+              odds: Number(checkoutCode.odds) || 1.0,
+              price: 0,
+              paymentMethod: "Free Claim",
+              paymentReference: orderRefId,
+              status: "completed",
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true }
+          ),
+          // 3. Dedicated booking_code_orders collection
+          setDoc(doc(db, "booking_code_orders", orderRefId), freeOrderPayload, { merge: true }),
+          // 4. Increment total claims counter
+          updateDoc(doc(db, "booking_codes", checkoutCode.id), {
+            totalPurchases: increment(1),
+            updatedAt: serverTimestamp(),
+          }).catch((err) => console.warn("Count increment warning:", err)),
+        ]);
+
+        toast.dismiss(loadingToast);
+        toast.success("Free VIP Booking Code Unlocked! 🎉👑");
+
+        setRevealedCodeData({
+          code: checkoutCode.code,
+          title: checkoutCode.title,
+          bookmaker: checkoutCode.bookmaker,
+          odds: Number(checkoutCode.odds) || 1.0,
+          reference: orderRefId,
+          price: 0,
+          officialUrl: pCfg?.officialUrl,
+        });
+
+        setCheckoutCode(null);
+      } catch (err: any) {
+        toast.dismiss(loadingToast);
+        console.error("Error unlocking free code:", err);
+        toast.error(`Could not claim free code: ${err.message}`);
+      } finally {
+        setIsProcessingPayment(false);
+      }
+      return;
+    }
+
+    const amountInPesewas = Math.round(Number(checkoutCode.price) * 100);
 
     const bookingOrderPayload = {
       id: orderRefId,
@@ -483,6 +566,20 @@ export default function BookingCodesSection({
       ]);
     } catch (dbErr) {
       console.warn("Could not pre-save booking code order to Firestore:", dbErr);
+    }
+
+    // Retrieve public key
+    let publicKey = "pk_live_1a324af248d2bb1e2f784e7c27981f58f7d66b2c";
+    try {
+      const pkRes = await fetch(getApiUrl("/api/paystack-public-key"));
+      if (pkRes.ok) {
+        const pkData = await pkRes.json();
+        if (pkData.publicKey) {
+          publicKey = pkData.publicKey;
+        }
+      }
+    } catch (pkErr) {
+      console.warn("Could not fetch Paystack public key, using default:", pkErr);
     }
 
     // Attempt 1: Try Paystack Inline Popup directly in browser (works seamlessly across all domains & mobile)
@@ -968,9 +1065,17 @@ export default function BookingCodesSection({
                           <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">
                             Price
                           </span>
-                          <span className="text-lg sm:text-xl font-black text-white">
-                            GH₵ {Number(code.price).toFixed(2)}
-                          </span>
+                          {Number(code.price) === 0 ? (
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-black text-xs px-2.5 py-0.5 shadow-sm">
+                                FREE 🎁
+                              </Badge>
+                            </div>
+                          ) : (
+                            <span className="text-lg sm:text-xl font-black text-white">
+                              GH₵ {Number(code.price).toFixed(2)}
+                            </span>
+                          )}
                         </div>
 
                         {expiry.isExpired ? (
@@ -979,6 +1084,14 @@ export default function BookingCodesSection({
                             className="rounded-xl bg-slate-800 text-slate-500 font-black text-xs uppercase px-4 h-10 border border-slate-700"
                           >
                             Expired ⚠️
+                          </Button>
+                        ) : Number(code.price) === 0 ? (
+                          <Button
+                            onClick={() => handleOpenCheckout(code)}
+                            className="rounded-xl bg-gradient-to-r from-emerald-400 via-green-400 to-teal-400 text-slate-950 hover:brightness-110 font-black text-xs uppercase tracking-wider px-4 sm:px-5 h-10 shadow-[0_2px_15px_rgba(16,185,129,0.25)] border border-emerald-300/40 cursor-pointer flex items-center gap-1.5 active:scale-95 transition-all"
+                          >
+                            <Gift className="w-4 h-4 text-slate-950" />
+                            <span>Get Free Code 🎁</span>
                           </Button>
                         ) : (
                           <Button
@@ -1113,15 +1226,30 @@ export default function BookingCodesSection({
       <Dialog open={!!checkoutCode} onOpenChange={(open) => !open && setCheckoutCode(null)}>
         <DialogContent className="max-w-md w-[95vw] rounded-3xl bg-[#0F172A] border border-slate-700 text-white p-5 sm:p-8 max-h-[90vh] overflow-y-auto">
           <DialogHeader className="space-y-2 text-left">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-400 text-xs font-black uppercase w-fit">
-              <DollarSign className="w-3.5 h-3.5" />
-              <span>Purchase Booking Code</span>
+            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-black uppercase w-fit ${
+              Number(checkoutCode?.price) === 0
+                ? "bg-emerald-500/20 border border-emerald-500/30 text-emerald-400"
+                : "bg-amber-500/20 border border-amber-500/30 text-amber-400"
+            }`}>
+              {Number(checkoutCode?.price) === 0 ? (
+                <>
+                  <Gift className="w-3.5 h-3.5" />
+                  <span>Claim Free Booking Code 🎁</span>
+                </>
+              ) : (
+                <>
+                  <DollarSign className="w-3.5 h-3.5" />
+                  <span>Purchase Booking Code</span>
+                </>
+              )}
             </div>
             <DialogTitle className="text-xl sm:text-2xl font-black text-white">
               {checkoutCode?.title}
             </DialogTitle>
             <DialogDescription className="text-slate-400 text-xs">
-              Complete your payment to instantly reveal and copy your booking code.
+              {Number(checkoutCode?.price) === 0
+                ? "Enter your details to instantly unlock and copy this free verified booking code."
+                : "Complete your payment to instantly reveal and copy your booking code."}
             </DialogDescription>
           </DialogHeader>
 
@@ -1147,9 +1275,15 @@ export default function BookingCodesSection({
                 </div>
                 <div className="border-t border-slate-700/80 pt-2 flex justify-between items-center">
                   <span className="text-xs font-black text-white uppercase">Total Price:</span>
-                  <span className="text-xl font-black text-amber-400">
-                    GH₵ {Number(checkoutCode.price).toFixed(2)}
-                  </span>
+                  {Number(checkoutCode.price) === 0 ? (
+                    <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-black text-sm px-3 py-1">
+                      FREE (GH₵ 0.00) 🎁
+                    </Badge>
+                  ) : (
+                    <span className="text-xl font-black text-amber-400">
+                      GH₵ {Number(checkoutCode.price).toFixed(2)}
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -1181,7 +1315,7 @@ export default function BookingCodesSection({
                     className="mt-1 h-11 bg-slate-900 border-slate-700 text-white rounded-xl text-sm font-mono"
                   />
                   <span className="text-[10px] text-slate-400 mt-0.5 block">
-                    You can also enter or choose your Mobile Money network directly on Paystack.
+                    Optional contact number for fast reference.
                   </span>
                 </div>
               </div>
@@ -1222,9 +1356,19 @@ export default function BookingCodesSection({
                   <Button
                     onClick={handleProceedToPayment}
                     disabled={isProcessingPayment}
-                    className="h-12 w-full rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 font-black text-xs sm:text-sm uppercase tracking-wider hover:brightness-110 shadow-lg border border-amber-300/40 cursor-pointer"
+                    className={`h-12 w-full rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider hover:brightness-110 shadow-lg cursor-pointer ${
+                      Number(checkoutCode.price) === 0
+                        ? "bg-gradient-to-r from-emerald-400 via-green-400 to-teal-400 text-slate-950 border border-emerald-300/40 shadow-[0_2px_20px_rgba(16,185,129,0.3)]"
+                        : "bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 border border-amber-300/40 shadow-[0_2px_20px_rgba(245,158,11,0.25)]"
+                    }`}
                   >
-                    {isProcessingPayment ? "Connecting to Paystack..." : `Pay GH₵ ${Number(checkoutCode.price).toFixed(2)} & Reveal Code 👑`}
+                    {isProcessingPayment
+                      ? Number(checkoutCode.price) === 0
+                        ? "Unlocking Free Code..."
+                        : "Connecting to Paystack..."
+                      : Number(checkoutCode.price) === 0
+                      ? "Claim & Reveal Code Free 🎁"
+                      : `Pay GH₵ ${Number(checkoutCode.price).toFixed(2)} & Reveal Code 👑`}
                   </Button>
 
                   <Button
@@ -1248,14 +1392,24 @@ export default function BookingCodesSection({
       <Dialog open={!!revealedCodeData} onOpenChange={(open) => !open && setRevealedCodeData(null)}>
         <DialogContent className="max-w-md w-[95vw] rounded-3xl bg-[#0B132B] border-2 border-amber-400/50 text-white p-5 sm:p-8 shadow-[0_0_50px_rgba(245,158,11,0.3)] max-h-[90vh] overflow-y-auto">
           <DialogHeader className="space-y-2 text-center">
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-br from-amber-400 via-yellow-300 to-amber-500 text-slate-950 flex items-center justify-center mx-auto shadow-lg animate-bounce">
-              <Trophy className="w-7 h-7 sm:w-8 sm:h-8" />
+            <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full text-slate-950 flex items-center justify-center mx-auto shadow-lg animate-bounce ${
+              revealedCodeData?.price === 0
+                ? "bg-gradient-to-br from-emerald-400 via-green-300 to-teal-400"
+                : "bg-gradient-to-br from-amber-400 via-yellow-300 to-amber-500"
+            }`}>
+              {revealedCodeData?.price === 0 ? (
+                <Gift className="w-7 h-7 sm:w-8 sm:h-8 text-slate-950" />
+              ) : (
+                <Trophy className="w-7 h-7 sm:w-8 sm:h-8" />
+              )}
             </div>
             <DialogTitle className="text-xl sm:text-2xl font-serif font-black text-white">
-              Payment Successful! 👑
+              {revealedCodeData?.price === 0 ? "Free Code Unlocked! 🎁" : "Payment Successful! 👑"}
             </DialogTitle>
             <DialogDescription className="text-slate-300 text-xs">
-              Here is your verified booking code. Copy and load it into your betting app now.
+              {revealedCodeData?.price === 0
+                ? "Here is your free verified booking code. Copy and load it into your betting app now."
+                : "Here is your verified booking code. Copy and load it into your betting app now."}
             </DialogDescription>
           </DialogHeader>
 
@@ -1374,18 +1528,28 @@ export default function BookingCodesSection({
               )}
 
               <div className="flex justify-between items-center pt-2">
-                <span className="text-base sm:text-lg font-black text-white">
-                  GH₵ {Number(previewSlipCode.price).toFixed(2)}
-                </span>
+                {Number(previewSlipCode.price) === 0 ? (
+                  <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-black text-xs px-3 py-1">
+                    FREE 🎁
+                  </Badge>
+                ) : (
+                  <span className="text-base sm:text-lg font-black text-white">
+                    GH₵ {Number(previewSlipCode.price).toFixed(2)}
+                  </span>
+                )}
                 <Button
                   onClick={() => {
                     const c = previewSlipCode;
                     setPreviewSlipCode(null);
                     handleOpenCheckout(c);
                   }}
-                  className="rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs uppercase px-5 cursor-pointer"
+                  className={`rounded-xl font-black text-xs uppercase px-5 cursor-pointer ${
+                    Number(previewSlipCode.price) === 0
+                      ? "bg-emerald-400 hover:bg-emerald-300 text-slate-950"
+                      : "bg-amber-400 hover:bg-amber-300 text-slate-950"
+                  }`}
                 >
-                  Buy Code Now 👑
+                  {Number(previewSlipCode.price) === 0 ? "Get Free Code 🎁" : "Buy Code Now 👑"}
                 </Button>
               </div>
             </div>

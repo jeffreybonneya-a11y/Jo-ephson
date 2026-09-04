@@ -310,15 +310,13 @@ export default function AdminDashboard() {
       setLoading(false);
     });
 
-    // 3. Listen for Orders (Strictly display only confirmed successfully paid orders)
+    // 3. Listen for Orders (Display all orders in real time)
     const unsubOrders = onSnapshot(
       collection(db, "orders"),
       (snapshot) => {
         const allOrders = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() as any }));
         setRawAllOrders(allOrders);
-        // CRITICAL: Filter out any orders that are unpaid, pending, failed, abandoned, cancelled, or unverified
-        const paidOrders = allOrders.filter(isOrderSuccessfullyPaid);
-        const cleanOrders = deduplicateOrdersList(paidOrders);
+        const cleanOrders = deduplicateOrdersList(allOrders);
         
         const getOrderTime = (o: any) => {
           if (!o) return Date.now();
@@ -1249,26 +1247,72 @@ export default function AdminDashboard() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
+  const getStatusBadge = (status: string, paymentStatus?: string) => {
+    const s = (status || "").toLowerCase().trim();
+    const ps = (paymentStatus || "").toLowerCase().trim();
+
+    // Check if successfully paid / completed
+    if (s === "paid" || s === "success" || s === "successful" || ps === "success" || ps === "paid") {
+      if (s === "delivered") {
+        return (
+          <Badge
+            variant="outline"
+            className="bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-900/50 font-bold"
+          >
+            DELIVERED ✅
+          </Badge>
+        );
+      }
+      if (s === "completed") {
+        return (
+          <Badge
+            variant="outline"
+            className="bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:text-purple-400 dark:border-purple-900/50 font-black tracking-widest"
+          >
+            COMPLETED ✅
+          </Badge>
+        );
+      }
+      if (s === "processing") {
+        return (
+          <Badge
+            variant="outline"
+            className="bg-blue-50 text-blue-700 border-blue-200 font-black animate-pulse dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-900/50"
+          >
+            PROCESSING ⚡
+          </Badge>
+        );
+      }
+      if (s === "accepted") {
+        return (
+          <Badge
+            variant="outline"
+            className="bg-indigo-50 text-indigo-700 border-indigo-200 font-bold dark:bg-indigo-900/20 dark:text-indigo-400 dark:border-indigo-900/50"
+          >
+            ACCEPTED ✅
+          </Badge>
+        );
+      }
+      return (
+        <Badge
+          variant="outline"
+          className="bg-emerald-50 text-emerald-700 border-emerald-300 font-black dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800"
+        >
+          SUCCESSFUL ✅
+        </Badge>
+      );
+    }
+
+    switch (s) {
       case "unpaid":
+      case "pending_payment":
+      case "checkout_unpaid":
         return (
           <Badge
             variant="outline"
             className="bg-red-50 text-red-700 border-red-200 font-bold dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/50"
           >
             UNPAID
-          </Badge>
-        );
-      case "paid":
-      case "success":
-      case "successful":
-        return (
-          <Badge
-            variant="outline"
-            className="bg-emerald-50 text-emerald-700 border-emerald-300 font-black dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800"
-          >
-            SUCCESSFUL ✅
           </Badge>
         );
       case "pending":
@@ -1352,13 +1396,31 @@ export default function AdminDashboard() {
             DECLINED
           </Badge>
         );
+      case "abandoned":
+        return (
+          <Badge
+            variant="outline"
+            className="bg-slate-100 text-slate-700 border-slate-200 font-bold dark:bg-slate-800 dark:text-slate-300"
+          >
+            ABANDONED
+          </Badge>
+        );
+      case "cancelled":
+        return (
+          <Badge
+            variant="outline"
+            className="bg-slate-100 text-slate-700 border-slate-200 font-bold dark:bg-slate-800 dark:text-slate-300"
+          >
+            CANCELLED
+          </Badge>
+        );
       default:
         return (
           <Badge
             variant="outline"
             className="dark:border-slate-800 dark:text-slate-400"
           >
-            {status.toUpperCase()}
+            {(status || "UNKNOWN").toUpperCase()}
           </Badge>
         );
     }
@@ -2156,7 +2218,7 @@ export default function AdminDashboard() {
                           </TableCell>
                           <TableCell>
                             <div className="flex flex-col gap-1">
-                              {getStatusBadge(order.status)}
+                              {getStatusBadge(order.status, order.paymentStatus)}
                               {order.createdAt && (
                                 <span className="text-[9px] font-mono text-slate-400 dark:text-slate-500">
                                   {new Date(
@@ -4737,7 +4799,7 @@ export default function AdminDashboard() {
                                   ).toFixed(2)}
                                 </TableCell>
                                 <TableCell className="text-right p-4">
-                                  {getStatusBadge(o.status)}
+                                  {getStatusBadge(o.status, o.paymentStatus)}
                                 </TableCell>
                                 <TableCell className="text-right p-4">
                                   <div className="flex justify-end gap-2">
@@ -5017,7 +5079,7 @@ export default function AdminDashboard() {
                                   ).toFixed(2)}
                                 </TableCell>
                                 <TableCell>
-                                  {getStatusBadge(o.status)}
+                                  {getStatusBadge(o.status, o.paymentStatus)}
                                 </TableCell>
                                 <TableCell className="text-right p-4">
                                   <div className="flex justify-end gap-2 items-center">
