@@ -69,6 +69,7 @@ export default function BundleList({
   const [fcOptionTab, setFcOptionTab] = useState("points");
   const [announcement, setAnnouncement] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isRcOutOfStock, setIsRcOutOfStock] = useState(true);
 
   // Unhidden all services as requested by user
   const hiddenTabs: string[] = [];
@@ -275,6 +276,30 @@ export default function BundleList({
       },
     );
 
+    // Listen for Results Checker stock status
+    const unsubRCStock = onSnapshot(
+      doc(db, "settings", "results_checker"),
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          if (typeof data.inStock === "boolean") {
+            setIsRcOutOfStock(!data.inStock);
+          } else if (typeof data.isOutOfStock === "boolean") {
+            setIsRcOutOfStock(data.isOutOfStock);
+          } else if (typeof data.outOfStock === "boolean") {
+            setIsRcOutOfStock(data.outOfStock);
+          } else {
+            setIsRcOutOfStock(true);
+          }
+        } else {
+          setIsRcOutOfStock(true);
+        }
+      },
+      () => {
+        setIsRcOutOfStock(true);
+      }
+    );
+
     // 2. Fetch offers
     const fetchOffers = async () => {
       try {
@@ -314,7 +339,10 @@ export default function BundleList({
     };
 
     fetchOffers();
-    return () => unsubAnnouncement();
+    return () => {
+      unsubAnnouncement();
+      unsubRCStock();
+    };
   }, []);
 
   const isDiscountActive =
@@ -702,6 +730,11 @@ export default function BundleList({
                         }`}
                       />
                       <span className="truncate tracking-wide">{cat.label}</span>
+                      {cat.id === "RESULT_CHECKER" && isRcOutOfStock && (
+                        <span className="ml-1 px-1.5 py-0.2 rounded text-[9px] font-black uppercase bg-red-500/20 text-red-400 border border-red-500/30 shrink-0">
+                          Sold Out
+                        </span>
+                      )}
                     </button>
                   );
                 })}

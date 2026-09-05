@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+# Private & Administrative Routes
+Disallow: /admin
+Disallow: /api/
+
+# Sitemap Indexing
+Sitemap: https://kingjdeals.site/sitemap.xml

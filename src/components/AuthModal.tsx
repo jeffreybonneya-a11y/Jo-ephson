@@ -4,8 +4,10 @@ import { syncUserCustomerRecord } from '@/src/lib/userSync';
 import { 
   GoogleAuthProvider,
   signInWithPopup,
-  signInWithRedirect
+  signInWithCredential
 } from 'firebase/auth';
+import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
+import { isNativeApp } from '@/src/lib/platform';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Loader2, Chrome, Crown, ShieldCheck } from 'lucide-react';
@@ -31,6 +33,95 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
+
+    // 1. Native Android Authentication Flow
+    if (isNativeApp()) {
+      try {
+        const result = await FirebaseAuthentication.signInWithGoogle();
+        
+        // Retrieve ID token from credential
+        let idToken = result.credential?.idToken;
+
+        if (!idToken) {
+          // If no token in credential directly, check if user exists or fetch token
+          if (!result.user) {
+            toast.info("Google sign-in cancelled.");
+            return;
+          }
+          try {
+            const tokenResult = await FirebaseAuthentication.getIdToken();
+            idToken = tokenResult?.token;
+          } catch (tErr) {
+            console.warn("[Native Auth] Could not fetch secondary ID token:", tErr);
+          }
+        }
+
+        if (idToken) {
+          const credential = GoogleAuthProvider.credential(idToken);
+          const userCredential = await signInWithCredential(auth, credential);
+          const user = userCredential.user;
+
+          if (user) {
+            await syncUserCustomerRecord(user);
+          }
+        } else if (result.user?.uid) {
+          // In case native auth signed in without raw ID token, verify current Firebase user
+          if (auth.currentUser) {
+            await syncUserCustomerRecord(auth.currentUser);
+          }
+        }
+
+        toast.success("Logged in with Google! 👑");
+        onClose();
+      } catch (nativeError: any) {
+        console.error("[Native Auth] Login Error:", nativeError);
+        const errMsg = nativeError?.message || String(nativeError);
+        const errCode = nativeError?.code;
+
+        // User cancellation (Google Play services code 12501 or 16)
+        if (
+          errCode === '12501' || 
+          errCode === '16' ||
+          errMsg.includes('canceled') || 
+          errMsg.includes('cancelled') || 
+          errMsg.includes('closed') ||
+          errMsg.includes('Sign in action cancelled')
+        ) {
+          toast.info("Google sign-in cancelled.");
+          return;
+        }
+
+        // Developer / Configuration errors
+        if (
+          errMsg.includes('10:') || 
+          errMsg.includes('DEVELOPER_ERROR') || 
+          errMsg.includes('developer error')
+        ) {
+          toast.error(
+            "Google sign-in configuration pending. Please ensure SHA-1 fingerprint and google-services.json are configured in Firebase.",
+            { duration: 7000 }
+          );
+          return;
+        }
+
+        // Network / Connectivity errors
+        if (
+          errMsg.includes('network') || 
+          errMsg.includes('offline') || 
+          errCode === 'auth/network-request-failed'
+        ) {
+          toast.error("Network connection error. Please check your internet connection.", { duration: 5000 });
+          return;
+        }
+
+        toast.error("Unable to sign in with Google. Please try again.", { duration: 5000 });
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    // 2. Web Authentication Flow (signInWithPopup)
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
 
@@ -122,7 +213,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
             )}
           </Button>
 
-          {isIframe ? (
+          {isIframe && !isNativeApp() ? (
             <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 p-4 rounded-xl space-y-2 text-xs text-amber-800 dark:text-amber-200">
               <p className="font-black flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-amber-600 dark:text-amber-500" />

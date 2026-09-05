@@ -183,9 +183,42 @@ function getPaystackPublicKey(): string {
     return pubKey;
 }
 
+const ALLOWED_ORIGINS = [
+    'https://kingjdeals.site',
+    'https://www.kingjdeals.site',
+    'https://kingjdeals.onrender.com',
+    'https://localhost',
+    'http://localhost',
+    'capacitor://localhost',
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:5173'
+];
+
 const app = express();
 
-app.use(cors());
+app.use(cors({
+    origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile app background requests, curl, server-to-server webhooks)
+        if (!origin) return callback(null, true);
+        
+        if (
+            ALLOWED_ORIGINS.includes(origin) || 
+            origin.endsWith('.run.app') || 
+            origin.endsWith('.site') || 
+            origin.endsWith('.onrender.com')
+        ) {
+            return callback(null, true);
+        }
+        
+        return callback(null, true);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-paystack-signature', 'x-korapay-signature', 'Accept']
+}));
+
 app.use(express.json());
 
 // Safe Health and Diagnostic Endpoint

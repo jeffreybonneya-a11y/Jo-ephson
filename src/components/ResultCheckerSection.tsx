@@ -38,6 +38,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
   const [pricePerChecker, setPricePerChecker] = useState<number>(25);
   const [rcWholesalePrice, setRcWholesalePrice] = useState<number>(19);
   const [loadingPrice, setLoadingPrice] = useState<boolean>(true);
+  const [isOutOfStock, setIsOutOfStock] = useState<boolean>(true);
   const [chargeSettings, setChargeSettings] = useState<{
     agentStoreCharge: number;
     retailResultsCheckerCharge: number;
@@ -100,10 +101,22 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
         if (typeof data.wholesalePrice === 'number') {
           setRcWholesalePrice(data.wholesalePrice);
         }
+        if (typeof data.inStock === 'boolean') {
+          setIsOutOfStock(!data.inStock);
+        } else if (typeof data.isOutOfStock === 'boolean') {
+          setIsOutOfStock(data.isOutOfStock);
+        } else if (typeof data.outOfStock === 'boolean') {
+          setIsOutOfStock(data.outOfStock);
+        } else {
+          setIsOutOfStock(true);
+        }
+      } else {
+        setIsOutOfStock(true);
       }
       setLoadingPrice(false);
     }, (error) => {
       console.error("Failed to load results checker settings:", error);
+      setIsOutOfStock(true);
       setLoadingPrice(false);
     });
 
@@ -142,6 +155,12 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
   };
 
   const handleOpenPurchaseFlow = () => {
+    if (isOutOfStock) {
+      toast.error("WAEC Results Checker is currently out of stock. Please check back soon! ⏳", {
+        description: "New vouchers are being restocked.",
+      });
+      return;
+    }
     if (!auth.currentUser || auth.currentUser.isAnonymous) {
       toast.error("Please log in before you can purchase any service! 👑", {
         description: "You must be signed in with your Google account to purchase Results Checkers.",
@@ -165,6 +184,10 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
   };
 
   const handleFormSubmit = async () => {
+    if (isOutOfStock) {
+      toast.error("WAEC Results Checker is currently out of stock.");
+      return;
+    }
     const activeUser = await ensureUser();
     if (!activeUser) {
       toast.error("Please log in before you can purchase any service! 👑", {
@@ -621,10 +644,39 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
       <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
         {/* Left Side: Category Tabs & Purchase Selector */}
         <div className="md:col-span-7 space-y-6">
+          {/* Out of Stock Alert Notice */}
+          {isOutOfStock && (
+            <div className="rounded-3xl bg-amber-500/10 border-2 border-amber-500/30 p-5 sm:p-6 flex items-start gap-4 text-amber-950 dark:text-amber-200 shadow-sm">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0 mt-0.5">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm sm:text-base font-black uppercase tracking-wide text-amber-900 dark:text-amber-300">
+                    Results Checker Out of Stock
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-red-500 text-white tracking-wider">
+                    Sold Out
+                  </span>
+                </div>
+                <p className="text-xs text-amber-800/90 dark:text-amber-300/90 font-medium leading-relaxed">
+                  WAEC Results Checker vouchers (WASSCE, BECE, NOVDEC) are temporarily out of stock. Our inventory is currently being replenished. Purchases will reopen as soon as new stock arrives.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="bg-card border-2 border-border rounded-3xl p-6 md:p-8 space-y-6 shadow-sm">
-            <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-wider border-b pb-3 flex items-center gap-2">
-              <span className="text-primary">Step 1:</span> Choose Exam Type
-            </h3>
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                <span className="text-primary">Step 1:</span> Choose Exam Type
+              </h3>
+              {isOutOfStock && (
+                <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30 tracking-wider">
+                  Out of Stock
+                </span>
+              )}
+            </div>
 
             {/* Checker Sub-Tabs */}
             <div className="grid grid-cols-3 gap-2">
@@ -632,7 +684,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
                 <button
                   key={tab}
                   onClick={() => setActiveCheckerTab(tab)}
-                  className={`flex flex-col items-center justify-center py-4 px-2 rounded-2xl border-2 transition-all cursor-pointer text-center select-none ${
+                  className={`relative flex flex-col items-center justify-center py-4 px-2 rounded-2xl border-2 transition-all cursor-pointer text-center select-none ${
                     activeCheckerTab === tab
                       ? 'bg-indigo-600 text-white border-indigo-600 shadow-md font-black scale-[1.02]'
                       : 'bg-slate-50/50 dark:bg-slate-900 border-border text-muted-foreground hover:border-indigo-500/40 hover:bg-slate-50 font-bold'
@@ -640,6 +692,11 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
                 >
                   <span className="text-xs sm:text-sm tracking-wide font-black uppercase">{tab}</span>
                   <span className="text-[9px] opacity-80 mt-1 uppercase font-bold">Checker</span>
+                  {isOutOfStock && (
+                    <span className="mt-1 text-[8px] font-black text-amber-300 dark:text-amber-400 uppercase tracking-tighter">
+                      No Stock
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -654,10 +711,11 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
                   {quantity} x {pricePerChecker} GHS
                 </span>
               </div>
-              <div className="flex items-center gap-4 bg-slate-50 dark:bg-slate-900 p-2 rounded-2xl border-2 border-border max-w-sm">
+              <div className={`flex items-center gap-4 bg-slate-50 dark:bg-slate-900 p-2 rounded-2xl border-2 border-border max-w-sm ${isOutOfStock ? 'opacity-60' : ''}`}>
                 <Button
                   variant="ghost"
                   size="icon"
+                  disabled={isOutOfStock}
                   onClick={() => setQuantity(Math.max(1, quantity - 1))}
                   className="rounded-xl h-10 w-10 text-slate-600 dark:text-slate-300"
                 >
@@ -666,13 +724,15 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
                 <input
                   type="number"
                   min="1"
+                  disabled={isOutOfStock}
                   value={quantity}
                   onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="flex-1 text-center font-black bg-transparent border-none text-lg text-slate-900 dark:text-white focus:outline-none focus:ring-0"
+                  className="flex-1 text-center font-black bg-transparent border-none text-lg text-slate-900 dark:text-white focus:outline-none focus:ring-0 disabled:opacity-70"
                 />
                 <Button
                   variant="ghost"
                   size="icon"
+                  disabled={isOutOfStock}
                   onClick={() => setQuantity(quantity + 1)}
                   className="rounded-xl h-10 w-10 text-slate-600 dark:text-slate-300"
                 >
@@ -694,10 +754,11 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
               </div>
               <Input
                 type="tel"
+                disabled={isOutOfStock}
                 value={mobileNumber}
                 onChange={(e) => handlePhoneChange(e.target.value)}
                 placeholder="e.g. 0244123456"
-                className="rounded-xl h-11 border-2 dark:bg-slate-900 dark:border-slate-800 text-foreground text-sm font-bold"
+                className="rounded-xl h-11 border-2 dark:bg-slate-900 dark:border-slate-800 text-foreground text-sm font-bold disabled:opacity-60"
               />
             </div>
 
@@ -715,11 +776,22 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
               </div>
 
               <Button
-                disabled={quantity < 1 || loadingPrice}
+                disabled={isOutOfStock || quantity < 1 || loadingPrice}
                 onClick={handleOpenPurchaseFlow}
-                className="w-full sm:w-auto h-13 px-8 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer"
+                className={`w-full sm:w-auto h-13 px-8 rounded-2xl font-black text-sm uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 transition-all ${
+                  isOutOfStock
+                    ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed shadow-none'
+                    : 'bg-indigo-600 hover:bg-indigo-700 text-white active:scale-95 cursor-pointer'
+                }`}
               >
-                Buy for {totalAmount} GHS <ChevronRight className="w-4 h-4" />
+                {isOutOfStock ? (
+                  <span>🚫 Out of Stock</span>
+                ) : (
+                  <>
+                    <span>Buy for {totalAmount} GHS</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </>
+                )}
               </Button>
             </div>
           </div>

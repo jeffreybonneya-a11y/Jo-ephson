@@ -195,9 +195,11 @@ export default function AdminDashboard() {
 
   const [pricePerChecker, setPricePerChecker] = useState<number>(25);
   const [rcWholesalePrice, setRcWholesalePrice] = useState<number>(19);
+  const [rcOutOfStock, setRcOutOfStock] = useState<boolean>(true);
   const [agentStorePrice, setAgentStorePrice] = useState<number>(50);
   const [isUpdatingAgentStorePrice, setIsUpdatingAgentStorePrice] = useState<boolean>(false);
   const [isUpdatingPrice, setIsUpdatingPrice] = useState<boolean>(false);
+  const [isUpdatingRcStock, setIsUpdatingRcStock] = useState<boolean>(false);
   const [isFreeDataDisabled, setIsFreeDataDisabled] = useState<boolean>(false);
   const [freeDataPrice, setFreeDataPrice] = useState<number>(1);
 
@@ -414,6 +416,15 @@ export default function AdminDashboard() {
           }
           if (typeof data.wholesalePrice === "number") {
             setRcWholesalePrice(data.wholesalePrice);
+          }
+          if (typeof data.inStock === "boolean") {
+            setRcOutOfStock(!data.inStock);
+          } else if (typeof data.isOutOfStock === "boolean") {
+            setRcOutOfStock(data.isOutOfStock);
+          } else if (typeof data.outOfStock === "boolean") {
+            setRcOutOfStock(data.outOfStock);
+          } else {
+            setRcOutOfStock(true);
           }
         }
       }
@@ -1481,14 +1492,34 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleToggleRcStock = async (newOutOfStockState: boolean) => {
+    setIsUpdatingRcStock(true);
+    try {
+      await setDoc(doc(db, "settings", "results_checker"), {
+        inStock: !newOutOfStockState,
+        isOutOfStock: newOutOfStockState,
+        outOfStock: newOutOfStockState,
+      }, { merge: true });
+      setRcOutOfStock(newOutOfStockState);
+      toast.success(newOutOfStockState ? "Results Checker marked as OUT OF STOCK 🚫" : "Results Checker marked as IN STOCK ✅");
+    } catch (error: any) {
+      toast.error(`Failed to update stock status: ${error.message}`);
+    } finally {
+      setIsUpdatingRcStock(false);
+    }
+  };
+
   const handleUpdatePricePerChecker = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsUpdatingPrice(true);
     try {
       await setDoc(doc(db, "settings", "results_checker"), {
-        pricePerChecker: Number(pricePerChecker)
+        pricePerChecker: Number(pricePerChecker),
+        inStock: !rcOutOfStock,
+        isOutOfStock: rcOutOfStock,
+        outOfStock: rcOutOfStock,
       }, { merge: true });
-      toast.success("Results Checker price updated ✅");
+      toast.success("Results Checker settings updated ✅");
     } catch (error: any) {
       toast.error(`Failed to update price: ${error.message}`);
     } finally {
@@ -3485,10 +3516,52 @@ export default function AdminDashboard() {
                 Results Checker Settings 👑
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-8 pt-6">
+            <CardContent className="p-8 space-y-8">
+              {/* Inventory Stock Status Toggle */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 p-6 rounded-2xl border-2 border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40">
+                <div className="space-y-1 max-w-xl">
+                  <h4 className="font-black text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                    Inventory Stock Status:{" "}
+                    {rcOutOfStock ? (
+                      <span className="text-red-500 font-extrabold uppercase bg-red-500/10 px-3 py-1 rounded-full text-xs">
+                        Out of Stock 🚫
+                      </span>
+                    ) : (
+                      <span className="text-emerald-500 font-extrabold uppercase bg-emerald-500/10 px-3 py-1 rounded-full text-xs">
+                        In Stock & Active ✅
+                      </span>
+                    )}
+                  </h4>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">
+                    When marked as Out of Stock, the Results Checker section will show a sold-out notice and disable purchases for all customers and agents.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <Button
+                    type="button"
+                    disabled={isUpdatingRcStock}
+                    onClick={() => handleToggleRcStock(!rcOutOfStock)}
+                    className={`h-12 px-6 rounded-xl font-black text-sm uppercase transition-all flex items-center gap-2 shadow-md ${
+                      rcOutOfStock
+                        ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                        : "bg-red-600 hover:bg-red-700 text-white"
+                    }`}
+                  >
+                    {isUpdatingRcStock ? (
+                      "UPDATING..."
+                    ) : rcOutOfStock ? (
+                      "✅ Mark As IN STOCK"
+                    ) : (
+                      "🚫 Mark As OUT OF STOCK"
+                    )}
+                  </Button>
+                </div>
+              </div>
+
               <form
                 onSubmit={handleUpdatePricePerChecker}
-                className="space-y-6 max-w-2xl"
+                className="space-y-6 max-w-2xl pt-2"
               >
                 <div className="space-y-2">
                   <Label className="font-bold underline underline-offset-4 text-slate-700 dark:text-slate-300">
@@ -3513,7 +3586,7 @@ export default function AdminDashboard() {
                   disabled={isUpdatingPrice}
                   className="h-14 px-10 rounded-2xl font-black text-lg bg-secondary text-white shadow-lg hover:bg-primary transition-all flex items-center gap-2"
                 >
-                  {isUpdatingPrice ? "UPDATING... 👑" : "SAVE PRICE SETTING 👑"}
+                  {isUpdatingPrice ? "UPDATING... 👑" : "SAVE SETTINGS 👑"}
                 </Button>
               </form>
             </CardContent>
