@@ -12,6 +12,7 @@ import admin from 'firebase-admin';
 import { initializeApp as initClientApp } from 'firebase/app';
 import { 
     getFirestore as getClientFirestore,
+    addDoc as clientAddDoc,
     doc as clientDoc,
     getDoc as clientGetDoc,
     setDoc as clientSetDoc,
@@ -1412,6 +1413,27 @@ function getValidApkPath(): { path: string; size: number; mtime: Date } | null {
 
 // Direct APK Download Endpoint for King-J-Deals.apk
 app.get(['/downloads/King-J-Deals.apk', '/download/King-J-Deals.apk'], (req, res) => {
+  // Non-blocking log direct URL download
+  try {
+    const userAgent = req.get('user-agent') || '';
+    const isAndroid = /android/i.test(userAgent);
+    clientAddDoc(clientCollection(serverClientDb, 'app_downloads'), {
+      customerName: 'Direct Download / Browser Link',
+      customerEmail: '',
+      customerPhone: '',
+      isRegisteredUser: false,
+      deviceType: isAndroid ? 'android' : 'desktop',
+      platform: isAndroid ? 'Android Mobile' : 'Desktop / Web Browser',
+      userAgent: userAgent,
+      source: 'direct_url_request',
+      downloadUrl: 'https://kingjdeals.site/downloads/King-J-Deals.apk',
+      apkName: 'King-J-Deals.apk',
+      downloadedAt: clientServerTimestamp()
+    }).catch(() => {});
+  } catch (e) {
+    // Non-blocking
+  }
+
   const apkInfo = getValidApkPath();
 
   if (apkInfo) {

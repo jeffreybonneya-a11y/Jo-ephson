@@ -93,10 +93,12 @@ import {
   UserCheck,
   Globe,
   DollarSign,
+  Smartphone,
 } from "lucide-react";
 import { toast } from "sonner";
 import AdminBrandingManager from "./AdminBrandingManager";
 import AdminBookingCodesManager from "./AdminBookingCodesManager";
+import AdminDownloadsManager from "./AdminDownloadsManager";
 import { CloudinaryImageUploader } from "@/src/components/CloudinaryImageUploader";
 
 const parseDataAmountToMB = (amountStr: string): number => {
@@ -1940,6 +1942,13 @@ export default function AdminDashboard() {
             >
               <DollarSign className="w-3.5 h-3.5" />
               BOOKING CODES $
+            </TabsTrigger>
+            <TabsTrigger
+              value="downloads"
+              className="h-9 px-4 rounded-lg font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-400 data-[state=active]:via-yellow-300 data-[state=active]:to-amber-500 data-[state=active]:text-slate-950 data-[state=active]:shadow-sm transition-all focus-visible:ring-0 flex items-center gap-1.5"
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              DOWNLOADS 📱
             </TabsTrigger>
             <TabsTrigger
               value="branding"
@@ -5362,6 +5371,10 @@ export default function AdminDashboard() {
 
         <TabsContent value="booking_codes" className="mt-0 outline-none">
           <AdminBookingCodesManager />
+        </TabsContent>
+
+        <TabsContent value="downloads" className="mt-0 outline-none">
+          <AdminDownloadsManager />
         </TabsContent>
       </Tabs>
     </div>

@@ -308,5 +308,12 @@ service cloud.firestore {
       allow read, create, update: if true;
       allow delete: if isAdmin();
     }
+
+    match /app_downloads/{downloadId} {
+      // Anyone can log their download event
+      allow create: if true;
+      // Admins can view and manage all app download records
+      allow read, update, delete: if isAdmin();
+    }
   }
 }

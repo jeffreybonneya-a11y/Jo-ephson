@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { logAppDownload } from '@/src/lib/downloadTracking';
 
 interface AppDownloadModalProps {
   isOpen: boolean;
@@ -67,6 +68,7 @@ export default function AppDownloadModal({ isOpen, onClose }: AppDownloadModalPr
         // Immediately start downloading the APK on Android
         setDownloadStep('downloading');
         triggerApkDownload();
+        logAppDownload({ deviceType: 'android', source: 'website_modal_android_auto' });
         toast.success("Downloading King-J-Deals.apk! 👑", {
           description: "Check your phone notification bar for download progress.",
           duration: 5000,
@@ -84,6 +86,7 @@ export default function AppDownloadModal({ isOpen, onClose }: AppDownloadModalPr
   const handleDownload = () => {
     setDownloadStep('downloading');
     triggerApkDownload();
+    logAppDownload({ deviceType, source: 'website_modal_button_click', force: true });
 
     toast.success("Downloading King-J-Deals.apk! 👑", {
       description: "Look in your phone's notification bar for download progress.",

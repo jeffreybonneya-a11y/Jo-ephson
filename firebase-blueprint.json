@@ -205,6 +205,26 @@
         "status": { "type": "string" }
       },
       "required": ["bookingCodeId", "code", "price", "status"]
+    },
+    "AppDownload": {
+      "title": "App Download Record",
+      "description": "Log of customers and visitors downloading the Android APK through the website.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerEmail": { "type": "string" },
+        "customerPhone": { "type": "string" },
+        "isRegisteredUser": { "type": "boolean" },
+        "deviceType": { "type": "string", "enum": ["android", "desktop", "ios", "unknown"] },
+        "platform": { "type": "string" },
+        "userAgent": { "type": "string" },
+        "source": { "type": "string" },
+        "downloadUrl": { "type": "string" },
+        "apkName": { "type": "string" },
+        "downloadedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["customerName", "isRegisteredUser", "deviceType"]
     }
   },
   "firestore": {
@@ -255,6 +275,10 @@
     "/booking_code_purchases/{purchaseId}": {
       "schema": "BookingCodePurchase",
       "description": "Booking code purchase records."
+    },
+    "/app_downloads/{downloadId}": {
+      "schema": "AppDownload",
+      "description": "Log of customers downloading the app."
     }
   }
 }

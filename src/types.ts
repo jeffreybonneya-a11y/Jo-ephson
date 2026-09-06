@@ -228,3 +228,20 @@ export interface BookingCodePurchase {
   createdAt: any;
 }
 
+export interface AppDownload {
+  id: string;
+  userId?: string | null;
+  customerName: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  isRegisteredUser: boolean;
+  deviceType: "android" | "desktop" | "ios" | "unknown";
+  platform?: string;
+  userAgent?: string;
+  source?: string;
+  downloadUrl?: string;
+  apkName?: string;
+  downloadedAt: any;
+}
+
+
