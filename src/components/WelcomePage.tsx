@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { auth } from '@/src/lib/firebase';
 import { syncUserCustomerRecord } from '@/src/lib/userSync';
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { Crown, Sparkles, ShieldCheck, ExternalLink } from 'lucide-react';
+import { GoogleAuthProvider, signInWithPopup, signInWithCredential } from 'firebase/auth';
+import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
+import { isNativeApp, isAndroidNative } from '@/src/lib/platform';
+import { Crown, Sparkles, ShieldCheck, ExternalLink, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
+import AppDownloadModal from './AppDownloadModal';
 
 interface WelcomePageProps {
   onLoginSuccess?: () => void;
@@ -13,6 +16,7 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isIframe, setIsIframe] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
 
   useEffect(() => {
     try {
@@ -27,6 +31,134 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
     setIsLoading(true);
     setErrorMessage(null);
 
+    // 1. NATIVE ANDROID / CAPACITOR FLOW (Must NOT use signInWithPopup)
+    if (isNativeApp() || isAndroidNative()) {
+      const envWebClientId = (import.meta as any).env?.VITE_FIREBASE_WEB_CLIENT_ID?.trim();
+      const clientOptions = envWebClientId ? { serverClientId: envWebClientId, clientId: envWebClientId } : {};
+
+      try {
+        console.log("[WelcomePage Native Auth] Initiating native Google Sign-in...");
+
+        let result;
+        try {
+          // Attempt modern Credential Manager first
+          console.log("[WelcomePage Native Auth] Attempting sign-in with Credential Manager...", clientOptions);
+          result = await FirebaseAuthentication.signInWithGoogle({ useCredentialManager: true, ...clientOptions });
+        } catch (cmError: any) {
+          console.warn("[WelcomePage Native Auth] Credential Manager returned:", cmError);
+          const cmMsg = cmError?.message || String(cmError);
+
+          // If Credential Manager fails, cancelled by system, or unsupported, try Google Play Services standard flow
+          console.log("[WelcomePage Native Auth] Trying Google Play Services Sign-In fallback...");
+          try {
+            result = await FirebaseAuthentication.signInWithGoogle({ useCredentialManager: false, ...clientOptions });
+          } catch (fallbackError: any) {
+            console.error("[WelcomePage Native Auth] Both Credential Manager and standard Sign-In failed:", fallbackError);
+            throw fallbackError || cmError;
+          }
+        }
+        console.log("[WelcomePage Native Auth] Native sign-in result received:", JSON.stringify(result));
+
+        // Extract ID token & access token from native credential
+        let idToken = result.credential?.idToken;
+        const accessToken = result.credential?.accessToken;
+
+        if (!idToken) {
+          try {
+            const tokenResult = await FirebaseAuthentication.getIdToken({ forceRefresh: true });
+            idToken = tokenResult?.token;
+          } catch (tErr) {
+            console.warn("[WelcomePage Native Auth] Secondary token fetch:", tErr);
+          }
+        }
+
+        if (idToken) {
+          const credential = GoogleAuthProvider.credential(idToken, accessToken || undefined);
+          const userCredential = await signInWithCredential(auth, credential);
+          const user = userCredential.user;
+
+          if (user) {
+            await syncUserCustomerRecord(user);
+            const userFullName = user.displayName || (user.email ? user.email.split('@')[0] : 'Customer');
+            localStorage.setItem('kj_session_last_active_at', Date.now().toString());
+            toast.success(`Welcome to King J Deals, ${userFullName}! 👑`);
+            if (onLoginSuccess) {
+              onLoginSuccess();
+            }
+          }
+        } else if (result.user) {
+          if (auth.currentUser) {
+            await syncUserCustomerRecord(auth.currentUser);
+          }
+          const userFullName = result.user.displayName || (result.user.email ? result.user.email.split('@')[0] : 'Customer');
+          localStorage.setItem('kj_session_last_active_at', Date.now().toString());
+          toast.success(`Welcome to King J Deals, ${userFullName}! 👑`);
+          if (onLoginSuccess) {
+            onLoginSuccess();
+          }
+        }
+      } catch (nativeError: any) {
+        console.error("[WelcomePage Native Auth] Full Login Error:", {
+          message: nativeError?.message,
+          code: nativeError?.code,
+          error: nativeError
+        });
+        const errMsg = nativeError?.message || String(nativeError);
+        const errCode = nativeError?.code;
+
+        // Developer / Configuration / Web Client ID mismatch errors (Code 10 / DEVELOPER_ERROR)
+        if (
+          errMsg.includes('10:') || 
+          errMsg.includes('DEVELOPER_ERROR') || 
+          errMsg.includes('developer error') ||
+          errMsg.includes('default_web_client_id')
+        ) {
+          const msg = "Google Sign-In Configuration Error (Code 10 / DEVELOPER_ERROR)\n\n" +
+            "• Package ID: com.kingjdeals.app\n" +
+            "• Release SHA-1: BB:61:07:1E:39:16:FC:C9:9B:1F:0A:20:39:31:4E:72:E3:0E:5C:B4\n" +
+            "• Current Web Client ID: " + (envWebClientId || "768663077481-web.apps.googleusercontent.com") + "\n\n" +
+            "Action Required in Firebase Console:\n" +
+            "Go to Authentication → Sign-in method → Google → Web SDK configuration, copy your real Web client ID (format: 768663077481-xxx...apps.googleusercontent.com), and place it in google-services.json.";
+          setErrorMessage(msg);
+          toast.error("Google Sign-In configuration error (Code 10 / DEVELOPER_ERROR).", { duration: 9000 });
+          return;
+        }
+
+        // Credential / OAuth token cancellation or verification failure
+        if (
+          errMsg.includes('GET_CREDENTIAL_CANCELED') ||
+          errMsg.includes('GetCredentialCancellationException') ||
+          errMsg.includes('16') ||
+          errMsg.includes('12501')
+        ) {
+          const msg = "Google Sign-In Credential Error (Code 12501 / Canceled by Provider)\n\n" +
+            "Google Play Services could not authenticate with the provided client ID. Ensure that the Web Client ID in google-services.json matches your Firebase Console.";
+          setErrorMessage(msg);
+          toast.error("Google Sign-In could not verify credentials with Google.", { duration: 8000 });
+          return;
+        }
+
+        if (
+          errMsg.includes('network') || 
+          errMsg.includes('offline') || 
+          errCode === 'auth/network-request-failed'
+        ) {
+          const msg = "Network connection interrupted. Please check your internet connection and try again.";
+          setErrorMessage(msg);
+          toast.error(msg, { duration: 5000 });
+          return;
+        }
+
+        const msg = errMsg || "Google sign-in could not be completed on Android.";
+        setErrorMessage(msg);
+        toast.error(msg, { duration: 7000 });
+      } finally {
+        setIsLoading(false);
+      }
+      return; // CRITICAL: Stop here, never fall through to web signInWithPopup
+    }
+
+    // 2. WEB BROWSER FLOW (signInWithPopup)
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
 
@@ -374,7 +506,7 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
           {/* Error notice if applicable */}
           {errorMessage && (
             <div className="mb-5 p-3.5 rounded-2xl bg-red-950/40 border border-red-500/40 text-red-200 text-xs font-medium space-y-2">
-              <p className="leading-snug">{errorMessage}</p>
+              <p className="leading-relaxed whitespace-pre-line text-[12px]">{errorMessage}</p>
               {isIframe && (
                 <button
                   type="button"
@@ -457,6 +589,18 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
               <span>Instant 1-Click Access • No Password Needed</span>
             </div>
+
+            {/* Android APK Download Option */}
+            <div className="pt-3 border-t border-slate-700/60 text-center">
+              <button
+                type="button"
+                onClick={() => setIsDownloadModalOpen(true)}
+                className="w-full py-2.5 px-4 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 hover:text-amber-200 text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm active:scale-98"
+              >
+                <Smartphone className="w-4 h-4 text-amber-400" />
+                <span>📱 Download King J Deals Android App</span>
+              </button>
+            </div>
           </div>
         </div>
       </main>
@@ -470,6 +614,12 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
           © {new Date().getFullYear()} King J Deals. All rights reserved.
         </p>
       </footer>
+
+      {/* App Download Modal */}
+      <AppDownloadModal 
+        isOpen={isDownloadModalOpen} 
+        onClose={() => setIsDownloadModalOpen(false)} 
+      />
     </div>
   );
 }

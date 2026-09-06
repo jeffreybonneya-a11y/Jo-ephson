@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { motion } from 'motion/react';
-import { Zap, Clock, Crown, CreditCard, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Zap, Clock, Crown, CreditCard, ArrowRight, ShieldCheck, Smartphone } from 'lucide-react';
 
 export default function Hero() {
   const scrollToPricing = () => {
@@ -44,8 +44,8 @@ export default function Hero() {
               High-speed non-expiry data bundles for MTN, Telecel, and AirtelTigo — backed by Paystack security and 24/7 royal support.
             </p>
 
-            {/* Single Clear Primary CTA Button */}
-            <div className="pt-2">
+            {/* Primary & App Download Action Buttons */}
+            <div className="pt-2 flex flex-wrap items-center gap-3.5">
               <Button 
                 size="lg" 
                 className="h-13 px-8 text-sm sm:text-base font-black rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 shadow-[0_4px_25px_rgba(245,158,11,0.35)] hover:brightness-110 hover:scale-[1.02] transition-all gap-2.5 border border-amber-300/50 cursor-pointer" 
@@ -53,6 +53,16 @@ export default function Hero() {
               >
                 <span>Explore Deals</span>
                 <ArrowRight className="w-5 h-5 fill-slate-950" />
+              </Button>
+
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => window.dispatchEvent(new CustomEvent('OPEN_APP_DOWNLOAD_MODAL'))}
+                className="h-13 px-6 text-sm sm:text-base font-black rounded-xl bg-[#111C38] hover:bg-slate-800 text-amber-300 hover:text-amber-200 border border-amber-500/40 shadow-lg hover:scale-[1.02] transition-all gap-2.5 cursor-pointer"
+              >
+                <Smartphone className="w-5 h-5 text-amber-400" />
+                <span>Download App 📱</span>
               </Button>
             </div>
           </motion.div>

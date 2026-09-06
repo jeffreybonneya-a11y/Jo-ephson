@@ -2119,6 +2119,25 @@ app.get("/sitemap.xml", (req, res) => {
   </url>
 </urlset>`);
 });
+app.get(["/downloads/King-J-Deals.apk", "/download/King-J-Deals.apk"], (req, res) => {
+  const candidatePaths = [
+    import_path.default.join(process.cwd(), "public", "downloads", "King-J-Deals.apk"),
+    import_path.default.join(process.cwd(), "dist", "downloads", "King-J-Deals.apk"),
+    import_path.default.join(process.cwd(), "downloads", "King-J-Deals.apk"),
+    import_path.default.join(process.cwd(), "android", "app", "build", "outputs", "apk", "release", "King-J-Deals.apk"),
+    import_path.default.join(process.cwd(), "android", "app", "build", "outputs", "apk", "release", "app-release.apk")
+  ];
+  for (const apkPath of candidatePaths) {
+    if (import_fs.default.existsSync(apkPath)) {
+      res.setHeader("Content-Type", "application/vnd.android.package-archive");
+      res.setHeader("Content-Disposition", 'attachment; filename="King-J-Deals.apk"');
+      return res.sendFile(apkPath);
+    }
+  }
+  res.status(404).json({
+    error: "King-J-Deals.apk is being uploaded. Please place the release APK in public/downloads/King-J-Deals.apk"
+  });
+});
 async function startServer() {
   console.log("[Startup] Checking payment gateway configuration...");
   const hasPaystackSecret = Boolean(getPaystackSecretKey());

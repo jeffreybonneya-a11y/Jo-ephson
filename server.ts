@@ -1378,6 +1378,30 @@ app.get('/sitemap.xml', (req, res) => {
 </urlset>`);
 });
 
+// Direct APK Download Endpoint for King-J-Deals.apk
+app.get(['/downloads/King-J-Deals.apk', '/download/King-J-Deals.apk'], (req, res) => {
+  const candidatePaths = [
+    path.join(process.cwd(), 'public', 'downloads', 'King-J-Deals.apk'),
+    path.join(process.cwd(), 'dist', 'downloads', 'King-J-Deals.apk'),
+    path.join(process.cwd(), 'downloads', 'King-J-Deals.apk'),
+    path.join(process.cwd(), 'android', 'app', 'build', 'outputs', 'apk', 'release', 'King-J-Deals.apk'),
+    path.join(process.cwd(), 'android', 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk'),
+  ];
+
+  for (const apkPath of candidatePaths) {
+    if (fs.existsSync(apkPath)) {
+      res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+      res.setHeader('Content-Disposition', 'attachment; filename="King-J-Deals.apk"');
+      return res.sendFile(apkPath);
+    }
+  }
+
+  // Fallback response if APK has not yet been placed on server
+  res.status(404).json({
+    error: "King-J-Deals.apk is being uploaded. Please place the release APK in public/downloads/King-J-Deals.apk"
+  });
+});
+
 // React App Serving
 async function startServer() {
   console.log("[Startup] Checking payment gateway configuration...");

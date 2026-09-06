@@ -29,6 +29,7 @@ import GetFreeDataWidget from './components/GetFreeDataWidget';
 import WhatsAppChannelButton from './components/WhatsAppChannelButton';
 import WelcomePage from './components/WelcomePage';
 import SeoPageLayout from './components/SeoPageLayout';
+import AppDownloadModal from './components/AppDownloadModal';
 import { getSeoPageData, SeoPageData } from './data/seoPages';
 import { useSessionTimeout } from './hooks/useSessionTimeout';
 import { getApiUrl } from './lib/api';
@@ -52,6 +53,7 @@ export default function App() {
   // Download page state
   const [downloadReadyUrl, setDownloadReadyUrl] = useState<string | null>(null);
   const [isDownloadView, setIsDownloadView] = useState(false);
+  const [isAppDownloadOpen, setIsAppDownloadOpen] = useState(false);
 
   // Agent store context
   const [agentContext, setAgentContext] = useState<any>(null);
@@ -60,6 +62,12 @@ export default function App() {
 
   // Theme management
   const { settings } = useTheme();
+
+  useEffect(() => {
+    const handleOpenAppDownload = () => setIsAppDownloadOpen(true);
+    window.addEventListener('OPEN_APP_DOWNLOAD_MODAL', handleOpenAppDownload);
+    return () => window.removeEventListener('OPEN_APP_DOWNLOAD_MODAL', handleOpenAppDownload);
+  }, []);
 
   useEffect(() => {
     const handleRouteCheck = () => {
@@ -549,6 +557,12 @@ export default function App() {
       <PriceDropNotifier />
       <GetFreeDataWidget />
       <WhatsAppChannelButton />
+
+      {/* Official Android App Direct Download Modal */}
+      <AppDownloadModal 
+        isOpen={isAppDownloadOpen} 
+        onClose={() => setIsAppDownloadOpen(false)} 
+      />
     </div>
   );
 }

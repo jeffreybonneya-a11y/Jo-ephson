@@ -7,7 +7,7 @@ import {
   signInWithCredential
 } from 'firebase/auth';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
-import { isNativeApp } from '@/src/lib/platform';
+import { isNativeApp, isAndroidNative } from '@/src/lib/platform';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Loader2, Chrome, Crown, ShieldCheck } from 'lucide-react';
@@ -34,30 +34,47 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const handleGoogleLogin = async () => {
     setIsLoading(true);
 
-    // 1. Native Android Authentication Flow
-    if (isNativeApp()) {
+    // 1. Native Android / iOS Authentication Flow
+    if (isNativeApp() || isAndroidNative()) {
       try {
-        const result = await FirebaseAuthentication.signInWithGoogle();
+        console.log("[AuthModal Native Auth] Initiating native Google Sign-in with Credential Manager...");
+        let result;
+        try {
+          // Attempt modern Credential Manager first
+          result = await FirebaseAuthentication.signInWithGoogle({ useCredentialManager: true });
+        } catch (cmError: any) {
+          const cmMsg = cmError?.message || String(cmError);
+          // If Credential Manager is unsupported on this device, fall back to Google Play Services Sign-in
+          if (
+            cmMsg.includes("Credential Manager") || 
+            cmMsg.includes("credential provider") || 
+            cmMsg.includes("No credential") ||
+            cmMsg.includes("unsupported") ||
+            cmError?.code === "17"
+          ) {
+            console.warn("[AuthModal Native Auth] Credential Manager not supported or unavailable on this device, falling back to Google Play Services...", cmError);
+            result = await FirebaseAuthentication.signInWithGoogle({ useCredentialManager: false });
+          } else {
+            throw cmError;
+          }
+        }
+        console.log("[AuthModal Native Auth] Google Sign-in result:", result);
         
-        // Retrieve ID token from credential
+        // Retrieve ID token and Access token from credential
         let idToken = result.credential?.idToken;
+        const accessToken = result.credential?.accessToken;
 
         if (!idToken) {
-          // If no token in credential directly, check if user exists or fetch token
-          if (!result.user) {
-            toast.info("Google sign-in cancelled.");
-            return;
-          }
           try {
-            const tokenResult = await FirebaseAuthentication.getIdToken();
+            const tokenResult = await FirebaseAuthentication.getIdToken({ forceRefresh: true });
             idToken = tokenResult?.token;
           } catch (tErr) {
-            console.warn("[Native Auth] Could not fetch secondary ID token:", tErr);
+            console.warn("[AuthModal Native Auth] Secondary ID token fetch:", tErr);
           }
         }
 
         if (idToken) {
-          const credential = GoogleAuthProvider.credential(idToken);
+          const credential = GoogleAuthProvider.credential(idToken, accessToken || undefined);
           const userCredential = await signInWithCredential(auth, credential);
           const user = userCredential.user;
 
@@ -74,32 +91,38 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         toast.success("Logged in with Google! 👑");
         onClose();
       } catch (nativeError: any) {
-        console.error("[Native Auth] Login Error:", nativeError);
+        console.error("[AuthModal Native Auth] Full Login Error:", {
+          message: nativeError?.message,
+          code: nativeError?.code,
+          error: nativeError
+        });
         const errMsg = nativeError?.message || String(nativeError);
         const errCode = nativeError?.code;
 
-        // User cancellation (Google Play services code 12501 or 16)
-        if (
-          errCode === '12501' || 
-          errCode === '16' ||
-          errMsg.includes('canceled') || 
-          errMsg.includes('cancelled') || 
-          errMsg.includes('closed') ||
-          errMsg.includes('Sign in action cancelled')
-        ) {
-          toast.info("Google sign-in cancelled.");
-          return;
-        }
-
-        // Developer / Configuration errors
+        // Developer / Configuration / Web Client ID mismatch errors
         if (
           errMsg.includes('10:') || 
           errMsg.includes('DEVELOPER_ERROR') || 
-          errMsg.includes('developer error')
+          errMsg.includes('developer error') ||
+          errMsg.includes('default_web_client_id')
         ) {
           toast.error(
-            "Google sign-in configuration pending. Please ensure SHA-1 fingerprint and google-services.json are configured in Firebase.",
-            { duration: 7000 }
+            "Google Sign-In configuration error (Code 10 / Developer Error): Ensure your Web Client ID and SHA-1 are configured in Firebase Console.",
+            { duration: 8000 }
+          );
+          return;
+        }
+
+        // Credential / OAuth token cancellation (often triggered when serverClientId / Web Client ID does not match Firebase)
+        if (
+          errMsg.includes('GET_CREDENTIAL_CANCELED') ||
+          errMsg.includes('GetCredentialCancellationException') ||
+          errMsg.includes('16') ||
+          errMsg.includes('12501')
+        ) {
+          toast.error(
+            "Google Sign-In was cancelled or failed to verify credentials with Google. If you selected an account, verify that the Web Client ID in google-services.json matches your Firebase Console.",
+            { duration: 8000 }
           );
           return;
         }
@@ -114,11 +137,11 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           return;
         }
 
-        toast.error("Unable to sign in with Google. Please try again.", { duration: 5000 });
+        toast.error(`Sign in error: ${errMsg || "Please try again."}`, { duration: 7000 });
       } finally {
         setIsLoading(false);
       }
-      return;
+      return; // CRITICAL: Stop here, never fall through to web flow
     }
 
     // 2. Web Authentication Flow (signInWithPopup)

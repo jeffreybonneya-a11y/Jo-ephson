@@ -4,4 +4,5 @@
     <string name="title_activity_main">King J Deals</string>
     <string name="package_name">com.kingjdeals.app</string>
     <string name="custom_url_scheme">com.kingjdeals.app</string>
+    <string name="default_web_client_id">768663077481-web.apps.googleusercontent.com</string>
 </resources>

@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { auth, db } from '@/src/lib/firebase';
 import { signOut } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
-import { LogIn, LogOut, LayoutDashboard, History, User, Crown, Home, MessageCircle, Download, DollarSign } from 'lucide-react';
+import { LogIn, LogOut, LayoutDashboard, History, User, Crown, Home, MessageCircle, Download, DollarSign, Smartphone } from 'lucide-react';
 import { onSnapshot, collection, query, where } from 'firebase/firestore';
 import { UserProfile } from '@/src/types';
 import { useBranding } from '@/src/hooks/useBranding';
@@ -278,6 +278,14 @@ export default function Navbar({
                    <History className="w-4 h-4" />
                    HISTORY
                  </button>
+                 <button 
+                  onClick={() => window.dispatchEvent(new CustomEvent('OPEN_APP_DOWNLOAD_MODAL'))}
+                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-extrabold text-xs tracking-wider text-amber-300 hover:text-amber-200 hover:bg-amber-500/10 border border-amber-500/30 transition-all cursor-pointer shadow-sm"
+                  title="Download Official King J Deals Android App"
+                 >
+                   <Smartphone className="w-4 h-4 text-amber-400" />
+                   DOWNLOAD APP 📱
+                 </button>
                  {downloadReady && (
                    <button 
                     onClick={() => onDownloadView(!isDownloadView)}
@@ -298,6 +306,17 @@ export default function Navbar({
             )}
 
             <div className="flex items-center gap-2 shrink-0">
+               {/* Quick Download App Pill for Mobile */}
+               <button
+                 type="button"
+                 onClick={() => window.dispatchEvent(new CustomEvent('OPEN_APP_DOWNLOAD_MODAL'))}
+                 className="md:hidden flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 text-amber-300 font-extrabold text-xs transition-all cursor-pointer active:scale-95 shadow-sm"
+                 title="Download King J Deals Android App"
+               >
+                 <Smartphone className="w-3.5 h-3.5 text-amber-400" />
+                 <span>APP 📱</span>
+               </button>
+
                {user && profile && (
                 <div className="hidden lg:flex items-center gap-2 bg-[#111C38] px-4 py-2 rounded-xl border border-amber-500/20">
                   <User className="w-4 h-4 text-amber-400" />

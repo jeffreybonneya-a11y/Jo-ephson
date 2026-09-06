@@ -87,6 +87,14 @@ export default function Footer() {
               <h4 className="text-white font-bold mb-6">Quick Links</h4>
               <ul className="space-y-3 text-sm">
                 <li><a href="/" onClick={(e) => handleLinkClick(e, '/')} className="hover:text-primary transition-colors">Home Store</a></li>
+                <li>
+                  <button 
+                    onClick={() => window.dispatchEvent(new CustomEvent('OPEN_APP_DOWNLOAD_MODAL'))} 
+                    className="hover:text-amber-300 transition-colors text-left flex items-center gap-1.5 text-amber-400 font-bold cursor-pointer"
+                  >
+                    <span>📱 Download Android App (APK)</span>
+                  </button>
+                </li>
                 <li><button onClick={() => setPolicyModal('about')} className="hover:text-primary transition-colors text-left">About Us</button></li>
                 <li><button onClick={() => setPolicyModal('terms')} className="hover:text-primary transition-colors text-left">Terms of Service</button></li>
                 <li><button onClick={() => setPolicyModal('privacy')} className="hover:text-primary transition-colors text-left">Privacy Policy</button></li>
