@@ -195,7 +195,7 @@ export default function AdminDashboard() {
 
   const [pricePerChecker, setPricePerChecker] = useState<number>(25);
   const [rcWholesalePrice, setRcWholesalePrice] = useState<number>(19);
-  const [rcOutOfStock, setRcOutOfStock] = useState<boolean>(true);
+  const [rcOutOfStock, setRcOutOfStock] = useState<boolean>(false);
   const [agentStorePrice, setAgentStorePrice] = useState<number>(50);
   const [isUpdatingAgentStorePrice, setIsUpdatingAgentStorePrice] = useState<boolean>(false);
   const [isUpdatingPrice, setIsUpdatingPrice] = useState<boolean>(false);
@@ -424,7 +424,7 @@ export default function AdminDashboard() {
           } else if (typeof data.outOfStock === "boolean") {
             setRcOutOfStock(data.outOfStock);
           } else {
-            setRcOutOfStock(true);
+            setRcOutOfStock(false);
           }
         }
       }

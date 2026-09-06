@@ -38,7 +38,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
   const [pricePerChecker, setPricePerChecker] = useState<number>(25);
   const [rcWholesalePrice, setRcWholesalePrice] = useState<number>(19);
   const [loadingPrice, setLoadingPrice] = useState<boolean>(true);
-  const [isOutOfStock, setIsOutOfStock] = useState<boolean>(true);
+  const [isOutOfStock, setIsOutOfStock] = useState<boolean>(false);
   const [chargeSettings, setChargeSettings] = useState<{
     agentStoreCharge: number;
     retailResultsCheckerCharge: number;
@@ -108,15 +108,15 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
         } else if (typeof data.outOfStock === 'boolean') {
           setIsOutOfStock(data.outOfStock);
         } else {
-          setIsOutOfStock(true);
+          setIsOutOfStock(false);
         }
       } else {
-        setIsOutOfStock(true);
+        setIsOutOfStock(false);
       }
       setLoadingPrice(false);
     }, (error) => {
       console.error("Failed to load results checker settings:", error);
-      setIsOutOfStock(true);
+      setIsOutOfStock(false);
       setLoadingPrice(false);
     });
 

@@ -11,7 +11,7 @@ interface WaecPromoCardProps {
 
 export default function WaecPromoCard({ onNavigateToChecker }: WaecPromoCardProps) {
   const [imgError, setImgError] = useState(false);
-  const [isOutOfStock, setIsOutOfStock] = useState(true);
+  const [isOutOfStock, setIsOutOfStock] = useState(false);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'settings', 'results_checker'), (snapshot) => {
@@ -24,13 +24,13 @@ export default function WaecPromoCard({ onNavigateToChecker }: WaecPromoCardProp
         } else if (typeof data.outOfStock === 'boolean') {
           setIsOutOfStock(data.outOfStock);
         } else {
-          setIsOutOfStock(true);
+          setIsOutOfStock(false);
         }
       } else {
-        setIsOutOfStock(true);
+        setIsOutOfStock(false);
       }
     }, () => {
-      setIsOutOfStock(true);
+      setIsOutOfStock(false);
     });
 
     return () => unsub();

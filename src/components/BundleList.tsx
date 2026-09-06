@@ -69,7 +69,7 @@ export default function BundleList({
   const [fcOptionTab, setFcOptionTab] = useState("points");
   const [announcement, setAnnouncement] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isRcOutOfStock, setIsRcOutOfStock] = useState(true);
+  const [isRcOutOfStock, setIsRcOutOfStock] = useState(false);
 
   // Unhidden all services as requested by user
   const hiddenTabs: string[] = [];
@@ -289,14 +289,14 @@ export default function BundleList({
           } else if (typeof data.outOfStock === "boolean") {
             setIsRcOutOfStock(data.outOfStock);
           } else {
-            setIsRcOutOfStock(true);
+            setIsRcOutOfStock(false);
           }
         } else {
-          setIsRcOutOfStock(true);
+          setIsRcOutOfStock(false);
         }
       },
       () => {
-        setIsRcOutOfStock(true);
+        setIsRcOutOfStock(false);
       }
     );
 
