@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { WHATSAPP_CHANNEL_URL } from '@/src/constants/links';
 
-const WHATSAPP_CHANNEL_URL = 'https://whatsapp.com/channel/0029Vb807HG6mYPM5A6jPL1j';
 const STORAGE_KEY = 'kingj_whatsapp_channel_btn_pos';
 const DRAG_THRESHOLD = 6; // Pixels required to differentiate a drag from a tap/click
 

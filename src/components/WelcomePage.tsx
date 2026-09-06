@@ -7,6 +7,7 @@ import { isNativeApp, isAndroidNative } from '@/src/lib/platform';
 import { Crown, Sparkles, ShieldCheck, ExternalLink, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 import AppDownloadModal from './AppDownloadModal';
+import WhatsAppChannelAdModal from './WhatsAppChannelAdModal';
 
 interface WelcomePageProps {
   onLoginSuccess?: () => void;
@@ -17,6 +18,7 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
   const [isIframe, setIsIframe] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
+  const [isWhatsAppAdOpen, setIsWhatsAppAdOpen] = useState(false);
 
   useEffect(() => {
     try {
@@ -590,8 +592,17 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
               <span>Instant 1-Click Access • No Password Needed</span>
             </div>
 
-            {/* Android APK Download Option */}
-            <div className="pt-3 border-t border-slate-700/60 text-center">
+            {/* Android APK Download Option & WhatsApp Channel */}
+            <div className="pt-3 border-t border-slate-700/60 space-y-2 text-center">
+              <button
+                type="button"
+                onClick={() => setIsWhatsAppAdOpen(true)}
+                className="w-full py-2.5 px-4 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 hover:text-emerald-200 text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm active:scale-98"
+              >
+                <span className="text-sm">📢</span>
+                <span>Join King J Deals WhatsApp Channel</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setIsDownloadModalOpen(true)}
@@ -619,6 +630,12 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
       <AppDownloadModal 
         isOpen={isDownloadModalOpen} 
         onClose={() => setIsDownloadModalOpen(false)} 
+      />
+
+      {/* Official WhatsApp Channel Ad Modal */}
+      <WhatsAppChannelAdModal 
+        forceOpen={isWhatsAppAdOpen}
+        onClose={() => setIsWhatsAppAdOpen(false)}
       />
     </div>
   );

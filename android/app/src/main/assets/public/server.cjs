@@ -2119,7 +2119,7 @@ app.get("/sitemap.xml", (req, res) => {
   </url>
 </urlset>`);
 });
-app.get(["/downloads/King-J-Deals.apk", "/download/King-J-Deals.apk"], (req, res) => {
+function getValidApkPath() {
   const candidatePaths = [
     import_path.default.join(process.cwd(), "public", "downloads", "King-J-Deals.apk"),
     import_path.default.join(process.cwd(), "dist", "downloads", "King-J-Deals.apk"),
@@ -2128,14 +2128,71 @@ app.get(["/downloads/King-J-Deals.apk", "/download/King-J-Deals.apk"], (req, res
     import_path.default.join(process.cwd(), "android", "app", "build", "outputs", "apk", "release", "app-release.apk")
   ];
   for (const apkPath of candidatePaths) {
-    if (import_fs.default.existsSync(apkPath)) {
-      res.setHeader("Content-Type", "application/vnd.android.package-archive");
-      res.setHeader("Content-Disposition", 'attachment; filename="King-J-Deals.apk"');
-      return res.sendFile(apkPath);
+    try {
+      if (import_fs.default.existsSync(apkPath)) {
+        const stat = import_fs.default.statSync(apkPath);
+        if (stat.isFile() && stat.size > 100 * 1024) {
+          const fd = import_fs.default.openSync(apkPath, "r");
+          const buffer = Buffer.alloc(4);
+          import_fs.default.readSync(fd, buffer, 0, 4, 0);
+          import_fs.default.closeSync(fd);
+          if (buffer[0] === 80 && buffer[1] === 75 && buffer[2] === 3 && buffer[3] === 4) {
+            return { path: apkPath, size: stat.size, mtime: stat.mtime };
+          }
+        }
+      }
+    } catch {
     }
   }
+  return null;
+}
+app.get(["/downloads/King-J-Deals.apk", "/download/King-J-Deals.apk"], (req, res) => {
+  const apkInfo = getValidApkPath();
+  if (apkInfo) {
+    res.setHeader("Content-Type", "application/vnd.android.package-archive");
+    res.setHeader("Content-Disposition", 'attachment; filename="King-J-Deals.apk"');
+    res.setHeader("Content-Length", apkInfo.size.toString());
+    res.setHeader("Accept-Ranges", "bytes");
+    res.setHeader("Cache-Control", "public, max-age=3600, must-revalidate");
+    return res.sendFile(apkInfo.path, {
+      acceptRanges: true,
+      cacheControl: false
+    });
+  }
   res.status(404).json({
-    error: "King-J-Deals.apk is being uploaded. Please place the release APK in public/downloads/King-J-Deals.apk"
+    success: false,
+    error: "King-J-Deals.apk release build is not yet deployed or is incomplete.",
+    expectedLocation: "public/downloads/King-J-Deals.apk",
+    expectedFilename: "King-J-Deals.apk",
+    downloadUrl: "/downloads/King-J-Deals.apk",
+    instructions: "Please place your signed release APK in public/downloads/King-J-Deals.apk."
+  });
+});
+app.get("/api/apk-status", (req, res) => {
+  const apkInfo = getValidApkPath();
+  if (apkInfo) {
+    const sizeMb = (apkInfo.size / (1024 * 1024)).toFixed(1);
+    return res.json({
+      available: true,
+      filename: "King-J-Deals.apk",
+      downloadUrl: "/downloads/King-J-Deals.apk",
+      sizeBytes: apkInfo.size,
+      sizeFormatted: `${sizeMb} MB`,
+      lastModified: apkInfo.mtime.toISOString(),
+      path: apkInfo.path
+    });
+  }
+  const publicPath = import_path.default.join(process.cwd(), "public", "downloads", "King-J-Deals.apk");
+  const fileExists = import_fs.default.existsSync(publicPath);
+  const size = fileExists ? import_fs.default.statSync(publicPath).size : 0;
+  return res.json({
+    available: false,
+    filename: "King-J-Deals.apk",
+    downloadUrl: "/downloads/King-J-Deals.apk",
+    filePresent: fileExists,
+    sizeBytes: size,
+    warning: fileExists && size < 100 * 1024 ? `Detected file is only ${size} bytes (invalid/incomplete stub). An authentic Android APK is typically 5MB - 35MB.` : "No release APK file detected.",
+    expectedLocation: "public/downloads/King-J-Deals.apk"
   });
 });
 async function startServer() {

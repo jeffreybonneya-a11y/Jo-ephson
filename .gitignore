@@ -6,3 +6,16 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Android Keystores & Signing Secrets (Never commit private keys or credentials)
+*.jks
+*.keystore
+keystore.properties
+android/keystore.properties
+*.p8
+*.p12
+
+# Explicitly ensure the production release APK in public/downloads is committed to GitHub
+!public/downloads/King-J-Deals.apk
+!public/downloads/*.apk
+

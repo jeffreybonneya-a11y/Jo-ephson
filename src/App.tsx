@@ -30,6 +30,7 @@ import WhatsAppChannelButton from './components/WhatsAppChannelButton';
 import WelcomePage from './components/WelcomePage';
 import SeoPageLayout from './components/SeoPageLayout';
 import AppDownloadModal from './components/AppDownloadModal';
+import WhatsAppChannelAdModal from './components/WhatsAppChannelAdModal';
 import { getSeoPageData, SeoPageData } from './data/seoPages';
 import { useSessionTimeout } from './hooks/useSessionTimeout';
 import { getApiUrl } from './lib/api';
@@ -441,6 +442,7 @@ export default function App() {
           onNavigateToStore={handleNavigateToStore} 
           user={user} 
         />
+        <WhatsAppChannelAdModal />
       </>
     );
   }
@@ -563,6 +565,9 @@ export default function App() {
         isOpen={isAppDownloadOpen} 
         onClose={() => setIsAppDownloadOpen(false)} 
       />
+
+      {/* Official WhatsApp Channel Announcement Ad */}
+      <WhatsAppChannelAdModal />
     </div>
   );
 }

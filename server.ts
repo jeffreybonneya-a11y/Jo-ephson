@@ -1378,8 +1378,7 @@ app.get('/sitemap.xml', (req, res) => {
 </urlset>`);
 });
 
-// Direct APK Download Endpoint for King-J-Deals.apk
-app.get(['/downloads/King-J-Deals.apk', '/download/King-J-Deals.apk'], (req, res) => {
+function getValidApkPath(): { path: string; size: number; mtime: Date } | null {
   const candidatePaths = [
     path.join(process.cwd(), 'public', 'downloads', 'King-J-Deals.apk'),
     path.join(process.cwd(), 'dist', 'downloads', 'King-J-Deals.apk'),
@@ -1389,16 +1388,86 @@ app.get(['/downloads/King-J-Deals.apk', '/download/King-J-Deals.apk'], (req, res
   ];
 
   for (const apkPath of candidatePaths) {
-    if (fs.existsSync(apkPath)) {
-      res.setHeader('Content-Type', 'application/vnd.android.package-archive');
-      res.setHeader('Content-Disposition', 'attachment; filename="King-J-Deals.apk"');
-      return res.sendFile(apkPath);
+    try {
+      if (fs.existsSync(apkPath)) {
+        const stat = fs.statSync(apkPath);
+        // A valid APK must be an actual binary file of at least 100KB (typically 5MB - 35MB)
+        if (stat.isFile() && stat.size > 100 * 1024) {
+          // Verify ZIP magic bytes (0x50, 0x4B, 0x03, 0x04)
+          const fd = fs.openSync(apkPath, 'r');
+          const buffer = Buffer.alloc(4);
+          fs.readSync(fd, buffer, 0, 4, 0);
+          fs.closeSync(fd);
+          if (buffer[0] === 0x50 && buffer[1] === 0x4b && buffer[2] === 0x03 && buffer[3] === 0x04) {
+            return { path: apkPath, size: stat.size, mtime: stat.mtime };
+          }
+        }
+      }
+    } catch {
+      // Continue checking next candidate
     }
   }
+  return null;
+}
 
-  // Fallback response if APK has not yet been placed on server
+// Direct APK Download Endpoint for King-J-Deals.apk
+app.get(['/downloads/King-J-Deals.apk', '/download/King-J-Deals.apk'], (req, res) => {
+  const apkInfo = getValidApkPath();
+
+  if (apkInfo) {
+    res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+    res.setHeader('Content-Disposition', 'attachment; filename="King-J-Deals.apk"');
+    res.setHeader('Content-Length', apkInfo.size.toString());
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Cache-Control', 'public, max-age=3600, must-revalidate');
+
+    return res.sendFile(apkInfo.path, {
+      acceptRanges: true,
+      cacheControl: false
+    });
+  }
+
+  // Fallback response preventing delivery of corrupt/empty stubs that cause package parse errors
   res.status(404).json({
-    error: "King-J-Deals.apk is being uploaded. Please place the release APK in public/downloads/King-J-Deals.apk"
+    success: false,
+    error: "King-J-Deals.apk release build is not yet deployed or is incomplete.",
+    expectedLocation: "public/downloads/King-J-Deals.apk",
+    expectedFilename: "King-J-Deals.apk",
+    downloadUrl: "/downloads/King-J-Deals.apk",
+    instructions: "Please place your signed release APK in public/downloads/King-J-Deals.apk."
+  });
+});
+
+// APK Status Endpoint to let frontend & administrators verify APK readiness and exact size
+app.get('/api/apk-status', (req, res) => {
+  const apkInfo = getValidApkPath();
+  if (apkInfo) {
+    const sizeMb = (apkInfo.size / (1024 * 1024)).toFixed(1);
+    return res.json({
+      available: true,
+      filename: 'King-J-Deals.apk',
+      downloadUrl: '/downloads/King-J-Deals.apk',
+      sizeBytes: apkInfo.size,
+      sizeFormatted: `${sizeMb} MB`,
+      lastModified: apkInfo.mtime.toISOString(),
+      path: apkInfo.path
+    });
+  }
+
+  const publicPath = path.join(process.cwd(), 'public', 'downloads', 'King-J-Deals.apk');
+  const fileExists = fs.existsSync(publicPath);
+  const size = fileExists ? fs.statSync(publicPath).size : 0;
+
+  return res.json({
+    available: false,
+    filename: 'King-J-Deals.apk',
+    downloadUrl: '/downloads/King-J-Deals.apk',
+    filePresent: fileExists,
+    sizeBytes: size,
+    warning: fileExists && size < 100 * 1024
+      ? `Detected file is only ${size} bytes (invalid/incomplete stub). An authentic Android APK is typically 5MB - 35MB.`
+      : 'No release APK file detected.',
+    expectedLocation: 'public/downloads/King-J-Deals.apk'
   });
 });
 
