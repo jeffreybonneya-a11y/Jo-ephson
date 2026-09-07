@@ -1222,7 +1222,18 @@ app.get('/api/stream/player/:orderId', async (req, res) => {
 
 
 
-// Explicit SEO Endpoints
+// Explicit SEO & Authorization Endpoints
+app.get('/ads.txt', (req, res) => {
+  res.type('text/plain');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  const adsFilePath = path.join(process.cwd(), 'public', 'ads.txt');
+  if (fs.existsSync(adsFilePath)) {
+    res.sendFile(adsFilePath);
+  } else {
+    res.send('google.com, pub-8226724072918040, DIRECT, f08c47fec0942fa0\n');
+  }
+});
+
 app.get('/robots.txt', (req, res) => {
   res.type('text/plain');
   res.setHeader('Cache-Control', 'public, max-age=86400');
