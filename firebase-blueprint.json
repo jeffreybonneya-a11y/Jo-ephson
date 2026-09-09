@@ -225,6 +225,49 @@
         "downloadedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["customerName", "isRegisteredUser", "deviceType"]
+    },
+    "EFootballProduct": {
+      "title": "eFootball Product",
+      "description": "An eFootball coin package available for purchase.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "coinAmount": { "type": "number" },
+        "platform": { "type": "string", "enum": ["ios_android", "steam"] },
+        "platformLabel": { "type": "string" },
+        "price": { "type": "number" },
+        "currency": { "type": "string" },
+        "active": { "type": "boolean" },
+        "displayOrder": { "type": "number" },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "badge": { "type": "string" }
+      },
+      "required": ["name", "coinAmount", "platform", "price", "currency"]
+    },
+    "EFootballOrder": {
+      "title": "eFootball Order",
+      "description": "A customer order for eFootball coins.",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerEmail": { "type": "string" },
+        "customerPhone": { "type": "string" },
+        "productId": { "type": "string" },
+        "productName": { "type": "string" },
+        "coinAmount": { "type": "number" },
+        "platform": { "type": "string" },
+        "konamiId": { "type": "string" },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "paymentStatus": { "type": "string" },
+        "fulfillmentStatus": { "type": "string" },
+        "status": { "type": "string" },
+        "paystackReference": { "type": "string" }
+      },
+      "required": ["customerEmail", "coinAmount", "konamiId", "amount", "paymentStatus"]
     }
   },
   "firestore": {
@@ -235,6 +278,14 @@
     "/orders/{orderId}": {
       "schema": "Order",
       "description": "Customer orders."
+    },
+    "/efootballProducts/{productId}": {
+      "schema": "EFootballProduct",
+      "description": "Available eFootball coin packages."
+    },
+    "/efootballOrders/{orderId}": {
+      "schema": "EFootballOrder",
+      "description": "Customer eFootball coin orders."
     },
     "/users/{userId}": {
       "schema": "UserProfile",

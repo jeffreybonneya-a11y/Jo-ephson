@@ -51,6 +51,12 @@ export default function Navbar({
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
+    const handleTriggerAuth = () => setIsAuthModalOpen(true);
+    window.addEventListener('TRIGGER_AUTH_MODAL', handleTriggerAuth);
+    return () => window.removeEventListener('TRIGGER_AUTH_MODAL', handleTriggerAuth);
+  }, []);
+
+  useEffect(() => {
     const hours = new Date().getHours();
     if (hours < 12) setGreeting('Good Morning');
     else if (hours < 18) setGreeting('Good Afternoon');

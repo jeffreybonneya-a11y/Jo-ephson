@@ -94,11 +94,13 @@ import {
   Globe,
   DollarSign,
   Smartphone,
+  Coins,
 } from "lucide-react";
 import { toast } from "sonner";
 import AdminBrandingManager from "./AdminBrandingManager";
 import AdminBookingCodesManager from "./AdminBookingCodesManager";
 import AdminDownloadsManager from "./AdminDownloadsManager";
+import AdminEFootballTab from "./AdminEFootballTab";
 import { CloudinaryImageUploader } from "@/src/components/CloudinaryImageUploader";
 
 const parseDataAmountToMB = (amountStr: string): number => {
@@ -204,6 +206,9 @@ export default function AdminDashboard() {
   const [isUpdatingRcStock, setIsUpdatingRcStock] = useState<boolean>(false);
   const [isFreeDataDisabled, setIsFreeDataDisabled] = useState<boolean>(false);
   const [freeDataPrice, setFreeDataPrice] = useState<number>(1);
+  const [fastDeliveryFee, setFastDeliveryFee] = useState<number>(1.50);
+  const [fastDeliveryFeeInput, setFastDeliveryFeeInput] = useState<number>(1.50);
+  const [isUpdatingFastDeliveryFee, setIsUpdatingFastDeliveryFee] = useState<boolean>(false);
 
   // Hidden Charges / Gateway Fees settings states (Retail vs Wholesale separated)
   const [hiddenRetailMTNCharge, setHiddenRetailMTNCharge] = useState<number>(0);
@@ -503,6 +508,21 @@ export default function AdminDashboard() {
       }
     );
 
+    // 13. Listen for Fast Delivery Settings
+    const unsubFastDelivery = onSnapshot(
+      doc(db, "settings", "fast_delivery"),
+      (snapshot) => {
+        if (snapshot.exists() && snapshot.data()?.fee != null) {
+          const feeVal = Number(snapshot.data().fee);
+          setFastDeliveryFee(feeVal);
+          setFastDeliveryFeeInput(feeVal);
+        } else {
+          setFastDeliveryFee(1.50);
+          setFastDeliveryFeeInput(1.50);
+        }
+      }
+    );
+
     return () => {
       window.removeEventListener('RESET_ADMIN_NOTIFIER', handleResetNotifierEvent);
       unsubAnnouncement();
@@ -517,8 +537,26 @@ export default function AdminDashboard() {
       unsubFreeData();
       unsubAgentStoreSetting();
       unsubHiddenChargesSetting();
+      unsubFastDelivery();
     };
   }, []);
+
+  const handleUpdateFastDeliveryFee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isNaN(fastDeliveryFeeInput) || fastDeliveryFeeInput < 0) {
+      toast.error("Please enter a valid Fast Delivery fee amount.");
+      return;
+    }
+    setIsUpdatingFastDeliveryFee(true);
+    try {
+      await setDoc(doc(db, "settings", "fast_delivery"), { fee: Number(fastDeliveryFeeInput) }, { merge: true });
+      toast.success("Fast Delivery fee updated successfully.");
+    } catch (err: any) {
+      toast.error("Failed to update Fast Delivery fee.");
+    } finally {
+      setIsUpdatingFastDeliveryFee(false);
+    }
+  };
 
   const handleSaveFreeDataSettings = async (disabled: boolean, price: number) => {
     try {
@@ -1912,6 +1950,13 @@ export default function AdminDashboard() {
               FREE DATA SETTINGS 🎁
             </TabsTrigger>
             <TabsTrigger
+              value="fast_delivery"
+              className="h-9 px-4 rounded-lg font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-amber-400 data-[state=active]:text-slate-950 data-[state=active]:shadow-sm transition-all focus-visible:ring-0 flex items-center gap-1.5"
+            >
+              <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+              FAST DELIVERY ⚡
+            </TabsTrigger>
+            <TabsTrigger
               value="users"
               className="h-9 px-4 rounded-lg font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all focus-visible:ring-0"
             >
@@ -1949,6 +1994,13 @@ export default function AdminDashboard() {
             >
               <Smartphone className="w-3.5 h-3.5" />
               DOWNLOADS 📱
+            </TabsTrigger>
+            <TabsTrigger
+              value="efootball"
+              className="h-9 px-4 rounded-lg font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-blue-800 data-[state=active]:text-yellow-400 data-[state=active]:shadow-sm transition-all focus-visible:ring-0 flex items-center gap-1.5"
+            >
+              <Coins className="w-3.5 h-3.5 text-yellow-400" />
+              EFOOTBALL ⚽
             </TabsTrigger>
             <TabsTrigger
               value="branding"
@@ -3740,6 +3792,49 @@ export default function AdminDashboard() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="fast_delivery" className="mt-0 outline-none">
+          <Card className="rounded-3xl border-2 bg-white dark:bg-slate-950 dark:border-slate-800 overflow-hidden shadow-sm">
+            <CardHeader className="p-8 border-b dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+              <CardTitle className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-3">
+                <Zap className="w-7 h-7 text-amber-500 fill-amber-500 animate-pulse" />
+                Fast Delivery Settings ⚡
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-8 space-y-6">
+              <form onSubmit={handleUpdateFastDeliveryFee} className="space-y-6 max-w-xl">
+                <div className="space-y-2">
+                  <Label className="font-bold uppercase tracking-wider text-xs text-slate-700 dark:text-slate-300">
+                    Fast Delivery Fee (GHS)
+                  </Label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-400">GH₵</span>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.05"
+                      value={fastDeliveryFeeInput}
+                      onChange={(e) => setFastDeliveryFeeInput(Number(e.target.value))}
+                      placeholder="1.50"
+                      className="rounded-xl h-12 pl-14 font-black text-lg border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white"
+                    />
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                    Current configured fee: <span className="font-black text-primary">GH₵ {fastDeliveryFee.toFixed(2)}</span>
+                  </p>
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={isUpdatingFastDeliveryFee}
+                  className="h-14 px-10 rounded-2xl font-black text-lg bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-lg transition-all flex items-center gap-2 cursor-pointer"
+                >
+                  {isUpdatingFastDeliveryFee ? "SAVING..." : "SAVE CHANGES ⚡"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="users" className="mt-0 outline-none">
           {/* Customer Stats Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -5375,6 +5470,10 @@ export default function AdminDashboard() {
 
         <TabsContent value="downloads" className="mt-0 outline-none">
           <AdminDownloadsManager />
+        </TabsContent>
+
+        <TabsContent value="efootball" className="mt-0 outline-none">
+          <AdminEFootballTab />
         </TabsContent>
       </Tabs>
     </div>

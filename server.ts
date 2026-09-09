@@ -304,6 +304,80 @@ async function handlePaystackInitialize(req: express.Request, res: express.Respo
                 console.warn("[Paystack Init] Firestore booking code check notice:", fsErr.message);
             }
         }
+
+        // If this is an eFootball Coins purchase, verify price from Firestore authoritative catalog
+        const efootballProductId = req.body.efootballProductId || metadata?.efootballProductId;
+        let efootballProductDoc: any = null;
+        if (efootballProductId || metadata?.service === 'efootball') {
+            try {
+                if (efootballProductId) {
+                    const efSnap = await getFirestoreDoc('efootballProducts', efootballProductId);
+                    if (efSnap && efSnap.exists) {
+                        efootballProductDoc = efSnap.data();
+                        if (efootballProductDoc?.price) {
+                            // Authoritative price configured by Admin
+                            finalAmountPesewas = Math.round(Number(efootballProductDoc.price) * 100);
+                        }
+                    }
+                }
+
+                const orderAmount = finalAmountPesewas / 100;
+                const accountIdentifier = req.body.accountIdentifier || metadata?.accountIdentifier || req.body.konamiId || metadata?.konamiId || "";
+                const accountIdentifierType = req.body.accountIdentifierType || metadata?.accountIdentifierType || (accountIdentifier.includes('@') ? 'email' : 'konami_id');
+                const konamiId = accountIdentifier;
+                const efOrderId = req.body.efootballOrderId || metadata?.orderId || metadata?.efootballOrderId || reference;
+                
+                const rawPlatform = metadata?.platform || req.body.platform || efootballProductDoc?.platformLabel || efootballProductDoc?.platform || 'Android';
+                const efPlatform = (rawPlatform === 'ios' || rawPlatform === 'iOS') ? 'iOS' :
+                                   (rawPlatform === 'steam' || rawPlatform === 'Steam') ? 'Steam' :
+                                   (rawPlatform === 'android' || rawPlatform === 'Android') ? 'Android' : rawPlatform;
+
+                const efCoinAmount = efootballProductDoc?.coinAmount || metadata?.coinAmount || 0;
+                const efProductName = efootballProductDoc?.name || metadata?.productName || "eFootball Coins";
+
+                const efPayload = {
+                    id: reference,
+                    orderId: efOrderId,
+                    reference: reference,
+                    paystackReference: reference,
+                    userId: userId || "",
+                    customerId: userId || "",
+                    customerName: customerName || metadata?.customerName || "Customer",
+                    customerEmail: email,
+                    email: email,
+                    customerPhone: customerPhone || metadata?.customerPhone || "",
+                    phone: customerPhone || metadata?.customerPhone || "",
+                    productId: efootballProductId || "",
+                    productName: efProductName,
+                    bundle: `${efProductName} (${efPlatform})`,
+                    bundleName: efProductName,
+                    coinAmount: efCoinAmount,
+                    platform: efPlatform,
+                    accountIdentifier: accountIdentifier,
+                    accountIdentifierType: accountIdentifierType,
+                    konamiId: konamiId,
+                    amount: orderAmount,
+                    currency: currency || "GHS",
+                    network: "Game Coins",
+                    category: "eFootball Coins",
+                    serviceType: "efootball",
+                    status: "pending",
+                    paymentStatus: "PAYMENT_PENDING",
+                    fulfillmentStatus: "AWAITING_FULFILLMENT",
+                    adminStatus: "AWAITING_FULFILLMENT",
+                    paymentMethod: "Paystack",
+                    payment_provider: "paystack",
+                    createdAt: clientServerTimestamp(),
+                    updatedAt: clientServerTimestamp(),
+                };
+
+                await setFirestoreDoc('efootballOrders', reference, efPayload, true);
+                await setFirestoreDoc('orders', reference, efPayload, true);
+                console.log(`[Paystack Init] Registered eFootball Order ${efOrderId} (${reference}) for ${email}, amount: GH¢${orderAmount}`);
+            } catch (efFsErr: any) {
+                console.warn("[Paystack Init] Firestore efootball order check notice:", efFsErr.message);
+            }
+        }
         
         const key = getPaystackSecretKey();
         if (!key || (!key.startsWith('sk_') && !key.startsWith('sat_'))) {
@@ -443,6 +517,31 @@ async function updateFirestoreOrderPaymentStatus(reference: string, paymentStatu
                 paymentStatus: paymentStatus
             });
             console.log(`[Server Firestore] Successfully updated agent_orders document ${reference} to status: ${paymentStatus}`);
+        }
+
+        // Also update efootballOrders collection if present
+        try {
+            const efOrderSnap = await getFirestoreDoc('efootballOrders', reference);
+            if (efOrderSnap && efOrderSnap.exists) {
+                const efData = efOrderSnap.data();
+                const newEfPaymentStatus = paymentStatus === "success" ? "PAID" : (paymentStatus === "failed" ? "FAILED" : "PAYMENT_PENDING");
+                const newEfStatus = paymentStatus === "success" ? "paid" : (paymentStatus === "failed" ? "failed" : "pending");
+                const newFulfillmentStatus = paymentStatus === "success"
+                    ? (efData?.fulfillmentStatus === "DELIVERED" ? "DELIVERED" : "AWAITING_FULFILLMENT")
+                    : efData?.fulfillmentStatus || "AWAITING_FULFILLMENT";
+
+                await updateFirestoreDoc('efootballOrders', reference, {
+                    paymentStatus: newEfPaymentStatus,
+                    status: newEfStatus,
+                    fulfillmentStatus: newFulfillmentStatus,
+                    adminStatus: newFulfillmentStatus,
+                    ...(paymentStatus === "success" ? { paidAt: clientServerTimestamp() } : {}),
+                    updatedAt: clientServerTimestamp()
+                });
+                console.log(`[Server Firestore] Successfully updated efootballOrders document ${reference} to paymentStatus: ${newEfPaymentStatus}`);
+            }
+        } catch (efErr: any) {
+            console.warn('[Server Firestore] efootballOrders update notice:', efErr?.message);
         }
     } catch (err: any) {
         console.log('[Server Firestore] Notice: Update of Firestore status was not completed:', err.message || err);
@@ -684,6 +783,27 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
                 }, true);
             } catch (bcoErr: any) {
                 console.warn(`[Server Firestore] booking_code_orders update notice for ${reference}:`, bcoErr?.message);
+            }
+
+            // Update efootballOrders if present
+            try {
+                const efOrderSnap = await getFirestoreDoc('efootballOrders', reference);
+                if (efOrderSnap && efOrderSnap.exists) {
+                    const efData = efOrderSnap.data();
+                    await updateFirestoreDoc('efootballOrders', reference, {
+                        paymentStatus: "PAID",
+                        status: "paid",
+                        fulfillmentStatus: efData?.fulfillmentStatus === "DELIVERED" ? "DELIVERED" : "AWAITING_FULFILLMENT",
+                        adminStatus: efData?.fulfillmentStatus === "DELIVERED" ? "DELIVERED" : "AWAITING_FULFILLMENT",
+                        paidAt: clientServerTimestamp(),
+                        payment_provider: "paystack",
+                        paymentMethod: "Paystack",
+                        updatedAt: clientServerTimestamp()
+                    });
+                    console.log(`[Server Firestore] efootballOrders document ${reference} verified as PAID`);
+                }
+            } catch (efVerifyErr: any) {
+                console.warn(`[Server Firestore] efootballOrders verify update notice for ${reference}:`, efVerifyErr?.message);
             }
         } catch (fsErr: any) {
             console.error(`[Server Firestore] Update notice for reference ${reference}:`, fsErr.message);

@@ -315,5 +315,15 @@ service cloud.firestore {
       // Admins can view and manage all app download records
       allow read, update, delete: if isAdmin();
     }
+
+    match /efootballProducts/{productId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    match /efootballOrders/{orderId} {
+      allow read, create, update: if true;
+      allow delete: if isAdmin();
+    }
   }
 }

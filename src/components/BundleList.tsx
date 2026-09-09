@@ -23,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import StreamingTab from "./StreamingTab";
 import ResultCheckerSection from "./ResultCheckerSection";
 import BookingCodesSection from "./BookingCodesSection";
+import EFootballCoinsSection from "./EFootballCoinsSection";
 import fcMobileIcon from "@/src/assets/images/ea_sports_fc_mobile_cover_fixed_1782486697588.jpg";
 import pubgMobileIcon from "@/src/assets/images/pubg_mobile_cover_1782399506286.jpg";
 import fc26Icon from "@/src/assets/images/ea_sports_fc_26_cover_1782485615642.jpg";
@@ -63,7 +64,7 @@ export default function BundleList({
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("MTN");
-  const [activeGameCoinSubTab, setActiveGameCoinSubTab] = useState("FC_MOBILE");
+  const [activeGameCoinSubTab, setActiveGameCoinSubTab] = useState("EFOOTBALL_COINS");
   const [activePCGamesSubTab, setActivePCGamesSubTab] = useState("FC_26");
   const [showFCOptions, setShowFCOptions] = useState(false);
   const [fcOptionTab, setFcOptionTab] = useState("points");
@@ -85,6 +86,7 @@ export default function BundleList({
     "Game Coins",
   ].filter((tab) => !hiddenTabs.includes(tab));
   const gameCoinSubTabs = [
+    { id: "EFOOTBALL_COINS", label: "eFootball™ Coins ⚽" },
     { id: "FC_MOBILE", label: "FC ™ MOBILE points and silver" },
     { id: "PUBG_MOBILE", label: "PUBG Mobile UC" },
   ];
@@ -149,9 +151,9 @@ export default function BundleList({
       if (tab) {
         if (["MTN", "Telecel", "AirtelTigo", "Booking Codes", "Result Checker", "PC Games", "Premium Apps", "Game Coins"].includes(tab)) {
           setActiveTab(tab);
-        } else if (tab === "FC_MOBILE" || tab === "PUBG_MOBILE") {
+        } else if (tab === "FC_MOBILE" || tab === "PUBG_MOBILE" || tab === "EFOOTBALL_COINS" || tab === "EFOOTBALL") {
           setActiveTab("Game Coins");
-          setActiveGameCoinSubTab(tab);
+          setActiveGameCoinSubTab(tab === "EFOOTBALL" ? "EFOOTBALL_COINS" : tab);
         } else if (tab === "FC_26") {
           setActiveTab("PC Games");
           setActivePCGamesSubTab(tab);
@@ -1043,6 +1045,14 @@ export default function BundleList({
                         </Button>
                       ))}
                     </div>
+
+                    {activeGameCoinSubTab === "EFOOTBALL_COINS" && (
+                      <EFootballCoinsSection
+                        onOpenAuthModal={() => window.dispatchEvent(new CustomEvent('TRIGGER_AUTH_MODAL'))}
+                        profile={profile}
+                      />
+                    )}
+
                     {activeGameCoinSubTab === "FC_MOBILE" && (
                       <div className="space-y-8">
                         {!showFCOptions ? (

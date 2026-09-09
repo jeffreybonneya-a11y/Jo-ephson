@@ -78,9 +78,14 @@ export default function MyOrders() {
     const phone = "233535884851";
     const refNumber =
       order.phone ||
+      order.accountIdentifier ||
+      order.konamiId ||
       order.reference?.slice(-8).toUpperCase() ||
       order.id.slice(-6).toUpperCase();
-    const text = `Hello King J, I have an issue with my order! 👑\n\nOrder Bundle: ${order.bundle}\nRef (Number): ${refNumber}\n\nPlease check this for me.`;
+    const idInfo = (order.accountIdentifier || order.konamiId)
+      ? `\nKONAMI ID / Account: ${order.accountIdentifier || order.konamiId}`
+      : '';
+    const text = `Hello King J, I have an issue with my order! 👑\n\nOrder Bundle: ${order.bundle || order.packageName}\nRef: ${refNumber}${idInfo}\n\nPlease check this for me.`;
     window.open(
       `https://wa.me/${phone}?text=${encodeURIComponent(text)}`,
       "_blank",
@@ -181,6 +186,26 @@ export default function MyOrders() {
                           <div className="flex items-center gap-4 text-[10px] font-black text-[#00FF87] uppercase tracking-wider mt-2 bg-[#00FF87]/10 w-fit px-2 py-1 rounded-md border border-[#00FF87]/20">
                             <span>ID: {order.fcUserId}</span>
                             <span>User: {order.fcUsername}</span>
+                          </div>
+                        )}
+                        {(order.accountIdentifier || order.konamiId) && (
+                          <div className="flex flex-wrap items-center gap-2 text-xs font-black text-yellow-600 dark:text-yellow-400 uppercase tracking-wider mt-2.5 bg-yellow-500/10 w-fit px-3 py-1.5 rounded-lg border border-yellow-500/20">
+                            <span className="text-yellow-700 dark:text-yellow-300">
+                              {order.accountIdentifierType === 'email' || (order.accountIdentifier || order.konamiId)?.includes('@')
+                                ? 'eFootball Email:'
+                                : 'KONAMI ID:'}
+                            </span>
+                            <span className="font-mono text-slate-900 dark:text-white">
+                              {order.accountIdentifier || order.konamiId}
+                            </span>
+                            {order.platform && (
+                              <span className="text-slate-600 dark:text-slate-300 font-semibold">• {order.platform}</span>
+                            )}
+                            {order.coinAmount && (
+                              <span className="text-yellow-600 dark:text-yellow-400 font-black">
+                                • {Number(order.coinAmount).toLocaleString()} COINS
+                              </span>
+                            )}
                           </div>
                         )}
                       </div>

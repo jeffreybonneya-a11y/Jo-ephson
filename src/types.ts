@@ -244,4 +244,67 @@ export interface AppDownload {
   downloadedAt: any;
 }
 
+export type EFootballPlatform = "ios" | "android" | "steam" | string;
+
+export interface EFootballProduct {
+  id: string;
+  name: string; // e.g. "eFootball™ Coin 1,092"
+  coinAmount: number; // e.g. 1092
+  platform: "ios" | "android" | "steam" | string;
+  platformLabel?: string; // "iOS", "Android", or "Steam"
+  price: number; // e.g. 110 (GHS)
+  currency: string; // "GHS"
+  active: boolean;
+  displayOrder?: number;
+  description?: string;
+  imageUrl?: string;
+  badge?: string; // "POPULAR", "BEST VALUE", etc.
+  createdAt?: any;
+  updatedAt?: any;
+}
+
+export interface EFootballOrder {
+  id: string;
+  orderId: string; // e.g. "EF-10001"
+  customerId?: string; // Firebase Auth uid
+  userId?: string;
+  customerName: string;
+  customerEmail: string; // Authenticated Firebase email (source of truth, website Gmail)
+  customerPhone?: string;
+  phone?: string;
+  email?: string;
+  productId: string;
+  productName: string;
+  bundle?: string;
+  bundleName?: string;
+  coinAmount: number;
+  platform: "ios" | "android" | "steam" | "iOS" | "Android" | "Steam" | string;
+  accountIdentifier: string; // KONAMI ID or associated eFootball account email
+  accountIdentifierType: "konami_id" | "email";
+  konamiId: string; // Kept in sync with accountIdentifier for backwards-compatibility
+  amount: number;
+  currency: string; // "GHS"
+  paymentStatus: "PAYMENT_PENDING" | "PAID" | "FAILED" | "UNPAID" | "SUCCESS" | "PAYMENT_INITIALIZATION_FAILED" | string;
+  fulfillmentStatus: "AWAITING_FULFILLMENT" | "PROCESSING" | "DELIVERED" | "CANCELLED" | "REFUNDED" | string;
+  adminStatus?: string;
+  status: "pending" | "paid" | "processing" | "delivered" | "cancelled" | "failed" | string;
+  paystackReference: string;
+  reference?: string;
+  paymentMethod?: string;
+  payment_provider?: string;
+  network?: string;
+  category?: string;
+  serviceType?: string; // "efootball"
+  createdAt: any;
+  updatedAt?: any;
+  paidAt?: any;
+  acceptedAt?: any;
+  acceptedBy?: string;
+  deliveredAt?: any;
+  deliveredBy?: string;
+  deliveryNote?: string;
+  cancellationReason?: string;
+  verifiedByBackend?: boolean;
+}
+
 

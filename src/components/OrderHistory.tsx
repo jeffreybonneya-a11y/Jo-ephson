@@ -122,6 +122,38 @@ export default function OrderHistory() {
                       </div>
                     </div>
                     
+                    {(order.accountIdentifier || order.konamiId) && (
+                      <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-xs space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-yellow-600 dark:text-yellow-400 uppercase">
+                            {order.accountIdentifierType === 'email' || (order.accountIdentifier || order.konamiId)?.includes('@')
+                              ? 'eFootball Account Email:'
+                              : 'KONAMI ID:'}
+                          </span>
+                          <span className="font-mono font-black text-foreground">
+                            {order.accountIdentifier || order.konamiId}
+                          </span>
+                        </div>
+                        {order.platform && (
+                          <div className="flex items-center justify-between text-muted-foreground">
+                            <span>Platform:</span>
+                            <span className="font-bold text-foreground">{order.platform}</span>
+                          </div>
+                        )}
+                        {order.coinAmount && (
+                          <div className="flex items-center justify-between text-muted-foreground">
+                            <span>Coins:</span>
+                            <span className="font-bold text-yellow-600 dark:text-yellow-400">{Number(order.coinAmount).toLocaleString()} Coins</span>
+                          </div>
+                        )}
+                        {order.deliveryNote && (
+                          <div className="text-[11px] text-emerald-600 dark:text-emerald-400 pt-1 border-t border-yellow-500/20">
+                            <strong>Delivery Note:</strong> {order.deliveryNote}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {order.network === "PC Games" && order.status === "delivered" && (
                       <div className="mt-6 p-4 bg-primary/10 border border-primary/20 rounded-xl">
                         <h4 className="font-bold text-primary mb-2 flex items-center gap-2">

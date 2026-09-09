@@ -9,6 +9,7 @@ export interface PaystackOptions {
   amount: number; // in subunits (pesewas/kobo)
   currency: string;
   ref: string;
+  metadata?: any;
   onSuccess: (reference: string) => void;
   onClose: () => void;
 }
@@ -64,6 +65,7 @@ export async function openPaystackPopup(options: PaystackOptions): Promise<void>
       amount: options.amount,
       currency: options.currency || "GHS",
       ref: options.ref,
+      ...(options.metadata ? { metadata: options.metadata } : {}),
       callback: (response: any) => {
         console.log("[Paystack SDK] Payment successful. Reference:", response.reference);
         options.onSuccess(response?.reference || options.ref);
