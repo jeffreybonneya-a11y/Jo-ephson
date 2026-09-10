@@ -1,11 +1,11 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, setLogLevel } from 'firebase/firestore';
+import { initializeFirestore, setLogLevel } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import firebaseConfigData from '../../firebase-applet-config.json';
 
-// Set log level to error to prevent non-fatal 10-second backend connection warning noise
-setLogLevel('error');
+// Set log level to silent to prevent non-fatal 10-second backend connection warning noise
+setLogLevel('silent');
 
 // Allow environment variables to override the JSON config for production (Render)
 const firebaseConfig = {
@@ -27,6 +27,8 @@ const storageBucketUrl = firebaseConfig.storageBucket
 
 export const storage = getStorage(app, storageBucketUrl);
 
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true,
+}, firebaseConfig.firestoreDatabaseId);
 
 

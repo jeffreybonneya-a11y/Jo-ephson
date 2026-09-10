@@ -1580,6 +1580,18 @@ app.get('/api/stream/player/:orderId', async (req, res) => {
 
 
 // Explicit SEO & Authorization Endpoints
+app.get('/sw.js', (req, res) => {
+  res.type('application/javascript');
+  res.setHeader('Service-Worker-Allowed', '/');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  const swPath = path.join(process.cwd(), 'public', 'sw.js');
+  if (fs.existsSync(swPath)) {
+    res.sendFile(swPath);
+  } else {
+    res.status(404).send('Service worker not found');
+  }
+});
+
 app.get('/ads.txt', (req, res) => {
   res.type('text/plain');
   res.setHeader('Cache-Control', 'public, max-age=86400');
