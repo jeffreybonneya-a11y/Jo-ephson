@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { auth } from '@/src/lib/firebase';
 import { syncUserCustomerRecord } from '@/src/lib/userSync';
+import { initMonetagInPagePush, cleanupMonetagInPagePush } from '@/src/lib/monetag';
 import { GoogleAuthProvider, signInWithPopup, signInWithCredential } from 'firebase/auth';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { isNativeApp, isAndroidNative } from '@/src/lib/platform';
@@ -29,57 +30,13 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
     }
   }, []);
 
-  // Initialize Monetag In-Page Push zone 11767716 only while WelcomePage is active
+  // Initialize Monetag In-Page Push zone 11767716 ONLY when WelcomePage is active and user is unauthenticated
   useEffect(() => {
-    let scriptElement: HTMLScriptElement | null = null;
-    const container = monetagAdRef.current;
+    initMonetagInPagePush(monetagAdRef.current);
 
-    try {
-      const existing = document.querySelector(
-        'script[data-zone="11767716"], script[src*="nap5k.com/tag.min.js"], #monetag-inpage-push-script'
-      );
-      if (!existing) {
-        const s = document.createElement('script');
-        s.id = 'monetag-inpage-push-script';
-        s.dataset.zone = '11767716';
-        s.src = 'https://nap5k.com/tag.min.js';
-        
-        const target = container || [document.documentElement, document.body].filter(Boolean).pop();
-        if (target) {
-          target.appendChild(s);
-          scriptElement = s;
-        }
-      }
-    } catch (err) {
-      console.warn('[Monetag] Notice initializing In-Page Push zone 11767716:', err);
-    }
-
-    // Cleanup when WelcomePage unmounts upon successful user authentication / navigation
+    // Cleanup immediately when WelcomePage unmounts upon login/navigation
     return () => {
-      try {
-        if (scriptElement && scriptElement.parentNode) {
-          scriptElement.parentNode.removeChild(scriptElement);
-        }
-        const scripts = document.querySelectorAll(
-          'script[data-zone="11767716"], script[src*="nap5k.com"], #monetag-inpage-push-script'
-        );
-        scripts.forEach((el) => el.remove());
-
-        if (container) {
-          container.innerHTML = '';
-        }
-
-        const adElements = document.querySelectorAll(
-          '[class*="monetag"], [id*="monetag"], [data-zone="11767716"]'
-        );
-        adElements.forEach((el) => {
-          if (el.id !== 'monetag-inpage-push-wrapper' && el.id !== 'monetag-zone-11767716') {
-            el.remove();
-          }
-        });
-      } catch (err) {
-        console.warn('[Monetag] Cleanup notice:', err);
-      }
+      cleanupMonetagInPagePush();
     };
   }, []);
 

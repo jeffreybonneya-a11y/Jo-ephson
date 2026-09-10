@@ -34,6 +34,7 @@ import WhatsAppChannelAdModal from './components/WhatsAppChannelAdModal';
 import { getSeoPageData, SeoPageData } from './data/seoPages';
 import { useSessionTimeout } from './hooks/useSessionTimeout';
 import { getApiUrl } from './lib/api';
+import { cleanupMonetagInPagePush } from './lib/monetag';
 
 export default function App() {
   const { branding } = useBranding();
@@ -341,6 +342,24 @@ export default function App() {
       if (agentUnsubscribe) agentUnsubscribe();
     };
   }, []);
+
+  // Ensure Monetag In-Page Push is completely removed whenever user is authenticated
+  useEffect(() => {
+    if (user) {
+      cleanupMonetagInPagePush();
+
+      // Sweeps to eliminate delayed elements spawned by Monetag timeouts
+      const timer1 = setTimeout(() => cleanupMonetagInPagePush(), 500);
+      const timer2 = setTimeout(() => cleanupMonetagInPagePush(), 1500);
+      const timer3 = setTimeout(() => cleanupMonetagInPagePush(), 3000);
+
+      return () => {
+        clearTimeout(timer1);
+        clearTimeout(timer2);
+        clearTimeout(timer3);
+      };
+    }
+  }, [user, isAdminView, isHistoryView, isStreamView, isDownloadView, currentSeoPage]);
 
   // Listen for PC Games delivery
   useEffect(() => {
