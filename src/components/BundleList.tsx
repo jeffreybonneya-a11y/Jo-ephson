@@ -71,6 +71,23 @@ export default function BundleList({
   const [announcement, setAnnouncement] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isRcOutOfStock, setIsRcOutOfStock] = useState(false);
+  const [customerFastDeliveryEnabled, setCustomerFastDeliveryEnabled] = useState<boolean>(true);
+  const [customerFastDeliveryFee, setCustomerFastDeliveryFee] = useState<number>(1.50);
+  const [agentFastDeliveryEnabled, setAgentFastDeliveryEnabled] = useState<boolean>(true);
+  const [agentFastDeliveryFee, setAgentFastDeliveryFee] = useState<number>(1.00);
+  const [fastDeliveryMap, setFastDeliveryMap] = useState<Record<string, boolean>>({});
+
+  const isAgentScope = Boolean(isAgentMode || isAgentUser || agentContext);
+  const isFastDeliveryEnabledForUser = isAgentScope ? agentFastDeliveryEnabled : customerFastDeliveryEnabled;
+  const currentFastDeliveryFee = isAgentScope ? agentFastDeliveryFee : customerFastDeliveryFee;
+  const currentFastDeliveryType: "customer" | "agent" = isAgentScope ? "agent" : "customer";
+
+  const toggleFastDelivery = (bundleId: string) => {
+    setFastDeliveryMap((prev) => ({
+      ...prev,
+      [bundleId]: !prev[bundleId],
+    }));
+  };
 
   // Unhidden all services as requested by user
   const hiddenTabs: string[] = [];
@@ -302,6 +319,44 @@ export default function BundleList({
       }
     );
 
+    // Listen for Fast Delivery setting (Customer vs Agent separated)
+    const unsubFastDelivery = onSnapshot(
+      doc(db, "settings", "fast_delivery"),
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          // Customer
+          const cEnabled = data.customerEnabled !== undefined ? Boolean(data.customerEnabled) : true;
+          let cFee = 1.50;
+          if (data.customerFee != null) {
+            const parsed = Number(data.customerFee);
+            if (!isNaN(parsed) && parsed >= 0) cFee = parsed;
+          } else if (data.fee != null) {
+            const parsed = Number(data.fee);
+            if (!isNaN(parsed) && parsed >= 0) cFee = parsed;
+          }
+          setCustomerFastDeliveryEnabled(cEnabled);
+          setCustomerFastDeliveryFee(cFee);
+
+          // Agent
+          const aEnabled = data.agentEnabled !== undefined ? Boolean(data.agentEnabled) : true;
+          let aFee = 1.00;
+          if (data.agentFee != null) {
+            const parsed = Number(data.agentFee);
+            if (!isNaN(parsed) && parsed >= 0) aFee = parsed;
+          }
+          setAgentFastDeliveryEnabled(aEnabled);
+          setAgentFastDeliveryFee(aFee);
+        } else {
+          setCustomerFastDeliveryEnabled(true);
+          setCustomerFastDeliveryFee(1.50);
+          setAgentFastDeliveryEnabled(true);
+          setAgentFastDeliveryFee(1.00);
+        }
+      },
+      (err) => console.warn("Notice: fast_delivery setting listener:", err)
+    );
+
     // 2. Fetch offers
     const fetchOffers = async () => {
       try {
@@ -344,6 +399,7 @@ export default function BundleList({
     return () => {
       unsubAnnouncement();
       unsubRCStock();
+      unsubFastDelivery();
     };
   }, []);
 
@@ -856,47 +912,126 @@ export default function BundleList({
                             </p>
                           )}
                         </CardHeader>
-                        <CardContent className="p-4 flex flex-col justify-between flex-1 gap-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex flex-col gap-1">
-                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                Royal Price
-                              </span>
-                              <div className="flex flex-col">
-                                {((!isAgentMode &&
-                                  !isAgentUser &&
-                                  (bundle as any).isDiscounted) ||
-                                  isAgentUser) && (
-                                  <span className="text-[10px] font-bold text-red-400 line-through mb-0.5">
-                                    GH₵{" "}
-                                    {(bundle as any).originalPrice?.toFixed(
-                                      2,
-                                    ) || bundle.price.toFixed(2)}
-                                  </span>
+                        <CardContent className="p-4 flex flex-col justify-between flex-1 gap-3">
+                          {(() => {
+                            const isMTN = bundle.network === "MTN";
+                            const canShowFastDelivery = isMTN && isFastDeliveryEnabledForUser;
+                            const isFast = canShowFastDelivery && !!fastDeliveryMap[bundle.id];
+                            const applicablePrice = Number(bundle.price);
+                            const cardDisplayPrice = isFast ? applicablePrice + currentFastDeliveryFee : applicablePrice;
+
+                            return (
+                              <>
+                                <div className="flex items-center justify-between">
+                                  <div className="flex flex-col gap-1">
+                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                      Royal Price
+                                    </span>
+                                    <div className="flex flex-col">
+                                      {((!isAgentMode &&
+                                        !isAgentUser &&
+                                        (bundle as any).isDiscounted) ||
+                                        isAgentUser) && (
+                                        <span className="text-[10px] font-bold text-red-400 line-through mb-0.5">
+                                          GH₵{" "}
+                                          {(bundle as any).originalPrice?.toFixed(
+                                            2,
+                                          ) || bundle.price.toFixed(2)}
+                                        </span>
+                                      )}
+                                      <span className="text-xs sm:text-sm font-black text-slate-950 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 px-2.5 py-1 rounded-lg border border-amber-300/60 shadow-sm w-fit tracking-tight">
+                                        GH₵ {cardDisplayPrice.toFixed(2)}
+                                      </span>
+                                    </div>
+                                    {isAgentUser && (
+                                      <Badge
+                                        variant="outline"
+                                        className="mt-1.5 border-amber-500/40 text-amber-300 font-black animate-pulse rounded px-1.5 py-0.5 text-[8px] uppercase w-fit bg-amber-500/10"
+                                      >
+                                        👑 Agent Wholesale
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <Wifi className="w-6 h-6 text-amber-500/20 group-hover:text-amber-400 transition-colors shrink-0" />
+                                </div>
+
+                                {canShowFastDelivery && (
+                                  <div className="bg-[#0B132B]/90 border border-amber-500/30 rounded-xl p-2.5 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-1.5">
+                                        <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                                        <span className="text-[11px] font-black tracking-wide text-slate-100 uppercase">
+                                          Fast Delivery ⚡
+                                        </span>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        id={`fast-toggle-search-${bundle.id}`}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          toggleFastDelivery(bundle.id);
+                                        }}
+                                        className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none cursor-pointer ${
+                                          isFast ? "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]" : "bg-slate-700"
+                                        }`}
+                                        aria-label="Toggle Fast Delivery"
+                                      >
+                                        <span
+                                          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-slate-950 transition-transform ${
+                                            isFast ? "translate-x-5.5" : "translate-x-0.5"
+                                          }`}
+                                        />
+                                      </button>
+                                    </div>
+
+                                    {isFast ? (
+                                      <div className="space-y-1 text-[10px] font-bold text-slate-300 border-t border-amber-500/20 pt-1.5">
+                                        <div className="flex justify-between items-center text-slate-400">
+                                          <span>{isAgentScope ? "Agent Price:" : "Normal Price:"}</span>
+                                          <span className="font-mono">GH₵ {applicablePrice.toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-amber-400 font-black">
+                                          <span className="flex items-center gap-0.5">
+                                            <Zap className="w-2.5 h-2.5 fill-amber-400" /> Fast Delivery Fee:
+                                          </span>
+                                          <span className="font-mono">+GH₵ {currentFastDeliveryFee.toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-slate-100 font-black pt-1 border-t border-slate-700/60">
+                                          <span>Total:</span>
+                                          <span className="font-mono text-amber-300 text-xs">
+                                            GH₵ {(applicablePrice + currentFastDeliveryFee).toFixed(2)}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 border-t border-amber-500/10 pt-1">
+                                        <span>Fast Delivery ⚡</span>
+                                        <span className="bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded text-[9px] font-black uppercase">
+                                          [ OFF ]
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
                                 )}
-                                <span className="text-xs sm:text-sm font-black text-slate-950 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 px-2.5 py-1 rounded-lg border border-amber-300/60 shadow-sm w-fit tracking-tight">
-                                  GH₵ {bundle.price.toFixed(2)}
-                                </span>
-                              </div>
-                              {isAgentUser && (
-                                <Badge
-                                  variant="outline"
-                                  className="mt-1.5 border-amber-500/40 text-amber-300 font-black animate-pulse rounded px-1.5 py-0.5 text-[8px] uppercase w-fit bg-amber-500/10"
+
+                                <Button
+                                  className="w-full h-10 text-xs font-black tracking-wide rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 hover:brightness-110 border border-amber-300/50 transition-all shadow-[0_2px_10px_rgba(245,158,11,0.25)] cursor-pointer"
+                                  onClick={() => {
+                                    onSelectBundle({
+                                      ...bundle,
+                                      fastDelivery: isFast,
+                                      fastDeliveryType: isFast ? currentFastDeliveryType : undefined,
+                                      fastDeliveryFee: isFast ? currentFastDeliveryFee : 0,
+                                      basePrice: applicablePrice,
+                                      price: cardDisplayPrice,
+                                    });
+                                  }}
                                 >
-                                  👑 Agent Wholesale
-                                </Badge>
-                              )}
-                            </div>
-                            <Wifi className="w-6 h-6 text-amber-500/20 group-hover:text-amber-400 transition-colors shrink-0" />
-                          </div>
-                          <Button
-                            className="w-full h-10 text-xs font-black tracking-wide rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 hover:brightness-110 border border-amber-300/50 transition-all shadow-[0_2px_10px_rgba(245,158,11,0.25)] cursor-pointer"
-                            onClick={() => {
-                              onSelectBundle(bundle);
-                            }}
-                          >
-                            BUY NOW 👑
-                          </Button>
+                                  BUY NOW 👑
+                                </Button>
+                              </>
+                            );
+                          })()}
                         </CardContent>
                       </Card>
                     </motion.div>
@@ -965,47 +1100,126 @@ export default function BundleList({
                                 </p>
                               )}
                             </CardHeader>
-                            <CardContent className="p-4 flex flex-col justify-between flex-1 gap-4">
-                              <div className="flex items-center justify-between">
-                                <div className="flex flex-col gap-1">
-                                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                    Royal Price
-                                  </span>
-                                  <div className="flex flex-col">
-                                    {((!isAgentMode &&
-                                      !isAgentUser &&
-                                      (bundle as any).isDiscounted) ||
-                                      isAgentUser) && (
-                                      <span className="text-[10px] font-bold text-red-400 line-through mb-0.5">
-                                        GH₵{" "}
-                                        {(bundle as any).originalPrice.toFixed(
-                                          2,
+                            <CardContent className="p-4 flex flex-col justify-between flex-1 gap-3">
+                              {(() => {
+                                const isMTN = bundle.network === "MTN";
+                                const canShowFastDelivery = isMTN && isFastDeliveryEnabledForUser;
+                                const isFast = canShowFastDelivery && !!fastDeliveryMap[bundle.id];
+                                const applicablePrice = Number(bundle.price);
+                                const cardDisplayPrice = isFast ? applicablePrice + currentFastDeliveryFee : applicablePrice;
+
+                                return (
+                                  <>
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex flex-col gap-1">
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                          Royal Price
+                                        </span>
+                                        <div className="flex flex-col">
+                                          {((!isAgentMode &&
+                                            !isAgentUser &&
+                                            (bundle as any).isDiscounted) ||
+                                            isAgentUser) && (
+                                            <span className="text-[10px] font-bold text-red-400 line-through mb-0.5">
+                                              GH₵{" "}
+                                              {(bundle as any).originalPrice.toFixed(
+                                                2,
+                                              )}
+                                            </span>
+                                          )}
+                                          <span className="text-xs sm:text-sm font-black text-slate-950 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 px-2.5 py-1 rounded-lg border border-amber-300/60 shadow-sm w-fit tracking-tight">
+                                            GH₵ {cardDisplayPrice.toFixed(2)}
+                                          </span>
+                                        </div>
+                                        {isAgentUser && (
+                                          <Badge
+                                            variant="outline"
+                                            className="mt-1.5 border-amber-500/40 text-amber-300 font-black animate-pulse rounded px-1.5 py-0.5 text-[8px] uppercase w-fit bg-amber-500/10"
+                                          >
+                                            👑 Agent Wholesale
+                                          </Badge>
                                         )}
-                                      </span>
+                                      </div>
+                                      <Wifi className="w-7 h-7 text-amber-500/20 group-hover:text-amber-400 transition-colors shrink-0" />
+                                    </div>
+
+                                    {canShowFastDelivery && (
+                                      <div className="bg-[#0B132B]/90 border border-amber-500/30 rounded-xl p-2.5 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-1.5">
+                                            <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                                            <span className="text-[11px] font-black tracking-wide text-slate-100 uppercase">
+                                              Fast Delivery ⚡
+                                            </span>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            id={`fast-toggle-tab-${bundle.id}`}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              toggleFastDelivery(bundle.id);
+                                            }}
+                                            className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none cursor-pointer ${
+                                              isFast ? "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]" : "bg-slate-700"
+                                            }`}
+                                            aria-label="Toggle Fast Delivery"
+                                          >
+                                            <span
+                                              className={`inline-block h-3.5 w-3.5 transform rounded-full bg-slate-950 transition-transform ${
+                                                isFast ? "translate-x-5.5" : "translate-x-0.5"
+                                              }`}
+                                            />
+                                          </button>
+                                        </div>
+
+                                        {isFast ? (
+                                          <div className="space-y-1 text-[10px] font-bold text-slate-300 border-t border-amber-500/20 pt-1.5">
+                                            <div className="flex justify-between items-center text-slate-400">
+                                              <span>{isAgentScope ? "Agent Price:" : "Normal Price:"}</span>
+                                              <span className="font-mono">GH₵ {applicablePrice.toFixed(2)}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center text-amber-400 font-black">
+                                              <span className="flex items-center gap-0.5">
+                                                <Zap className="w-2.5 h-2.5 fill-amber-400" /> Fast Delivery Fee:
+                                              </span>
+                                              <span className="font-mono">+GH₵ {currentFastDeliveryFee.toFixed(2)}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center text-slate-100 font-black pt-1 border-t border-slate-700/60">
+                                              <span>Total:</span>
+                                              <span className="font-mono text-amber-300 text-xs">
+                                                GH₵ {(applicablePrice + currentFastDeliveryFee).toFixed(2)}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 border-t border-amber-500/10 pt-1">
+                                            <span>Fast Delivery ⚡</span>
+                                            <span className="bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded text-[9px] font-black uppercase">
+                                              [ OFF ]
+                                            </span>
+                                          </div>
+                                        )}
+                                      </div>
                                     )}
-                                    <span className="text-xs sm:text-sm font-black text-slate-950 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 px-2.5 py-1 rounded-lg border border-amber-300/60 shadow-sm w-fit tracking-tight">
-                                      GH₵ {bundle.price.toFixed(2)}
-                                    </span>
-                                  </div>
-                                  {isAgentUser && (
-                                    <Badge
-                                      variant="outline"
-                                      className="mt-1.5 border-amber-500/40 text-amber-300 font-black animate-pulse rounded px-1.5 py-0.5 text-[8px] uppercase w-fit bg-amber-500/10"
+
+                                    <Button
+                                      className="w-full h-10 text-xs font-black tracking-wide rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 hover:brightness-110 border border-amber-300/50 transition-all shadow-[0_2px_10px_rgba(245,158,11,0.25)] cursor-pointer"
+                                      onClick={() => {
+                                        onSelectBundle({
+                                          ...bundle,
+                                          fastDelivery: isFast,
+                                          fastDeliveryFee: isFast ? currentFastDeliveryFee : 0,
+                                          fastDeliveryType: isFast ? currentFastDeliveryType : undefined,
+                                          basePrice: applicablePrice,
+                                          price: cardDisplayPrice,
+                                        });
+                                      }}
                                     >
-                                      👑 Agent Wholesale
-                                    </Badge>
-                                  )}
-                                </div>
-                                <Wifi className="w-7 h-7 text-amber-500/20 group-hover:text-amber-400 transition-colors shrink-0" />
-                              </div>
-                              <Button
-                                className="w-full h-10 text-xs font-black tracking-wide rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 hover:brightness-110 border border-amber-300/50 transition-all shadow-[0_2px_10px_rgba(245,158,11,0.25)] cursor-pointer"
-                                onClick={() => {
-                                  onSelectBundle(bundle);
-                                }}
-                              >
-                                BUY NOW 👑
-                              </Button>
+                                      BUY NOW 👑
+                                    </Button>
+                                  </>
+                                );
+                              })()}
                             </CardContent>
                           </Card>
                         </motion.div>

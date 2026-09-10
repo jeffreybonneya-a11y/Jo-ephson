@@ -24,6 +24,11 @@ export interface Bundle {
   category?: string;
   description?: string;
   imageUrl?: string;
+  fastDelivery?: boolean;
+  fastDeliveryType?: "customer" | "agent";
+  fastDeliveryFee?: number;
+  basePrice?: number;
+  finalPrice?: number;
 }
 
 export interface Order {
@@ -69,6 +74,11 @@ export interface Order {
   wholesalePrice?: number;
   agentPrice?: number;
   profit?: number;
+  fastDelivery?: boolean;
+  fastDeliveryType?: "customer" | "agent";
+  fastDeliveryFee?: number;
+  basePrice?: number;
+  finalPrice?: number;
 }
 
 export interface Message {

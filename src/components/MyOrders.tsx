@@ -20,6 +20,7 @@ import {
   CreditCard,
   ChevronRight,
   AlertTriangle,
+  Zap,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
@@ -181,6 +182,12 @@ export default function MyOrders() {
                               order.reference?.slice(-8).toUpperCase() ||
                               order.id.slice(-6).toUpperCase()}
                           </span>
+                          {order.fastDelivery && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                              <Zap className="w-3 h-3 fill-amber-500 text-amber-500" />
+                              FAST DELIVERY ({order.fastDeliveryType === "agent" ? "AGENT" : "CUSTOMER"} • +GH₵{Number(order.fastDeliveryFee || 0).toFixed(2)})
+                            </span>
+                          )}
                         </div>
                         {order.fcUserId && order.fcUsername && (
                           <div className="flex items-center gap-4 text-[10px] font-black text-[#00FF87] uppercase tracking-wider mt-2 bg-[#00FF87]/10 w-fit px-2 py-1 rounded-md border border-[#00FF87]/20">
@@ -212,9 +219,16 @@ export default function MyOrders() {
                     </div>
 
                     <div className="flex flex-col items-end gap-2 border-t md:border-t-0 dark:border-slate-800 pt-4 md:pt-0">
-                      <p className="text-xl font-black text-primary">
-                        GHS {Number(order.amount).toFixed(2)}
-                      </p>
+                      <div className="text-right">
+                        <p className="text-xl font-black text-primary">
+                          GHS {Number(order.amount).toFixed(2)}
+                        </p>
+                        {order.fastDelivery && (
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">
+                            (Base GH₵{Number(order.basePrice || (order.amount - (order.fastDeliveryFee || 0))).toFixed(2)} + GH₵{Number(order.fastDeliveryFee || 0).toFixed(2)} Fast Delivery)
+                          </p>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2">
                         <Badge
                           className={`

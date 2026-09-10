@@ -206,9 +206,17 @@ export default function AdminDashboard() {
   const [isUpdatingRcStock, setIsUpdatingRcStock] = useState<boolean>(false);
   const [isFreeDataDisabled, setIsFreeDataDisabled] = useState<boolean>(false);
   const [freeDataPrice, setFreeDataPrice] = useState<number>(1);
-  const [fastDeliveryFee, setFastDeliveryFee] = useState<number>(1.50);
-  const [fastDeliveryFeeInput, setFastDeliveryFeeInput] = useState<number>(1.50);
-  const [isUpdatingFastDeliveryFee, setIsUpdatingFastDeliveryFee] = useState<boolean>(false);
+
+  // Fast Delivery Settings (Separated Customer vs Agent)
+  const [customerFastDeliveryEnabled, setCustomerFastDeliveryEnabled] = useState<boolean>(true);
+  const [customerFastDeliveryFee, setCustomerFastDeliveryFee] = useState<number>(1.50);
+  const [customerFastDeliveryFeeInput, setCustomerFastDeliveryFeeInput] = useState<number>(1.50);
+  const [isUpdatingCustomerFastDelivery, setIsUpdatingCustomerFastDelivery] = useState<boolean>(false);
+
+  const [agentFastDeliveryEnabled, setAgentFastDeliveryEnabled] = useState<boolean>(true);
+  const [agentFastDeliveryFee, setAgentFastDeliveryFee] = useState<number>(1.00);
+  const [agentFastDeliveryFeeInput, setAgentFastDeliveryFeeInput] = useState<number>(1.00);
+  const [isUpdatingAgentFastDelivery, setIsUpdatingAgentFastDelivery] = useState<boolean>(false);
 
   // Hidden Charges / Gateway Fees settings states (Retail vs Wholesale separated)
   const [hiddenRetailMTNCharge, setHiddenRetailMTNCharge] = useState<number>(0);
@@ -508,17 +516,43 @@ export default function AdminDashboard() {
       }
     );
 
-    // 13. Listen for Fast Delivery Settings
+    // 13. Listen for Fast Delivery Settings (Customer vs Agent separated)
     const unsubFastDelivery = onSnapshot(
       doc(db, "settings", "fast_delivery"),
       (snapshot) => {
-        if (snapshot.exists() && snapshot.data()?.fee != null) {
-          const feeVal = Number(snapshot.data().fee);
-          setFastDeliveryFee(feeVal);
-          setFastDeliveryFeeInput(feeVal);
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          // Customer Fast Delivery
+          const cEnabled = data.customerEnabled !== undefined ? Boolean(data.customerEnabled) : true;
+          let cFee = 1.50;
+          if (data.customerFee != null) {
+            const parsed = Number(data.customerFee);
+            if (!isNaN(parsed) && parsed >= 0) cFee = parsed;
+          } else if (data.fee != null) {
+            const parsed = Number(data.fee);
+            if (!isNaN(parsed) && parsed >= 0) cFee = parsed;
+          }
+          setCustomerFastDeliveryEnabled(cEnabled);
+          setCustomerFastDeliveryFee(cFee);
+          setCustomerFastDeliveryFeeInput(cFee);
+
+          // Agent Fast Delivery
+          const aEnabled = data.agentEnabled !== undefined ? Boolean(data.agentEnabled) : true;
+          let aFee = 1.00;
+          if (data.agentFee != null) {
+            const parsed = Number(data.agentFee);
+            if (!isNaN(parsed) && parsed >= 0) aFee = parsed;
+          }
+          setAgentFastDeliveryEnabled(aEnabled);
+          setAgentFastDeliveryFee(aFee);
+          setAgentFastDeliveryFeeInput(aFee);
         } else {
-          setFastDeliveryFee(1.50);
-          setFastDeliveryFeeInput(1.50);
+          setCustomerFastDeliveryEnabled(true);
+          setCustomerFastDeliveryFee(1.50);
+          setCustomerFastDeliveryFeeInput(1.50);
+          setAgentFastDeliveryEnabled(true);
+          setAgentFastDeliveryFee(1.00);
+          setAgentFastDeliveryFeeInput(1.00);
         }
       }
     );
@@ -541,20 +575,52 @@ export default function AdminDashboard() {
     };
   }, []);
 
-  const handleUpdateFastDeliveryFee = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isNaN(fastDeliveryFeeInput) || fastDeliveryFeeInput < 0) {
-      toast.error("Please enter a valid Fast Delivery fee amount.");
+  const handleSaveCustomerFastDelivery = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (isNaN(customerFastDeliveryFeeInput) || customerFastDeliveryFeeInput < 0) {
+      toast.error("Please enter a valid Customer Fast Delivery fee amount.");
       return;
     }
-    setIsUpdatingFastDeliveryFee(true);
+    setIsUpdatingCustomerFastDelivery(true);
     try {
-      await setDoc(doc(db, "settings", "fast_delivery"), { fee: Number(fastDeliveryFeeInput) }, { merge: true });
-      toast.success("Fast Delivery fee updated successfully.");
+      await setDoc(
+        doc(db, "settings", "fast_delivery"),
+        {
+          customerEnabled: customerFastDeliveryEnabled,
+          customerFee: Number(customerFastDeliveryFeeInput),
+          fee: Number(customerFastDeliveryFeeInput),
+        },
+        { merge: true }
+      );
+      toast.success("Customer Fast Delivery settings saved successfully! ⚡");
     } catch (err: any) {
-      toast.error("Failed to update Fast Delivery fee.");
+      toast.error("Failed to save Customer Fast Delivery settings.");
     } finally {
-      setIsUpdatingFastDeliveryFee(false);
+      setIsUpdatingCustomerFastDelivery(false);
+    }
+  };
+
+  const handleSaveAgentFastDelivery = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (isNaN(agentFastDeliveryFeeInput) || agentFastDeliveryFeeInput < 0) {
+      toast.error("Please enter a valid Agent Fast Delivery fee amount.");
+      return;
+    }
+    setIsUpdatingAgentFastDelivery(true);
+    try {
+      await setDoc(
+        doc(db, "settings", "fast_delivery"),
+        {
+          agentEnabled: agentFastDeliveryEnabled,
+          agentFee: Number(agentFastDeliveryFeeInput),
+        },
+        { merge: true }
+      );
+      toast.success("Agent Fast Delivery settings saved successfully! ⚡👨‍💼");
+    } catch (err: any) {
+      toast.error("Failed to save Agent Fast Delivery settings.");
+    } finally {
+      setIsUpdatingAgentFastDelivery(false);
     }
   };
 
@@ -2293,19 +2359,54 @@ export default function AdminDashboard() {
                                       </div>
                                     )}
                                   </div>
-                                  <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 mt-1 uppercase tracking-tight">
-                                    {order.bundle}
-                                  </span>
+                                  <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                    <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-tight">
+                                      {order.bundle}
+                                    </span>
+                                    {order.fastDelivery && (
+                                      <span className="inline-flex items-center gap-1 bg-amber-400 text-slate-950 font-black text-[9px] uppercase px-1.5 py-0.5 rounded shadow-sm">
+                                        <Zap className="w-2.5 h-2.5 fill-slate-950 text-slate-950" />
+                                        Fast Delivery: ON ⚡ (+GH₵{(order.fastDeliveryFee ?? (order.fastDeliveryType === "agent" || order.agent_id ? 1.0 : 1.5)).toFixed(2)})
+                                      </span>
+                                    )}
+                                  </div>
+                                  {order.fastDelivery && (
+                                    <div className="mt-1.5 p-2 rounded-lg bg-amber-500/10 border border-amber-500/25 text-[10px] space-y-0.5 max-w-xs">
+                                      <div className="flex items-center gap-1 font-black text-amber-600 dark:text-amber-400 uppercase text-[9px]">
+                                        <Zap className="w-3 h-3 fill-amber-500 text-amber-500 shrink-0" />
+                                        Fast Delivery: ON ⚡
+                                      </div>
+                                      <div className="text-slate-600 dark:text-slate-300 font-semibold">
+                                        Type: <span className="font-black text-slate-900 dark:text-white uppercase">{order.fastDeliveryType === "agent" || order.agent_id || order.agentId ? "Agent" : "Customer"}</span>
+                                      </div>
+                                      <div className="text-slate-600 dark:text-slate-300 font-semibold">
+                                        {order.fastDeliveryType === "agent" || order.agent_id || order.agentId ? "Agent Selling Price" : "Base Price"}: <span className="font-mono font-bold text-slate-900 dark:text-white">GH₵{(order.basePrice ?? Math.max(0, (order.amount || 0) - (order.fastDeliveryFee || (order.fastDeliveryType === "agent" || order.agent_id ? 1.0 : 1.5)))).toFixed(2)}</span>
+                                      </div>
+                                      <div className="text-amber-700 dark:text-amber-300 font-semibold">
+                                        Fast Delivery Fee: <span className="font-mono font-bold text-amber-600 dark:text-amber-400">GH₵{(order.fastDeliveryFee ?? (order.fastDeliveryType === "agent" || order.agent_id ? 1.0 : 1.5)).toFixed(2)}</span>
+                                      </div>
+                                      <div className="text-slate-900 dark:text-white font-black border-t border-amber-500/20 pt-0.5">
+                                        Final Price: <span className="font-mono text-secondary dark:text-primary">GH₵{(order.finalPrice || order.amount || 0).toFixed(2)}</span>
+                                      </div>
+                                    </div>
+                                  )}
                                 </>
                               )}
                             </div>
                           </TableCell>
                           <TableCell>
-                            <div className="flex items-center gap-1 font-black text-secondary">
-                              <Wallet className="w-4 h-4 text-primary" />
-                              <span className="dark:text-slate-300">
-                                GHS {(order.amount || 0).toFixed(2)}
-                              </span>
+                            <div>
+                              <div className="flex items-center gap-1 font-black text-secondary">
+                                <Wallet className="w-4 h-4 text-primary" />
+                                <span className="dark:text-slate-300">
+                                  GHS {(order.amount || 0).toFixed(2)}
+                                </span>
+                              </div>
+                              {order.fastDelivery && (
+                                <div className="text-[9px] font-bold text-amber-600 dark:text-amber-400">
+                                  Base: GH₵{(order.basePrice ?? Math.max(0, (order.amount || 0) - (order.fastDeliveryFee || 1.5))).toFixed(2)}
+                                </div>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell>
@@ -3792,45 +3893,204 @@ export default function AdminDashboard() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="fast_delivery" className="mt-0 outline-none">
+        <TabsContent value="fast_delivery" className="mt-0 outline-none space-y-6">
           <Card className="rounded-3xl border-2 bg-white dark:bg-slate-950 dark:border-slate-800 overflow-hidden shadow-sm">
-            <CardHeader className="p-8 border-b dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
-              <CardTitle className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-3">
-                <Zap className="w-7 h-7 text-amber-500 fill-amber-500 animate-pulse" />
-                Fast Delivery Settings ⚡
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-8 space-y-6">
-              <form onSubmit={handleUpdateFastDeliveryFee} className="space-y-6 max-w-xl">
-                <div className="space-y-2">
-                  <Label className="font-bold uppercase tracking-wider text-xs text-slate-700 dark:text-slate-300">
-                    Fast Delivery Fee (GHS)
-                  </Label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-400">GH₵</span>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.05"
-                      value={fastDeliveryFeeInput}
-                      onChange={(e) => setFastDeliveryFeeInput(Number(e.target.value))}
-                      placeholder="1.50"
-                      className="rounded-xl h-12 pl-14 font-black text-lg border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white"
-                    />
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    Current configured fee: <span className="font-black text-primary">GH₵ {fastDeliveryFee.toFixed(2)}</span>
+            <CardHeader className="p-6 md:p-8 border-b dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <CardTitle className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-3">
+                    <Zap className="w-7 h-7 text-amber-500 fill-amber-500 animate-pulse" />
+                    FAST DELIVERY SETTINGS ⚡
+                  </CardTitle>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-bold">
+                    Independent Fast Delivery controls for normal customers and agents (MTN only).
                   </p>
                 </div>
 
-                <Button
-                  type="submit"
-                  disabled={isUpdatingFastDeliveryFee}
-                  className="h-14 px-10 rounded-2xl font-black text-lg bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-lg transition-all flex items-center gap-2 cursor-pointer"
-                >
-                  {isUpdatingFastDeliveryFee ? "SAVING..." : "SAVE CHANGES ⚡"}
-                </Button>
-              </form>
+                {/* Status overview */}
+                <div className="flex flex-wrap gap-2.5">
+                  <div className="px-3.5 py-2 rounded-xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-xs font-black flex items-center gap-2 shadow-sm">
+                    <span className="text-slate-500 uppercase text-[10px] tracking-wider">Customer Fast Delivery:</span>
+                    <span className={customerFastDeliveryEnabled ? "text-amber-500 font-black" : "text-slate-400 font-bold"}>
+                      {customerFastDeliveryEnabled ? "ON" : "OFF"}
+                    </span>
+                    <span className="text-slate-300 dark:text-slate-700">|</span>
+                    <span className="text-slate-900 dark:text-white font-mono font-black">
+                      GH₵{customerFastDeliveryFee.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="px-3.5 py-2 rounded-xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-xs font-black flex items-center gap-2 shadow-sm">
+                    <span className="text-slate-500 uppercase text-[10px] tracking-wider">Agent Fast Delivery:</span>
+                    <span className={agentFastDeliveryEnabled ? "text-amber-500 font-black" : "text-slate-400 font-bold"}>
+                      {agentFastDeliveryEnabled ? "ON" : "OFF"}
+                    </span>
+                    <span className="text-slate-300 dark:text-slate-700">|</span>
+                    <span className="text-slate-900 dark:text-white font-mono font-black">
+                      GH₵{agentFastDeliveryFee.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+
+            <CardContent className="p-6 md:p-8 space-y-8">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* A. CUSTOMER SETTINGS */}
+                <div className="p-6 rounded-2xl border-2 border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 flex flex-col justify-between space-y-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between border-b pb-3 dark:border-slate-800">
+                      <div>
+                        <h3 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                          <Zap className="w-5 h-5 text-amber-500 fill-amber-500" />
+                          Customer Fast Delivery ⚡
+                        </h3>
+                        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">
+                          Controls Fast Delivery for normal retail customers (MTN only).
+                        </p>
+                      </div>
+                      <Badge className={customerFastDeliveryEnabled ? "bg-amber-400 text-slate-950 font-black" : "bg-slate-200 dark:bg-slate-800 text-slate-500 font-bold"}>
+                        {customerFastDeliveryEnabled ? "ENABLED" : "DISABLED"}
+                      </Badge>
+                    </div>
+
+                    {/* Enable Customer Fast Delivery Switch */}
+                    <div className="flex items-center justify-between p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <div>
+                        <Label className="font-black text-sm text-slate-900 dark:text-white">
+                          Enable Customer Fast Delivery
+                        </Label>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                          Show Fast Delivery toggle on MTN data bundles in customer store
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        id="toggle-customer-fast-delivery-admin"
+                        onClick={() => setCustomerFastDeliveryEnabled(!customerFastDeliveryEnabled)}
+                        className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none cursor-pointer ${
+                          customerFastDeliveryEnabled ? "bg-amber-400" : "bg-slate-300 dark:bg-slate-700"
+                        }`}
+                        aria-label="Toggle Customer Fast Delivery"
+                      >
+                        <span
+                          className={`inline-block h-5 w-5 transform rounded-full bg-slate-950 transition-transform ${
+                            customerFastDeliveryEnabled ? "translate-x-8" : "translate-x-1"
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    {/* Customer Fast Delivery Fee Input */}
+                    <div className="space-y-2">
+                      <Label className="font-bold uppercase tracking-wider text-xs text-slate-700 dark:text-slate-300">
+                        Customer Fast Delivery Fee
+                      </Label>
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-400">GH₵</span>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.05"
+                          value={customerFastDeliveryFeeInput}
+                          onChange={(e) => setCustomerFastDeliveryFeeInput(Number(e.target.value))}
+                          placeholder="1.50"
+                          className="rounded-xl h-12 pl-14 font-black text-base border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white"
+                        />
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                        Current configured fee: <span className="font-black text-amber-500">GH₵ {customerFastDeliveryFee.toFixed(2)}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <Button
+                    type="button"
+                    onClick={handleSaveCustomerFastDelivery}
+                    disabled={isUpdatingCustomerFastDelivery}
+                    className="w-full h-12 rounded-xl font-black text-sm bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    {isUpdatingCustomerFastDelivery ? "SAVING..." : "Save Customer Settings ⚡"}
+                  </Button>
+                </div>
+
+                {/* B. AGENT SETTINGS */}
+                <div className="p-6 rounded-2xl border-2 border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 flex flex-col justify-between space-y-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between border-b pb-3 dark:border-slate-800">
+                      <div>
+                        <h3 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                          <Zap className="w-5 h-5 text-amber-500 fill-amber-500" />
+                          Agent Fast Delivery ⚡👨‍💼
+                        </h3>
+                        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">
+                          Controls Fast Delivery for Agent Stores and wholesale agents (MTN only).
+                        </p>
+                      </div>
+                      <Badge className={agentFastDeliveryEnabled ? "bg-amber-400 text-slate-950 font-black" : "bg-slate-200 dark:bg-slate-800 text-slate-500 font-bold"}>
+                        {agentFastDeliveryEnabled ? "ENABLED" : "DISABLED"}
+                      </Badge>
+                    </div>
+
+                    {/* Enable Agent Fast Delivery Switch */}
+                    <div className="flex items-center justify-between p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <div>
+                        <Label className="font-black text-sm text-slate-900 dark:text-white">
+                          Enable Agent Fast Delivery
+                        </Label>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                          Show Fast Delivery toggle on MTN data bundles in Agent Stores
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        id="toggle-agent-fast-delivery-admin"
+                        onClick={() => setAgentFastDeliveryEnabled(!agentFastDeliveryEnabled)}
+                        className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none cursor-pointer ${
+                          agentFastDeliveryEnabled ? "bg-amber-400" : "bg-slate-300 dark:bg-slate-700"
+                        }`}
+                        aria-label="Toggle Agent Fast Delivery"
+                      >
+                        <span
+                          className={`inline-block h-5 w-5 transform rounded-full bg-slate-950 transition-transform ${
+                            agentFastDeliveryEnabled ? "translate-x-8" : "translate-x-1"
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    {/* Agent Fast Delivery Fee Input */}
+                    <div className="space-y-2">
+                      <Label className="font-bold uppercase tracking-wider text-xs text-slate-700 dark:text-slate-300">
+                        Agent Fast Delivery Fee
+                      </Label>
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-400">GH₵</span>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.05"
+                          value={agentFastDeliveryFeeInput}
+                          onChange={(e) => setAgentFastDeliveryFeeInput(Number(e.target.value))}
+                          placeholder="1.00"
+                          className="rounded-xl h-12 pl-14 font-black text-base border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white"
+                        />
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                        Current configured fee: <span className="font-black text-amber-500">GH₵ {agentFastDeliveryFee.toFixed(2)}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <Button
+                    type="button"
+                    onClick={handleSaveAgentFastDelivery}
+                    disabled={isUpdatingAgentFastDelivery}
+                    className="w-full h-12 rounded-xl font-black text-sm bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    {isUpdatingAgentFastDelivery ? "SAVING..." : "Save Agent Settings ⚡"}
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

@@ -49,6 +49,7 @@ import {
   PhoneCall,
   Wallet,
   AlertTriangle,
+  Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -153,6 +154,58 @@ export default function CheckoutForm({
     wholesaleAirtelTigoCharge: 0,
     wholesaleGameCharge: 0,
   });
+
+  const [customerFastDeliveryEnabled, setCustomerFastDeliveryEnabled] = useState<boolean>(true);
+  const [customerFastDeliveryFee, setCustomerFastDeliveryFee] = useState<number>(1.50);
+  const [agentFastDeliveryEnabled, setAgentFastDeliveryEnabled] = useState<boolean>(true);
+  const [agentFastDeliveryFee, setAgentFastDeliveryFee] = useState<number>(1.00);
+  const [isFastDelivery, setIsFastDelivery] = useState<boolean>(false);
+
+  useEffect(() => {
+    const unsubFast = onSnapshot(
+      doc(db, "settings", "fast_delivery"),
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          // Customer Fast Delivery
+          const cEnabled = data.customerEnabled !== undefined ? Boolean(data.customerEnabled) : true;
+          let cFee = 1.50;
+          if (data.customerFee != null) {
+            const parsed = Number(data.customerFee);
+            if (!isNaN(parsed) && parsed >= 0) cFee = parsed;
+          } else if (data.fee != null) {
+            const parsed = Number(data.fee);
+            if (!isNaN(parsed) && parsed >= 0) cFee = parsed;
+          }
+          setCustomerFastDeliveryEnabled(cEnabled);
+          setCustomerFastDeliveryFee(cFee);
+
+          // Agent Fast Delivery
+          const aEnabled = data.agentEnabled !== undefined ? Boolean(data.agentEnabled) : true;
+          let aFee = 1.00;
+          if (data.agentFee != null) {
+            const parsed = Number(data.agentFee);
+            if (!isNaN(parsed) && parsed >= 0) aFee = parsed;
+          }
+          setAgentFastDeliveryEnabled(aEnabled);
+          setAgentFastDeliveryFee(aFee);
+        } else {
+          setCustomerFastDeliveryEnabled(true);
+          setCustomerFastDeliveryFee(1.50);
+          setAgentFastDeliveryEnabled(true);
+          setAgentFastDeliveryFee(1.00);
+        }
+      },
+      (err) => console.warn("Notice: settings/fast_delivery listener:", err)
+    );
+    return () => unsubFast();
+  }, []);
+
+  useEffect(() => {
+    if (bundle) {
+      setIsFastDelivery(bundle.network === "MTN" && !!bundle.fastDelivery);
+    }
+  }, [bundle]);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "settings", "hidden_charges"), (docSnap) => {
@@ -269,8 +322,24 @@ export default function CheckoutForm({
 
   const totalHiddenCharges = networkHiddenCharge + agentStoreFee;
 
+  const isAgentOrderScope = Boolean(
+    isWholesaleContext ||
+    bundle?.fastDeliveryType === "agent" ||
+    (bundle as any)?.agent_id ||
+    (bundle as any)?.agentId
+  );
+  const fastDeliveryScopeType: "customer" | "agent" = isAgentOrderScope ? "agent" : "customer";
+  const isFastDeliveryPermitted = isMTN && (isAgentOrderScope ? agentFastDeliveryEnabled : customerFastDeliveryEnabled);
+  const applicableFastDeliveryFee = isAgentOrderScope ? agentFastDeliveryFee : customerFastDeliveryFee;
+
+  const applicableBasePrice = bundle?.basePrice != null 
+    ? Number(bundle.basePrice) 
+    : (bundle?.fastDelivery ? Math.max(0, Number(bundle.price) - (bundle.fastDeliveryFee || applicableFastDeliveryFee)) : Number(bundle?.price || 0));
+
+  const effectiveFastDeliveryFee = (isFastDeliveryPermitted && isFastDelivery) ? applicableFastDeliveryFee : 0;
+
   // Paystack and UI final amount
-  const finalAmountToCharge = Number(bundle?.price || 0) + totalHiddenCharges;
+  const finalAmountToCharge = applicableBasePrice + effectiveFastDeliveryFee + totalHiddenCharges;
 
   useEffect(() => {
     if (finalAmountToCharge < 10 && selectedPaymentMethod === "korapay") {
@@ -422,7 +491,7 @@ export default function CheckoutForm({
       setMomoRefCode(generatedRef);
 
       const wsPrice = Number(bundle.wholesalePrice || bundle.price);
-      const agPrice = Number(bundle.price);
+      const agPrice = applicableBasePrice;
       const calculatedProfit = agPrice - wsPrice;
 
       const momoOrderData = {
@@ -431,6 +500,11 @@ export default function CheckoutForm({
         network: data.recipientNetwork,
         bundle: bundle.network === "PC Games" ? bundle.name : `${data.recipientNetwork} ${bundle.dataAmount}`,
         amount: finalAmountToCharge,
+        fastDelivery: isFastDeliveryPermitted && isFastDelivery,
+        fastDeliveryType: (isFastDeliveryPermitted && isFastDelivery) ? fastDeliveryScopeType : undefined,
+        fastDeliveryFee: (isFastDeliveryPermitted && isFastDelivery) ? applicableFastDeliveryFee : 0,
+        basePrice: applicableBasePrice,
+        finalPrice: finalAmountToCharge,
         status: "pending_verification",
         paymentStatus: "pending_verification",
         paymentMethod: "momo_direct",
@@ -529,7 +603,7 @@ export default function CheckoutForm({
       setOrderId(finalOrderId);
 
       const wsPrice = Number(bundle.wholesalePrice || bundle.price);
-      const agPrice = Number(bundle.price);
+      const agPrice = applicableBasePrice;
       const calculatedProfit = agPrice - wsPrice;
 
       const initialOrderData = {
@@ -537,7 +611,12 @@ export default function CheckoutForm({
         phone: data.recipientPhone || "",
         network: data.recipientNetwork,
         bundle: bundle.network === "PC Games" ? bundle.name : `${data.recipientNetwork} ${bundle.dataAmount}`,
-        amount: Number(bundle.price),
+        amount: finalAmountToCharge,
+        fastDelivery: isFastDeliveryPermitted && isFastDelivery,
+        fastDeliveryType: (isFastDeliveryPermitted && isFastDelivery) ? fastDeliveryScopeType : undefined,
+        fastDeliveryFee: (isFastDeliveryPermitted && isFastDelivery) ? applicableFastDeliveryFee : 0,
+        basePrice: applicableBasePrice,
+        finalPrice: finalAmountToCharge,
         status: "pending",
         createdAt: serverTimestamp(),
         userId: currentUid,
@@ -594,6 +673,11 @@ export default function CheckoutForm({
           wholesale_price: wsPrice,
           agent_price: agPrice,
           profit: calculatedProfit,
+          fastDelivery: isFastDeliveryPermitted && isFastDelivery,
+          fastDeliveryType: "agent",
+          fastDeliveryFee: (isFastDeliveryPermitted && isFastDelivery) ? applicableFastDeliveryFee : 0,
+          basePrice: agPrice,
+          finalPrice: finalAmountToCharge,
           status: "pending",
           created_at: serverTimestamp(),
           paymentReference: finalOrderId,
@@ -652,6 +736,20 @@ export default function CheckoutForm({
             reference: finalOrderId,
             callback_url: redirectTarget + "/?reference=" + finalOrderId + "&method=paystack",
             currency: "GHS",
+            fastDelivery: isFastDeliveryPermitted && isFastDelivery,
+            fastDeliveryType: (isFastDeliveryPermitted && isFastDelivery) ? fastDeliveryScopeType : undefined,
+            fastDeliveryFee: (isFastDeliveryPermitted && isFastDelivery) ? applicableFastDeliveryFee : 0,
+            network: data.recipientNetwork,
+            basePrice: applicableBasePrice,
+            isAgentOrder: isAgentOrderScope,
+            metadata: {
+              fastDelivery: isFastDeliveryPermitted && isFastDelivery,
+              fastDeliveryType: (isFastDeliveryPermitted && isFastDelivery) ? fastDeliveryScopeType : undefined,
+              fastDeliveryFee: (isFastDeliveryPermitted && isFastDelivery) ? applicableFastDeliveryFee : 0,
+              network: data.recipientNetwork,
+              basePrice: applicableBasePrice,
+              isAgentOrder: isAgentOrderScope,
+            }
           }),
         });
 
@@ -707,7 +805,7 @@ export default function CheckoutForm({
       setOrderId(finalOrderId);
 
       const wsPrice = Number(bundle.wholesalePrice || bundle.price);
-      const agPrice = Number(bundle.price);
+      const agPrice = applicableBasePrice;
       const calculatedProfit = agPrice - wsPrice;
 
       const productDetails = bundle.network === "PC Games" ? bundle.name : `${data.recipientNetwork} ${bundle.dataAmount}`;
@@ -717,7 +815,12 @@ export default function CheckoutForm({
         phone: data.recipientPhone || "",
         network: data.recipientNetwork,
         bundle: productDetails,
-        amount: Number(bundle.price),
+        amount: finalAmountToCharge,
+        fastDelivery: isFastDeliveryPermitted && isFastDelivery,
+        fastDeliveryType: (isFastDeliveryPermitted && isFastDelivery) ? fastDeliveryScopeType : undefined,
+        fastDeliveryFee: (isFastDeliveryPermitted && isFastDelivery) ? applicableFastDeliveryFee : 0,
+        basePrice: applicableBasePrice,
+        finalPrice: finalAmountToCharge,
         status: "pending",
         createdAt: serverTimestamp(),
         userId: currentUid,
@@ -775,6 +878,11 @@ export default function CheckoutForm({
           wholesale_price: wsPrice,
           agent_price: agPrice,
           profit: calculatedProfit,
+          fastDelivery: isFastDeliveryPermitted && isFastDelivery,
+          fastDeliveryType: "agent",
+          fastDeliveryFee: (isFastDeliveryPermitted && isFastDelivery) ? applicableFastDeliveryFee : 0,
+          basePrice: agPrice,
+          finalPrice: finalAmountToCharge,
           status: "pending",
           created_at: serverTimestamp(),
           paymentReference: finalOrderId,
@@ -1321,8 +1429,57 @@ export default function CheckoutForm({
                   <div className="absolute top-0 right-0 w-16 h-16 bg-primary/5 rounded-full -mr-8 -mt-8" />
                   <div className="flex justify-between items-center text-xs font-bold text-slate-500">
                     <span>Base Package Price</span>
-                    <span className="font-mono">GHS {Number(bundle.price).toFixed(2)}</span>
+                    <span className="font-mono">GHS {applicableBasePrice.toFixed(2)}</span>
                   </div>
+
+                  {isFastDeliveryPermitted && (
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-2.5 my-1 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                          <span className="text-xs font-black text-foreground dark:text-white uppercase tracking-wide">
+                            Fast Delivery ⚡
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          id="checkout-fast-delivery-toggle"
+                          onClick={() => setIsFastDelivery((prev) => !prev)}
+                          className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none cursor-pointer ${
+                            isFastDelivery ? "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]" : "bg-slate-300 dark:bg-slate-700"
+                          }`}
+                          aria-label="Toggle Fast Delivery"
+                        >
+                          <span
+                            className={`inline-block h-3.5 w-3.5 transform rounded-full bg-slate-950 transition-transform ${
+                              isFastDelivery ? "translate-x-5.5" : "translate-x-0.5"
+                            }`}
+                          />
+                        </button>
+                      </div>
+                      <div className="flex justify-between items-center text-[10px] font-bold">
+                        <span className="text-slate-500 dark:text-slate-400">
+                          {isFastDelivery ? "Express queue priority active" : "Standard delivery"}
+                        </span>
+                        <span
+                          className={`font-black uppercase px-1.5 py-0.5 rounded text-[9px] ${
+                            isFastDelivery ? "bg-amber-400 text-slate-950" : "bg-slate-200 dark:bg-slate-800 text-slate-500"
+                          }`}
+                        >
+                          {isFastDelivery ? "ON ⚡" : "OFF"}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {isFastDeliveryPermitted && isFastDelivery && (
+                    <div className="flex justify-between items-center text-xs font-black text-amber-600 dark:text-amber-400">
+                      <span className="flex items-center gap-1">
+                        <Zap className="w-3 h-3 fill-amber-500 text-amber-500" /> Fast Delivery Fee ({isAgentOrderScope ? "Agent" : "Customer"})
+                      </span>
+                      <span className="font-mono">+ GHS {applicableFastDeliveryFee.toFixed(2)}</span>
+                    </div>
+                  )}
 
                   {agentStoreFee > 0 && (
                     <div className="flex justify-between items-center text-xs font-black text-amber-600 dark:text-amber-400">

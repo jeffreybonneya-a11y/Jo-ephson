@@ -241,6 +241,93 @@ app.get('/api/paystack-public-key', (req, res) => {
     res.json({ publicKey: pubKey });
 });
 
+interface VerifiedFastDeliveryResult {
+    isFastDelivery: boolean;
+    fastDeliveryType: "customer" | "agent";
+    fastDeliveryFee: number;
+    basePrice: number;
+    finalPrice: number;
+}
+
+async function verifyFastDeliverySettings(params: {
+    requestedFastDelivery: boolean;
+    network?: string;
+    isAgent: boolean;
+    basePrice: number;
+}): Promise<VerifiedFastDeliveryResult> {
+    const rawNetwork = (params.network || "").trim().toUpperCase();
+    const isMTN = rawNetwork === "MTN" || rawNetwork.startsWith("MTN");
+    const userType: "customer" | "agent" = params.isAgent ? "agent" : "customer";
+
+    // Strict Non-MTN restriction: only MTN orders can have Fast Delivery
+    if (!isMTN || !params.requestedFastDelivery) {
+        return {
+            isFastDelivery: false,
+            fastDeliveryType: userType,
+            fastDeliveryFee: 0,
+            basePrice: params.basePrice,
+            finalPrice: params.basePrice,
+        };
+    }
+
+    // Fetch database settings from settings/fast_delivery
+    let customerEnabled = true;
+    let customerFee = 1.50;
+    let agentEnabled = true;
+    let agentFee = 1.00;
+
+    try {
+        const fdSettingSnap = await getFirestoreDoc('settings', 'fast_delivery');
+        if (fdSettingSnap && fdSettingSnap.exists) {
+            const fdData = fdSettingSnap.data();
+            // Customer
+            if (fdData?.customerEnabled !== undefined) {
+                customerEnabled = Boolean(fdData.customerEnabled);
+            }
+            if (fdData?.customerFee != null) {
+                const parsed = Number(fdData.customerFee);
+                if (!isNaN(parsed) && parsed >= 0) customerFee = parsed;
+            } else if (fdData?.fee != null) {
+                const parsed = Number(fdData.fee);
+                if (!isNaN(parsed) && parsed >= 0) customerFee = parsed;
+            }
+
+            // Agent
+            if (fdData?.agentEnabled !== undefined) {
+                agentEnabled = Boolean(fdData.agentEnabled);
+            }
+            if (fdData?.agentFee != null) {
+                const parsed = Number(fdData.agentFee);
+                if (!isNaN(parsed) && parsed >= 0) agentFee = parsed;
+            }
+        }
+    } catch (err: any) {
+        console.warn("[Fast Delivery Verification] settings check warning:", err.message);
+    }
+
+    const isEnabledForUser = params.isAgent ? agentEnabled : customerEnabled;
+    const configuredFee = params.isAgent ? agentFee : customerFee;
+
+    // If Fast Delivery is disabled for that specific user type, fee must NOT be applied
+    if (!isEnabledForUser) {
+        return {
+            isFastDelivery: false,
+            fastDeliveryType: userType,
+            fastDeliveryFee: 0,
+            basePrice: params.basePrice,
+            finalPrice: params.basePrice,
+        };
+    }
+
+    return {
+        isFastDelivery: true,
+        fastDeliveryType: userType,
+        fastDeliveryFee: configuredFee,
+        basePrice: params.basePrice,
+        finalPrice: params.basePrice + configuredFee,
+    };
+}
+
 // Endpoint to initialize a Paystack transaction and get a direct redirect URL
 async function handlePaystackInitialize(req: express.Request, res: express.Response) {
     try {
@@ -378,6 +465,126 @@ async function handlePaystackInitialize(req: express.Request, res: express.Respo
                 console.warn("[Paystack Init] Firestore efootball order check notice:", efFsErr.message);
             }
         }
+
+        // Fast Delivery ⚡ verification & metadata persistence (Separated Customer vs Agent)
+        const requestedFastDelivery = req.body.fastDelivery === true || metadata?.fastDelivery === true;
+        const requestedNetwork = req.body.network || metadata?.network || "";
+        const requestedType = req.body.fastDeliveryType || metadata?.fastDeliveryType;
+
+        let isAgentOrder = Boolean(
+            req.body.isAgentOrder ||
+            metadata?.isAgentOrder ||
+            requestedType === "agent" ||
+            req.body.agentId ||
+            req.body.agent_id ||
+            metadata?.agentId ||
+            metadata?.agent_id
+        );
+
+        let verifiedResult: VerifiedFastDeliveryResult = {
+            isFastDelivery: false,
+            fastDeliveryType: isAgentOrder ? "agent" : "customer",
+            fastDeliveryFee: 0,
+            basePrice: Number(req.body.basePrice || metadata?.basePrice || 0),
+            finalPrice: Number(req.body.basePrice || metadata?.basePrice || 0),
+        };
+
+        try {
+            let existingOrder: any = null;
+            let existingAgentOrder: any = null;
+
+            if (reference) {
+                const existingOrderSnap = await getFirestoreDoc('orders', reference);
+                const existingAgentOrderSnap = await getFirestoreDoc('agent_orders', reference);
+                if (existingOrderSnap && existingOrderSnap.exists) {
+                    existingOrder = existingOrderSnap.data();
+                }
+                if (existingAgentOrderSnap && existingAgentOrderSnap.exists) {
+                    existingAgentOrder = existingAgentOrderSnap.data();
+                }
+            }
+
+            if (existingAgentOrder || existingOrder?.isAgentOrder || existingOrder?.agent_id || existingOrder?.agentId) {
+                isAgentOrder = true;
+            }
+
+            const effectiveNetwork = requestedNetwork || existingOrder?.network || existingAgentOrder?.customer_details?.network || "";
+            const rawBasePrice = Number(
+                existingOrder?.basePrice ||
+                existingAgentOrder?.basePrice ||
+                existingAgentOrder?.agent_price ||
+                req.body.basePrice ||
+                metadata?.basePrice ||
+                (existingOrder?.amount ? Math.max(0, existingOrder.amount - (existingOrder.fastDeliveryFee || 0)) : 0)
+            );
+
+            verifiedResult = await verifyFastDeliverySettings({
+                requestedFastDelivery,
+                network: effectiveNetwork,
+                isAgent: isAgentOrder,
+                basePrice: rawBasePrice,
+            });
+
+            if (reference) {
+                if (existingOrder) {
+                    if (verifiedResult.isFastDelivery) {
+                        await updateFirestoreDoc('orders', reference, {
+                            fastDelivery: true,
+                            fastDeliveryType: verifiedResult.fastDeliveryType,
+                            fastDeliveryFee: verifiedResult.fastDeliveryFee,
+                            basePrice: verifiedResult.basePrice,
+                            finalPrice: verifiedResult.finalPrice,
+                            amount: verifiedResult.finalPrice,
+                            updatedAt: clientServerTimestamp(),
+                        });
+                        console.log(`[Paystack Init] Verified Fast Delivery ⚡ (${verifiedResult.fastDeliveryType}) for order ${reference}, fee: GH¢${verifiedResult.fastDeliveryFee}`);
+                    } else if (existingOrder.fastDelivery) {
+                        await updateFirestoreDoc('orders', reference, {
+                            fastDelivery: false,
+                            fastDeliveryType: verifiedResult.fastDeliveryType,
+                            fastDeliveryFee: 0,
+                            basePrice: verifiedResult.basePrice,
+                            finalPrice: verifiedResult.basePrice,
+                            amount: verifiedResult.basePrice,
+                            updatedAt: clientServerTimestamp(),
+                        });
+                    }
+                }
+
+                if (existingAgentOrder) {
+                    const agentBase = Number(existingAgentOrder.basePrice || existingAgentOrder.agent_price || rawBasePrice);
+                    const verifiedAgentResult = await verifyFastDeliverySettings({
+                        requestedFastDelivery,
+                        network: effectiveNetwork,
+                        isAgent: true,
+                        basePrice: agentBase,
+                    });
+
+                    if (verifiedAgentResult.isFastDelivery) {
+                        await updateFirestoreDoc('agent_orders', reference, {
+                            fastDelivery: true,
+                            fastDeliveryType: "agent",
+                            fastDeliveryFee: verifiedAgentResult.fastDeliveryFee,
+                            basePrice: verifiedAgentResult.basePrice,
+                            finalPrice: verifiedAgentResult.finalPrice,
+                            updatedAt: clientServerTimestamp(),
+                        });
+                        console.log(`[Paystack Init] Verified Fast Delivery ⚡ (agent) for agent_order ${reference}, fee: GH¢${verifiedAgentResult.fastDeliveryFee}`);
+                    } else if (existingAgentOrder.fastDelivery) {
+                        await updateFirestoreDoc('agent_orders', reference, {
+                            fastDelivery: false,
+                            fastDeliveryType: "agent",
+                            fastDeliveryFee: 0,
+                            basePrice: verifiedAgentResult.basePrice,
+                            finalPrice: verifiedAgentResult.basePrice,
+                            updatedAt: clientServerTimestamp(),
+                        });
+                    }
+                }
+            }
+        } catch (fdErr: any) {
+            console.warn("[Paystack Init] Fast delivery verification notice:", fdErr.message);
+        }
         
         const key = getPaystackSecretKey();
         if (!key || (!key.startsWith('sk_') && !key.startsWith('sat_'))) {
@@ -403,6 +610,15 @@ async function handlePaystackInitialize(req: express.Request, res: express.Respo
             metadata: {
                 ...(metadata || {}),
                 service: bookingCodeId ? "booking_codes" : (metadata?.service || "orders"),
+                ...(verifiedResult.isFastDelivery ? {
+                    fastDelivery: true,
+                    fastDeliveryType: verifiedResult.fastDeliveryType,
+                    fastDeliveryFee: verifiedResult.fastDeliveryFee,
+                    basePrice: verifiedResult.basePrice,
+                    finalPrice: verifiedResult.finalPrice,
+                } : {
+                    fastDelivery: false,
+                }),
                 ...(bookingCodeId ? {
                     bookingCodeId,
                     code_title: bookingCodeDoc?.title || "",
@@ -493,7 +709,7 @@ async function updateFirestoreOrderPaymentStatus(reference: string, paymentStatu
                 customerName: agentData.customer_details?.name || "Agent Store Customer",
                 network: agentData.customer_details?.network || "Data Bundle",
                 bundle: agentData.bundle || "Agent Store Bundle",
-                amount: agentData.agent_price || 0,
+                amount: agentData.finalPrice || agentData.agent_price || 0,
                 agentId: agentData.agent_id,
                 agent_id: agentData.agent_id,
                 wholesalePrice: agentData.wholesale_price || 0,
@@ -503,6 +719,13 @@ async function updateFirestoreOrderPaymentStatus(reference: string, paymentStatu
                 profit: agentData.profit || 0,
                 agent_profit: agentData.profit || 0,
                 isAgentOrder: true,
+                fastDelivery: Boolean(agentData.fastDelivery),
+                ...(agentData.fastDelivery ? {
+                    fastDeliveryType: agentData.fastDeliveryType || "agent",
+                    fastDeliveryFee: Number(agentData.fastDeliveryFee ?? 1.00),
+                    basePrice: Number(agentData.basePrice || agentData.agent_price || 0),
+                    finalPrice: Number(agentData.finalPrice || agentData.amount || agentData.agent_price || 0),
+                } : {}),
                 createdAt: agentData.created_at || clientServerTimestamp(),
                 updatedAt: clientServerTimestamp()
             }, true);
@@ -771,6 +994,13 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
                     profit: agentData.profit,
                     agent_profit: agentData.profit,
                     isAgentOrder: true,
+                    ...(agentData.fastDelivery ? {
+                        fastDelivery: true,
+                        fastDeliveryType: agentData.fastDeliveryType || "agent",
+                        fastDeliveryFee: Number(agentData.fastDeliveryFee ?? 1.00),
+                        basePrice: Number(agentData.basePrice || agentData.agent_price || 0),
+                        finalPrice: Number(agentData.finalPrice || agentData.amount || agentData.agent_price || 0),
+                    } : {}),
                 }, true);
             }
             // Update booking_code_orders if present
@@ -1143,6 +1373,13 @@ async function handleKorapayVerificationRequest(req: express.Request, res: expre
                     profit: agentData.profit,
                     agent_profit: agentData.profit,
                     isAgentOrder: true,
+                    ...(agentData.fastDelivery ? {
+                        fastDelivery: true,
+                        fastDeliveryType: agentData.fastDeliveryType || "agent",
+                        fastDeliveryFee: Number(agentData.fastDeliveryFee ?? 1.00),
+                        basePrice: Number(agentData.basePrice || agentData.agent_price || 0),
+                        finalPrice: Number(agentData.finalPrice || agentData.amount || agentData.agent_price || 0),
+                    } : {}),
                 }, true);
             }
         } catch (fsErr: any) {
