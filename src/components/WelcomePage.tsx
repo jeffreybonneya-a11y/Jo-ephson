@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { auth } from '@/src/lib/firebase';
 import { syncUserCustomerRecord } from '@/src/lib/userSync';
 import { GoogleAuthProvider, signInWithPopup, signInWithCredential } from 'firebase/auth';
@@ -19,12 +19,38 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
   const [isWhatsAppAdOpen, setIsWhatsAppAdOpen] = useState(false);
+  const monetagAdRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     try {
       setIsIframe(window.self !== window.top);
     } catch {
       setIsIframe(true);
+    }
+  }, []);
+
+  // Initialize Monetag In-Page Push zone 11767716 once below the Welcome Back card
+  useEffect(() => {
+    if (
+      document.querySelector('script[data-zone="11767716"]') ||
+      document.querySelector('script[src*="nap5k.com/tag.min.js"]') ||
+      document.getElementById('monetag-inpage-push-script')
+    ) {
+      return;
+    }
+
+    try {
+      const container = monetagAdRef.current;
+      const target = container || [document.documentElement, document.body].filter(Boolean).pop();
+      if (target) {
+        (function(s: HTMLScriptElement) {
+          s.id = 'monetag-inpage-push-script';
+          s.dataset.zone = '11767716';
+          s.src = 'https://nap5k.com/tag.min.js';
+        })(target.appendChild(document.createElement('script')));
+      }
+    } catch (err) {
+      console.warn('[Monetag] Notice initializing In-Page Push zone 11767716:', err);
     }
   }, []);
 
@@ -615,6 +641,20 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
           </div>
         </div>
       </main>
+
+      {/* 4. MONETAG IN-PAGE PUSH AD PLACEMENT (ZONE 11767716) */}
+      <section
+        id="monetag-inpage-push-wrapper"
+        aria-label="Sponsored Ad"
+        className="relative z-10 w-full flex flex-col items-center justify-center my-4 sm:my-6 px-4"
+      >
+        <div
+          id="monetag-zone-11767716"
+          data-zone="11767716"
+          ref={monetagAdRef}
+          className="w-full max-w-[440px] min-h-[50px] flex items-center justify-center overflow-visible"
+        />
+      </section>
 
       {/* 10. FOOTER TAGLINE */}
       <footer className="relative z-10 w-full text-center pb-2 pt-4 space-y-1">
