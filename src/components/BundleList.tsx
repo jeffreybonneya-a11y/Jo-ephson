@@ -1020,8 +1020,8 @@ export default function BundleList({
                                     onSelectBundle({
                                       ...bundle,
                                       fastDelivery: isFast,
-                                      fastDeliveryType: isFast ? currentFastDeliveryType : undefined,
                                       fastDeliveryFee: isFast ? currentFastDeliveryFee : 0,
+                                      ...(isFast ? { fastDeliveryType: currentFastDeliveryType } : {}),
                                       basePrice: applicablePrice,
                                       price: cardDisplayPrice,
                                     });
@@ -1209,7 +1209,7 @@ export default function BundleList({
                                           ...bundle,
                                           fastDelivery: isFast,
                                           fastDeliveryFee: isFast ? currentFastDeliveryFee : 0,
-                                          fastDeliveryType: isFast ? currentFastDeliveryType : undefined,
+                                          ...(isFast ? { fastDeliveryType: currentFastDeliveryType } : {}),
                                           basePrice: applicablePrice,
                                           price: cardDisplayPrice,
                                         });

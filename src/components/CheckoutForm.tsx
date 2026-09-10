@@ -59,7 +59,7 @@ const formSchema = z
   .object({
     recipientPhone: z.string().optional(),
     recipientNetwork: z.string(),
-    amountSent: z.number().min(1, "Amount must be greater than 0"),
+    amountSent: z.number().optional(),
     fcUserId: z.string().optional(),
     fcUsername: z.string().optional(),
   })
@@ -494,15 +494,16 @@ export default function CheckoutForm({
       const agPrice = applicableBasePrice;
       const calculatedProfit = agPrice - wsPrice;
 
+      const isFastDeliveryActive = Boolean(isFastDeliveryPermitted && isFastDelivery);
       const momoOrderData = {
         email: currentEmail,
         phone: data.recipientPhone || "",
         network: data.recipientNetwork,
         bundle: bundle.network === "PC Games" ? bundle.name : `${data.recipientNetwork} ${bundle.dataAmount}`,
         amount: finalAmountToCharge,
-        fastDelivery: isFastDeliveryPermitted && isFastDelivery,
-        fastDeliveryType: (isFastDeliveryPermitted && isFastDelivery) ? fastDeliveryScopeType : undefined,
-        fastDeliveryFee: (isFastDeliveryPermitted && isFastDelivery) ? applicableFastDeliveryFee : 0,
+        fastDelivery: isFastDeliveryActive,
+        fastDeliveryFee: isFastDeliveryActive ? applicableFastDeliveryFee : 0,
+        ...(isFastDeliveryActive ? { fastDeliveryType: fastDeliveryScopeType } : {}),
         basePrice: applicableBasePrice,
         finalPrice: finalAmountToCharge,
         status: "pending_verification",
@@ -563,6 +564,11 @@ export default function CheckoutForm({
           wholesale_price: wsPrice,
           agent_price: agPrice,
           profit: calculatedProfit,
+          fastDelivery: isFastDeliveryActive,
+          fastDeliveryFee: isFastDeliveryActive ? applicableFastDeliveryFee : 0,
+          ...(isFastDeliveryActive ? { fastDeliveryType: "agent" } : {}),
+          basePrice: agPrice,
+          finalPrice: finalAmountToCharge,
           status: "pending_verification",
           created_at: serverTimestamp(),
           paymentReference: generatedRef,
@@ -606,15 +612,16 @@ export default function CheckoutForm({
       const agPrice = applicableBasePrice;
       const calculatedProfit = agPrice - wsPrice;
 
+      const isFastDeliveryActive = Boolean(isFastDeliveryPermitted && isFastDelivery);
       const initialOrderData = {
         email: currentEmail,
         phone: data.recipientPhone || "",
         network: data.recipientNetwork,
         bundle: bundle.network === "PC Games" ? bundle.name : `${data.recipientNetwork} ${bundle.dataAmount}`,
         amount: finalAmountToCharge,
-        fastDelivery: isFastDeliveryPermitted && isFastDelivery,
-        fastDeliveryType: (isFastDeliveryPermitted && isFastDelivery) ? fastDeliveryScopeType : undefined,
-        fastDeliveryFee: (isFastDeliveryPermitted && isFastDelivery) ? applicableFastDeliveryFee : 0,
+        fastDelivery: isFastDeliveryActive,
+        fastDeliveryFee: isFastDeliveryActive ? applicableFastDeliveryFee : 0,
+        ...(isFastDeliveryActive ? { fastDeliveryType: fastDeliveryScopeType } : {}),
         basePrice: applicableBasePrice,
         finalPrice: finalAmountToCharge,
         status: "pending",
@@ -673,9 +680,9 @@ export default function CheckoutForm({
           wholesale_price: wsPrice,
           agent_price: agPrice,
           profit: calculatedProfit,
-          fastDelivery: isFastDeliveryPermitted && isFastDelivery,
-          fastDeliveryType: "agent",
-          fastDeliveryFee: (isFastDeliveryPermitted && isFastDelivery) ? applicableFastDeliveryFee : 0,
+          fastDelivery: isFastDeliveryActive,
+          fastDeliveryFee: isFastDeliveryActive ? applicableFastDeliveryFee : 0,
+          ...(isFastDeliveryActive ? { fastDeliveryType: "agent" } : {}),
           basePrice: agPrice,
           finalPrice: finalAmountToCharge,
           status: "pending",
@@ -736,16 +743,16 @@ export default function CheckoutForm({
             reference: finalOrderId,
             callback_url: redirectTarget + "/?reference=" + finalOrderId + "&method=paystack",
             currency: "GHS",
-            fastDelivery: isFastDeliveryPermitted && isFastDelivery,
-            fastDeliveryType: (isFastDeliveryPermitted && isFastDelivery) ? fastDeliveryScopeType : undefined,
-            fastDeliveryFee: (isFastDeliveryPermitted && isFastDelivery) ? applicableFastDeliveryFee : 0,
+            fastDelivery: isFastDeliveryActive,
+            fastDeliveryFee: isFastDeliveryActive ? applicableFastDeliveryFee : 0,
+            ...(isFastDeliveryActive ? { fastDeliveryType: fastDeliveryScopeType } : {}),
             network: data.recipientNetwork,
             basePrice: applicableBasePrice,
             isAgentOrder: isAgentOrderScope,
             metadata: {
-              fastDelivery: isFastDeliveryPermitted && isFastDelivery,
-              fastDeliveryType: (isFastDeliveryPermitted && isFastDelivery) ? fastDeliveryScopeType : undefined,
-              fastDeliveryFee: (isFastDeliveryPermitted && isFastDelivery) ? applicableFastDeliveryFee : 0,
+              fastDelivery: isFastDeliveryActive,
+              fastDeliveryFee: isFastDeliveryActive ? applicableFastDeliveryFee : 0,
+              ...(isFastDeliveryActive ? { fastDeliveryType: fastDeliveryScopeType } : {}),
               network: data.recipientNetwork,
               basePrice: applicableBasePrice,
               isAgentOrder: isAgentOrderScope,
@@ -810,15 +817,16 @@ export default function CheckoutForm({
 
       const productDetails = bundle.network === "PC Games" ? bundle.name : `${data.recipientNetwork} ${bundle.dataAmount}`;
 
+      const isFastDeliveryActive = Boolean(isFastDeliveryPermitted && isFastDelivery);
       const initialOrderData = {
         email: currentEmail,
         phone: data.recipientPhone || "",
         network: data.recipientNetwork,
         bundle: productDetails,
         amount: finalAmountToCharge,
-        fastDelivery: isFastDeliveryPermitted && isFastDelivery,
-        fastDeliveryType: (isFastDeliveryPermitted && isFastDelivery) ? fastDeliveryScopeType : undefined,
-        fastDeliveryFee: (isFastDeliveryPermitted && isFastDelivery) ? applicableFastDeliveryFee : 0,
+        fastDelivery: isFastDeliveryActive,
+        fastDeliveryFee: isFastDeliveryActive ? applicableFastDeliveryFee : 0,
+        ...(isFastDeliveryActive ? { fastDeliveryType: fastDeliveryScopeType } : {}),
         basePrice: applicableBasePrice,
         finalPrice: finalAmountToCharge,
         status: "pending",
@@ -878,9 +886,9 @@ export default function CheckoutForm({
           wholesale_price: wsPrice,
           agent_price: agPrice,
           profit: calculatedProfit,
-          fastDelivery: isFastDeliveryPermitted && isFastDelivery,
-          fastDeliveryType: "agent",
-          fastDeliveryFee: (isFastDeliveryPermitted && isFastDelivery) ? applicableFastDeliveryFee : 0,
+          fastDelivery: isFastDeliveryActive,
+          fastDeliveryFee: isFastDeliveryActive ? applicableFastDeliveryFee : 0,
+          ...(isFastDeliveryActive ? { fastDeliveryType: "agent" } : {}),
           basePrice: agPrice,
           finalPrice: finalAmountToCharge,
           status: "pending",
