@@ -878,9 +878,9 @@ export async function processUssdRequest(
                 responseMsg = `Check Order:\n1. Track using phone number\n2. Track using order reference\n0. Back`;
                 shouldContinue = true;
             } else if (input === '6') {
-                sessionStore.delete(sessionId);
-                responseMsg = `KING J DEALS Support:\nWhatsApp: ${SUPPORT_NUMBERS}\nWebsite: kingjdeals.site\n24/7 Fast Delivery!`;
-                shouldContinue = false; // END session
+                session.screen = 'CONTACT_US';
+                responseMsg = `KING J DEALS Support:\nWhatsApp: ${SUPPORT_NUMBERS}\nCall: ${SUPPORT_NUMBERS}\nWebsite: kingjdeals.site\n\n0. Back`;
+                shouldContinue = true;
             } else {
                 responseMsg = `Invalid choice.\n\nKING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n0. Exit`;
                 shouldContinue = true;
@@ -1383,6 +1383,19 @@ export async function processUssdRequest(
             sessionStore.delete(sessionId);
             responseMsg = lookupResult;
             shouldContinue = false; // END session
+            break;
+        }
+
+        case 'CONTACT_US': {
+            if (input === '0') {
+                session.screen = 'MAIN_MENU';
+                responseMsg = `KING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n0. Exit`;
+                shouldContinue = true;
+                break;
+            }
+
+            responseMsg = `KING J DEALS Support:\nWhatsApp: ${SUPPORT_NUMBERS}\nCall: ${SUPPORT_NUMBERS}\nWebsite: kingjdeals.site\n\n0. Back`;
+            shouldContinue = true;
             break;
         }
 
