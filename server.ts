@@ -270,7 +270,7 @@ app.post('/api/ussd', async (req, res) => {
         }
 
         const payload = { ...req.query, ...req.body };
-        const response = await processUssdRequest(payload, serverClientDb);
+        const response = await processUssdRequest(payload, serverClientDb, getPaystackSecretKey());
 
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         return res.status(200).json(response);
@@ -1507,9 +1507,12 @@ app.post('/api/paystack-webhook', async (req, res) => {
         if (event === 'charge.success' || data.status === 'success') {
             if (reference) {
                 await updateFirestoreOrderPaymentStatus(reference, "success");
+                const existingOrderSnap = await getFirestoreDoc('orders', reference);
+                const existingOrder = existingOrderSnap?.exists ? existingOrderSnap.data() : null;
+                const resolvedPaymentMethod = existingOrder?.paymentMethod === 'momo' ? 'momo' : (existingOrder?.paymentMethod || "Paystack");
                 await updateFirestoreDoc('orders', reference, {
                     payment_provider: "paystack",
-                    paymentMethod: "Paystack",
+                    paymentMethod: resolvedPaymentMethod,
                     updatedAt: clientServerTimestamp()
                 });
                 console.log(`[Paystack Webhook Success] Processed charge.success for ${reference}`);

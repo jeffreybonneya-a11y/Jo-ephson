@@ -79,6 +79,11 @@ export interface Order {
   fastDeliveryFee?: number;
   basePrice?: number;
   finalPrice?: number;
+  source?: string;
+  channel?: string;
+  notes?: string;
+  reference?: string;
+  payment_provider?: string;
 }
 
 export interface Message {

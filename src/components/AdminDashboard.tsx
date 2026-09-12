@@ -2233,6 +2233,11 @@ export default function AdminDashboard() {
                                 <span className="font-bold text-slate-900 dark:text-slate-100 leading-tight">
                                   {order.customerName || "Royal Customer"}
                                 </span>
+                                {(order.source === "ussd" || order.channel === "USSD") && (
+                                  <Badge className="bg-blue-600 hover:bg-blue-700 text-white font-black text-[8px] uppercase px-1.5 py-0.5 rounded-md leading-none h-4">
+                                    📱 USSD
+                                  </Badge>
+                                )}
                                 {(order.agent_id || order.agentId) && (
                                   <Badge className="bg-amber-500 hover:bg-amber-600 text-white font-black text-[8px] uppercase px-1.5 py-0.5 rounded-md leading-none h-4">
                                     Agent Store
