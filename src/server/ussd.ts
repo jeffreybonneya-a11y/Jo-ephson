@@ -848,7 +848,7 @@ export async function processUssdRequest(
         case 'MAIN_MENU': {
             // First time displaying main menu
             if (isNewSession || input === '' || (input.startsWith('*') && input.endsWith('#'))) {
-                responseMsg = `KING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n0. Exit`;
+                responseMsg = `KING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
                 shouldContinue = true;
                 break;
             }
@@ -881,8 +881,12 @@ export async function processUssdRequest(
                 session.screen = 'CONTACT_US';
                 responseMsg = `KING J DEALS Support:\nWhatsApp: ${SUPPORT_NUMBERS}\nCall: ${SUPPORT_NUMBERS}\nWebsite: kingjdeals.site\n\n0. Back`;
                 shouldContinue = true;
+            } else if (input === '7') {
+                session.screen = 'WHATSAPP_CHANNEL';
+                responseMsg = `KING J DEALS WhatsApp Channel:\nJoin our WhatsApp Channel for\nupdates, offers and announcements.\n\nChannel:\nhttps://whatsapp.com/channel/0029Vb807HG6mYPM5A6jPL1j\n\n0. Back`;
+                shouldContinue = true;
             } else {
-                responseMsg = `Invalid choice.\n\nKING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n0. Exit`;
+                responseMsg = `Invalid choice.\n\nKING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
                 shouldContinue = true;
             }
             break;
@@ -903,7 +907,7 @@ export async function processUssdRequest(
 
             if (input === '0') {
                 session.screen = 'MAIN_MENU';
-                responseMsg = `KING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n0. Exit`;
+                responseMsg = `KING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
                 shouldContinue = true;
                 break;
             }
@@ -951,7 +955,7 @@ export async function processUssdRequest(
         case 'ENTER_RECIPIENT_PHONE': {
             if (input === '0') {
                 session.screen = 'MAIN_MENU';
-                responseMsg = `KING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n0. Exit`;
+                responseMsg = `KING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
                 shouldContinue = true;
                 break;
             }
@@ -1192,7 +1196,7 @@ export async function processUssdRequest(
         case 'GAME_COINS_MENU': {
             if (input === '0') {
                 session.screen = 'MAIN_MENU';
-                responseMsg = `KING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n0. Exit`;
+                responseMsg = `KING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
                 shouldContinue = true;
             } else if (input === '1' || input === '2' || input === '3') {
                 const category = input === '1' ? 'FC Mobile Points' : input === '2' ? 'FC Mobile Silver' : 'PUBG Mobile UC';
@@ -1330,7 +1334,7 @@ export async function processUssdRequest(
         case 'CHECK_ORDER_MENU': {
             if (input === '0') {
                 session.screen = 'MAIN_MENU';
-                responseMsg = `KING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n0. Exit`;
+                responseMsg = `KING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
                 shouldContinue = true;
                 break;
             } else if (input === '1') {
@@ -1389,7 +1393,7 @@ export async function processUssdRequest(
         case 'CONTACT_US': {
             if (input === '0') {
                 session.screen = 'MAIN_MENU';
-                responseMsg = `KING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n0. Exit`;
+                responseMsg = `KING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
                 shouldContinue = true;
                 break;
             }
@@ -1399,9 +1403,22 @@ export async function processUssdRequest(
             break;
         }
 
+        case 'WHATSAPP_CHANNEL': {
+            if (input === '0') {
+                session.screen = 'MAIN_MENU';
+                responseMsg = `KING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
+                shouldContinue = true;
+                break;
+            }
+
+            responseMsg = `KING J DEALS WhatsApp Channel:\nJoin our WhatsApp Channel for\nupdates, offers and announcements.\n\nChannel:\nhttps://whatsapp.com/channel/0029Vb807HG6mYPM5A6jPL1j\n\n0. Back`;
+            shouldContinue = true;
+            break;
+        }
+
         default: {
             session.screen = 'MAIN_MENU';
-            responseMsg = `KING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n0. Exit`;
+            responseMsg = `KING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
             shouldContinue = true;
             break;
         }
