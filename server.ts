@@ -8,6 +8,7 @@ import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { getSeoPageData } from './src/data/seoPages';
 import { renderSeoHtml } from './src/lib/serverSeoHtml';
+import { processUssdRequest } from './src/server/ussd';
 import admin from 'firebase-admin';
 import { initializeApp as initClientApp } from 'firebase/app';
 import { 
@@ -221,6 +222,68 @@ app.use(cors({
 }));
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// NALO Solutions USSD Status and Diagnostic Endpoint
+app.get('/api/ussd', (req, res) => {
+    res.json({
+        status: "online",
+        service: "King J Deals NALO Solutions USSD Gateway",
+        endpoint: "/api/ussd",
+        method: "POST",
+        description: "Live USSD endpoint ready to receive NALO Solutions gateway webhooks",
+        format: {
+            request: {
+                USERID: "string (NALO client user ID or kingjdeals)",
+                MSISDN: "string (subscriber mobile number, e.g. 233241234567)",
+                USERDATA: "string (input entered or dialed code)",
+                MSGTYPE: "boolean (true for initial session, false for continuation)",
+                SESSIONID: "string (unique session ID)"
+            },
+            response: {
+                USERID: "string",
+                MSISDN: "string",
+                MSG: "string (USSD menu text)",
+                MSGTYPE: "boolean (true = Continue session [CON], false = End session [END])"
+            }
+        },
+        timestamp: new Date().toISOString()
+    });
+});
+
+// NALO Solutions USSD Webhook Handler
+app.post('/api/ussd', async (req, res) => {
+    try {
+        // Optional secret verification if NALO_APP_SECRET is set
+        const expectedSecret = process.env.NALO_APP_SECRET;
+        if (expectedSecret) {
+            const tokenHeader = req.headers['x-nalo-token'] || req.headers['authorization'];
+            const tokenQuery = req.query.secret || req.query.token;
+            const bearerToken = typeof tokenHeader === 'string' && tokenHeader.startsWith('Bearer ')
+                ? tokenHeader.slice(7).trim()
+                : tokenHeader;
+
+            if (tokenQuery !== expectedSecret && bearerToken !== expectedSecret) {
+                console.warn('[NALO USSD] Unauthorized request attempted.');
+                return res.status(401).json({ error: 'Unauthorized USSD request' });
+            }
+        }
+
+        const payload = { ...req.query, ...req.body };
+        const response = await processUssdRequest(payload, serverClientDb);
+
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        return res.status(200).json(response);
+    } catch (error: any) {
+        console.error('[NALO USSD] Unexpected Error:', error);
+        return res.status(200).json({
+            USERID: req.body?.USERID || req.body?.userId || process.env.NALO_USER_ID || 'kingjdeals',
+            MSISDN: req.body?.MSISDN || req.body?.msisdn || '',
+            MSG: 'Service temporarily unavailable. Please try again shortly or contact support on WhatsApp at 0538290352.',
+            MSGTYPE: false
+        });
+    }
+});
 
 // Safe Health and Diagnostic Endpoint
 app.get('/api/health', (req, res) => {
