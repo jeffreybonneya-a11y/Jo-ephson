@@ -64,7 +64,7 @@ export default function BundleList({
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("MTN");
-  const [activeGameCoinSubTab, setActiveGameCoinSubTab] = useState("EFOOTBALL_COINS");
+  const [activeGameCoinSubTab, setActiveGameCoinSubTab] = useState("FC_MOBILE");
   const [activePCGamesSubTab, setActivePCGamesSubTab] = useState("FC_26");
   const [showFCOptions, setShowFCOptions] = useState(false);
   const [fcOptionTab, setFcOptionTab] = useState("points");
@@ -103,7 +103,8 @@ export default function BundleList({
     "Game Coins",
   ].filter((tab) => !hiddenTabs.includes(tab));
   const gameCoinSubTabs = [
-    { id: "EFOOTBALL_COINS", label: "eFootball™ Coins ⚽" },
+    // eFootball Coins temporarily hidden per user request; can be re-enabled when ready:
+    // { id: "EFOOTBALL_COINS", label: "eFootball™ Coins ⚽" },
     { id: "FC_MOBILE", label: "FC ™ MOBILE points and silver" },
     { id: "PUBG_MOBILE", label: "PUBG Mobile UC" },
   ];
@@ -168,9 +169,13 @@ export default function BundleList({
       if (tab) {
         if (["MTN", "Telecel", "AirtelTigo", "Booking Codes", "Result Checker", "PC Games", "Premium Apps", "Game Coins"].includes(tab)) {
           setActiveTab(tab);
-        } else if (tab === "FC_MOBILE" || tab === "PUBG_MOBILE" || tab === "EFOOTBALL_COINS" || tab === "EFOOTBALL") {
+        } else if (tab === "FC_MOBILE" || tab === "PUBG_MOBILE") {
           setActiveTab("Game Coins");
-          setActiveGameCoinSubTab(tab === "EFOOTBALL" ? "EFOOTBALL_COINS" : tab);
+          setActiveGameCoinSubTab(tab);
+        } else if (tab === "EFOOTBALL_COINS" || tab === "EFOOTBALL") {
+          // Temporarily route to FC_MOBILE while eFootball is paused
+          setActiveTab("Game Coins");
+          setActiveGameCoinSubTab("FC_MOBILE");
         } else if (tab === "FC_26") {
           setActiveTab("PC Games");
           setActivePCGamesSubTab(tab);
@@ -1260,12 +1265,13 @@ export default function BundleList({
                       ))}
                     </div>
 
-                    {activeGameCoinSubTab === "EFOOTBALL_COINS" && (
+                    {/* eFootball Coins temporarily hidden per user request; ready to re-enable anytime */}
+                    {/* {activeGameCoinSubTab === "EFOOTBALL_COINS" && (
                       <EFootballCoinsSection
                         onOpenAuthModal={() => window.dispatchEvent(new CustomEvent('TRIGGER_AUTH_MODAL'))}
                         profile={profile}
                       />
-                    )}
+                    )} */}
 
                     {activeGameCoinSubTab === "FC_MOBILE" && (
                       <div className="space-y-8">

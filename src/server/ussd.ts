@@ -90,6 +90,7 @@ interface UssdSessionState {
         dataAmount: string;
         price: number;
         network: string;
+        category?: string;
     };
     recipientPhone?: string;
     paymentNetwork?: string;
@@ -100,6 +101,11 @@ interface UssdSessionState {
     createdPrice?: number;
     data?: Record<string, any>;
     lastActive: number;
+
+    // Game Coins specific fields
+    gameCategory?: string;
+    gameUserId?: string;
+    gameUsername?: string;
 }
 
 /**
@@ -360,6 +366,82 @@ export async function getActiveBundlesForNetwork(
     }
 }
 
+const gameCoinsCacheByCategory = new Map<string, BundlesCache>();
+
+/**
+ * Fetches active Game Coins packages dynamically from Firestore with short-lived caching
+ */
+export async function getActiveGameCoinsBundles(
+    db: Firestore | null,
+    category: string
+): Promise<UssdBundleItem[]> {
+    if (!db) return [];
+
+    const cached = gameCoinsCacheByCategory.get(category);
+    if (cached && (Date.now() - cached.lastFetched < BUNDLE_CACHE_TTL_MS)) {
+        return cached.items;
+    }
+
+    try {
+        const bundlesCol = collection(db, 'bundles');
+        const qCat = query(
+            bundlesCol,
+            where('category', '==', category),
+            where('active', '==', true)
+        );
+        const catSnap = await getDocs(qCat);
+
+        const qNet = query(
+            bundlesCol,
+            where('network', '==', category),
+            where('active', '==', true)
+        );
+        const netSnap = await getDocs(qNet);
+
+        const map = new Map<string, UssdBundleItem>();
+
+        const processDoc = (docSnap: any) => {
+            const data = docSnap.data();
+            if (!data.active) return;
+            const price = typeof data.price === 'number' ? data.price : parseFloat(data.price) || 0;
+            const dataAmount = String(data.dataAmount || data.name || '').trim();
+            const name = String(data.name || data.dataAmount || `${category} Package`).trim();
+
+            if (price <= 0 || !dataAmount) return;
+
+            const dedupKey = dataAmount.toLowerCase().replace(/\s+/g, '');
+            if (!map.has(dedupKey) || (map.get(dedupKey)!.price > price)) {
+                map.set(dedupKey, {
+                    id: docSnap.id,
+                    name,
+                    dataAmount,
+                    price,
+                    network: String(data.network || category)
+                });
+            }
+        };
+
+        catSnap.docs.forEach(processDoc);
+        netSnap.docs.forEach(processDoc);
+
+        const items = Array.from(map.values());
+        items.sort((a, b) => a.price - b.price);
+
+        gameCoinsCacheByCategory.set(category, {
+            items,
+            lastFetched: Date.now()
+        });
+
+        return items;
+    } catch (err: any) {
+        console.error(`[NALO USSD] Error fetching active game coins for ${category}:`, err.message || err);
+        if (cached && cached.items.length > 0) {
+            return cached.items;
+        }
+        return [];
+    }
+}
+
 /**
  * Generates an idempotent, human-readable King J Deals order reference
  * Example: KJD-USSD-7B3K9X2P
@@ -544,6 +626,27 @@ function renderBundleMenu(network: string, bundles: UssdBundleItem[], page: numb
 }
 
 /**
+ * Renders the paginated bundle list for a Game Coins category
+ */
+function renderGameCoinsBundleMenu(category: string, bundles: UssdBundleItem[], page: number): string {
+    const totalPages = Math.ceil(bundles.length / BUNDLES_PER_PAGE);
+    const start = page * BUNDLES_PER_PAGE;
+    const pageItems = bundles.slice(start, start + BUNDLES_PER_PAGE);
+
+    const lines = pageItems.map((b, idx) => `${idx + 1}. ${b.dataAmount || b.name} - GHS ${b.price}`).join('\n');
+    let nav = '';
+    if (page < totalPages - 1) {
+        nav += '\n9. More';
+    }
+    if (page > 0) {
+        nav += '\n8. Prev';
+    }
+    nav += '\n0. Back';
+
+    return `${category}:\n${lines}${nav}`;
+}
+
+/**
  * Main USSD State-Machine & Menu Processor
  */
 export async function processUssdRequest(
@@ -623,7 +726,7 @@ export async function processUssdRequest(
                 }
             } else if (input === '4') {
                 session.screen = 'GAME_COINS_MENU';
-                responseMsg = `Game Coins & Points:\n1. FC Mobile Points\n2. eFootball Coins\n3. PUBG Mobile UC\n0. Back`;
+                responseMsg = `Game Coins & Points:\n1. FC Mobile Points\n2. FC Mobile Silver\n3. PUBG Mobile UC\n0. Back`;
                 shouldContinue = true;
             } else if (input === '5') {
                 session.screen = 'CHECK_ORDER_PROMPT';
@@ -735,11 +838,19 @@ export async function processUssdRequest(
                 responseMsg = `Order cancelled. Thank you for choosing KING J DEALS!\nVisit https://kingjdeals.site anytime.`;
                 shouldContinue = false; // END session
             } else {
-                const net = session.selectedNetwork || 'MTN';
-                const bundleLabel = session.selectedBundle?.dataAmount || session.selectedBundle?.name || 'Bundle';
-                const price = session.selectedBundle?.price || 0;
-                const recip = session.recipientPhone || msisdn;
-                responseMsg = `Confirm Order:\nNetwork: ${net}\nPackage: ${bundleLabel}\nRecipient: ${recip}\nPrice: GHS ${price.toFixed(2)}\n\n1. Pay with MoMo\n0. Cancel`;
+                const isGame = Boolean(session.gameCategory || session.gameUserId);
+                if (isGame) {
+                    const cat = session.gameCategory || 'Game Coins';
+                    const bundleLabel = session.selectedBundle?.dataAmount || session.selectedBundle?.name || 'Package';
+                    const price = session.selectedBundle?.price || 0;
+                    responseMsg = `Confirm Order:\nGame: ${cat}\nPackage: ${bundleLabel}\nPrice: GHS ${price.toFixed(2)}\nPlayer ID: ${session.gameUserId || ''}\nUsername: ${session.gameUsername || ''}\n\n1. Pay with MoMo\n0. Cancel`;
+                } else {
+                    const net = session.selectedNetwork || 'MTN';
+                    const bundleLabel = session.selectedBundle?.dataAmount || session.selectedBundle?.name || 'Bundle';
+                    const price = session.selectedBundle?.price || 0;
+                    const recip = session.recipientPhone || msisdn;
+                    responseMsg = `Confirm Order:\nNetwork: ${net}\nPackage: ${bundleLabel}\nRecipient: ${recip}\nPrice: GHS ${price.toFixed(2)}\n\n1. Pay with MoMo\n0. Cancel`;
+                }
                 shouldContinue = true;
             }
             break;
@@ -806,14 +917,14 @@ export async function processUssdRequest(
 
             // Live Product Re-Validation before creating order
             let livePrice = session.selectedBundle?.price || 0;
-            let liveBundleName = session.selectedBundle?.name || session.selectedBundle?.dataAmount || 'Data Bundle';
+            let liveBundleName = session.selectedBundle?.name || session.selectedBundle?.dataAmount || 'Package';
 
             if (db && session.selectedBundle?.bundleId) {
                 try {
                     const bundleDoc = await getDoc(doc(db, 'bundles', session.selectedBundle.bundleId));
                     if (!bundleDoc.exists() || !bundleDoc.data().active) {
                         session.screen = 'MAIN_MENU';
-                        responseMsg = `Selected package is no longer available. Please choose another package:\n\nKING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n0. Exit`;
+                        responseMsg = `Selected package is no longer available. Please choose another package:\n\nKING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n0. Exit`;
                         shouldContinue = true;
                         break;
                     }
@@ -829,24 +940,26 @@ export async function processUssdRequest(
             const orderRef = generateUssdOrderReference();
             const orderDocId = orderRef;
 
-            const recipientPhone = session.recipientPhone || msisdn;
+            const isGameCoins = Boolean(session.gameCategory || session.gameUserId);
+            const recipientPhone = isGameCoins ? (session.paymentPhone || msisdn) : (session.recipientPhone || msisdn);
             const paymentPhone = session.paymentPhone;
-            const network = session.selectedNetwork || 'MTN';
+            const network = isGameCoins ? (session.gameCategory || session.selectedNetwork || 'FC Mobile') : (session.selectedNetwork || 'MTN');
+            const recipientNetwork = isGameCoins ? (session.gameCategory || 'FC Mobile') : network;
             const paymentNetwork = session.paymentNetwork || 'MTN';
             const paymentProvider = session.paymentProvider || 'mtn';
 
             // Real Order Document adhering to King J Deals Direct Shop schema
             // Strictly omitted: agent_id, agentId, isAgentOrder (preserves Direct Shop classification)
-            const orderData = {
+            const orderData: Record<string, any> = {
                 id: orderDocId,
                 userId: "guest-ussd",
-                customerName: `USSD Customer (${paymentPhone})`,
+                customerName: isGameCoins ? `Game Customer (${paymentPhone})` : `USSD Customer (${paymentPhone})`,
                 email: `${paymentPhone}@ussd.kingjdeals.com`,
                 phone: recipientPhone,
                 recipientPhone: recipientPhone,
                 paymentPhone: paymentPhone,
                 network: network,
-                recipientNetwork: network,
+                recipientNetwork: recipientNetwork,
                 paymentNetwork: paymentNetwork,
                 bundle: liveBundleName,
                 bundleName: liveBundleName,
@@ -871,8 +984,16 @@ export async function processUssdRequest(
                 source: "ussd",
                 channel: "USSD",
 
-                notes: `NALO USSD Session: ${sessionId}`
+                notes: isGameCoins
+                    ? `NALO USSD Game Coins (${session.gameCategory}) - UID: ${session.gameUserId || ''}, Nick: ${session.gameUsername || ''}`
+                    : `NALO USSD Session: ${sessionId}`
             };
+
+            if (isGameCoins) {
+                orderData.fcUserId = session.gameUserId || "";
+                orderData.fcUsername = session.gameUsername || "";
+                orderData.category = session.gameCategory || "";
+            }
 
             if (db) {
                 try {
@@ -928,22 +1049,136 @@ export async function processUssdRequest(
                 session.screen = 'MAIN_MENU';
                 responseMsg = `KING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n0. Exit`;
                 shouldContinue = true;
-            } else if (input === '1') {
-                sessionStore.delete(sessionId);
-                responseMsg = `EA Sports FC Mobile Points & Silver are available on KING J DEALS!\nContact WhatsApp: ${SUPPORT_NUMBERS} for instant delivery.`;
-                shouldContinue = false; // END
-            } else if (input === '2') {
-                sessionStore.delete(sessionId);
-                responseMsg = `eFootball Coins & Account Top-ups are available on KING J DEALS!\nContact WhatsApp: ${SUPPORT_NUMBERS} for instant top-up.`;
-                shouldContinue = false; // END
-            } else if (input === '3') {
-                sessionStore.delete(sessionId);
-                responseMsg = `PUBG Mobile UC is available on KING J DEALS!\nContact WhatsApp: ${SUPPORT_NUMBERS} for quick recharge.`;
-                shouldContinue = false; // END
+            } else if (input === '1' || input === '2' || input === '3') {
+                const category = input === '1' ? 'FC Mobile Points' : input === '2' ? 'FC Mobile Silver' : 'PUBG Mobile UC';
+                const defaultNetwork = input === '3' ? 'PUBG Mobile' : 'FC Mobile';
+                session.gameCategory = category;
+                session.selectedNetwork = defaultNetwork;
+                session.bundlePage = 0;
+
+                const bundles = await getActiveGameCoinsBundles(db, category);
+                if (bundles.length === 0) {
+                    responseMsg = `${category} packages are currently unavailable. Please check back later.\n\n0. Back`;
+                    shouldContinue = true;
+                } else {
+                    session.screen = 'GAME_COINS_BUNDLE_MENU';
+                    responseMsg = renderGameCoinsBundleMenu(category, bundles, 0);
+                    shouldContinue = true;
+                }
             } else {
-                responseMsg = `Invalid selection.\n\nGame Coins & Points:\n1. FC Mobile Points\n2. eFootball Coins\n3. PUBG Mobile UC\n0. Back`;
+                responseMsg = `Invalid selection.\n\nGame Coins & Points:\n1. FC Mobile Points\n2. FC Mobile Silver\n3. PUBG Mobile UC\n0. Back`;
                 shouldContinue = true;
             }
+            break;
+        }
+
+        case 'GAME_COINS_BUNDLE_MENU': {
+            const category = session.gameCategory || 'FC Mobile Points';
+            const bundles = await getActiveGameCoinsBundles(db, category);
+
+            if (bundles.length === 0) {
+                session.screen = 'GAME_COINS_MENU';
+                responseMsg = `${category} packages are currently unavailable.\n\nGame Coins & Points:\n1. FC Mobile Points\n2. FC Mobile Silver\n3. PUBG Mobile UC\n0. Back`;
+                shouldContinue = true;
+                break;
+            }
+
+            const totalPages = Math.ceil(bundles.length / BUNDLES_PER_PAGE);
+            const currentPage = session.bundlePage || 0;
+
+            if (input === '0') {
+                session.screen = 'GAME_COINS_MENU';
+                responseMsg = `Game Coins & Points:\n1. FC Mobile Points\n2. FC Mobile Silver\n3. PUBG Mobile UC\n0. Back`;
+                shouldContinue = true;
+                break;
+            }
+
+            // Next page
+            if (input === '9' && currentPage < totalPages - 1) {
+                session.bundlePage = currentPage + 1;
+                responseMsg = renderGameCoinsBundleMenu(category, bundles, session.bundlePage);
+                shouldContinue = true;
+                break;
+            }
+
+            // Prev page
+            if (input === '8' && currentPage > 0) {
+                session.bundlePage = currentPage - 1;
+                responseMsg = renderGameCoinsBundleMenu(category, bundles, session.bundlePage);
+                shouldContinue = true;
+                break;
+            }
+
+            // Number selection (1 through 5)
+            const selectedIdx = parseInt(input, 10);
+            const start = currentPage * BUNDLES_PER_PAGE;
+            const pageItems = bundles.slice(start, start + BUNDLES_PER_PAGE);
+
+            if (!isNaN(selectedIdx) && selectedIdx >= 1 && selectedIdx <= pageItems.length) {
+                const chosen = pageItems[selectedIdx - 1];
+                session.selectedBundle = {
+                    bundleId: chosen.id,
+                    name: chosen.name,
+                    dataAmount: chosen.dataAmount,
+                    price: chosen.price,
+                    network: chosen.network,
+                    category: category
+                };
+                session.screen = 'ENTER_GAME_USER_ID';
+                responseMsg = `Selected: ${chosen.dataAmount || chosen.name} (GHS ${chosen.price.toFixed(2)})\n\nEnter your ${category} Player ID / UID:\n0. Cancel`;
+                shouldContinue = true;
+            } else {
+                responseMsg = `Invalid option.\n\n${renderGameCoinsBundleMenu(category, bundles, currentPage)}`;
+                shouldContinue = true;
+            }
+            break;
+        }
+
+        case 'ENTER_GAME_USER_ID': {
+            if (input === '0') {
+                session.screen = 'GAME_COINS_MENU';
+                responseMsg = `Game Coins & Points:\n1. FC Mobile Points\n2. FC Mobile Silver\n3. PUBG Mobile UC\n0. Back`;
+                shouldContinue = true;
+                break;
+            }
+
+            const cleanUid = input.trim();
+            if (cleanUid.length < 2 || cleanUid.length > 40) {
+                responseMsg = `Invalid Player ID. Please enter your valid Player ID / UID:\n0. Cancel`;
+                shouldContinue = true;
+                break;
+            }
+
+            session.gameUserId = cleanUid;
+            session.screen = 'ENTER_GAME_USERNAME';
+            responseMsg = `Enter your in-game Nickname / Username:\n0. Cancel`;
+            shouldContinue = true;
+            break;
+        }
+
+        case 'ENTER_GAME_USERNAME': {
+            if (input === '0') {
+                session.screen = 'ENTER_GAME_USER_ID';
+                responseMsg = `Enter your ${session.gameCategory || 'Game'} Player ID / UID:\n0. Cancel`;
+                shouldContinue = true;
+                break;
+            }
+
+            const cleanUsername = input.trim();
+            if (cleanUsername.length < 1 || cleanUsername.length > 50) {
+                responseMsg = `Invalid username. Please enter your in-game nickname:\n0. Cancel`;
+                shouldContinue = true;
+                break;
+            }
+
+            session.gameUsername = cleanUsername;
+            session.screen = 'CONFIRM_ORDER';
+            const cat = session.gameCategory || 'Game Coins';
+            const bundleLabel = session.selectedBundle?.dataAmount || session.selectedBundle?.name || 'Package';
+            const price = session.selectedBundle?.price || 0;
+
+            responseMsg = `Confirm Order:\nGame: ${cat}\nPackage: ${bundleLabel}\nPrice: GHS ${price.toFixed(2)}\nPlayer ID: ${session.gameUserId}\nUsername: ${session.gameUsername}\n\n1. Pay with MoMo\n0. Cancel`;
+            shouldContinue = true;
             break;
         }
 
