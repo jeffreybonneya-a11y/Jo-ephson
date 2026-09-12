@@ -521,13 +521,42 @@ export function normalizeNaloRequest(body: Record<string, any> = {}, query: Reco
 }
 
 /**
+ * Safely masks player ID / UID for privacy in USSD outputs
+ * Example: 1034714769 -> 1034****769, 12345678 -> 1234****678
+ */
+function maskPlayerId(id: string): string {
+    const clean = String(id || '').trim();
+    if (!clean) return '';
+    if (clean.length <= 4) return '****';
+    if (clean.length <= 7) return `${clean.slice(0, 2)}****${clean.slice(-2)}`;
+    return `${clean.slice(0, 4)}****${clean.slice(-3)}`;
+}
+
+/**
+ * Extracts a numeric epoch millisecond timestamp from Firestore createdAt / updatedAt fields
+ */
+function getOrderCreatedAtMillis(data: any): number {
+    if (!data) return 0;
+    const val = data.createdAt || data.updatedAt;
+    if (!val) return 0;
+    if (typeof val === 'number') return val;
+    if (typeof val.toMillis === 'function') return val.toMillis();
+    if (typeof val.toDate === 'function') return val.toDate().getTime();
+    if (val.seconds) return val.seconds * 1000 + (val.nanoseconds ? Math.round(val.nanoseconds / 1000000) : 0);
+    if (typeof val === 'string') {
+        const parsed = Date.parse(val);
+        if (!isNaN(parsed)) return parsed;
+    }
+    return 0;
+}
+
+/**
  * Formats order details for the Check Order USSD menu
- * Exactly matches Step 12 specifications
+ * Supports both Data Bundles and Game Coins with clean, privacy-safe formatting
  */
 function formatOrderSummary(data: any): string {
-    const ref = data.reference || data.referenceCode || data.id || 'N/A';
-    const bundle = data.bundle || data.bundleName || data.dataAmount || 'Data Package';
-    const phone = data.recipientPhone || data.phone || 'N/A';
+    const bundle = data.bundle || data.bundleName || data.dataAmount || 'Package';
+    const phone = data.recipientPhone || data.phone || data.paymentPhone || 'N/A';
     const rawStatus = String(data.status || '').toLowerCase();
     const rawPaymentStatus = String(data.paymentStatus || '').toLowerCase();
 
@@ -548,57 +577,173 @@ function formatOrderSummary(data: any): string {
                    typeof data.amountSent === 'number' ? data.amountSent : 
                    typeof data.finalPrice === 'number' ? data.finalPrice : 0;
 
-    return `Order: ${ref}\nPackage: ${bundle}\nRecipient: ${phone}\nStatus: ${displayStatus}\nAmount: GHS ${amount.toFixed(2)}`;
+    const isGameCoins = Boolean(
+        data.fcUserId || 
+        data.category || 
+        (data.network && (data.network.includes('FC Mobile') || data.network.includes('PUBG') || data.network.includes('Game'))) ||
+        (data.recipientNetwork && (data.recipientNetwork.includes('FC Mobile') || data.recipientNetwork.includes('PUBG')))
+    );
+
+    if (isGameCoins) {
+        const gameTitle = data.category || data.network || data.recipientNetwork || 'Game Coins';
+        const maskedUid = maskPlayerId(data.fcUserId || '');
+        let lines = `Order Status:\nGame: ${gameTitle}\nPackage: ${bundle}`;
+        if (maskedUid) {
+            lines += `\nPlayer ID: ${maskedUid}`;
+        }
+        lines += `\nStatus: ${displayStatus}\nAmount: GHS ${amount.toFixed(2)}`;
+        return lines;
+    } else {
+        const networkName = data.network || data.recipientNetwork || 'Data Bundle';
+        return `Order Status:\nNetwork: ${networkName}\nPackage: ${bundle}\nRecipient: ${phone}\nStatus: ${displayStatus}\nAmount: GHS ${amount.toFixed(2)}`;
+    }
 }
 
 /**
- * Helper to query an order from Firestore for the Check Order option
- * Queries by:
- * 1. document ID
- * 2. reference
- * 3. referenceCode
- * (Strictly NO phone number fallback per Step 12)
+ * Helper to query an order from Firestore using Order Reference / ID
+ * Normalizes case and auto-matches 8-character suffixes (e.g. 7B3K9X2P -> KJD-USSD-7B3K9X2P)
  */
-async function lookupOrderInFirestore(db: Firestore | null, searchInput: string): Promise<string> {
+export async function lookupOrderByReferenceInFirestore(db: Firestore | null, searchInput: string): Promise<string> {
     if (!db) {
         return `Order lookup is temporarily unavailable. Please contact King J Deals on ${SUPPORT_NUMBERS}.`;
     }
 
-    const cleanInput = searchInput.trim();
-    if (!cleanInput) {
+    const rawTrimmed = searchInput.trim();
+    if (!rawTrimmed) {
         return `Please enter your King J Deals order reference.`;
     }
+
+    const upperInput = rawTrimmed.toUpperCase();
+    const candidates = [rawTrimmed, upperInput];
+    if (!upperInput.startsWith('KJD-USSD-') && upperInput.length === 8) {
+        candidates.push(`KJD-USSD-${upperInput}`);
+    } else if (!upperInput.startsWith('KJD-')) {
+        candidates.push(`KJD-USSD-${upperInput}`);
+        candidates.push(`KJD-${upperInput}`);
+    }
+    const uniqueCandidates = Array.from(new Set(candidates));
 
     try {
         const ordersCol = collection(db, 'orders');
 
-        // 1. Try direct Doc ID lookup
-        try {
-            const docRef = doc(db, 'orders', cleanInput);
-            const docSnap = await getDoc(docRef);
-            if (docSnap.exists()) {
-                return formatOrderSummary(docSnap.data());
+        // 1. Direct document ID lookup
+        for (const candidate of uniqueCandidates) {
+            try {
+                const docRef = doc(db, 'orders', candidate);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    return formatOrderSummary(docSnap.data());
+                }
+            } catch (_) {}
+        }
+
+        // 2. Query by reference & referenceCode fields
+        for (const candidate of uniqueCandidates) {
+            const qRef = query(ordersCol, where('reference', '==', candidate), limit(1));
+            const refSnap = await getDocs(qRef);
+            if (!refSnap.empty) {
+                return formatOrderSummary(refSnap.docs[0].data());
             }
-        } catch (_) {}
 
-        // 2. Query by reference field
-        const qRef = query(ordersCol, where('reference', '==', cleanInput), limit(1));
-        const refSnap = await getDocs(qRef);
-        if (!refSnap.empty) {
-            return formatOrderSummary(refSnap.docs[0].data());
+            const qRefCode = query(ordersCol, where('referenceCode', '==', candidate), limit(1));
+            const refCodeSnap = await getDocs(qRefCode);
+            if (!refCodeSnap.empty) {
+                return formatOrderSummary(refCodeSnap.docs[0].data());
+            }
         }
 
-        // 3. Query by referenceCode field
-        const qRefCode = query(ordersCol, where('referenceCode', '==', cleanInput), limit(1));
-        const refCodeSnap = await getDocs(qRefCode);
-        if (!refCodeSnap.empty) {
-            return formatOrderSummary(refCodeSnap.docs[0].data());
-        }
-
-        return `Order not found for "${cleanInput}". Please confirm your order reference or contact support: ${SUPPORT_NUMBERS}.`;
+        return `Order not found for "${rawTrimmed}". Please confirm your order reference or contact support: ${SUPPORT_NUMBERS}.`;
     } catch (err: any) {
-        console.error('[NALO USSD] Firestore order lookup error:', err.message || err);
+        console.error('[NALO USSD] Firestore order reference lookup error:', err.message || err);
         return `Service temporarily unavailable. Please check online at https://kingjdeals.site or contact ${SUPPORT_NUMBERS}.`;
+    }
+}
+
+/**
+ * Backward compatibility alias for lookupOrderByReferenceInFirestore
+ */
+export async function lookupOrderInFirestore(db: Firestore | null, searchInput: string): Promise<string> {
+    return lookupOrderByReferenceInFirestore(db, searchInput);
+}
+
+/**
+ * Helper to query the most recent order for a customer's phone number
+ * Checks recipientPhone, phone, and paymentPhone fields, returning the newest record by createdAt
+ */
+export async function lookupOrderByPhoneInFirestore(
+    db: Firestore | null, 
+    phoneInput: string
+): Promise<{ found: boolean; message: string }> {
+    if (!db) {
+        return {
+            found: false,
+            message: `Order lookup is temporarily unavailable. Please contact King J Deals on ${SUPPORT_NUMBERS}.`
+        };
+    }
+
+    const normalized = normalizeGhanaPhone(phoneInput);
+    if (!normalized) {
+        return {
+            found: false,
+            message: `Invalid phone number.\n\nEnter the phone number used for your order:\n0. Back`
+        };
+    }
+
+    try {
+        const ordersCol = collection(db, 'orders');
+        const candidatePhones = Array.from(new Set([
+            normalized,
+            phoneInput.trim(),
+            `233${normalized.slice(1)}`
+        ]));
+
+        const matchedDocsMap = new Map<string, any>();
+
+        for (const phoneVal of candidatePhones) {
+            // Check recipientPhone
+            try {
+                const qRecipient = query(ordersCol, where('recipientPhone', '==', phoneVal), limit(5));
+                const snapRecipient = await getDocs(qRecipient);
+                snapRecipient.docs.forEach(d => matchedDocsMap.set(d.id, d.data()));
+            } catch (_) {}
+
+            // Check phone
+            try {
+                const qPhone = query(ordersCol, where('phone', '==', phoneVal), limit(5));
+                const snapPhone = await getDocs(qPhone);
+                snapPhone.docs.forEach(d => matchedDocsMap.set(d.id, d.data()));
+            } catch (_) {}
+
+            // Check paymentPhone
+            try {
+                const qPaymentPhone = query(ordersCol, where('paymentPhone', '==', phoneVal), limit(5));
+                const snapPaymentPhone = await getDocs(qPaymentPhone);
+                snapPaymentPhone.docs.forEach(d => matchedDocsMap.set(d.id, d.data()));
+            } catch (_) {}
+        }
+
+        const ordersList = Array.from(matchedDocsMap.values());
+        if (ordersList.length === 0) {
+            return {
+                found: false,
+                message: `No order found for this number.\nPlease check the number and try again.\n0. Back`
+            };
+        }
+
+        // Sort descending by creation timestamp to pick the newest order
+        ordersList.sort((a, b) => getOrderCreatedAtMillis(b) - getOrderCreatedAtMillis(a));
+        const newestOrder = ordersList[0];
+
+        return {
+            found: true,
+            message: formatOrderSummary(newestOrder)
+        };
+    } catch (err: any) {
+        console.error('[NALO USSD] Firestore order phone lookup error:', err.message || err);
+        return {
+            found: false,
+            message: `Service temporarily unavailable. Please check online at https://kingjdeals.site or contact ${SUPPORT_NUMBERS}.`
+        };
     }
 }
 
@@ -729,8 +874,8 @@ export async function processUssdRequest(
                 responseMsg = `Game Coins & Points:\n1. FC Mobile Points\n2. FC Mobile Silver\n3. PUBG Mobile UC\n0. Back`;
                 shouldContinue = true;
             } else if (input === '5') {
-                session.screen = 'CHECK_ORDER_PROMPT';
-                responseMsg = `Check Order Status:\nEnter your King J Deals order reference:\n0. Back`;
+                session.screen = 'CHECK_ORDER_MENU';
+                responseMsg = `Check Order:\n1. Track using phone number\n2. Track using order reference\n0. Back`;
                 shouldContinue = true;
             } else if (input === '6') {
                 sessionStore.delete(sessionId);
@@ -1182,15 +1327,59 @@ export async function processUssdRequest(
             break;
         }
 
-        case 'CHECK_ORDER_PROMPT': {
+        case 'CHECK_ORDER_MENU': {
             if (input === '0') {
                 session.screen = 'MAIN_MENU';
                 responseMsg = `KING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n0. Exit`;
                 shouldContinue = true;
                 break;
+            } else if (input === '1') {
+                session.screen = 'CHECK_ORDER_BY_PHONE';
+                responseMsg = `Enter the phone number used for your order:\n0. Back`;
+                shouldContinue = true;
+                break;
+            } else if (input === '2') {
+                session.screen = 'CHECK_ORDER_BY_REF';
+                responseMsg = `Check Order Status:\nEnter your King J Deals order reference:\n0. Back`;
+                shouldContinue = true;
+                break;
+            } else {
+                responseMsg = `Invalid choice.\n\nCheck Order:\n1. Track using phone number\n2. Track using order reference\n0. Back`;
+                shouldContinue = true;
+                break;
+            }
+        }
+
+        case 'CHECK_ORDER_BY_PHONE': {
+            if (input === '0') {
+                session.screen = 'CHECK_ORDER_MENU';
+                responseMsg = `Check Order:\n1. Track using phone number\n2. Track using order reference\n0. Back`;
+                shouldContinue = true;
+                break;
             }
 
-            const lookupResult = await lookupOrderInFirestore(db, input);
+            const phoneLookup = await lookupOrderByPhoneInFirestore(db, input);
+            if (phoneLookup.found) {
+                sessionStore.delete(sessionId);
+                responseMsg = phoneLookup.message;
+                shouldContinue = false; // END session
+            } else {
+                responseMsg = phoneLookup.message;
+                shouldContinue = true; // allow customer to retry or press 0
+            }
+            break;
+        }
+
+        case 'CHECK_ORDER_BY_REF':
+        case 'CHECK_ORDER_PROMPT': {
+            if (input === '0') {
+                session.screen = 'CHECK_ORDER_MENU';
+                responseMsg = `Check Order:\n1. Track using phone number\n2. Track using order reference\n0. Back`;
+                shouldContinue = true;
+                break;
+            }
+
+            const lookupResult = await lookupOrderByReferenceInFirestore(db, input);
             sessionStore.delete(sessionId);
             responseMsg = lookupResult;
             shouldContinue = false; // END session
