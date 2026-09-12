@@ -179,12 +179,14 @@ export function normalizeNaloRequest(body: Record<string, any> = {}, query: Reco
     };
 }
 
+const SUPPORT_NUMBERS = "0535884851 / 0541557530";
+
 /**
  * Helper to query an order from Firestore for the Check Order option
  */
 async function lookupOrderInFirestore(db: Firestore | null, searchInput: string): Promise<string> {
     if (!db) {
-        return `Order lookup is currently syncing. Please visit https://kingjdeals.site or call/WhatsApp 0538290352.`;
+        return `Order lookup is currently syncing. Please visit https://kingjdeals.site or call/WhatsApp ${SUPPORT_NUMBERS}.`;
     }
 
     const cleanInput = searchInput.trim();
@@ -204,7 +206,7 @@ async function lookupOrderInFirestore(db: Firestore | null, searchInput: string)
                 const status = (data.status || 'processing').toUpperCase();
                 const item = data.bundleName || data.bundle || data.dataAmount || 'Data Package';
                 const amount = data.amountSent || data.amount || 0;
-                return `Order Status: ${status}\nItem: ${item}\nAmount: GHS ${amount}\nFor assistance call: 0538290352`;
+                return `Order Status: ${status}\nItem: ${item}\nAmount: GHS ${amount}\nFor assistance call: ${SUPPORT_NUMBERS}`;
             }
         } catch (_) {}
 
@@ -216,7 +218,7 @@ async function lookupOrderInFirestore(db: Firestore | null, searchInput: string)
             const status = (data.status || 'processing').toUpperCase();
             const item = data.bundleName || data.bundle || data.dataAmount || 'Data Package';
             const amount = data.amountSent || data.amount || 0;
-            return `Order Found!\nStatus: ${status}\nItem: ${item}\nAmount: GHS ${amount}\nFor assistance call: 0538290352`;
+            return `Order Found!\nStatus: ${status}\nItem: ${item}\nAmount: GHS ${amount}\nFor assistance call: ${SUPPORT_NUMBERS}`;
         }
 
         // 3. Query by recipientPhone or phone
@@ -228,7 +230,7 @@ async function lookupOrderInFirestore(db: Firestore | null, searchInput: string)
             const status = (data.status || 'processing').toUpperCase();
             const item = data.bundleName || data.bundle || data.dataAmount || 'Data Package';
             const amount = data.amountSent || data.amount || 0;
-            return `Latest Order for ${cleanPhone}:\nStatus: ${status}\nItem: ${item}\nAmount: GHS ${amount}\nHelpline: 0538290352`;
+            return `Latest Order for ${cleanPhone}:\nStatus: ${status}\nItem: ${item}\nAmount: GHS ${amount}\nHelpline: ${SUPPORT_NUMBERS}`;
         }
 
         // Fallback: Query by phone field
@@ -239,13 +241,13 @@ async function lookupOrderInFirestore(db: Firestore | null, searchInput: string)
             const status = (data.status || 'processing').toUpperCase();
             const item = data.bundleName || data.bundle || data.dataAmount || 'Data Package';
             const amount = data.amountSent || data.amount || 0;
-            return `Latest Order for ${cleanPhone}:\nStatus: ${status}\nItem: ${item}\nAmount: GHS ${amount}\nHelpline: 0538290352`;
+            return `Latest Order for ${cleanPhone}:\nStatus: ${status}\nItem: ${item}\nAmount: GHS ${amount}\nHelpline: ${SUPPORT_NUMBERS}`;
         }
 
-        return `No order found matching "${cleanInput}". Please confirm the details or visit https://kingjdeals.site. Helpline: 0538290352`;
+        return `No order found matching "${cleanInput}". Please confirm the details or visit https://kingjdeals.site. Helpline: ${SUPPORT_NUMBERS}`;
     } catch (err: any) {
         console.error('[NALO USSD] Firestore query error:', err.message || err);
-        return `Unable to fetch order status right now. Please check online at https://kingjdeals.site or call 0538290352.`;
+        return `Unable to fetch order status right now. Please check online at https://kingjdeals.site or call ${SUPPORT_NUMBERS}.`;
     }
 }
 
@@ -339,7 +341,7 @@ export async function processUssdRequest(
                 shouldContinue = true;
             } else if (input === '6') {
                 sessionStore.delete(sessionId);
-                responseMsg = `KING J DEALS Support:\nCall/WhatsApp: 0538290352 / 0594235470\nWebsite: kingjdeals.site\nEmail: support@kingjdeals.site\nFast 24/7 delivery!`;
+                responseMsg = `KING J DEALS Support:\nCall/WhatsApp: ${SUPPORT_NUMBERS}\nWebsite: kingjdeals.site\nEmail: support@kingjdeals.site\nFast 24/7 delivery!`;
                 shouldContinue = false; // END
             } else {
                 responseMsg = `Invalid choice.\n\nKING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n0. Exit`;
@@ -409,7 +411,7 @@ export async function processUssdRequest(
                 const phone = session.recipientPhone || msisdn;
                 const price = session.selectedBundle?.price || 0;
 
-                responseMsg = `Order Request Received!\n${net} ${bundleName} for ${phone} (GHS ${price}).\n\nTo complete payment and activate instant delivery, visit https://kingjdeals.site or contact WhatsApp: 0538290352 / 0594235470.`;
+                responseMsg = `Order Request Received!\n${net} ${bundleName} for ${phone} (GHS ${price}).\n\nTo complete payment and activate instant delivery, visit https://kingjdeals.site or contact WhatsApp: ${SUPPORT_NUMBERS}.`;
                 shouldContinue = false; // END session
             } else {
                 sessionStore.delete(sessionId);
@@ -426,15 +428,15 @@ export async function processUssdRequest(
                 shouldContinue = true;
             } else if (input === '1') {
                 sessionStore.delete(sessionId);
-                responseMsg = `EA Sports FC Mobile Points & Silver are available on KING J DEALS!\nVisit https://kingjdeals.site/gaming or WhatsApp 0538290352 for instant delivery.`;
+                responseMsg = `EA Sports FC Mobile Points & Silver are available on KING J DEALS!\nVisit https://kingjdeals.site/gaming or WhatsApp ${SUPPORT_NUMBERS} for instant delivery.`;
                 shouldContinue = false; // END
             } else if (input === '2') {
                 sessionStore.delete(sessionId);
-                responseMsg = `eFootball Coins & Account Top-ups are available on KING J DEALS!\nVisit https://kingjdeals.site/gaming or WhatsApp 0538290352 for instant top-up.`;
+                responseMsg = `eFootball Coins & Account Top-ups are available on KING J DEALS!\nVisit https://kingjdeals.site/gaming or WhatsApp ${SUPPORT_NUMBERS} for instant top-up.`;
                 shouldContinue = false; // END
             } else if (input === '3') {
                 sessionStore.delete(sessionId);
-                responseMsg = `PUBG Mobile UC is available on KING J DEALS!\nVisit https://kingjdeals.site/gaming or WhatsApp 0538290352 for quick recharge.`;
+                responseMsg = `PUBG Mobile UC is available on KING J DEALS!\nVisit https://kingjdeals.site/gaming or WhatsApp ${SUPPORT_NUMBERS} for quick recharge.`;
                 shouldContinue = false; // END
             } else {
                 responseMsg = `Invalid selection.\n\nGame Coins & Points:\n1. FC Mobile Points\n2. eFootball Coins\n3. PUBG Mobile UC\n0. Back`;

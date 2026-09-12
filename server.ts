@@ -279,7 +279,7 @@ app.post('/api/ussd', async (req, res) => {
         return res.status(200).json({
             USERID: req.body?.USERID || req.body?.userId || process.env.NALO_USER_ID || 'kingjdeals',
             MSISDN: req.body?.MSISDN || req.body?.msisdn || '',
-            MSG: 'Service temporarily unavailable. Please try again shortly or contact support on WhatsApp at 0538290352.',
+            MSG: 'Service temporarily unavailable. Please try again shortly or contact support on WhatsApp at 0535884851 / 0541557530.',
             MSGTYPE: false
         });
     }
