@@ -64,6 +64,7 @@ import {
   Mail as MailIcon,
   Trophy,
   Zap,
+  PhoneCall,
   Users,
   Star,
   CheckCircle,
@@ -182,7 +183,7 @@ export default function AdminDashboard() {
   // Agents Hub
   const [agents, setAgents] = useState<any[]>([]);
   const [profitRequests, setProfitRequests] = useState<any[]>([]);
-  const [orderSourceFilter, setOrderSourceFilter] = useState<'all' | 'direct' | 'agent' | 'freedata'>('all');
+  const [orderSourceFilter, setOrderSourceFilter] = useState<'all' | 'direct' | 'agent' | 'freedata' | 'airtime'>('all');
   const [deleteSearchQuery, setDeleteSearchQuery] = useState("");
 
   // Customer Management States
@@ -217,6 +218,12 @@ export default function AdminDashboard() {
   const [agentFastDeliveryFee, setAgentFastDeliveryFee] = useState<number>(1.00);
   const [agentFastDeliveryFeeInput, setAgentFastDeliveryFeeInput] = useState<number>(1.00);
   const [isUpdatingAgentFastDelivery, setIsUpdatingAgentFastDelivery] = useState<boolean>(false);
+
+  // Airtime Settings
+  const [airtimeEnabled, setAirtimeEnabled] = useState<boolean>(true);
+  const [airtimeServiceFee, setAirtimeServiceFee] = useState<number>(1.00);
+  const [airtimeServiceFeeInput, setAirtimeServiceFeeInput] = useState<number>(1.00);
+  const [isUpdatingAirtimeSettings, setIsUpdatingAirtimeSettings] = useState<boolean>(false);
 
   // Hidden Charges / Gateway Fees settings states (Retail vs Wholesale separated)
   const [hiddenRetailMTNCharge, setHiddenRetailMTNCharge] = useState<number>(0);
@@ -557,6 +564,29 @@ export default function AdminDashboard() {
       }
     );
 
+    // 14. Listen for Airtime Settings
+    const unsubAirtime = onSnapshot(
+      doc(db, "settings", "airtime"),
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          const enabled = data.enabled !== undefined ? Boolean(data.enabled) : true;
+          let fee = 1.00;
+          if (data.serviceCharge != null) {
+            const parsed = Number(data.serviceCharge);
+            if (!isNaN(parsed) && parsed >= 0) fee = parsed;
+          }
+          setAirtimeEnabled(enabled);
+          setAirtimeServiceFee(fee);
+          setAirtimeServiceFeeInput(fee);
+        } else {
+          setAirtimeEnabled(true);
+          setAirtimeServiceFee(1.00);
+          setAirtimeServiceFeeInput(1.00);
+        }
+      }
+    );
+
     return () => {
       window.removeEventListener('RESET_ADMIN_NOTIFIER', handleResetNotifierEvent);
       unsubAnnouncement();
@@ -572,8 +602,34 @@ export default function AdminDashboard() {
       unsubAgentStoreSetting();
       unsubHiddenChargesSetting();
       unsubFastDelivery();
+      unsubAirtime();
     };
   }, []);
+
+  const handleSaveAirtimeSettings = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (isNaN(airtimeServiceFeeInput) || airtimeServiceFeeInput < 0) {
+      toast.error("Please enter a valid Airtime service charge amount.");
+      return;
+    }
+    setIsUpdatingAirtimeSettings(true);
+    try {
+      await setDoc(
+        doc(db, "settings", "airtime"),
+        {
+          enabled: airtimeEnabled,
+          serviceCharge: Number(airtimeServiceFeeInput),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      toast.success("Airtime settings saved successfully! 📞👑");
+    } catch (err: any) {
+      toast.error("Failed to save Airtime settings.");
+    } finally {
+      setIsUpdatingAirtimeSettings(false);
+    }
+  };
 
   const handleSaveCustomerFastDelivery = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -2023,6 +2079,13 @@ export default function AdminDashboard() {
               FAST DELIVERY ⚡
             </TabsTrigger>
             <TabsTrigger
+              value="airtime_settings"
+              className="h-9 px-4 rounded-lg font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-[#0B132B] data-[state=active]:text-amber-400 data-[state=active]:shadow-sm transition-all focus-visible:ring-0 flex items-center gap-1.5"
+            >
+              <PhoneCall className="w-3.5 h-3.5 text-amber-400" />
+              AIRTIME 📞
+            </TabsTrigger>
+            <TabsTrigger
               value="users"
               className="h-9 px-4 rounded-lg font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all focus-visible:ring-0"
             >
@@ -2144,6 +2207,17 @@ export default function AdminDashboard() {
                     >
                       Free Data Wins ({orders.filter(o => o.isFreeDataWin || o.serviceType === "Free Data Win" || o.network === "Free Data").length})
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setOrderSourceFilter('airtime')}
+                      className={`px-3 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-wider transition-all cursor-pointer ${
+                        orderSourceFilter === 'airtime'
+                          ? 'bg-amber-400 text-slate-950 shadow-sm'
+                          : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      Airtime ({orders.filter(o => o.serviceType === 'airtime' || o.category === 'Airtime' || (o.bundle && o.bundle.toLowerCase().includes('airtime'))).length})
+                    </button>
                   </div>
 
                   <div className="flex items-center gap-1.5">
@@ -2200,7 +2274,8 @@ export default function AdminDashboard() {
                 <TableBody>
                   {orders.filter((o) => {
                     if (orderSourceFilter === 'all') return true;
-                    if (orderSourceFilter === 'direct') return !o.agent_id && !o.agentId && !o.isAgentOrder && o.bundle !== "AGENT ACCESS UNLOCK" && !o.isFreeDataWin && o.serviceType !== "Free Data Win" && o.network !== "Free Data";
+                    if (orderSourceFilter === 'airtime') return !!(o.serviceType === 'airtime' || o.category === 'Airtime' || (o.bundle && o.bundle.toLowerCase().includes('airtime')));
+                    if (orderSourceFilter === 'direct') return !o.agent_id && !o.agentId && !o.isAgentOrder && o.bundle !== "AGENT ACCESS UNLOCK" && !o.isFreeDataWin && o.serviceType !== "Free Data Win" && o.network !== "Free Data" && o.serviceType !== "airtime";
                     if (orderSourceFilter === 'agent') return !!(o.agent_id || o.agentId || o.isAgentOrder || o.bundle === "AGENT ACCESS UNLOCK");
                     if (orderSourceFilter === 'freedata') return !!(o.isFreeDataWin || o.serviceType === "Free Data Win" || o.network === "Free Data");
                     return true;
@@ -2217,7 +2292,8 @@ export default function AdminDashboard() {
                     orders
                       .filter((o) => {
                         if (orderSourceFilter === 'all') return true;
-                        if (orderSourceFilter === 'direct') return !o.agent_id && !o.agentId && !o.isAgentOrder && o.bundle !== "AGENT ACCESS UNLOCK" && !o.isFreeDataWin && o.serviceType !== "Free Data Win" && o.network !== "Free Data";
+                        if (orderSourceFilter === 'airtime') return !!(o.serviceType === 'airtime' || o.category === 'Airtime' || (o.bundle && o.bundle.toLowerCase().includes('airtime')));
+                        if (orderSourceFilter === 'direct') return !o.agent_id && !o.agentId && !o.isAgentOrder && o.bundle !== "AGENT ACCESS UNLOCK" && !o.isFreeDataWin && o.serviceType !== "Free Data Win" && o.network !== "Free Data" && o.serviceType !== "airtime";
                         if (orderSourceFilter === 'agent') return !!(o.agent_id || o.agentId || o.isAgentOrder || o.bundle === "AGENT ACCESS UNLOCK");
                         if (orderSourceFilter === 'freedata') return !!(o.isFreeDataWin || o.serviceType === "Free Data Win" || o.network === "Free Data");
                         return true;
@@ -2375,6 +2451,31 @@ export default function AdminDashboard() {
                                       </span>
                                     )}
                                   </div>
+                                  {(order.serviceType === "airtime" || order.category === "Airtime") && (
+                                    <div className="mt-1.5 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[10px] space-y-1 max-w-xs">
+                                      <div className="flex items-center justify-between font-black text-amber-600 dark:text-amber-400 uppercase text-[9px]">
+                                        <span className="flex items-center gap-1">
+                                          <PhoneCall className="w-3 h-3 text-amber-500" />
+                                          MTN Airtime Top-Up 🇬🇭
+                                        </span>
+                                        <span className="font-mono text-[11px] font-black text-slate-900 dark:text-white">
+                                          GH₵{Number(order.airtimeAmount || order.basePrice || order.amount || 0).toFixed(2)}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center justify-between text-slate-600 dark:text-slate-300 font-semibold text-[9px]">
+                                        <span>Service Charge:</span>
+                                        <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
+                                          GH₵{Number(order.serviceFee ?? 1.00).toFixed(2)}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center justify-between text-slate-900 dark:text-white font-black border-t border-amber-500/20 pt-1 text-[10px]">
+                                        <span>Total Paid:</span>
+                                        <span className="font-mono text-secondary dark:text-primary">
+                                          GH₵{Number(order.amount || 0).toFixed(2)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )}
                                   {order.fastDelivery && (
                                     <div className="mt-1.5 p-2 rounded-lg bg-amber-500/10 border border-amber-500/25 text-[10px] space-y-0.5 max-w-xs">
                                       <div className="flex items-center gap-1 font-black text-amber-600 dark:text-amber-400 uppercase text-[9px]">
@@ -4094,6 +4195,182 @@ export default function AdminDashboard() {
                   >
                     {isUpdatingAgentFastDelivery ? "SAVING..." : "Save Agent Settings ⚡"}
                   </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="airtime_settings" className="mt-0 outline-none space-y-6">
+          <Card className="rounded-3xl border-2 overflow-hidden bg-white dark:bg-slate-950 dark:border-slate-800 shadow-sm">
+            <CardHeader className="bg-slate-50 dark:bg-slate-900/50 border-b dark:border-slate-800 p-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <CardTitle className="text-xl font-black flex items-center gap-2 text-slate-900 dark:text-white">
+                    <PhoneCall className="w-5 h-5 text-amber-500" />
+                    MTN Airtime Service Settings 📞🇬🇭
+                  </CardTitle>
+                  <CardDescription className="text-xs font-bold text-slate-500 dark:text-slate-400 mt-1">
+                    Control the customer-facing direct MTN airtime top-up service, live availability, and platform service charge.
+                  </CardDescription>
+                </div>
+                <Badge className={airtimeEnabled ? "bg-amber-400 text-slate-950 font-black" : "bg-slate-200 dark:bg-slate-800 text-slate-500 font-bold"}>
+                  {airtimeEnabled ? "SERVICE ACTIVE 🟢" : "SERVICE PAUSED 🔴"}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6 space-y-8">
+              {/* Stat Summary Cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Airtime Orders</p>
+                  <h4 className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+                    {orders.filter(o => o.serviceType === 'airtime' || o.category === 'Airtime').length}
+                  </h4>
+                  <span className="text-[10px] text-slate-400 font-bold">All-time transactions</span>
+                </div>
+                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400">Awaiting Delivery</p>
+                  <h4 className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">
+                    {orders.filter(o => (o.serviceType === 'airtime' || o.category === 'Airtime') && (o.status === 'paid' || o.status === 'processing' || o.status === 'pending' || o.status === 'accepted')).length}
+                  </h4>
+                  <span className="text-[10px] text-amber-700/70 dark:text-amber-400/70 font-bold">Pending admin dispatch</span>
+                </div>
+                <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Delivered Top-Ups</p>
+                  <h4 className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
+                    {orders.filter(o => (o.serviceType === 'airtime' || o.category === 'Airtime') && (o.status === 'delivered' || o.status === 'completed')).length}
+                  </h4>
+                  <span className="text-[10px] text-emerald-700/70 dark:text-emerald-400/70 font-bold">Fulfilled successfully</span>
+                </div>
+                <div className="p-4 rounded-2xl bg-[#0B132B] text-white border border-amber-500/30">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-amber-400">Current Service Fee</p>
+                  <h4 className="text-2xl font-black text-white mt-1">
+                    GH₵ {airtimeServiceFee.toFixed(2)}
+                  </h4>
+                  <span className="text-[10px] text-slate-400 font-bold">Per airtime purchase</span>
+                </div>
+              </div>
+
+              {/* Main Configuration Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* 1. Availability Card */}
+                <div className="p-6 rounded-2xl border-2 border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 space-y-6">
+                  <div>
+                    <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-amber-500 fill-amber-500" />
+                      Live Service Toggle
+                    </h3>
+                    <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">
+                      Enable or temporarily disable the Airtime top-up option across the website.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                    <div>
+                      <Label className="font-black text-sm text-slate-900 dark:text-white">
+                        Airtime Service Status
+                      </Label>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {airtimeEnabled ? "Customers can purchase airtime instantly" : "Service is paused (orders disabled)"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAirtimeEnabled(!airtimeEnabled)}
+                      className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors cursor-pointer ${
+                        airtimeEnabled ? "bg-emerald-500" : "bg-slate-300 dark:bg-slate-700"
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                          airtimeEnabled ? "translate-x-8" : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-900 dark:text-amber-200 space-y-1">
+                    <p className="font-bold flex items-center gap-1.5">
+                      <PhoneCall className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                      MTN Ghana Direct Top-Up
+                    </p>
+                    <p className="text-[11px] opacity-90 leading-relaxed">
+                      Customers enter their MTN phone number (024, 025, 053, 054, 055, 059) and any amount between GH₵1 and GH₵500.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 2. Service Charge Fee Card */}
+                <div className="p-6 rounded-2xl border-2 border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 space-y-6">
+                  <div>
+                    <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                      <DollarSign className="w-4 h-4 text-emerald-500" />
+                      Service Charge Configuration
+                    </h3>
+                    <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">
+                      The fixed fee added on top of the airtime amount (e.g. GH₵10 Airtime + GH₵1 Fee = GH₵11 Total).
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="font-black text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                      Service Charge Fee (GH₵)
+                    </Label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-400">GH₵</span>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.10"
+                        value={airtimeServiceFeeInput}
+                        onChange={(e) => setAirtimeServiceFeeInput(Number(e.target.value))}
+                        placeholder="1.00"
+                        className="rounded-xl h-12 pl-14 font-black text-base border-2 dark:bg-slate-900 dark:border-slate-800 dark:text-white"
+                      />
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                      Currently active fee: <span className="font-black text-amber-500">GH₵ {airtimeServiceFee.toFixed(2)}</span>
+                    </p>
+                  </div>
+
+                  <Button
+                    type="button"
+                    onClick={handleSaveAirtimeSettings}
+                    disabled={isUpdatingAirtimeSettings}
+                    className="w-full h-12 rounded-xl font-black text-sm bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    {isUpdatingAirtimeSettings ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        SAVING AIRTIME SETTINGS...
+                      </>
+                    ) : (
+                      "Save Airtime Settings 📞👑"
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Processing Workflow Guide */}
+              <div className="p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/40">
+                <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider mb-2 flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-primary" />
+                  Manual Airtime Order Processing Workflow
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs text-slate-600 dark:text-slate-400">
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border dark:border-slate-700/50">
+                    <span className="font-black text-amber-500 block mb-1">1. Payment & Queue</span>
+                    Customer pays securely via Paystack. Order appears in real time under <strong>Orders Activity 👑</strong> (click the <strong>Airtime</strong> filter pill).
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border dark:border-slate-700/50">
+                    <span className="font-black text-amber-500 block mb-1">2. Copy & Top-Up</span>
+                    Click <strong>Copy</strong> next to the customer's MTN number and transfer the requested airtime amount via your MTN MoMo / merchant line.
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border dark:border-slate-700/50">
+                    <span className="font-black text-amber-500 block mb-1">3. Deliver</span>
+                    Click <strong>Deliver 🚚</strong> to mark the order as delivered. The customer sees their order completed instantly in their account order history.
+                  </div>
                 </div>
               </div>
             </CardContent>

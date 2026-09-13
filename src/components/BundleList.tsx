@@ -18,12 +18,14 @@ import {
   Monitor,
   Sparkles,
   DollarSign,
+  PhoneCall,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import StreamingTab from "./StreamingTab";
 import ResultCheckerSection from "./ResultCheckerSection";
 import BookingCodesSection from "./BookingCodesSection";
 import EFootballCoinsSection from "./EFootballCoinsSection";
+import AirtimeSection from "./AirtimeSection";
 import fcMobileIcon from "@/src/assets/images/ea_sports_fc_mobile_cover_fixed_1782486697588.jpg";
 import pubgMobileIcon from "@/src/assets/images/pubg_mobile_cover_1782399506286.jpg";
 import fc26Icon from "@/src/assets/images/ea_sports_fc_26_cover_1782485615642.jpg";
@@ -96,6 +98,7 @@ export default function BundleList({
     "MTN",
     "Telecel",
     "AirtelTigo",
+    "Airtime",
     "Booking Codes",
     "Result Checker",
     "PC Games",
@@ -111,12 +114,14 @@ export default function BundleList({
 
   const mainCategories = [
     { id: "DATA_BUNDLES", label: "Data Bundles", icon: Wifi },
+    { id: "AIRTIME", label: "Airtime 📞", icon: PhoneCall },
     { id: "BOOKING_CODES", label: "Booking Codes $", icon: DollarSign },
     { id: "RESULT_CHECKER", label: "Result Checker", icon: GraduationCap },
     { id: "GAME_COINS", label: "Game Coins", icon: Gamepad2 },
     { id: "PC_GAMES", label: "PC Games", icon: Monitor },
     { id: "PREMIUM_APPS", label: "Premium Apps", icon: Sparkles },
   ].filter((cat) => {
+    if (cat.id === "AIRTIME" && hiddenTabs.includes("Airtime")) return false;
     if (cat.id === "BOOKING_CODES" && hiddenTabs.includes("Booking Codes")) return false;
     if (cat.id === "RESULT_CHECKER" && hiddenTabs.includes("Result Checker")) return false;
     if (cat.id === "GAME_COINS" && hiddenTabs.includes("Game Coins")) return false;
@@ -133,6 +138,8 @@ export default function BundleList({
 
   const currentMainCat = ["MTN", "Telecel", "AirtelTigo"].includes(activeTab)
     ? "DATA_BUNDLES"
+    : activeTab === "Airtime"
+    ? "AIRTIME"
     : activeTab === "Booking Codes"
     ? "BOOKING_CODES"
     : activeTab === "Result Checker"
@@ -150,6 +157,8 @@ export default function BundleList({
       if (!["MTN", "Telecel", "AirtelTigo"].includes(activeTab)) {
         setActiveTab("MTN");
       }
+    } else if (catId === "AIRTIME") {
+      setActiveTab("Airtime");
     } else if (catId === "BOOKING_CODES") {
       setActiveTab("Booking Codes");
     } else if (catId === "RESULT_CHECKER") {
@@ -167,7 +176,7 @@ export default function BundleList({
     const handleSelectTabEvent = (e: any) => {
       const tab = e?.detail?.tab;
       if (tab) {
-        if (["MTN", "Telecel", "AirtelTigo", "Booking Codes", "Result Checker", "PC Games", "Premium Apps", "Game Coins"].includes(tab)) {
+        if (["MTN", "Telecel", "AirtelTigo", "Airtime", "Booking Codes", "Result Checker", "PC Games", "Premium Apps", "Game Coins"].includes(tab)) {
           setActiveTab(tab);
         } else if (tab === "FC_MOBILE" || tab === "PUBG_MOBILE") {
           setActiveTab("Game Coins");
@@ -199,6 +208,8 @@ export default function BundleList({
         return "bg-red-600 text-white border-red-600";
       case "AirtelTigo":
         return "bg-blue-600 text-white border-blue-600";
+      case "Airtime":
+        return "bg-[#0B132B] text-amber-400 border-amber-400";
       case "Booking Codes":
         return "bg-amber-400 text-slate-950 border-amber-400";
       case "Game Coins":
@@ -223,6 +234,8 @@ export default function BundleList({
         return "bg-red-600 text-white";
       case "AirtelTigo":
         return "bg-blue-600 text-white";
+      case "Airtime":
+        return "bg-[#0B132B] text-amber-400";
       case "Booking Codes":
         return "bg-amber-400 text-slate-950";
       case "Game Coins":
@@ -1242,6 +1255,8 @@ export default function BundleList({
                       </div>
                     )}
                   </div>
+                ) : tab === "Airtime" ? (
+                  <AirtimeSection profile={profile} agentContext={agentContext} />
                 ) : tab === "Booking Codes" ? (
                   <BookingCodesSection profile={profile} agentContext={agentContext} />
                 ) : tab === "Result Checker" ? (

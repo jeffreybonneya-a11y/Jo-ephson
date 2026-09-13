@@ -84,6 +84,17 @@ export interface Order {
   notes?: string;
   reference?: string;
   payment_provider?: string;
+
+  // Airtime Fields
+  serviceType?: string;
+  airtimeAmount?: number;
+  serviceFee?: number;
+}
+
+export interface AirtimeSettings {
+  enabled: boolean;
+  serviceCharge: number;
+  updatedAt?: any;
 }
 
 export interface Message {

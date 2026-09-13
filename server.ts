@@ -529,6 +529,81 @@ async function handlePaystackInitialize(req: express.Request, res: express.Respo
             }
         }
 
+        // If this is an Airtime purchase, calculate total authoritatively from Firestore settings
+        const isAirtimeRequest = req.body.serviceType === 'airtime' || metadata?.service === 'airtime';
+        if (isAirtimeRequest) {
+            try {
+                let airtimeSettings: any = { enabled: true, serviceCharge: 1.00 };
+                const airtimeSettingsSnap = await getFirestoreDoc('settings', 'airtime');
+                if (airtimeSettingsSnap && airtimeSettingsSnap.exists) {
+                    airtimeSettings = { ...airtimeSettings, ...airtimeSettingsSnap.data() };
+                }
+
+                if (airtimeSettings.enabled === false) {
+                    return res.status(400).json({
+                        success: false,
+                        error: "Airtime service is currently unavailable. Please check back shortly."
+                    });
+                }
+
+                const rawAirtimeAmount = Number(req.body.airtimeAmount || metadata?.airtimeAmount || 0);
+                if (!rawAirtimeAmount || rawAirtimeAmount < 1) {
+                    return res.status(400).json({
+                        success: false,
+                        error: "Please enter a valid airtime amount of at least GH₵1.00"
+                    });
+                }
+
+                const serviceCharge = typeof airtimeSettings.serviceCharge === 'number' && airtimeSettings.serviceCharge >= 0
+                    ? Number(airtimeSettings.serviceCharge)
+                    : 1.00;
+
+                const authoritativeTotalGHS = Number((rawAirtimeAmount + serviceCharge).toFixed(2));
+                finalAmountPesewas = Math.round(authoritativeTotalGHS * 100);
+
+                const recipientPhone = req.body.recipientPhone || metadata?.recipientPhone || customerPhone || "";
+                const airtimeNetwork = "MTN";
+
+                const airtimePayload = {
+                    id: reference,
+                    orderId: reference,
+                    reference: reference,
+                    referenceCode: reference,
+                    paystackReference: reference,
+                    userId: userId || "",
+                    customerId: userId || "",
+                    customerName: customerName || metadata?.customerName || "Customer",
+                    customerEmail: email,
+                    email: email,
+                    customerPhone: recipientPhone,
+                    phone: recipientPhone,
+                    recipientPhone: recipientPhone,
+                    network: airtimeNetwork,
+                    recipientNetwork: airtimeNetwork,
+                    bundle: `MTN Airtime - GH₵${rawAirtimeAmount.toFixed(2)}`,
+                    bundleName: `MTN Airtime - GH₵${rawAirtimeAmount.toFixed(2)}`,
+                    category: "Airtime",
+                    serviceType: "airtime",
+                    airtimeAmount: rawAirtimeAmount,
+                    serviceFee: serviceCharge,
+                    amount: authoritativeTotalGHS,
+                    amountSent: authoritativeTotalGHS,
+                    currency: currency || "GHS",
+                    status: "pending",
+                    paymentStatus: "pending",
+                    paymentMethod: "Paystack",
+                    payment_provider: "paystack",
+                    createdAt: clientServerTimestamp(),
+                    updatedAt: clientServerTimestamp(),
+                };
+
+                await setFirestoreDoc('orders', reference, airtimePayload, true);
+                console.log(`[Paystack Init] Registered Airtime Order ${reference} for ${recipientPhone}, airtime: GH¢${rawAirtimeAmount}, fee: GH¢${serviceCharge}, total: GH¢${authoritativeTotalGHS}`);
+            } catch (airtimeFsErr: any) {
+                console.warn("[Paystack Init] Firestore airtime check notice:", airtimeFsErr.message);
+            }
+        }
+
         // Fast Delivery ⚡ verification & metadata persistence (Separated Customer vs Agent)
         const requestedFastDelivery = req.body.fastDelivery === true || metadata?.fastDelivery === true;
         const requestedNetwork = req.body.network || metadata?.network || "";
