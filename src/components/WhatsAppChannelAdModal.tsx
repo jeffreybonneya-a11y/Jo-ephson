@@ -5,12 +5,21 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { WHATSAPP_CHANNEL_URL } from '@/src/constants/links';
 
+// Flag to control the display of the WhatsApp Channel announcement modal
+// Temporarily disabled per user request; set to true to bring back when needed
+const IS_ANNOUNCEMENT_ENABLED = false;
+
 interface WhatsAppChannelAdModalProps {
   forceOpen?: boolean;
   onClose?: () => void;
 }
 
 export default function WhatsAppChannelAdModal({ forceOpen, onClose }: WhatsAppChannelAdModalProps) {
+  // Announcement modal removed/hidden for now; easily restored by toggling the flag above
+  if (!IS_ANNOUNCEMENT_ENABLED) {
+    return null;
+  }
+
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
