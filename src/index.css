@@ -49,23 +49,23 @@
 }
 
 :root {
-    --background: #0B132B;
+    --background: #06040A;
     --foreground: #F8FAFC;
-    --card: #111C38;
+    --card: #120A1E;
     --card-foreground: #F8FAFC;
-    --popover: #111C38;
+    --popover: #120A1E;
     --popover-foreground: #F8FAFC;
     --primary: #F59E0B; /* Rich Gold */
-    --primary-foreground: #0B132B;
-    --secondary: #1E293B; /* Executive Navy Slate */
+    --primary-foreground: #06040A;
+    --secondary: #180D2A; /* Royal Obsidian Surface */
     --secondary-foreground: #F8FAFC;
-    --muted: #1E293B;
+    --muted: #180D2A;
     --muted-foreground: #94A3B8;
     --accent: rgba(245, 158, 11, 0.15);
     --accent-foreground: #F59E0B;
     --destructive: #EF4444;
-    --border: #1E293B;
-    --input: #1E293B;
+    --border: #2A1647;
+    --input: #1A0F2E;
     --ring: #F59E0B;
     --radius: 1rem;
 
@@ -86,23 +86,23 @@
 }
 
 .dark {
-    --background: #0B132B;
+    --background: #06040A;
     --foreground: #F8FAFC;
-    --card: #111C38;
+    --card: #120A1E;
     --card-foreground: #F8FAFC;
-    --popover: #111C38;
+    --popover: #120A1E;
     --popover-foreground: #F8FAFC;
     --primary: #F59E0B;
-    --primary-foreground: #0B132B;
-    --secondary: #1E293B;
+    --primary-foreground: #06040A;
+    --secondary: #180D2A;
     --secondary-foreground: #F8FAFC;
-    --muted: #1E293B;
+    --muted: #180D2A;
     --muted-foreground: #94A3B8;
     --accent: rgba(245, 158, 11, 0.15);
     --accent-foreground: #F59E0B;
     --destructive: #EF4444;
-    --border: #1E293B;
-    --input: #1E293B;
+    --border: #2A1647;
+    --input: #1A0F2E;
     --ring: #F59E0B;
 
     --heading-foreground: #FFFFFF;

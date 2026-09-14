@@ -556,7 +556,7 @@ export default function App() {
           <AgentStore profile={profile} onSelectBundle={handleSelectBundle} />
         ) : (
           <>
-            <div className="bg-[#0B132B] pt-20 sm:pt-24 pb-2 relative z-20">
+            <div className="bg-[#06040A] pt-20 sm:pt-24 pb-2 relative z-20">
               <TopPromosRow />
             </div>
             <Hero />

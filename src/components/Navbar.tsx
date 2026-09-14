@@ -186,7 +186,7 @@ export default function Navbar({
 
   return (
     <>
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0B132B]/95 backdrop-blur-md border-b border-amber-500/20 shadow-lg">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-[#06040A]/95 backdrop-blur-md border-b border-purple-500/20 shadow-[0_4px_25px_rgba(0,0,0,0.6)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16 sm:h-20">
             <div className="flex items-center gap-2">
@@ -197,7 +197,7 @@ export default function Navbar({
                 {/* Clean Logo & Text Container with no black box */}
                 {agentContext ? (
                   <div className="relative p-0.5 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.25)]">
-                    <div className="bg-[#0B132B] px-3.5 py-1.5 rounded-[14px] flex items-center gap-2 border border-amber-500/40">
+                    <div className="bg-[#06040A] px-3.5 py-1.5 rounded-[14px] flex items-center gap-2 border border-amber-500/40">
                       <span className="font-serif font-black text-base md:text-lg tracking-wide bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 bg-clip-text text-transparent">
                         {agentContext.agent_name.toUpperCase()} STORE
                       </span>
@@ -247,10 +247,10 @@ export default function Navbar({
 
             {/* Desktop Navigation Tabs */}
             {!agentContext && (
-              <div className="hidden md:flex items-center gap-1.5 bg-[#111C38] p-1.5 rounded-2xl border border-amber-500/20 shadow-inner">
+              <div className="hidden md:flex items-center gap-1.5 bg-[#120A1E]/90 p-1.5 rounded-2xl border border-purple-500/20 shadow-inner backdrop-blur-md">
                  <button 
                   onClick={() => { onAdminView(false); onHistoryView(false); onStreamView(false); onDownloadView(false); }}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-extrabold text-xs tracking-wider transition-all cursor-pointer ${!isAdminView && !isHistoryView && !isStreamView && !isDownloadView ? 'bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 shadow-[0_2px_10px_rgba(245,158,11,0.3)] scale-[1.02]' : 'text-slate-300 hover:text-white hover:bg-slate-800/60'}`}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-extrabold text-xs tracking-wider transition-all cursor-pointer ${!isAdminView && !isHistoryView && !isStreamView && !isDownloadView ? 'bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 shadow-[0_2px_10px_rgba(245,158,11,0.3)] scale-[1.02]' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
                  >
                    <Home className="w-4 h-4" />
                    HOME
@@ -265,21 +265,21 @@ export default function Navbar({
                       window.dispatchEvent(new Event('NAVIGATE_TO_BOOKING_CODES'));
                     }, 50);
                   }}
-                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-extrabold text-xs tracking-wider text-slate-300 hover:text-amber-400 hover:bg-slate-800/60 transition-all cursor-pointer"
+                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-extrabold text-xs tracking-wider text-slate-300 hover:text-amber-400 hover:bg-white/5 transition-all cursor-pointer"
                  >
                    <DollarSign className="w-4 h-4 text-amber-400" />
                    BOOKING CODES $
                  </button>
                  <button 
                   onClick={() => user ? onStreamView(!isStreamView) : openAuth()}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-extrabold text-xs tracking-wider transition-all cursor-pointer ${isStreamView ? 'bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 shadow-[0_2px_10px_rgba(245,158,11,0.3)] scale-[1.02]' : 'text-slate-300 hover:text-white hover:bg-slate-800/60'}`}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-extrabold text-xs tracking-wider transition-all cursor-pointer ${isStreamView ? 'bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 shadow-[0_2px_10px_rgba(245,158,11,0.3)] scale-[1.02]' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
                  >
                    <Crown className="w-4 h-4" />
                    AGENT STORE
                  </button>
                  <button 
                   onClick={() => user ? onHistoryView(!isHistoryView) : openAuth()}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-extrabold text-xs tracking-wider transition-all cursor-pointer ${isHistoryView ? 'bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 shadow-[0_2px_10px_rgba(245,158,11,0.3)] scale-[1.02]' : 'text-slate-300 hover:text-white hover:bg-slate-800/60'}`}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-extrabold text-xs tracking-wider transition-all cursor-pointer ${isHistoryView ? 'bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 shadow-[0_2px_10px_rgba(245,158,11,0.3)] scale-[1.02]' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
                  >
                    <History className="w-4 h-4" />
                    HISTORY
@@ -303,7 +303,7 @@ export default function Navbar({
                  )}
                  <button 
                   onClick={() => user ? setIsSupportOpen(true) : openAuth()}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-extrabold text-xs text-slate-300 hover:text-white hover:bg-slate-800/60 transition-all cursor-pointer"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-extrabold text-xs text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer"
                  >
                    <MessageCircle className="w-4 h-4" />
                    SUPPORT
@@ -324,7 +324,7 @@ export default function Navbar({
                </button>
 
                {user && profile && (
-                <div className="hidden lg:flex items-center gap-2 bg-[#111C38] px-4 py-2 rounded-xl border border-amber-500/20">
+                <div className="hidden lg:flex items-center gap-2 bg-[#120A1E] px-4 py-2 rounded-xl border border-purple-500/20">
                   <User className="w-4 h-4 text-amber-400" />
                   <span className="text-xs font-bold text-slate-200 lowercase">{profile.fullName}</span>
                 </div>
@@ -368,7 +368,7 @@ export default function Navbar({
 
       {/* Mobile Bottom Navigation */}
       {!agentContext && (
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0B132B]/95 backdrop-blur-lg border-t border-amber-500/20 pb-safe shadow-[0_-10px_30px_rgba(0,0,0,0.5)] h-20">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#06040A]/95 backdrop-blur-lg border-t border-purple-500/20 pb-safe shadow-[0_-10px_30px_rgba(0,0,0,0.7)] h-20">
           <div className={`grid ${isAdmin && downloadReady ? 'grid-cols-6' : (isAdmin || downloadReady ? 'grid-cols-5' : 'grid-cols-4')} h-full px-2`}>
             <button 
               className={`flex flex-col items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer ${!isAdminView && !isHistoryView && !isStreamView && !isDownloadView ? 'text-amber-400 font-bold' : 'text-slate-400'}`}

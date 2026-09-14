@@ -54,11 +54,11 @@ export default function WaecPromoCard({ onNavigateToChecker }: WaecPromoCardProp
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#111C38] via-[#142247] to-[#111C38] border border-amber-500/25 shadow-[0_4px_20px_rgba(0,0,0,0.25)] p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 transition-all hover:border-amber-500/45 group h-full"
+        className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#140A22]/95 via-[#10071C]/95 to-[#140A22]/95 border border-purple-500/25 shadow-[0_8px_30px_rgba(0,0,0,0.35)] p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 transition-all hover:border-purple-400/50 group h-full backdrop-blur-md"
       >
-        {/* Subtle ambient gold background highlight */}
-        <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/5 blur-2xl rounded-full pointer-events-none -translate-y-1/2 translate-x-1/3" />
-        <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-500/5 blur-xl rounded-full pointer-events-none translate-y-1/2 -translate-x-1/3" />
+        {/* Subtle ambient gold and purple background highlight */}
+        <div className="absolute top-0 right-0 w-48 h-48 bg-purple-500/10 blur-2xl rounded-full pointer-events-none -translate-y-1/2 translate-x-1/3" />
+        <div className="absolute bottom-0 left-0 w-32 h-32 bg-amber-500/10 blur-xl rounded-full pointer-events-none translate-y-1/2 -translate-x-1/3" />
 
         {/* Left / Center content */}
         <div className="flex items-center gap-3.5 sm:gap-4 w-full sm:w-auto">
@@ -77,7 +77,7 @@ export default function WaecPromoCard({ onNavigateToChecker }: WaecPromoCardProp
                 <GraduationCap className="w-7 h-7" />
               </div>
             )}
-            <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border border-[#111C38] ${isOutOfStock ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+            <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border border-[#140A22] ${isOutOfStock ? 'bg-amber-500' : 'bg-[#26FEDC]'}`} />
           </div>
 
           {/* Text Info */}
@@ -93,7 +93,7 @@ export default function WaecPromoCard({ onNavigateToChecker }: WaecPromoCardProp
                   OUT OF STOCK
                 </span>
               ) : (
-                <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-0.5">
+                <span className="text-[10px] text-[#26FEDC] font-bold flex items-center gap-0.5">
                   <CheckCircle2 className="w-2.5 h-2.5" />
                   Instant PIN
                 </span>

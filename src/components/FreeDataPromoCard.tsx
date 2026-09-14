@@ -48,18 +48,18 @@ export default function FreeDataPromoCard({ onOpenModal }: FreeDataPromoCardProp
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.1 }}
-        className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#111C38] via-[#1A1A40] to-[#111C38] border border-amber-500/25 shadow-[0_4px_20px_rgba(0,0,0,0.25)] p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 transition-all hover:border-amber-500/45 group h-full"
+        className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#140A22]/95 via-[#10071C]/95 to-[#140A22]/95 border border-purple-500/25 shadow-[0_8px_30px_rgba(0,0,0,0.35)] p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 transition-all hover:border-purple-400/50 group h-full backdrop-blur-md"
       >
         {/* Ambient Glows */}
-        <div className="absolute top-0 right-0 w-48 h-48 bg-yellow-500/10 blur-2xl rounded-full pointer-events-none -translate-y-1/2 translate-x-1/3" />
-        <div className="absolute bottom-0 left-0 w-32 h-32 bg-purple-500/10 blur-xl rounded-full pointer-events-none translate-y-1/2 -translate-x-1/3" />
+        <div className="absolute top-0 right-0 w-48 h-48 bg-purple-500/15 blur-2xl rounded-full pointer-events-none -translate-y-1/2 translate-x-1/3" />
+        <div className="absolute bottom-0 left-0 w-32 h-32 bg-amber-500/10 blur-xl rounded-full pointer-events-none translate-y-1/2 -translate-x-1/3" />
 
         {/* Content */}
         <div className="flex items-center gap-3.5 sm:gap-4 w-full sm:w-auto">
           {/* Visual Icon Badge */}
           <div className="relative shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-tr from-amber-500 via-yellow-400 to-amber-300 text-slate-950 p-1.5 flex items-center justify-center shadow-[0_4px_16px_rgba(245,158,11,0.35)] overflow-hidden">
             <Gift className="w-7 h-7 stroke-[2.5] animate-bounce" style={{ animationDuration: '2.5s' }} />
-            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border border-[#111C38]" />
+            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-[#26FEDC] rounded-full border border-[#140A22]" />
           </div>
 
           {/* Text Details */}
@@ -69,7 +69,7 @@ export default function FreeDataPromoCard({ onOpenModal }: FreeDataPromoCardProp
                 <Sparkles className="w-2.5 h-2.5" />
                 LUCKY SPIN & WIN
               </span>
-              <span className="text-[10px] text-amber-300 font-bold flex items-center gap-0.5">
+              <span className="text-[10px] text-[#26FEDC] font-bold flex items-center gap-0.5">
                 <Zap className="w-2.5 h-2.5 text-yellow-400 fill-yellow-400" />
                 {price <= 0 ? "100% Free" : `GH₵${price.toFixed(2)} Entry`}
               </span>
