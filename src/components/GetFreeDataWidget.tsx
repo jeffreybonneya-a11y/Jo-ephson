@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, Gift, X, Loader2, Trophy, Frown, CheckCircle2, ChevronRight, Crown } from 'lucide-react';
+import { Sparkles, Gift, X, Loader2, Trophy, Frown, CheckCircle2, ChevronRight, Crown, Clock } from 'lucide-react';
 import { doc, onSnapshot, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { db, auth } from '../lib/firebase';
@@ -8,19 +8,85 @@ import { openPaystackPopup } from '../lib/paystack';
 import { getApiUrl } from '../lib/api';
 import { toast } from 'sonner';
 
+// Helper for local date string (YYYY-MM-DD)
+const getTodayKey = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// Check if user has already taken their 1 daily spin today
+const checkHasSpunToday = (uid?: string | null): boolean => {
+  if (typeof window === 'undefined') return false;
+  try {
+    const today = getTodayKey();
+    const guestSpin = localStorage.getItem('free_data_spin_guest');
+    if (guestSpin === today) return true;
+    if (uid) {
+      const userSpin = localStorage.getItem(`free_data_spin_${uid}`);
+      if (userSpin === today) return true;
+    }
+    const genericSpin = localStorage.getItem('free_data_last_spin_date');
+    if (genericSpin === today) return true;
+  } catch (e) {
+    console.warn("Daily spin storage check error:", e);
+  }
+  return false;
+};
+
+// Save record of today's spin
+const saveSpinForToday = (uid?: string | null) => {
+  if (typeof window === 'undefined') return;
+  try {
+    const today = getTodayKey();
+    localStorage.setItem('free_data_spin_guest', today);
+    localStorage.setItem('free_data_last_spin_date', today);
+    if (uid) {
+      localStorage.setItem(`free_data_spin_${uid}`, today);
+    }
+    localStorage.setItem('free_data_last_spin_timestamp', Date.now().toString());
+  } catch (e) {
+    console.warn("Daily spin storage save error:", e);
+  }
+};
+
+// Calculate time remaining until midnight
+const getTimeUntilMidnight = (): string => {
+  const now = new Date();
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
+  const diffMs = tomorrow.getTime() - now.getTime();
+  const hours = Math.floor(diffMs / (1000 * 60 * 60));
+  const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  return `${hours}h ${mins}m`;
+};
+
 export const GetFreeDataWidget: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
   const [isDisabled, setIsDisabled] = useState<boolean>(false);
   const [servicePrice, setServicePrice] = useState<number>(1);
   const [isOpen, setIsOpen] = useState<boolean>(false);
+  const [hasSpunToday, setHasSpunToday] = useState<boolean>(false);
+  const [timeUntilReset, setTimeUntilReset] = useState<string>(getTimeUntilMidnight());
 
   // Listen for Auth changes
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (usr) => {
       setCurrentUser(usr);
+      setHasSpunToday(checkHasSpunToday(usr?.uid));
     });
     return () => unsubAuth();
   }, []);
+
+  // Update countdown timer periodically
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimeUntilReset(getTimeUntilMidnight());
+      setHasSpunToday(checkHasSpunToday(currentUser?.uid));
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [currentUser]);
 
   // Listen for external open trigger
   useEffect(() => {
@@ -31,8 +97,8 @@ export const GetFreeDataWidget: React.FC = () => {
     return () => window.removeEventListener('OPEN_FREE_DATA_MODAL', handleTrigger);
   }, [currentUser, servicePrice]);
   
-  // Modal Stages: 'pay' | 'spin' | 'win_form' | 'win_success' | 'loss'
-  const [stage, setStage] = useState<'pay' | 'spin' | 'win_form' | 'win_success' | 'loss'>('pay');
+  // Modal Stages: 'pay' | 'spin' | 'win_form' | 'win_success' | 'loss' | 'daily_limit'
+  const [stage, setStage] = useState<'pay' | 'spin' | 'win_form' | 'win_success' | 'loss' | 'daily_limit'>('pay');
   
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [paymentRef, setPaymentRef] = useState<string>('');
@@ -60,9 +126,13 @@ export const GetFreeDataWidget: React.FC = () => {
         return;
       }
       setPaymentRef(ref);
-      setStage('spin');
       setIsOpen(true);
-      toast.success("Payment confirmed! Spin the wheel to claim your Free Data 🎡");
+      if (checkHasSpunToday(currentUser?.uid)) {
+        setStage('daily_limit');
+      } else {
+        setStage('spin');
+        toast.success("Payment confirmed! Spin the wheel to claim your Free Data 🎡");
+      }
     }
   }, [currentUser]);
 
@@ -96,7 +166,8 @@ export const GetFreeDataWidget: React.FC = () => {
 
   const resetModalState = () => {
     setIsOpen(false);
-    setStage(servicePrice <= 0 ? 'spin' : 'pay');
+    const spun = checkHasSpunToday(currentUser?.uid);
+    setHasSpunToday(spun);
     setPaymentRef('');
     setPhone('');
     setNetwork('MTN');
@@ -107,8 +178,12 @@ export const GetFreeDataWidget: React.FC = () => {
   };
 
   const handleOpenModal = () => {
+    const alreadySpun = checkHasSpunToday(currentUser?.uid);
+    setHasSpunToday(alreadySpun);
     setIsOpen(true);
-    if (servicePrice <= 0) {
+    if (alreadySpun) {
+      setStage('daily_limit');
+    } else if (servicePrice <= 0) {
       setStage('spin');
     } else {
       setStage('pay');
@@ -118,6 +193,12 @@ export const GetFreeDataWidget: React.FC = () => {
   // 2. Step 1: Handle Payment / Free Spin Entry
   const handleInitiatePayment = async () => {
     const activeUser = currentUser || auth.currentUser;
+
+    if (checkHasSpunToday(activeUser?.uid)) {
+      toast.error("You've already used your daily spin for today! Come back tomorrow 🎁");
+      setStage('daily_limit');
+      return;
+    }
 
     if (servicePrice <= 0) {
       setStage('spin');
@@ -199,20 +280,34 @@ export const GetFreeDataWidget: React.FC = () => {
     }
   };
 
-  // 3. Step 2: Trigger Genuinely Random Spin
+  // 3. Step 2: Trigger Spin (1 Spin Per Day & hardly wins some - almost all land on try again)
   const handleTriggerSpin = () => {
     if (isSpinning || hasSpun) return;
+
+    const activeUser = currentUser || auth.currentUser;
+    if (checkHasSpunToday(activeUser?.uid)) {
+      toast.error("You've already used your 1 spin for today! Come back tomorrow 🎁");
+      setStage('daily_limit');
+      return;
+    }
     
     setIsSpinning(true);
     setHasSpun(true);
 
-    // Standard 50/50 truly random outcome
-    const isWin = Math.random() < 0.5;
+    // Record today's spin immediately so only 1 chance per day
+    saveSpinForToday(activeUser?.uid);
+    setHasSpunToday(true);
 
-    // 5 full rotations (1800 deg) + offset for segment
-    // Segment 1 (Win): 0deg to 180deg (center ~90deg) -> 1800 + 90 = 1890deg
-    // Segment 2 (Try again): 180deg to 360deg (center ~270deg) -> 1800 + 270 = 2070deg
-    const targetDegree = isWin ? 1890 : 2070;
+    // Rule: "in a way that no one wins. but hardly wins some. All tried effort must fall on try again."
+    // 0.5% (1 in 200) chance to win - almost all attempts fall on "Try again"
+    const isWin = Math.random() < 0.005;
+
+    // 5 full rotations (1800 deg)
+    // Pointer is at the top (12 o'clock).
+    // Segment 1 (Win): 0 deg (center at 0 deg, with small random jitter -20 to +20 deg)
+    // Segment 2 (Try again): 180 deg (center at 180 deg, with small random jitter -20 to +20 deg)
+    const jitter = Math.floor(Math.random() * 41) - 20; // -20 to +20 degrees jitter
+    const targetDegree = isWin ? (1800 + jitter) : (1800 + 180 + jitter);
     setWheelRotation(targetDegree);
 
     setTimeout(() => {
@@ -321,10 +416,10 @@ export const GetFreeDataWidget: React.FC = () => {
             </div>
             <div className="flex flex-col items-start leading-tight">
               <span className="text-[9px] font-black uppercase tracking-widest text-yellow-400/90">
-                PROMO
+                {hasSpunToday ? "1 SPIN / DAY" : "DAILY PROMO"}
               </span>
               <span className="font-black text-xs uppercase tracking-wider text-amber-300 drop-shadow-sm flex items-center gap-1">
-                Get free data
+                {hasSpunToday ? "SPIN USED TODAY" : "GET FREE DATA"}
               </span>
             </div>
             <Sparkles className="w-4 h-4 text-yellow-300 animate-spin ml-0.5" style={{ animationDuration: '4s' }} />
@@ -356,6 +451,49 @@ export const GetFreeDataWidget: React.FC = () => {
               </button>
 
               <div className="overflow-y-auto overflow-x-hidden scrollbar-hide flex-1">
+                {/* Stage: Daily Limit Reached (Customer already spun today) */}
+                {stage === 'daily_limit' && (
+                  <div className="flex flex-col items-center text-center space-y-4 py-3">
+                    <div className="w-14 h-14 rounded-2xl bg-amber-500/15 border-2 border-amber-400/40 text-amber-300 flex items-center justify-center shadow-lg">
+                      <Clock className="w-7 h-7" />
+                    </div>
+
+                    <div>
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[10px] font-black uppercase tracking-wider mb-2">
+                        <Sparkles className="w-3 h-3 text-amber-400" />
+                        Daily Chance Used
+                      </div>
+                      <h3 className="text-xl sm:text-2xl font-black uppercase text-slate-100 tracking-tight leading-tight">
+                        1 Spin Per Day Limit
+                      </h3>
+                      <p className="text-xs text-slate-300 mt-2 font-medium leading-relaxed max-w-xs mx-auto">
+                        You have already used your free lucky spin for today! Each customer is entitled to <span className="font-bold text-amber-300">1 spin per day</span>.
+                      </p>
+                    </div>
+
+                    <div className="w-full bg-slate-900/90 border border-amber-400/20 rounded-2xl p-3.5 space-y-2 text-left">
+                      <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-800">
+                        <span className="text-slate-400">Today's Status</span>
+                        <span className="font-bold text-amber-400 flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Spin Completed
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-slate-400">Next Spin Resets In</span>
+                        <span className="font-mono font-bold text-amber-300">{timeUntilReset}</span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={resetModalState}
+                      className="w-full h-12 bg-gradient-to-r from-amber-400 to-yellow-400 hover:brightness-110 text-slate-950 font-black rounded-xl uppercase tracking-wider text-xs shadow-md transition-all active:scale-95 cursor-pointer mt-1"
+                    >
+                      COME BACK TOMORROW 🌙
+                    </button>
+                  </div>
+                )}
+
                 {/* Stage 1: Pay / Free Entry Gate */}
                 {stage === 'pay' && (
                   <div className="flex flex-col items-center text-center space-y-3 py-1">
@@ -366,16 +504,16 @@ export const GetFreeDataWidget: React.FC = () => {
                     <div>
                       <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[9px] font-black uppercase tracking-wider mb-1">
                         <Sparkles className="w-2.5 h-2.5 text-amber-400" />
-                        Free Data Lucky Spin
+                        Free Data Lucky Spin • 1 Spin / Day
                       </div>
                       <h3 className="text-lg sm:text-xl font-black uppercase text-slate-100 tracking-tight leading-tight">
                         Get Free Data Promo 🎁
                       </h3>
                       <p className="text-[11px] sm:text-xs text-slate-300 mt-1 font-medium leading-snug px-2">
                         {servicePrice <= 0 ? (
-                          <>Spin the Lucky Data Wheel for <span className="font-extrabold text-amber-300 uppercase">100% FREE</span> & win instant data!</>
+                          <>Spin the Lucky Data Wheel for <span className="font-extrabold text-amber-300 uppercase">100% FREE</span>! 1 spin per customer daily.</>
                         ) : (
-                          <>Pay <span className="font-extrabold text-amber-300">GH₵{servicePrice.toFixed(2)}</span> to unlock 1 spin on the Lucky Data Wheel!</>
+                          <>Pay <span className="font-extrabold text-amber-300">GH₵{servicePrice.toFixed(2)}</span> to unlock your 1 daily spin on the Lucky Data Wheel!</>
                         )}
                       </p>
                     </div>
@@ -384,11 +522,15 @@ export const GetFreeDataWidget: React.FC = () => {
                     <div className="w-full bg-slate-900/90 border border-amber-400/30 rounded-2xl p-3 space-y-1.5 text-left shrink-0">
                       <div className="flex items-center justify-between text-[11px] pb-1.5 border-b border-slate-800">
                         <span className="text-slate-400 font-medium">Service Package</span>
-                        <span className="font-bold text-slate-200">1x Wheel Spin (Win 1GB Data)</span>
+                        <span className="font-bold text-slate-200">1x Daily Spin (Win 1GB Data)</span>
                       </div>
                       <div className="flex items-center justify-between text-[11px] pb-1.5 border-b border-slate-800">
                         <span className="text-slate-400 font-medium">Supported</span>
                         <span className="font-bold text-amber-400">MTN • Telecel • AT</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] pb-1.5 border-b border-slate-800">
+                        <span className="text-slate-400 font-medium">Daily Limit</span>
+                        <span className="font-bold text-amber-300">1 Spin Per Customer / Day</span>
                       </div>
                       <div className="flex items-center justify-between pt-0.5">
                         <span className="text-[10px] uppercase font-extrabold text-slate-300">Amount Due</span>
@@ -423,23 +565,25 @@ export const GetFreeDataWidget: React.FC = () => {
                     </div>
 
                     <p className="text-[9px] text-slate-400 flex items-center justify-center gap-1 shrink-0 m-0">
-                      <span>🔒 Secured by Paystack (MoMo & Card)</span>
+                      <span>🔒 1 Chance Per Day • Reset at Midnight</span>
                     </p>
                   </div>
                 )}
 
               {/* Stage 2: Spin Wheel */}
               {stage === 'spin' && (
-                <div className="flex flex-col items-center text-center space-y-6 py-2">
-                  <h3 className="text-2xl font-black uppercase text-amber-400 tracking-tight">
-                    Lucky Wheel 🎡
-                  </h3>
-                  <p className="text-xs text-slate-300 font-medium">
-                    Payment verified! Tap <span className="text-amber-300 font-bold">SPIN THE WHEEL</span> to test your luck.
-                  </p>
+                <div className="flex flex-col items-center text-center space-y-4 py-2">
+                  <div>
+                    <h3 className="text-2xl font-black uppercase text-amber-400 tracking-tight">
+                      Lucky Wheel 🎡
+                    </h3>
+                    <p className="text-xs text-slate-300 font-medium mt-0.5">
+                      Your 1 daily spin is ready! Tap <span className="text-amber-300 font-bold">SPIN THE WHEEL</span> below.
+                    </p>
+                  </div>
 
                   {/* Wheel Container */}
-                  <div className="relative w-64 h-64 my-2 flex items-center justify-center">
+                  <div className="relative w-64 h-64 my-1 flex items-center justify-center">
                     {/* Top Pointer Arrow */}
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 w-0 h-0 border-l-[12px] border-l-transparent border-r-[12px] border-r-transparent border-t-[20px] border-t-amber-400 drop-shadow-md" />
 
@@ -470,22 +614,27 @@ export const GetFreeDataWidget: React.FC = () => {
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    disabled={isSpinning || hasSpun}
-                    onClick={handleTriggerSpin}
-                    className="w-full h-14 bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black rounded-2xl flex items-center justify-center gap-2 shadow-lg uppercase tracking-wider text-sm transition-all active:scale-95 disabled:opacity-50"
-                  >
-                    {isSpinning ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" /> SPINNING...
-                      </>
-                    ) : (
-                      <>
-                        SPIN THE WHEEL 🎡
-                      </>
-                    )}
-                  </button>
+                  <div className="w-full space-y-2">
+                    <button
+                      type="button"
+                      disabled={isSpinning || hasSpun}
+                      onClick={handleTriggerSpin}
+                      className="w-full h-14 bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black rounded-2xl flex items-center justify-center gap-2 shadow-lg uppercase tracking-wider text-sm transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                    >
+                      {isSpinning ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" /> SPINNING...
+                        </>
+                      ) : (
+                        <>
+                          SPIN THE WHEEL 🎡 (1 CHANCE)
+                        </>
+                      )}
+                    </button>
+                    <p className="text-[10px] text-slate-400">
+                      Daily limit: 1 spin per customer per day
+                    </p>
+                  </div>
                 </div>
               )}
 
@@ -588,16 +737,16 @@ export const GetFreeDataWidget: React.FC = () => {
                   <button
                     type="button"
                     onClick={resetModalState}
-                    className="w-full h-12 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-2xl uppercase tracking-wider text-xs transition-all"
+                    className="w-full h-12 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-2xl uppercase tracking-wider text-xs transition-all cursor-pointer"
                   >
                     CLOSE
                   </button>
                 </div>
               )}
 
-              {/* Stage 5: Loss Message */}
+              {/* Stage 5: Loss Message (Try Again) */}
               {stage === 'loss' && (
-                <div className="flex flex-col items-center text-center space-y-6 py-4">
+                <div className="flex flex-col items-center text-center space-y-5 py-4">
                   <div className="w-16 h-16 rounded-full bg-amber-500/10 border-2 border-amber-500/30 text-amber-400 flex items-center justify-center">
                     <Frown className="w-10 h-10" />
                   </div>
@@ -605,15 +754,23 @@ export const GetFreeDataWidget: React.FC = () => {
                     <h3 className="text-2xl font-black text-slate-200 tracking-tight">
                       Try again
                     </h3>
-                    <p className="text-lg font-bold text-amber-300 mt-2">
+                    <p className="text-lg font-bold text-amber-300 mt-1">
                       better luck next time bud🥲
                     </p>
+                    <div className="mt-3 p-3 rounded-xl bg-slate-900/90 border border-slate-800 text-xs text-slate-400">
+                      <p className="font-semibold text-slate-300">
+                        Daily limit: 1 spin per customer per day.
+                      </p>
+                      <p className="mt-1 text-[11px] text-amber-400/90 font-mono">
+                        Your spin for today is used. Resets tomorrow (in {timeUntilReset})
+                      </p>
+                    </div>
                   </div>
 
                   <button
                     type="button"
                     onClick={resetModalState}
-                    className="w-full h-12 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-2xl uppercase tracking-wider text-xs transition-all"
+                    className="w-full h-12 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-2xl uppercase tracking-wider text-xs transition-all cursor-pointer"
                   >
                     CLOSE
                   </button>

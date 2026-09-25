@@ -1,11 +1,57 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Gift, Sparkles, X, Trophy, RefreshCw, CheckCircle2, Loader2, Crown, Zap } from 'lucide-react';
+import { Gift, Sparkles, X, Trophy, RefreshCw, CheckCircle2, Loader2, Crown, Zap, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { db, auth } from '../lib/firebase';
 import { doc, setDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { openPaystackPopup } from '../lib/paystack';
 import { getApiUrl } from '../lib/api';
+
+const getTodayKey = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const checkHasSpunToday = (uid?: string | null): boolean => {
+  if (typeof window === 'undefined') return false;
+  try {
+    const today = getTodayKey();
+    const guestSpin = localStorage.getItem('free_data_spin_guest');
+    if (guestSpin === today) return true;
+    if (uid) {
+      const userSpin = localStorage.getItem(`free_data_spin_${uid}`);
+      if (userSpin === today) return true;
+    }
+  } catch (e) {
+    console.warn("Daily check error:", e);
+  }
+  return false;
+};
+
+const saveSpinForToday = (uid?: string | null) => {
+  if (typeof window === 'undefined') return;
+  try {
+    const today = getTodayKey();
+    localStorage.setItem('free_data_spin_guest', today);
+    if (uid) {
+      localStorage.setItem(`free_data_spin_${uid}`, today);
+    }
+  } catch (e) {
+    console.warn("Daily save error:", e);
+  }
+};
+
+const getTimeUntilMidnight = (): string => {
+  const now = new Date();
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
+  const diffMs = tomorrow.getTime() - now.getTime();
+  const hours = Math.floor(diffMs / (1000 * 60 * 60));
+  const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  return `${hours}h ${mins}m`;
+};
 
 interface FreeDataFloatingWidgetProps {
   // Optional props if needed
@@ -13,9 +59,11 @@ interface FreeDataFloatingWidgetProps {
 
 export default function FreeDataFloatingWidget(_props: FreeDataFloatingWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [step, setStep] = useState<'payment' | 'spinning' | 'won' | 'lost'>('payment');
+  const [step, setStep] = useState<'payment' | 'spinning' | 'won' | 'lost' | 'daily_limit'>('payment');
   const [isPaying, setIsPaying] = useState(false);
   const [paymentRef, setPaymentRef] = useState<string>('');
+  const [hasSpunToday, setHasSpunToday] = useState(false);
+  const [timeUntilReset, setTimeUntilReset] = useState(getTimeUntilMidnight());
   
   // Wheel state
   const [isSpinning, setIsSpinning] = useState(false);
@@ -27,6 +75,15 @@ export default function FreeDataFloatingWidget(_props: FreeDataFloatingWidgetPro
   const [network, setNetwork] = useState('MTN');
   const [isSubmittingClaim, setIsSubmittingClaim] = useState(false);
   const [claimSubmitted, setClaimSubmitted] = useState(false);
+
+  useEffect(() => {
+    setHasSpunToday(checkHasSpunToday(auth.currentUser?.uid));
+    const interval = setInterval(() => {
+      setTimeUntilReset(getTimeUntilMidnight());
+      setHasSpunToday(checkHasSpunToday(auth.currentUser?.uid));
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Drag vs Click detection
   const dragStartPos = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -46,11 +103,23 @@ export default function FreeDataFloatingWidget(_props: FreeDataFloatingWidgetPro
 
   const handleWidgetClick = () => {
     if (isDraggingRef.current) return;
+    const already = checkHasSpunToday(auth.currentUser?.uid);
+    setHasSpunToday(already);
     setIsOpen(true);
+    if (already) {
+      setStep('daily_limit');
+    } else {
+      setStep('payment');
+    }
   };
 
   // Step 1: Process Paystack Payment of GH₵1
   const handlePaystackPayment = async () => {
+    if (checkHasSpunToday(auth.currentUser?.uid)) {
+      toast.error("You've already used your daily spin for today! Come back tomorrow 🎁");
+      setStep('daily_limit');
+      return;
+    }
     setIsPaying(true);
     try {
       const activeUser = auth.currentUser;
@@ -95,13 +164,22 @@ export default function FreeDataFloatingWidget(_props: FreeDataFloatingWidgetPro
     }
   };
 
-  // Step 2: Trigger spin
+  // Step 2: Trigger spin (1 Spin / Day & virtually all tries fall on Try Again)
   const handleSpinWheel = () => {
     if (isSpinning || spinCompleted) return;
-    setIsSpinning(true);
 
-    // Truly random outcome (50/50 odds)
-    const isWin = Math.random() < 0.5;
+    if (checkHasSpunToday(auth.currentUser?.uid)) {
+      toast.error("You have already used your 1 daily spin for today! 🎁");
+      setStep('daily_limit');
+      return;
+    }
+
+    setIsSpinning(true);
+    saveSpinForToday(auth.currentUser?.uid);
+    setHasSpunToday(true);
+
+    // Rule: "no one wins. but hardly wins some. All tried effort must fall on try again."
+    const isWin = Math.random() < 0.005;
 
     // Wheel segments (8 segments total, alternating Win and Try Again)
     // Even indices (0, 2, 4, 6) = Win 🎉
@@ -113,8 +191,6 @@ export default function FreeDataFloatingWidget(_props: FreeDataFloatingWidgetPro
     const targetSegment = chosenSegmentList[Math.floor(Math.random() * chosenSegmentList.length)];
 
     // Calculate rotation: 5 full spins (1800 deg) + target angle offset
-    // Segment size = 360 / 8 = 45 deg
-    // Segment 0 center is at 22.5 deg. Pointer is at top (270 or 90 deg relative to rotation).
     const segmentAngle = 45;
     const offset = segmentAngle * targetSegment + 22.5;
     const totalRotation = wheelRotation + 1800 + (360 - (offset % 360));
@@ -470,17 +546,62 @@ export default function FreeDataFloatingWidget(_props: FreeDataFloatingWidgetPro
                   </div>
                 )}
 
+                {/* STEP: DAILY LIMIT REACHED */}
+                {step === 'daily_limit' && (
+                  <div className="flex flex-col items-center text-center space-y-4 py-3">
+                    <div className="w-14 h-14 rounded-2xl bg-amber-500/15 border-2 border-amber-400/40 text-amber-300 flex items-center justify-center shadow-lg">
+                      <Clock className="w-7 h-7" />
+                    </div>
+                    <div>
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[10px] font-black uppercase tracking-wider mb-2">
+                        <Sparkles className="w-3 h-3 text-amber-400" />
+                        Daily Limit
+                      </div>
+                      <h4 className="text-xl font-black text-amber-300 uppercase tracking-tight">
+                        1 Spin Per Day
+                      </h4>
+                      <p className="text-xs text-slate-300 mt-1 font-medium">
+                        You have already used your lucky spin for today! Each customer is allowed 1 spin per day.
+                      </p>
+                    </div>
+                    <div className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs text-left space-y-1">
+                      <div className="flex justify-between text-slate-400">
+                        <span>Today's Spin:</span>
+                        <span className="text-amber-400 font-bold">Used</span>
+                      </div>
+                      <div className="flex justify-between text-slate-400">
+                        <span>Next Spin Resets In:</span>
+                        <span className="font-mono text-amber-300 font-bold">{timeUntilReset}</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={resetModal}
+                      className="w-full h-12 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black uppercase text-xs tracking-wider transition-all cursor-pointer"
+                    >
+                      Come Back Tomorrow 🌙
+                    </button>
+                  </div>
+                )}
+
                 {/* STEP 4: LOST */}
                 {step === 'lost' && (
                   <div className="flex flex-col items-center text-center space-y-5 py-4">
                     <div className="text-5xl animate-pulse">🥲</div>
                     <div className="space-y-2">
                       <h4 className="text-xl font-black text-amber-300 uppercase tracking-tight">
-                        Hard Luck!
+                        Try Again
                       </h4>
                       <p className="text-sm font-bold text-slate-300">
                         better luck next time bud🥲
                       </p>
+                      <div className="mt-3 p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-400">
+                        <p className="font-semibold text-slate-300">
+                          Daily limit: 1 spin per customer per day.
+                        </p>
+                        <p className="mt-1 text-[11px] text-amber-400 font-mono">
+                          Resets tomorrow (in {timeUntilReset})
+                        </p>
+                      </div>
                     </div>
                     <button
                       onClick={resetModal}
