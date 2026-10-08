@@ -116,7 +116,7 @@ export default function FreeDataFloatingWidget(_props: FreeDataFloatingWidgetPro
   // Step 1: Process Paystack Payment of GH₵1
   const handlePaystackPayment = async () => {
     if (checkHasSpunToday(auth.currentUser?.uid)) {
-      toast.error("You've already used your daily spin for today! Come back tomorrow 🎁");
+      toast.error("You've already used your daily spin for today! Come back tomorrow");
       setStep('daily_limit');
       return;
     }
@@ -150,7 +150,7 @@ export default function FreeDataFloatingWidget(_props: FreeDataFloatingWidgetPro
           setIsPaying(false);
           setPaymentRef(ref || generatedRef);
           setStep('spinning');
-          toast.success("Payment confirmed! Your spin is unlocked 🎉");
+          toast.success("Payment confirmed! Your spin is unlocked");
         },
         onClose: () => {
           setIsPaying(false);
@@ -169,7 +169,7 @@ export default function FreeDataFloatingWidget(_props: FreeDataFloatingWidgetPro
     if (isSpinning || spinCompleted) return;
 
     if (checkHasSpunToday(auth.currentUser?.uid)) {
-      toast.error("You have already used your 1 daily spin for today! 🎁");
+      toast.error("You have already used your 1 daily spin for today!");
       setStep('daily_limit');
       return;
     }
@@ -202,7 +202,7 @@ export default function FreeDataFloatingWidget(_props: FreeDataFloatingWidgetPro
       setSpinCompleted(true);
       if (isWin) {
         setStep('won');
-        toast.success("WINNER! You won free data! 🎉");
+        toast.success("WINNER! You won free data!");
       } else {
         setStep('lost');
       }
@@ -247,7 +247,7 @@ export default function FreeDataFloatingWidget(_props: FreeDataFloatingWidgetPro
       });
 
       setClaimSubmitted(true);
-      toast.success("Free Data Order submitted to Admin! 👑");
+      toast.success("Free Data Order submitted to Admin!");
     } catch (err) {
       console.error("Error submitting claim:", err);
       toast.error("Failed to submit claim. Please try again.");
@@ -293,7 +293,7 @@ export default function FreeDataFloatingWidget(_props: FreeDataFloatingWidgetPro
           </div>
           <div className="flex flex-col text-left">
             <span className="text-[11px] font-black uppercase tracking-wider text-amber-300 group-hover:text-amber-200">
-              Get Free Data 🎁
+              Get Free Data
             </span>
             <span className="text-[9px] font-bold text-amber-400/80 -mt-0.5">
               Spin to Win!
@@ -320,7 +320,7 @@ export default function FreeDataFloatingWidget(_props: FreeDataFloatingWidgetPro
                   </div>
                   <div>
                     <h3 className="font-black text-base text-amber-300 uppercase tracking-wide">
-                      Get Free Data Service 🎁
+                      Get Free Data
                     </h3>
                     <p className="text-[10px] font-bold text-slate-400">
                       Pay GH₵1 Paystack to Spin & Win!
@@ -372,7 +372,7 @@ export default function FreeDataFloatingWidget(_props: FreeDataFloatingWidgetPro
                         </>
                       ) : (
                         <>
-                          <Crown className="w-5 h-5" /> Pay GH₵1 via Paystack & Spin 👑
+                          Pay GH₵1 via Paystack & Spin
                         </>
                       )}
                     </button>
@@ -403,13 +403,13 @@ export default function FreeDataFloatingWidget(_props: FreeDataFloatingWidgetPro
                       >
                         {/* 8 Wheel Segments */}
                         {[
-                          { text: "Win🎉", bg: "#FBBF24", color: "#0B132B" },
+                          { text: "Win", bg: "#FBBF24", color: "#0B132B" },
                           { text: "Try again", bg: "#1E293B", color: "#F8FAFC" },
-                          { text: "Win🎉", bg: "#FBBF24", color: "#0B132B" },
+                          { text: "Win", bg: "#FBBF24", color: "#0B132B" },
                           { text: "Try again", bg: "#1E293B", color: "#F8FAFC" },
-                          { text: "Win🎉", bg: "#FBBF24", color: "#0B132B" },
+                          { text: "Win", bg: "#FBBF24", color: "#0B132B" },
                           { text: "Try again", bg: "#1E293B", color: "#F8FAFC" },
-                          { text: "Win🎉", bg: "#FBBF24", color: "#0B132B" },
+                          { text: "Win", bg: "#FBBF24", color: "#0B132B" },
                           { text: "Try again", bg: "#1E293B", color: "#F8FAFC" },
                         ].map((seg, idx) => (
                           <div
@@ -467,7 +467,7 @@ export default function FreeDataFloatingWidget(_props: FreeDataFloatingWidgetPro
 
                     <div className="space-y-1">
                       <h4 className="text-2xl font-black text-amber-300 uppercase tracking-tight">
-                        Congratulations! 🎉
+                        Congratulations!
                       </h4>
                       <p className="text-xs text-slate-300 font-medium">
                         You won Free Data! Enter your recipient phone number below to claim your prize.
@@ -523,7 +523,7 @@ export default function FreeDataFloatingWidget(_props: FreeDataFloatingWidgetPro
                             </>
                           ) : (
                             <>
-                              <CheckCircle2 className="w-4 h-4" /> Claim Free Data Now 🚀
+                              <CheckCircle2 className="w-4 h-4" /> Claim Free Data Now
                             </>
                           )}
                         </button>

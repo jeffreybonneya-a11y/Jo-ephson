@@ -117,8 +117,7 @@ export default function StreamingTab({ onSelectBundle, bundles = [] }: Streaming
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b-2 border-border">
         <div>
           <h2 className="text-3xl md:text-4xl font-black text-foreground dark:text-white uppercase tracking-tight flex items-center gap-3">
-            <span>👑</span>
-            <span>More Royal Deals</span>
+            <span>More Digital Deals</span>
           </h2>
           <p className="text-muted-foreground text-sm font-medium mt-1">
             Choose a category below to explore gaming points, software licenses, and official checkers.
@@ -206,7 +205,7 @@ export default function StreamingTab({ onSelectBundle, bundles = [] }: Streaming
               <Crown className="w-10 h-10 animate-pulse" />
             </div>
             <h3 className="text-2xl font-black text-foreground dark:text-white mb-2 uppercase tracking-tight">
-              {searchQuery ? 'No Results Found 👑' : `Restocking ${activeTabConfig.label} Soon 👑`}
+              {searchQuery ? 'No Results Found' : `Restocking ${activeTabConfig.label} Soon`}
             </h3>
             <p className="text-muted-foreground text-sm md:text-base max-w-md mx-auto leading-relaxed mb-6 font-medium">
               {searchQuery 

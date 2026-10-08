@@ -227,7 +227,7 @@ export default function EFootballOrderModal({
               customerPhone: customerPhone.trim(),
             },
             onSuccess: async () => {
-              toast.success(`Payment Received for Order #${orderId}! Your coins are awaiting delivery 👑`);
+              toast.success(`Payment Received for Order #${orderId}! Your coins are awaiting delivery`);
               onClose();
               window.location.href = `${redirectTarget}/?reference=${reference}&method=paystack`;
             },
@@ -402,7 +402,7 @@ export default function EFootballOrderModal({
                 }}
                 className="w-full h-11 bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-black rounded-xl text-xs uppercase tracking-wider shadow-lg cursor-pointer"
               >
-                Sign In with Google / Account 👑
+                Sign In with Google / Account
               </Button>
             </div>
           ) : (
@@ -588,7 +588,7 @@ export default function EFootballOrderModal({
                         </>
                       ) : (
                         <>
-                          CONFIRM PURCHASE 👑
+                          CONFIRM PURCHASE
                         </>
                       )}
                     </Button>

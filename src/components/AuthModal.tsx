@@ -88,7 +88,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           }
         }
 
-        toast.success("Logged in with Google! 👑");
+        toast.success("Logged in with Google!");
         onClose();
       } catch (nativeError: any) {
         console.error("[AuthModal Native Auth] Full Login Error:", {
@@ -207,7 +207,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
               </div>
             </div>
             <DialogTitle className="text-2xl font-black text-center tracking-tight">
-              WELCOME TO ROYALTY 👑
+              WELCOME TO KING J DEALS
             </DialogTitle>
             <DialogDescription className="text-center text-slate-300 text-xs mt-1">
               Join King J Deals today for the fastest and most affordable data bundles in Ghana.
@@ -217,7 +217,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
         <div className="p-6 space-y-4">
           <div className="text-center space-y-2 py-2">
-            <h3 className="text-lg font-black text-slate-900 dark:text-white">SIGN IN WITH GOOGLE 👑</h3>
+            <h3 className="text-lg font-black text-slate-900 dark:text-white">SIGN IN WITH GOOGLE</h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">One-click secure and instant login experience. No passwords required!</p>
           </div>
 
@@ -267,7 +267,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           )}
 
           <p className="text-center text-[9px] text-slate-400 mt-4 px-4">
-            By continuing, you agree to King J Deals' Terms of Service and Privacy Policy. 👑
+            By continuing, you agree to King J Deals' Terms of Service and Privacy Policy.
           </p>
         </div>
       </DialogContent>

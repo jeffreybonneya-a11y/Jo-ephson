@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Button } from '@/components/ui/button';
-import { Crown, Sparkles, Share2, Gift, ArrowRight } from 'lucide-react';
+import { Share2, ArrowRight } from 'lucide-react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
@@ -61,17 +61,15 @@ export default function ReferralPromoCard({ onOpenModal }: ReferralPromoCardProp
           {/* Text Details */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-0.5">
-              <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/25">
-                <Crown className="w-2.5 h-2.5" />
-                SHARE & WIN PROMO
+              <span className="inline-flex items-center text-[10px] font-bold uppercase tracking-wider text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                REFERRAL PROGRAM
               </span>
-              <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-0.5">
-                <Sparkles className="w-2.5 h-2.5 text-emerald-400" />
+              <span className="text-[10px] text-emerald-400 font-medium">
                 Earn Free Data
               </span>
             </div>
-            <h3 className="text-base sm:text-lg font-black text-slate-100 tracking-tight leading-tight">
-              Invite Friends & Win Free Data 👑
+            <h3 className="text-base sm:text-lg font-bold text-slate-100 tracking-tight leading-tight">
+              Invite Friends & Win Free Data
             </h3>
             <p className="text-xs sm:text-sm text-slate-300 font-normal leading-tight mt-0.5">
               Share your link with friends. The more friends you bring, the more free data you earn!
@@ -85,9 +83,9 @@ export default function ReferralPromoCard({ onOpenModal }: ReferralPromoCardProp
             id="open-referral-promo-btn"
             type="button"
             onClick={handleClick}
-            className="w-full sm:w-auto h-11 px-5 sm:px-6 rounded-xl font-black text-xs sm:text-sm bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 hover:brightness-110 shadow-[0_2px_12px_rgba(245,158,11,0.3)] flex items-center justify-center gap-2 border border-amber-300/60 transition-all active:scale-95 cursor-pointer"
+            className="w-full sm:w-auto h-11 px-5 sm:px-6 rounded-xl font-bold text-xs sm:text-sm bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 hover:brightness-105 shadow-sm flex items-center justify-center gap-2 border border-amber-300/60 transition-all active:scale-95 cursor-pointer"
           >
-            <span>Refer & Earn 👑</span>
+            <span>Refer & Earn</span>
             <ArrowRight className="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
           </Button>
         </div>

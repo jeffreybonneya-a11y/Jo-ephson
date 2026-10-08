@@ -155,7 +155,7 @@ export default function MyOrders() {
           <div>
             <h2 className="text-3xl font-black tracking-tighter text-slate-900 dark:text-white flex items-center gap-3">
               <Package className="w-8 h-8 text-primary" />
-              MY ROYAL ORDERS 👑
+              MY ORDERS
             </h2>
             <p className="text-slate-500 dark:text-slate-400 font-medium">
               Tracking your data bundle purchases
@@ -174,28 +174,28 @@ export default function MyOrders() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-3 border-b border-amber-500/20">
             <div className="flex items-center gap-3.5">
               <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-400 to-amber-600 flex items-center justify-center shrink-0 shadow-md">
-                <Gift className="w-6 h-6 text-slate-950 stroke-[2.4]" />
+                <Share2 className="w-6 h-6 text-slate-950 stroke-[2.4]" />
               </div>
               <div>
                 <div className="flex items-center gap-2 mb-0.5">
                   <span className="text-[10px] font-black uppercase text-amber-400 bg-amber-500/15 px-2 py-0.5 rounded-full border border-amber-500/30">
-                    REFER & EARN 👑
+                    REFER & EARN
                   </span>
-                  <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
-                    <Sparkles className="w-2.5 h-2.5" /> Free Data Rewards
+                  <span className="text-[10px] text-emerald-400 font-semibold">
+                    Free Data Rewards
                   </span>
                 </div>
-                <h3 className="text-base sm:text-lg font-black text-white tracking-tight">Your Referral Progress 👑</h3>
+                <h3 className="text-base sm:text-lg font-black text-white tracking-tight">Your Referral Progress</h3>
                 <p className="text-xs text-slate-300 font-medium">Invite friends to King J Deals and track your free data rewards</p>
               </div>
             </div>
             <Button
               type="button"
               onClick={() => window.dispatchEvent(new CustomEvent('OPEN_REFERRAL_MODAL'))}
-              className="w-full sm:w-auto h-10 px-4 rounded-xl font-black text-xs bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 hover:brightness-110 shadow-md border border-amber-300/40 cursor-pointer shrink-0"
+              className="w-full sm:w-auto h-10 px-4 rounded-xl font-bold text-xs bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 hover:brightness-105 shadow-md border border-amber-300/40 cursor-pointer shrink-0"
             >
               <Share2 className="w-3.5 h-3.5 mr-1.5" />
-              Share Link on WhatsApp 📲
+              Share Referral Link
             </Button>
           </div>
 
@@ -289,16 +289,16 @@ export default function MyOrders() {
               <Package className="w-10 h-10 text-slate-300 dark:text-slate-600" />
             </div>
             <h2 className="text-xl font-black text-slate-900 dark:text-white mb-2">
-              NO ORDERS YET 👑
+              NO ORDERS YET
             </h2>
             <p className="text-slate-500 dark:text-slate-400 max-w-xs mx-auto mb-8 font-medium">
               You haven't placed any orders. Start saving on data today!
             </p>
             <Button
               onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-              className="bg-primary hover:bg-primary/90 text-secondary font-black rounded-xl px-8"
+              className="bg-primary hover:bg-primary/90 text-secondary font-bold rounded-xl px-8"
             >
-              SHOP NOW 👑
+              SHOP NOW
             </Button>
           </Card>
         ) : (
@@ -401,11 +401,11 @@ export default function MyOrders() {
                           `}
                         >
                           {order.status === "delivered" || order.status === "completed"
-                            ? "DELIVERED ✅"
+                            ? "DELIVERED"
                             : order.status === "processing" || order.status === "accepted"
-                              ? "PROCESSING ⏳"
+                              ? "PROCESSING"
                               : order.status === "paid" || order.status === "success" || order.paymentStatus === "success"
-                                ? "PAID 👑"
+                                ? "PAID"
                                 : order.status === "unpaid"
                                   ? "UNPAID"
                                   : order.status === "pending_verification"

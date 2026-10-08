@@ -135,7 +135,7 @@ export default function BookingCodesSection({
           const data = await res.json();
           if (res.ok && data.success && data.verified && data.bookingCode) {
             toast.dismiss(toastId);
-            toast.success("Payment Confirmed! Your Booking Code is ready 👑");
+            toast.success("Payment Confirmed! Your Booking Code is ready");
             const pCfg = getPlatformConfig(data.bookingCode.bookmaker || "SportyBet");
             setRevealedCodeData({
               code: data.bookingCode.code,
@@ -374,7 +374,7 @@ export default function BookingCodesSection({
 
     const activeUser = auth.currentUser;
     if (!activeUser) {
-      toast.error("Please sign in with Google or create an account to purchase booking codes! 👑", {
+      toast.error("Please sign in with Google or create an account to purchase booking codes!", {
         description: "Your purchased codes will be saved securely to your royal account.",
       });
       if (onOpenAuth) {
@@ -417,7 +417,7 @@ export default function BookingCodesSection({
 
     // 🎁 CHECK IF FREE BOOKING CODE (price === 0) -> UNLOCK IMMEDIATELY WITHOUT PAYSTACK
     if (Number(checkoutCode.price) <= 0) {
-      const loadingToast = toast.loading("Unlocking your free booking code... 🎁");
+      const loadingToast = toast.loading("Unlocking your free booking code...");
       try {
         const pCfg = getPlatformConfig(checkoutCode.bookmaker || "SportyBet");
 
@@ -485,7 +485,7 @@ export default function BookingCodesSection({
         ]);
 
         toast.dismiss(loadingToast);
-        toast.success("Free VIP Booking Code Unlocked! 🎉👑");
+        toast.success("Free VIP Booking Code Unlocked! ");
 
         setRevealedCodeData({
           code: checkoutCode.code,
@@ -584,7 +584,7 @@ export default function BookingCodesSection({
 
     // Attempt 1: Try Paystack Inline Popup directly in browser (works seamlessly across all domains & mobile)
     try {
-      toast.info("Opening Paystack Checkout 👑...");
+      toast.info("Opening Paystack Checkout...");
       await openPaystackPopup({
         key: publicKey,
         email: emailToUse,
@@ -593,7 +593,7 @@ export default function BookingCodesSection({
         ref: orderRefId,
         onSuccess: async (verifiedRef: string) => {
           const finalRef = verifiedRef || orderRefId;
-          toast.success("Payment completed successfully! Revealing code... 👑");
+          toast.success("Payment completed successfully! Revealing code...");
           setIsProcessingPayment(true);
 
           // Attempt direct verification & immediate modal reveal
@@ -658,7 +658,7 @@ export default function BookingCodesSection({
       if (initData.success && initData.authorization_url) {
         const authUrl = initData.authorization_url;
         setPaystackAuthUrl(authUrl);
-        toast.success("Paystack checkout ready! Redirecting 👑...", { duration: 3000 });
+        toast.success("Paystack checkout ready! Redirecting...", { duration: 3000 });
 
         let navigated = false;
 
@@ -1068,7 +1068,7 @@ export default function BookingCodesSection({
                           {Number(code.price) === 0 ? (
                             <div className="flex items-center gap-1.5 mt-0.5">
                               <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-black text-xs px-2.5 py-0.5 shadow-sm">
-                                FREE 🎁
+                                FREE
                               </Badge>
                             </div>
                           ) : (
@@ -1091,7 +1091,7 @@ export default function BookingCodesSection({
                             className="rounded-xl bg-gradient-to-r from-emerald-400 via-green-400 to-teal-400 text-slate-950 hover:brightness-110 font-black text-xs uppercase tracking-wider px-4 sm:px-5 h-10 shadow-[0_2px_15px_rgba(16,185,129,0.25)] border border-emerald-300/40 cursor-pointer flex items-center gap-1.5 active:scale-95 transition-all"
                           >
                             <Gift className="w-4 h-4 text-slate-950" />
-                            <span>Get Free Code 🎁</span>
+                            <span>Get Free Code</span>
                           </Button>
                         ) : (
                           <Button
@@ -1099,7 +1099,7 @@ export default function BookingCodesSection({
                             className="rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 hover:brightness-110 font-black text-xs uppercase tracking-wider px-4 sm:px-5 h-10 shadow-[0_2px_15px_rgba(245,158,11,0.25)] border border-amber-300/40 cursor-pointer flex items-center gap-1.5 active:scale-95 transition-all"
                           >
                             <DollarSign className="w-4 h-4 fill-slate-950" />
-                            <span>Buy Code 👑</span>
+                            <span>Buy Code</span>
                           </Button>
                         )}
                       </div>
@@ -1141,7 +1141,7 @@ export default function BookingCodesSection({
                 onClick={() => setActiveTab("available")}
                 className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black rounded-xl px-6 text-xs uppercase cursor-pointer"
               >
-                Browse Available Codes 👑
+                Browse Available Codes
               </Button>
             </Card>
           ) : (
@@ -1234,7 +1234,7 @@ export default function BookingCodesSection({
               {Number(checkoutCode?.price) === 0 ? (
                 <>
                   <Gift className="w-3.5 h-3.5" />
-                  <span>Claim Free Booking Code 🎁</span>
+                  <span>Claim Free Booking Code</span>
                 </>
               ) : (
                 <>
@@ -1277,7 +1277,7 @@ export default function BookingCodesSection({
                   <span className="text-xs font-black text-white uppercase">Total Price:</span>
                   {Number(checkoutCode.price) === 0 ? (
                     <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-black text-sm px-3 py-1">
-                      FREE (GH₵ 0.00) 🎁
+                      FREE (GH₵ 0.00)
                     </Badge>
                   ) : (
                     <span className="text-xl font-black text-amber-400">
@@ -1336,7 +1336,7 @@ export default function BookingCodesSection({
                     rel="noopener noreferrer"
                     className="h-12 w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 font-black text-xs sm:text-sm uppercase tracking-wider hover:brightness-110 shadow-lg border border-amber-300/40 cursor-pointer text-center"
                   >
-                    <span>Proceed to Paystack 👑 &rarr;</span>
+                    <span>Proceed to Paystack &rarr;</span>
                   </a>
 
                   <Button
@@ -1367,8 +1367,8 @@ export default function BookingCodesSection({
                         ? "Unlocking Free Code..."
                         : "Connecting to Paystack..."
                       : Number(checkoutCode.price) === 0
-                      ? "Claim & Reveal Code Free 🎁"
-                      : `Pay GH₵ ${Number(checkoutCode.price).toFixed(2)} & Reveal Code 👑`}
+                      ? "Claim & Reveal Code Free"
+                      : `Pay GH₵ ${Number(checkoutCode.price).toFixed(2)} & Reveal Code`}
                   </Button>
 
                   <Button
@@ -1404,7 +1404,7 @@ export default function BookingCodesSection({
               )}
             </div>
             <DialogTitle className="text-xl sm:text-2xl font-serif font-black text-white">
-              {revealedCodeData?.price === 0 ? "Free Code Unlocked! 🎁" : "Payment Successful! 👑"}
+              {revealedCodeData?.price === 0 ? "Free Code Unlocked!" : "Payment Successful!"}
             </DialogTitle>
             <DialogDescription className="text-slate-300 text-xs">
               {revealedCodeData?.price === 0
@@ -1530,7 +1530,7 @@ export default function BookingCodesSection({
               <div className="flex justify-between items-center pt-2">
                 {Number(previewSlipCode.price) === 0 ? (
                   <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-black text-xs px-3 py-1">
-                    FREE 🎁
+                    FREE
                   </Badge>
                 ) : (
                   <span className="text-base sm:text-lg font-black text-white">
@@ -1549,7 +1549,7 @@ export default function BookingCodesSection({
                       : "bg-amber-400 hover:bg-amber-300 text-slate-950"
                   }`}
                 >
-                  {Number(previewSlipCode.price) === 0 ? "Get Free Code 🎁" : "Buy Code Now 👑"}
+                  {Number(previewSlipCode.price) === 0 ? "Get Free Code" : "Buy Code Now"}
                 </Button>
               </div>
             </div>

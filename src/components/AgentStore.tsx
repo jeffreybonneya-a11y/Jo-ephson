@@ -197,7 +197,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
 
       if (priceToPay <= 0) {
         await updateDoc(doc(db, 'users', auth.currentUser.uid), { isAgent: true });
-        toast.success("Agent Access Unlocked! Welcome 👑");
+        toast.success("Agent Access Unlocked! Welcome");
         setIsPaying(false);
         return;
       }
@@ -226,7 +226,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
       });
 
       // Show immediate feedback to user that the order has reached the admin
-      toast.success("Request registered on Dashboard! Opening Paystack... 👑");
+      toast.success("Request registered on Dashboard! Opening Paystack...");
 
       try {
           const paystackEmail = (profile?.email && profile.email.includes("@")) 
@@ -250,7 +250,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
           }
 
           try {
-            toast.info("Launching secure checkout... 👑");
+            toast.info("Launching secure checkout...");
             const redirectTarget = (typeof window !== 'undefined' && window.location.origin)
               ? window.location.origin
               : 'https://kingjdeals.onrender.com';
@@ -262,7 +262,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
               currency: "GHS",
               ref: finalOrderId,
               onSuccess: (ref) => {
-                toast.success("Payment completed successfully! Verifying... 👑");
+                toast.success("Payment completed successfully! Verifying...");
                 // Redirect to callback URL to trigger uniform verification & success handling in App.tsx
                 window.location.href = redirectTarget + "/?reference=" + ref;
               },
@@ -296,7 +296,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
 
             const initData = await initResponse.json();
             if (initData.success && initData.authorization_url) {
-              toast.success("Redirecting to secure payment page... 👑");
+              toast.success("Redirecting to secure payment page...");
               if (window.self !== window.top) {
                 try {
                   window.top.location.href = initData.authorization_url;
@@ -328,7 +328,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
     if (!auth.currentUser) return;
 
     if (!regName.trim() || !regMomoName.trim() || !regMomoNumber.trim()) {
-      toast.error("All registration fields are required! 👑");
+      toast.error("All registration fields are required!");
       return;
     }
 
@@ -373,7 +373,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
       // Also ensure the user document reflects isAgent: true
       await updateDoc(doc(db, 'users', auth.currentUser.uid), { isAgent: true });
 
-      toast.success(`Welcome Agent ${regName.trim()} 🎉! Your store is now active.`);
+      toast.success(`Welcome Agent ${regName.trim()} ! Your store is now active.`);
     } catch (err) {
       console.error("Agent registration error:", err);
       toast.error("Registration failed. Please try again.");
@@ -403,7 +403,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
         momo_name: editMomoName.trim(),
         momo_number: editMomoNumber.trim()
       });
-      toast.success("Profile specifications updated successfully! 👑");
+      toast.success("Profile specifications updated successfully!");
     } catch (err) {
       console.error("Update profile error:", err);
       toast.error("Failed to update profile. Please try again.");
@@ -434,7 +434,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
       await updateDoc(doc(db, 'agents', auth.currentUser.uid), {
         prices: updatedPrices
       });
-      toast.success("Store pricing updated successfully! 👑");
+      toast.success("Store pricing updated successfully!");
     } catch (err) {
       console.error("Save price error:", err);
       toast.error("Failed to save pricing setup.");
@@ -484,7 +484,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
         created_at: serverTimestamp()
       });
 
-      toast.success("Profit withdrawal request submitted successfully! 👑");
+      toast.success("Profit withdrawal request submitted successfully!");
       setWithdrawAmount('');
     } catch (err) {
       console.error("Withdrawal error:", err);
@@ -539,7 +539,7 @@ Reference Code: ${refCode}
     if (!agent) return;
     const link = `${window.location.origin}/store/${agent.agent_slug}`;
     navigator.clipboard.writeText(link);
-    toast.success("Store link copied successfully! Share it to start earning. 👑");
+    toast.success("Store link copied successfully! Share it to start earning.");
   };
 
 
@@ -655,7 +655,7 @@ Reference Code: ${refCode}
                 className="w-full h-14 text-base font-black rounded-xl bg-slate-900 text-white hover:bg-black uppercase tracking-wide gap-2"
                 disabled={isRegistering}
               >
-                {isRegistering ? <Loader2 className="w-5 h-5 animate-spin" /> : "REGISTER & LAUNCH STORE 👑"}
+                {isRegistering ? <Loader2 className="w-5 h-5 animate-spin" /> : "REGISTER & LAUNCH STORE"}
               </Button>
             </form>
           </CardContent>
@@ -679,7 +679,7 @@ Reference Code: ${refCode}
               ROYAL AGENT PARTNER
             </div>
             <h2 className="text-3xl md:text-4xl font-extrabold text-foreground dark:text-white mb-2 uppercase tracking-tight">
-               WELCOME, AGENT {agent.agent_name}! 👑
+               WELCOME, AGENT {agent.agent_name}!
             </h2>
             <p className="text-sm font-bold text-slate-500 lowercase italic opacity-85">
                Manage your custom storefront prices, monitor profit accruals, and request MoMo withdrawals.
@@ -692,7 +692,7 @@ Reference Code: ${refCode}
               onClick={copyStoreLink}
             >
               <Copy className="w-4 h-4 text-primary" />
-              COPY STORE LINK 👑
+              COPY STORE LINK
             </Button>
             <a 
               href={`/store/${agent.agent_slug}`} 
@@ -702,7 +702,7 @@ Reference Code: ${refCode}
             >
               <Button className="h-12 rounded-xl w-full bg-primary text-secondary font-black text-xs gap-2">
                 <Store className="w-4 h-4" />
-                VISIT STORE FRONT 🚀
+                VISIT STORE FRONT
               </Button>
             </a>
           </div>
@@ -722,7 +722,7 @@ Reference Code: ${refCode}
               </TabsTrigger>
               <TabsTrigger value="orders_list" className="flex-1 rounded-xl font-black py-3 uppercase tracking-wider text-[10px] data-[state=active]:bg-primary data-[state=active]:text-secondary relative">
                 <FileText className="w-4 h-4 mr-1.5" />
-                Sales Tracker 👑
+                Sales Tracker
                 {orders.filter(o => o.status === 'processing').length > 0 && (
                   <span className="absolute -top-1 -right-1 bg-amber-500 text-white font-mono text-[8px] w-4.5 h-4.5 rounded-full flex items-center justify-center font-black shadow-lg animate-pulse">
                     {orders.filter(o => o.status === 'processing').length}
@@ -740,7 +740,7 @@ Reference Code: ${refCode}
           <TabsContent value="pricing" className="outline-none">
             <Card className="rounded-[2.5rem] border-2 shadow-lg overflow-hidden">
               <CardHeader className="p-8 border-b-2 bg-slate-50 dark:bg-slate-950">
-                <CardTitle className="text-2xl font-black uppercase">STORE PRICING CONTROLLER 👑</CardTitle>
+                <CardTitle className="text-2xl font-black uppercase">STORE PRICING CONTROLLER</CardTitle>
                 <CardDescription className="opacity-80 font-bold">
                   Enter your selling prices. Selling price cannot be lower than the base wholesale price.
                 </CardDescription>
@@ -894,7 +894,7 @@ Reference Code: ${refCode}
                                     onClick={() => handleSavePrice(bundle.id, wholesale)}
                                   >
                                     <Save className="w-3.5 h-3.5" />
-                                    Update Price 👑
+                                    Update Price
                                   </Button>
                                 </div>
                               );
@@ -958,7 +958,7 @@ Reference Code: ${refCode}
                                 onClick={() => handleSavePrice('results_checker', wholesale)}
                               >
                                 <Save className="w-3.5 h-3.5" />
-                                Update Price 👑
+                                Update Price
                               </Button>
                             </div>
                           );
@@ -1226,7 +1226,7 @@ Reference Code: ${refCode}
                   <div>
                     <CardTitle className="text-xl font-black uppercase tracking-tight text-slate-800 dark:text-white flex items-center gap-2">
                       <FileText className="w-5 h-5 text-primary" />
-                      REFERRED CUSTOMER ORDERS 👑
+                      REFERRED CUSTOMER ORDERS
                     </CardTitle>
                     <CardDescription className="font-semibold text-xs mt-1">
                       Real-time status of orders initiated via your store link. Support reporting is auto-linked!
@@ -1260,7 +1260,7 @@ Reference Code: ${refCode}
                       </p>
                       <Button onClick={copyStoreLink} className="h-10 rounded-xl font-black text-xs gap-2">
                         <Copy className="w-4 h-4" />
-                        COPY STOREFRONT LINK 👑
+                        COPY STOREFRONT LINK
                       </Button>
                     </div>
                   ) : (
@@ -1310,7 +1310,7 @@ Reference Code: ${refCode}
                                   )}
                                   {order.status === 'delivered' && (
                                     <span className="text-[9px] bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-400 border border-green-250 px-2.5 py-0.5 rounded-full font-black uppercase shadow-xs">
-                                      delivered 👑
+                                      delivered
                                     </span>
                                   )}
                                   {order.status === 'failed' && (
@@ -1336,7 +1336,7 @@ Reference Code: ${refCode}
                                         className="h-4 w-4 p-0 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded cursor-pointer"
                                         onClick={() => {
                                           navigator.clipboard.writeText(order.email);
-                                          toast.success("Customer email copied! 👑");
+                                          toast.success("Customer email copied!");
                                         }}
                                       >
                                         <Copy className="w-2.5 h-2.5" />

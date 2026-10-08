@@ -196,7 +196,7 @@ export default function App() {
                             });
                             if (orderData.bundle === "AGENT ACCESS UNLOCK" && orderData.userId) {
                                 await updateDoc(doc(db, "users", orderData.userId), { isAgent: true });
-                                toast.success("Agent Access Unlocked! Welcome 👑");
+                                toast.success("Agent Access Unlocked! Welcome");
                             }
 
                             // --- REAL REFERRAL ATTRIBUTION & QUALIFYING PURCHASE REWARD CREDIT ---
@@ -508,7 +508,7 @@ export default function App() {
   const handleSelectBundle = (bundle: Bundle) => {
     const activeUser = user || auth.currentUser;
     if (!activeUser || activeUser.isAnonymous) {
-      toast.error("Please log in before you can purchase any service! 👑", {
+      toast.error("Please log in before you can purchase any service!", {
         description: "You must be signed in to purchase data bundles, game coins, PC games, or results checkers.",
       });
       window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
@@ -599,7 +599,7 @@ export default function App() {
                   VERIFIED ROYAL AGENT
                 </div>
                 <h2 className="text-4xl md:text-6xl font-black mb-4 dark:text-white uppercase tracking-tight">
-                  {agentContext.agent_name.toUpperCase()}'S DEALS 👑
+                  {agentContext.agent_name.toUpperCase()}'S DEALS
                 </h2>
                 <p className="text-slate-500 font-bold max-w-xl mx-auto text-base md:text-lg">
                   Welcome to my store! Tap any bundle below to purchase with instant auto-delivery.

@@ -162,7 +162,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
       return;
     }
     if (!auth.currentUser || auth.currentUser.isAnonymous) {
-      toast.error("Please log in before you can purchase any service! 👑", {
+      toast.error("Please log in before you can purchase any service!", {
         description: "You must be signed in with your Google account to purchase Results Checkers.",
       });
       window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
@@ -190,7 +190,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
     }
     const activeUser = await ensureUser();
     if (!activeUser) {
-      toast.error("Please log in before you can purchase any service! 👑", {
+      toast.error("Please log in before you can purchase any service!", {
         description: "You must be signed in with your Google account to order.",
       });
       window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
@@ -214,7 +214,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
   const processMoMoDirectPayment = async () => {
     const activeUser = await ensureUser();
     if (!activeUser) {
-      toast.error("Please log in before you can purchase any service! 👑");
+      toast.error("Please log in before you can purchase any service!");
       window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
       setIsSubmitting(false);
       return;
@@ -316,7 +316,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
   const processPaystackPayment = async () => {
     const activeUser = await ensureUser();
     if (!activeUser) {
-      toast.error("Please log in before you can purchase any service! 👑");
+      toast.error("Please log in before you can purchase any service!");
       window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
       setIsSubmitting(false);
       return;
@@ -415,7 +415,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
       }
 
       try {
-        toast.info("Launching secure checkout... 👑");
+        toast.info("Launching secure checkout...");
         const redirectTarget = (typeof window !== 'undefined' && window.location.origin && window.location.origin.includes('king-j-deals.onrender.com'))
           ? window.location.origin
           : 'https://king-j-deals.onrender.com';
@@ -427,7 +427,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
           currency: "GHS",
           ref: finalOrderId,
           onSuccess: (ref) => {
-            toast.success("Payment completed successfully! Verifying... 👑");
+            toast.success("Payment completed successfully! Verifying...");
             window.location.href = redirectTarget + "/?reference=" + ref;
           },
           onClose: () => {
@@ -459,7 +459,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
 
         const initData = await initResponse.json();
         if (initData.success && initData.authorization_url) {
-          toast.success("Redirecting to secure payment page... 👑");
+          toast.success("Redirecting to secure payment page...");
           if (window.self !== window.top) {
             try {
               window.top.location.href = initData.authorization_url;
@@ -484,7 +484,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
   const processKorapayPayment = async () => {
     const activeUser = await ensureUser();
     if (!activeUser) {
-      toast.error("Please log in before you can purchase any service! 👑");
+      toast.error("Please log in before you can purchase any service!");
       window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
       setIsSubmitting(false);
       return;
@@ -588,7 +588,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
 
       const initData = await initResponse.json();
       if (initData.success && initData.authorization_url) {
-        toast.success("Redirecting to secure payment page... 👑");
+        toast.success("Redirecting to secure payment page...");
         window.location.href = initData.authorization_url;
       } else {
         throw new Error(initData.error || "Failed to initialize Korapay");
@@ -1015,7 +1015,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
                           <Crown className="w-6 h-6" />
                         </div>
                         <h3 className="text-xl sm:text-2xl font-black tracking-tighter text-foreground dark:text-white uppercase">
-                          SELECT PAYMENT METHOD 👑
+                          SELECT PAYMENT METHOD
                         </h3>
                         <p className="text-slate-500 dark:text-slate-400 font-medium text-xs max-w-sm mx-auto">
                           Choose how you want to pay GH₵ {finalAmountToCharge.toFixed(2)} for Results Checker ({activeCheckerTab} x{quantity})
@@ -1078,7 +1078,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
                           </>
                         ) : (
                           <>
-                            <Crown className="w-5 h-5" /> PROCEED WITH PAYSTACK 👑
+                            PROCEED WITH PAYSTACK
                           </>
                         )}
                       </Button>
@@ -1234,7 +1234,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
 
                       <div className="space-y-3">
                         <h2 className="text-2xl sm:text-3xl font-black tracking-tighter text-foreground dark:text-white uppercase">
-                          ORDER AWAITING VERIFICATION 👑
+                          ORDER AWAITING VERIFICATION
                         </h2>
                         <p className="text-slate-500 dark:text-slate-400 font-medium text-xs sm:text-sm max-w-sm mx-auto leading-relaxed">
                           Thank you! Your payment for reference <span className="font-mono font-black text-amber-600 dark:text-amber-400 uppercase">{mobileNumber.trim().replace(/\s/g, '')}</span> has been logged and marked for verification.
@@ -1266,7 +1266,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
                           className="w-full h-12 text-sm font-black rounded-xl bg-slate-900 dark:bg-primary text-white dark:text-secondary shadow-lg hover:bg-black"
                           onClick={() => setIsModalOpen(false)}
                         >
-                          CLOSE WINDOW 👑
+                          CLOSE WINDOW
                         </Button>
                         <Button
                           variant="outline"

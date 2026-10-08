@@ -64,7 +64,7 @@ export default function WhatsAppChannelAdModal({ forceOpen, onClose }: WhatsAppC
       window.location.href = WHATSAPP_CHANNEL_URL;
     }
 
-    toast.success("Opening King J Deals WhatsApp Channel! 👑", {
+    toast.success("Opening King J Deals WhatsApp Channel!", {
       description: "Welcome to the royal community. Enjoy price discounts & exclusive rewards!",
       duration: 4000,
     });

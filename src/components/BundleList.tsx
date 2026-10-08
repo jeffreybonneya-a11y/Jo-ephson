@@ -749,10 +749,10 @@ export default function BundleList({
               className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-black uppercase tracking-tighter mb-3"
             >
               <Crown className="w-3.5 h-3.5" />
-              Royal Selection 👑
+              Royal Selection
             </motion.div>
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-black mb-3 tracking-tight text-foreground dark:text-white">
-              CHOOSE YOUR <span className="text-primary">DEAL</span> 👑
+              CHOOSE YOUR <span className="text-primary">DEAL</span>
             </h2>
             <p className="text-muted-foreground max-w-2xl mx-auto text-sm sm:text-base leading-relaxed font-medium">
               Experience the{" "}
@@ -767,7 +767,7 @@ export default function BundleList({
                 className="mt-4 inline-flex items-center gap-2 px-4 py-1.5 rounded-xl bg-primary/10 border border-primary/20 text-primary text-xs font-black uppercase tracking-tight shadow-md"
               >
                 <div className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
-                <span>Verified Agent Wholesale Pricing Active 👑</span>
+                <span>Verified Agent Wholesale Pricing Active</span>
               </motion.div>
             )}
           </div>
@@ -853,7 +853,7 @@ export default function BundleList({
                     <strong className="text-amber-300 uppercase font-black tracking-wide">
                       {mainCategories.find((c) => c.id === currentMainCat)?.label}
                     </strong>{" "}
-                    Deals 👑
+                    Deals
                   </span>
                 </div>
               )}
@@ -966,7 +966,7 @@ export default function BundleList({
                                         variant="outline"
                                         className="mt-1.5 border-amber-500/40 text-amber-300 font-black animate-pulse rounded px-1.5 py-0.5 text-[8px] uppercase w-fit bg-amber-500/10"
                                       >
-                                        👑 Agent Wholesale
+                                        Agent Wholesale
                                       </Badge>
                                     )}
                                   </div>
@@ -1045,7 +1045,7 @@ export default function BundleList({
                                     });
                                   }}
                                 >
-                                  BUY NOW 👑
+                                  BUY NOW
                                 </Button>
                               </>
                             );
@@ -1059,7 +1059,7 @@ export default function BundleList({
                 <div className="text-center py-16 bg-card rounded-2xl border border-dashed border-primary/20">
                   <Smartphone className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4 animate-bounce" />
                   <h3 className="text-lg font-black text-foreground mb-1 dark:text-white uppercase italic">
-                    NO ROYAL DEALS MATCH YOUR SEARCH 👑
+                    NO DEALS MATCH YOUR SEARCH
                   </h3>
                   <p className="text-xs text-muted-foreground max-w-sm mx-auto">
                     We couldn't find any products matching{" "}
@@ -1154,7 +1154,7 @@ export default function BundleList({
                                             variant="outline"
                                             className="mt-1.5 border-amber-500/40 text-amber-300 font-black animate-pulse rounded px-1.5 py-0.5 text-[8px] uppercase w-fit bg-amber-500/10"
                                           >
-                                            👑 Agent Wholesale
+                                            Agent Wholesale
                                           </Badge>
                                         )}
                                       </div>
@@ -1233,7 +1233,7 @@ export default function BundleList({
                                         });
                                       }}
                                     >
-                                      BUY NOW 👑
+                                      BUY NOW
                                     </Button>
                                   </>
                                 );
@@ -1246,7 +1246,7 @@ export default function BundleList({
                       <div className="col-span-full text-center py-12 bg-card rounded-2xl border border-dashed border-primary/20">
                         <Smartphone className="w-10 h-10 text-muted-foreground/20 mx-auto mb-4 animate-pulse" />
                         <h3 className="text-lg font-black text-foreground mb-1 dark:text-white uppercase">
-                          The King 👑 is preparing, expect soon
+                          Updating packages, available soon
                         </h3>
                         <p className="text-xs text-muted-foreground max-w-sm mx-auto">
                           We are currently restocking packages for {tab}. Please
@@ -1310,7 +1310,7 @@ export default function BundleList({
                                 className="w-full sm:w-auto h-12 sm:h-16 px-8 sm:px-12 text-lg sm:text-xl font-black rounded-2xl bg-[#00FF87] text-black hover:bg-white transition-all shadow-xl"
                                 onClick={() => setShowFCOptions(true)}
                               >
-                                BUY NOW 👑
+                                BUY NOW
                               </Button>
                             </div>
                           </div>
@@ -1487,7 +1487,7 @@ export default function BundleList({
                                       <div className="col-span-full text-center py-12 bg-card rounded-2xl border border-dashed border-[#00FF87]/20">
                                         <Smartphone className="w-10 h-10 text-muted-foreground/20 mx-auto mb-4 animate-pulse" />
                                         <h3 className="text-lg font-black text-foreground mb-1 dark:text-white uppercase">
-                                          The King 👑 is preparing, expect soon
+                                          Updating packages, available soon
                                         </h3>
                                         <p className="text-xs text-muted-foreground">
                                           FC points bundles are currently being
@@ -1542,7 +1542,7 @@ export default function BundleList({
                                                   onSelectBundle(bundle as any)
                                                 }
                                               >
-                                                BUY NOW 👑
+                                                BUY NOW
                                               </Button>
                                             </CardContent>
                                           </Card>
@@ -1585,7 +1585,7 @@ export default function BundleList({
                                       <div className="col-span-full text-center py-12 bg-card rounded-2xl border border-dashed border-[#00FF87]/20">
                                         <Smartphone className="w-10 h-10 text-muted-foreground/20 mx-auto mb-4 animate-pulse" />
                                         <h3 className="text-lg font-black text-foreground mb-1 dark:text-white uppercase">
-                                          The King 👑 is preparing, expect soon
+                                          Updating packages, available soon
                                         </h3>
                                         <p className="text-xs text-muted-foreground">
                                           FC Mobile Silver packages are
@@ -1639,7 +1639,7 @@ export default function BundleList({
                                                   onSelectBundle(bundle as any)
                                                 }
                                               >
-                                                BUY NOW 👑
+                                                BUY NOW
                                               </Button>
                                             </CardContent>
                                           </Card>
@@ -1705,7 +1705,7 @@ export default function BundleList({
                               <div className="col-span-full text-center py-12 bg-card rounded-2xl border border-dashed border-amber-500/20">
                                 <Zap className="w-10 h-10 text-amber-500/20 mx-auto mb-4 animate-pulse" />
                                 <h3 className="text-lg font-black text-foreground mb-1 dark:text-white uppercase">
-                                  The King 👑 is preparing, expect soon
+                                  Updating packages, available soon
                                 </h3>
                                 <p className="text-xs text-muted-foreground">
                                   PUBG Mobile UC packages are currently being
@@ -1757,7 +1757,7 @@ export default function BundleList({
                                           onSelectBundle(bundle as any)
                                         }
                                       >
-                                        BUY NOW 👑
+                                        BUY NOW
                                       </Button>
                                     </CardContent>
                                   </Card>
@@ -1800,7 +1800,7 @@ export default function BundleList({
                           <div className="absolute inset-0 bg-black/50 z-10 pointer-events-none"></div>
                           <div className="relative z-20 w-full flex flex-col justify-center items-center md:items-start text-center md:text-left p-6 md:p-12 h-full">
                             <Badge className="bg-primary text-black font-black mb-2 rounded uppercase text-[9px] tracking-wider px-2 py-0.5">
-                              Hot PC Title 👑
+                              Hot PC Title
                             </Badge>
                             <h2 className="text-3xl sm:text-4xl md:text-6xl font-black text-white uppercase tracking-tight mb-2 sm:mb-4 drop-shadow-lg">
                               FC 26 PC GAME
@@ -1922,7 +1922,7 @@ export default function BundleList({
                                 } as any)
                               }
                             >
-                              BUY NOW FOR 50 GHC 👑
+                              BUY NOW FOR 50 GHC
                             </Button>
                           </div>
                         </div>
@@ -1935,7 +1935,7 @@ export default function BundleList({
                   <div className="min-h-[40vh] flex flex-col items-center justify-center p-8 bg-card rounded-[2rem] border-2 border-border text-center">
                     <Crown className="w-12 h-12 text-primary/30 mb-4 animate-bounce" />
                     <h2 className="text-xl md:text-2xl font-black text-foreground uppercase tracking-tight mb-2 dark:text-white">
-                      The King 👑 is preparing, expect soon
+                      Updating packages, available soon
                     </h2>
                     <p className="text-xs text-muted-foreground max-w-xs">
                       We're preparing premium deals for {tab}. Check back

@@ -96,7 +96,7 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
             await syncUserCustomerRecord(user);
             const userFullName = user.displayName || (user.email ? user.email.split('@')[0] : 'Customer');
             localStorage.setItem('kj_session_last_active_at', Date.now().toString());
-            toast.success(`Welcome to King J Deals, ${userFullName}! 👑`);
+            toast.success(`Welcome to King J Deals, ${userFullName}!`);
             if (onLoginSuccess) {
               onLoginSuccess();
             }
@@ -107,7 +107,7 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
           }
           const userFullName = result.user.displayName || (result.user.email ? result.user.email.split('@')[0] : 'Customer');
           localStorage.setItem('kj_session_last_active_at', Date.now().toString());
-          toast.success(`Welcome to King J Deals, ${userFullName}! 👑`);
+          toast.success(`Welcome to King J Deals, ${userFullName}!`);
           if (onLoginSuccess) {
             onLoginSuccess();
           }
@@ -187,14 +187,14 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
 
         const userFullName = user.displayName || (user.email ? user.email.split('@')[0] : 'Customer');
         localStorage.setItem('kj_session_last_active_at', Date.now().toString());
-        toast.success(`Welcome to King J Deals, ${userFullName}! 👑`);
+        toast.success(`Welcome to King J Deals, ${userFullName}!`);
         if (onLoginSuccess) {
           onLoginSuccess();
         }
       }
     } catch (error: any) {
       if (error.code === 'auth/popup-closed-by-user' || error.message?.includes('popup-closed-by-user')) {
-        toast.info("Google sign-in was cancelled. Click below when you're ready! 👑");
+        toast.info("Google sign-in was cancelled. Click below when you're ready!");
         return;
       }
 
@@ -551,7 +551,7 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
               {isLoading ? (
                 <div className="flex items-center gap-2.5">
                   <div className="w-5 h-5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
-                  <span className="text-amber-400 font-black tracking-wide">Signing you in... 👑</span>
+                  <span className="text-amber-400 font-black tracking-wide">Signing you in...</span>
                 </div>
               ) : (
                 <>
@@ -646,7 +646,7 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
       {/* 10. FOOTER TAGLINE */}
       <footer className="relative z-10 w-full text-center pb-2 pt-4 space-y-1">
         <p className="text-xs sm:text-sm font-black tracking-wide text-amber-400">
-          Spend small, Enjoy like a King 👑
+          Spend small, Enjoy like a King
         </p>
         <p className="text-[10px] text-slate-500 font-medium">
           © {new Date().getFullYear()} King J Deals. All rights reserved.

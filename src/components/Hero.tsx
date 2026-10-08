@@ -74,7 +74,6 @@ export default function Hero() {
             <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider bg-gradient-to-r from-amber-300 via-[#C7FFF0] to-purple-200 bg-clip-text text-transparent">
               VIP GATEWAY ACTIVE • 100% INSTANT DISPATCH
             </span>
-            <span className="hidden sm:inline text-amber-400 font-serif text-xs">👑</span>
           </motion.div>
         </div>
 
@@ -223,8 +222,8 @@ export default function Hero() {
                     <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider bg-indigo-600 text-white px-2 py-0.5 rounded-md">
                       WAEC GH
                     </span>
-                    <span className="text-[10px] font-bold text-amber-300 flex items-center gap-1">
-                      <Sparkles className="w-3 h-3" /> Official
+                    <span className="text-[10px] font-bold text-amber-300">
+                      Official
                     </span>
                   </div>
                   <div className="font-serif text-xl font-black text-white group-hover:text-purple-300 transition-colors">
@@ -266,13 +265,12 @@ export default function Hero() {
             Enjoy Premium Data &amp; <br />
             <span className="bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 bg-clip-text text-transparent drop-shadow-[0_2px_15px_rgba(245,158,11,0.3)]">
               Digital Deals Like Royalty
-            </span>{" "}
-            👑
+            </span>
           </h1>
 
           {/* Official Motto with Radiant Glow */}
           <p className="font-serif italic text-base sm:text-xl text-amber-300 font-semibold tracking-wide drop-shadow-sm">
-            "Spend small, Enjoy like a King 👑"
+            "Spend small, Enjoy like a King"
           </p>
 
           {/* Subtitle / Value Proposition */}
@@ -285,10 +283,10 @@ export default function Hero() {
             <Button 
               id="hero-explore-deals-primary-btn"
               size="lg" 
-              className="h-12 sm:h-13 px-8 text-sm sm:text-base font-black rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 shadow-[0_4px_25px_rgba(245,158,11,0.35)] hover:brightness-110 hover:scale-[1.02] transition-all gap-2.5 border border-amber-300/60 cursor-pointer" 
+              className="h-12 sm:h-13 px-8 text-sm sm:text-base font-bold rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 shadow-[0_4px_25px_rgba(245,158,11,0.35)] hover:brightness-110 hover:scale-[1.02] transition-all gap-2.5 border border-amber-300/60 cursor-pointer" 
               onClick={scrollToPricing}
             >
-              <span>Explore Deals 👑</span>
+              <span>Explore Deals</span>
               <ArrowRight className="w-5 h-5 fill-slate-950" />
             </Button>
 
@@ -297,10 +295,10 @@ export default function Hero() {
               variant="outline"
               size="lg"
               onClick={() => window.dispatchEvent(new CustomEvent('OPEN_APP_DOWNLOAD_MODAL'))}
-              className="h-12 sm:h-13 px-6 text-sm sm:text-base font-black rounded-xl bg-[#120A1E] hover:bg-[#1C1030] text-amber-300 hover:text-amber-200 border border-amber-500/40 shadow-lg hover:scale-[1.02] transition-all gap-2.5 cursor-pointer"
+              className="h-12 sm:h-13 px-6 text-sm sm:text-base font-bold rounded-xl bg-[#120A1E] hover:bg-[#1C1030] text-amber-300 hover:text-amber-200 border border-amber-500/40 shadow-lg hover:scale-[1.02] transition-all gap-2.5 cursor-pointer"
             >
               <Smartphone className="w-5 h-5 text-amber-400" />
-              <span>Download App 📱</span>
+              <span>Download App</span>
             </Button>
           </div>
         </motion.div>

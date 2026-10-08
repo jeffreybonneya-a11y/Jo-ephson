@@ -45,7 +45,7 @@ export default function SupportModal({ isOpen, onClose, profile, agentContext }:
         createdAt: serverTimestamp(),
       });
       
-      toast.success("Message sent to King J! 👑");
+      toast.success("Message sent to King J!");
       reset();
       onClose();
     } catch (error: any) {
@@ -67,7 +67,7 @@ export default function SupportModal({ isOpen, onClose, profile, agentContext }:
               </div>
             </div>
             <DialogTitle className="text-3xl font-black text-center tracking-tight">
-              ROYAL SUPPORT 👑
+              CUSTOMER SUPPORT
             </DialogTitle>
             <DialogDescription className="text-center text-slate-300 mt-2">
               Send a message to King J. We'll get back to you as soon as possible.
@@ -120,7 +120,7 @@ export default function SupportModal({ isOpen, onClose, profile, agentContext }:
               ) : (
                 <>
                   <Send className="h-5 w-5" />
-                  SEND MESSAGE 👑
+                  SEND MESSAGE
                 </>
               )}
             </Button>
@@ -156,12 +156,12 @@ export default function SupportModal({ isOpen, onClose, profile, agentContext }:
                     rel="noreferrer" 
                     className="text-[10px] text-primary font-black hover:underline"
                   >
-                    👑 CHAT WITH {agentContext.agent_name ? agentContext.agent_name.toUpperCase() : 'AGENT'}: {agentContext.momo_number || ''}
+                    CHAT WITH {agentContext.agent_name ? agentContext.agent_name.toUpperCase() : 'AGENT'}: {agentContext.momo_number || ''}
                   </a>
                 ) : (
                   <>
-                    <a href="https://wa.me/233535884851" target="_blank" rel="noreferrer" className="text-[10px] text-primary font-black hover:underline">👑 CHAT WITH KING J: 0535884851</a>
-                    <a href="https://wa.me/233541557530" target="_blank" rel="noreferrer" className="text-[10px] text-primary font-black hover:underline">👑 CHAT WITH YHAW: 0541557530</a>
+                    <a href="https://wa.me/233535884851" target="_blank" rel="noreferrer" className="text-[10px] text-primary font-black hover:underline">CHAT WITH KING J: 0535884851</a>
+                    <a href="https://wa.me/233541557530" target="_blank" rel="noreferrer" className="text-[10px] text-primary font-black hover:underline">CHAT WITH YHAW: 0541557530</a>
                   </>
                 )}
               </div>

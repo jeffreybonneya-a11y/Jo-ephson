@@ -69,7 +69,7 @@ export default function AppDownloadModal({ isOpen, onClose }: AppDownloadModalPr
         setDownloadStep('downloading');
         triggerApkDownload();
         logAppDownload({ deviceType: 'android', source: 'website_modal_android_auto' });
-        toast.success("Downloading King-J-Deals.apk! 👑", {
+        toast.success("Downloading King-J-Deals.apk!", {
           description: "Check your phone notification bar for download progress.",
           duration: 5000,
         });
@@ -88,7 +88,7 @@ export default function AppDownloadModal({ isOpen, onClose }: AppDownloadModalPr
     triggerApkDownload();
     logAppDownload({ deviceType, source: 'website_modal_button_click', force: true });
 
-    toast.success("Downloading King-J-Deals.apk! 👑", {
+    toast.success("Downloading King-J-Deals.apk!", {
       description: "Look in your phone's notification bar for download progress.",
       duration: 5000,
     });
@@ -194,7 +194,7 @@ export default function AppDownloadModal({ isOpen, onClose }: AppDownloadModalPr
 
               {/* Minimal Metadata Note */}
               <p className="text-[11px] text-slate-400 font-medium text-center">
-                King-J-Deals.apk • {APK_SIZE_LABEL} • Android 7.0+ • Free 👑
+                King-J-Deals.apk • {APK_SIZE_LABEL} • Android 7.0+ • Free
               </p>
 
               {/* Expandable "How to install" section below the main button */}

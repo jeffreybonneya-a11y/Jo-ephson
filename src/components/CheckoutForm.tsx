@@ -413,7 +413,7 @@ export default function CheckoutForm({
     if (!bundle) return;
     const activeUser = await ensureUser();
     if (!activeUser) {
-      toast.error("Please log in before you can purchase any service! 👑", {
+      toast.error("Please log in before you can purchase any service!", {
         description: "You must be signed in with your Google account to order.",
       });
       window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
@@ -443,7 +443,7 @@ export default function CheckoutForm({
     try {
       const activeUser = await ensureUser();
       if (!activeUser) {
-        toast.error("Please log in before you can purchase any service! 👑", {
+        toast.error("Please log in before you can purchase any service!", {
           description: "You must be signed in with your Google account to order.",
         });
         window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
@@ -599,7 +599,7 @@ export default function CheckoutForm({
     try {
       const activeUser = await ensureUser();
       if (!activeUser) {
-        toast.error("Please log in before you can purchase any service! 👑", {
+        toast.error("Please log in before you can purchase any service!", {
           description: "You must be signed in with your Google account to order.",
         });
         window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
@@ -722,7 +722,7 @@ export default function CheckoutForm({
       }
 
       try {
-        toast.info("Launching secure checkout... 👑");
+        toast.info("Launching secure checkout...");
         const redirectTarget = (typeof window !== 'undefined' && window.location.origin)
           ? window.location.origin
           : 'https://kingjdeals.onrender.com';
@@ -734,7 +734,7 @@ export default function CheckoutForm({
           currency: "GHS",
           ref: finalOrderId,
           onSuccess: (ref) => {
-            toast.success("Payment completed successfully! Verifying... 👑");
+            toast.success("Payment completed successfully! Verifying...");
             window.location.href = redirectTarget + "/?reference=" + ref + "&method=paystack";
           },
           onClose: () => {
@@ -780,7 +780,7 @@ export default function CheckoutForm({
 
         const initData = await initResponse.json();
         if (initData.success && initData.authorization_url) {
-          toast.success("Redirecting to secure payment page... 👑");
+          toast.success("Redirecting to secure payment page...");
           if (window.self !== window.top) {
             try {
               window.top.location.href = initData.authorization_url;
@@ -809,7 +809,7 @@ export default function CheckoutForm({
     try {
       const activeUser = await ensureUser();
       if (!activeUser) {
-        toast.error("Please log in before you can purchase any service! 👑", {
+        toast.error("Please log in before you can purchase any service!", {
           description: "You must be signed in with your Google account to order.",
         });
         window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
@@ -951,7 +951,7 @@ export default function CheckoutForm({
 
       const checkoutUrl = resData.checkout_url || resData.hosted_url || resData.checkout_link;
       if (checkoutUrl) {
-        toast.success("Redirecting to Korapay payment... 👑");
+        toast.success("Redirecting to Korapay payment...");
         if (window.self !== window.top) {
           try {
             window.top.location.href = checkoutUrl;
@@ -975,7 +975,7 @@ export default function CheckoutForm({
     if (!savedFormData) return;
     const activeUser = await ensureUser();
     if (!activeUser) {
-      toast.error("Please log in before you can purchase any service! 👑");
+      toast.error("Please log in before you can purchase any service!");
       window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
       return;
     }
@@ -989,7 +989,7 @@ export default function CheckoutForm({
         momoSentClicked: true,
         userConfirmedAt: serverTimestamp(),
       });
-      toast.success("Order logged and awaiting verification. 👑");
+      toast.success("Order logged and awaiting verification.");
       setCheckoutStep("momo_sent");
     } catch (e) {
       console.error("Error confirming payment:", e);
@@ -1044,7 +1044,7 @@ export default function CheckoutForm({
             </div>
             <div className="space-y-2 sm:space-y-3">
               <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground dark:text-white uppercase">
-                Redirecting to Payment... 👑
+                Redirecting to Payment...
               </h2>
               <p className="text-slate-500 dark:text-slate-400 font-bold max-w-xs mx-auto text-xs sm:text-sm leading-relaxed lowercase italic opacity-80">
                 Please complete your payment to get your game.
@@ -1058,7 +1058,7 @@ export default function CheckoutForm({
             </div>
             <div className="space-y-2 sm:space-y-3">
               <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground dark:text-white uppercase">
-                Verifying Royalty... 👑
+                Verifying Royalty...
               </h2>
               <p className="text-slate-500 dark:text-slate-400 font-bold max-w-xs mx-auto text-xs sm:text-sm leading-relaxed lowercase italic opacity-80">
                 Confirming your payment. Stay on this screen.
@@ -1072,7 +1072,7 @@ export default function CheckoutForm({
             </div>
             <div className="space-y-4">
               <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground dark:text-white uppercase">
-                Payment Completed! 🚀
+                Payment Completed!
               </h2>
               <div className="space-y-3 max-w-md mx-auto">
                 <p className="text-slate-700 dark:text-slate-200 font-bold text-sm sm:text-base leading-relaxed">
@@ -1122,7 +1122,7 @@ export default function CheckoutForm({
                 <Wallet className="w-6 h-6" />
               </div>
               <DialogTitle className="text-xl sm:text-2xl font-black tracking-tighter text-foreground dark:text-white uppercase">
-                CHOOSE PAYMENT METHOD 👑
+                CHOOSE PAYMENT METHOD
               </DialogTitle>
               <DialogDescription className="text-slate-500 dark:text-slate-400 font-medium text-xs">
                 Select your preferred way to complete this order
@@ -1189,7 +1189,7 @@ export default function CheckoutForm({
               ) : (
                 <>
                   <Crown className="w-5 h-5" />
-                  PROCEED TO PAYMENT 👑
+                  PROCEED TO PAYMENT
                 </>
               )}
             </Button>
@@ -1344,7 +1344,7 @@ export default function CheckoutForm({
 
             <div className="space-y-3">
               <h2 className="text-2xl sm:text-3xl font-black tracking-tighter text-foreground dark:text-white uppercase">
-                ORDER AWAITING VERIFICATION 👑
+                ORDER AWAITING VERIFICATION
               </h2>
               <p className="text-slate-500 dark:text-slate-400 font-medium text-sm sm:text-base max-w-sm mx-auto leading-relaxed">
                 Thank you! Your payment for reference <span className="font-mono font-black text-amber-600 dark:text-amber-400 uppercase">{momoRefCode}</span> has been logged and marked for verification.
@@ -1376,7 +1376,7 @@ export default function CheckoutForm({
                 className="w-full h-12 text-sm font-black rounded-xl bg-slate-900 dark:bg-primary text-white dark:text-secondary shadow-lg hover:bg-black"
                 onClick={onClose}
               >
-                CLOSE WINDOW 👑
+                CLOSE WINDOW
               </Button>
               <Button
                 variant="outline"
@@ -1394,7 +1394,7 @@ export default function CheckoutForm({
                 <Smartphone className="w-5 h-5 sm:w-8 sm:h-8" />
               </div>
               <DialogTitle className="text-xl sm:text-3xl font-black tracking-tighter text-foreground dark:text-white uppercase">
-                ROYAL CHECKOUT 👑
+                SECURE CHECKOUT
               </DialogTitle>
               <DialogDescription className="text-slate-500 dark:text-slate-400 font-medium text-[10px] sm:text-sm">
                 Instant delivery for all data bundles.
@@ -1424,7 +1424,7 @@ export default function CheckoutForm({
                   onClick={() => window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'))}
                   className="h-9 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs uppercase shadow-md cursor-pointer shrink-0"
                 >
-                  Sign In with Google 👑
+                  Sign In with Google
                 </Button>
               </div>
             )}
@@ -1640,16 +1640,16 @@ export default function CheckoutForm({
                           </SelectTrigger>
                           <SelectContent className="rounded-xl border-2 dark:bg-slate-950 dark:border-slate-800">
                             <SelectItem value="MTN" className="font-black">
-                              MTN 👑
+                              MTN
                             </SelectItem>
                             <SelectItem value="Telecel" className="font-black">
-                              Telecel 👑
+                              Telecel
                             </SelectItem>
                             <SelectItem
                               value="AirtelTigo"
                               className="font-black"
                             >
-                              AirtelTigo 👑
+                              AirtelTigo
                             </SelectItem>
                           </SelectContent>
                         </Select>
@@ -1693,7 +1693,7 @@ export default function CheckoutForm({
                 ) : (
                   <>
                     <Crown className="w-4 h-4 sm:w-6 sm:h-6" />
-                    PURCHASE NOW 👑
+                    PURCHASE NOW
                   </>
                 )}
               </Button>
@@ -1707,7 +1707,7 @@ export default function CheckoutForm({
 
             <div className="space-y-3 sm:space-y-4 mb-8 sm:mb-10">
               <h2 className="text-3xl sm:text-4xl font-black tracking-tighter text-foreground dark:text-white leading-none">
-                ORDER RECEIVED! 👑
+                ORDER RECEIVED!
               </h2>
               <p className="text-slate-500 dark:text-slate-400 font-medium text-base sm:text-lg leading-relaxed lowercase italic">
                 Order submitted for{" "}
@@ -1744,7 +1744,7 @@ export default function CheckoutForm({
                 className="w-full h-14 sm:h-16 text-lg sm:text-xl font-black rounded-xl sm:rounded-2xl bg-slate-900 dark:bg-primary text-white dark:text-secondary shadow-xl hover:bg-black transition-all"
                 onClick={onClose}
               >
-                ROYAL DISMISSAL 👑
+                CLOSE
               </Button>
 
               {agentContext ? (
@@ -1754,7 +1754,7 @@ export default function CheckoutForm({
                   onClick={() => handleWhatsApp("agent")}
                 >
                   <MessageSquare className="w-4 h-4" />
-                  CHAT WITH {agentContext.agent_name || "AGENT"} 👑
+                  CHAT WITH {agentContext.agent_name || "AGENT"}
                 </Button>
               ) : (
                 <div className="grid grid-cols-2 gap-3 sm:gap-4">

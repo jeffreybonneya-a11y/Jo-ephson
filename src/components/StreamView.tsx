@@ -51,7 +51,7 @@ export default function StreamView() {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-      toast.success("Request sent! King J will review it soon. 👑");
+      toast.success("Request sent! King J will review it soon.");
     } catch (error) {
       toast.error("Failed to send request.");
     } finally {
@@ -80,7 +80,7 @@ export default function StreamView() {
             Royal Entertainment
           </Badge>
           <h2 className="text-4xl md:text-6xl font-black tracking-tighter text-slate-900 leading-[0.9]">
-            LIVE <span className="text-primary italic">STREAM</span> ACCESS 👑
+            LIVE <span className="text-primary italic">STREAM</span> ACCESS
           </h2>
           <p className="text-slate-500 font-medium max-w-lg mx-auto">
             Experience premium entertainment and private streams exclusively for the Royals.
@@ -125,7 +125,7 @@ export default function StreamView() {
                 disabled={requesting}
                 className="w-full h-20 text-2xl font-black rounded-3xl bg-primary hover:bg-primary/90 text-secondary shadow-xl hover:scale-[1.02] transition-all"
                >
-                 {requesting ? <Loader2 className="animate-spin w-8 h-8" /> : "REQUEST ACCESS NOW 👑"}
+                 {requesting ? <Loader2 className="animate-spin w-8 h-8" /> : "REQUEST ACCESS NOW"}
                </Button>
             </CardContent>
           </Card>
@@ -134,7 +134,7 @@ export default function StreamView() {
             <div className="w-24 h-24 bg-amber-100 text-amber-600 rounded-3xl flex items-center justify-center mx-auto mb-8 animate-pulse">
               <Clock className="w-12 h-12" />
             </div>
-            <h2 className="text-3xl font-black text-slate-900 mb-4">REQUEST UNDER REVIEW 👑</h2>
+            <h2 className="text-3xl font-black text-slate-900 mb-4">REQUEST UNDER REVIEW</h2>
             <p className="text-slate-600 max-w-md mx-auto mb-8 font-medium text-lg leading-relaxed">
               Your request is sitting on the King's desk. You will be granted access once your identity is royal-verified!
             </p>
@@ -151,7 +151,7 @@ export default function StreamView() {
                       <CheckCircle2 className="w-10 h-10" />
                     </div>
                     <div>
-                      <h2 className="text-2xl font-black">ACCESS GRANTED 👑</h2>
+                      <h2 className="text-2xl font-black">ACCESS GRANTED</h2>
                       <p className="text-green-100 font-medium opacity-90">Welcome to the inner circle.</p>
                     </div>
                   </div>
@@ -189,7 +189,7 @@ export default function StreamView() {
                     <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
                     <p className="text-2xl font-black text-slate-900 tracking-tight italic">OFFLINE</p>
                   </div>
-                  <p className="text-xs text-slate-400 font-medium mt-2">Next session scheduled for Sunday 👑</p>
+                  <p className="text-xs text-slate-400 font-medium mt-2">Next session scheduled for Sunday</p>
                </Card>
             </div>
           </div>
@@ -198,7 +198,7 @@ export default function StreamView() {
             <div className="w-24 h-24 bg-red-100 text-red-600 rounded-3xl flex items-center justify-center mx-auto mb-8">
               <AlertCircle className="w-12 h-12" />
             </div>
-            <h2 className="text-3xl font-black text-slate-900 mb-4">ACCESS REVOKED 👑</h2>
+            <h2 className="text-3xl font-black text-slate-900 mb-4">ACCESS REVOKED</h2>
             <p className="text-slate-600 max-w-md mx-auto mb-8 font-medium text-lg leading-relaxed">
               Your royal access has been suspended. Please contact support if you believe this is a mistake.
             </p>
@@ -207,7 +207,7 @@ export default function StreamView() {
                 className="border-2 border-red-200 text-red-600 font-black px-8 rounded-xl h-12"
                 onClick={() => window.open('https://wa.me/233535884851')}
             >
-              CONTACT KING J 👑
+              CONTACT SUPPORT
             </Button>
           </Card>
         )}

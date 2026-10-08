@@ -66,10 +66,10 @@ export default function HowItWorks() {
             className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-900 text-primary text-[10px] font-black uppercase tracking-[0.25em] mb-4 shadow-xl"
           >
             <ShieldCheck className="w-3.5 h-3.5" />
-            The King's Experience 👑
+            The Service Experience
           </motion.div>
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-black mb-4 tracking-tighter text-foreground uppercase italic dark:text-white">
-            HOW THE <span className="text-primary not-italic">SITE</span> WORKS 👑
+            HOW THE <span className="text-primary not-italic">SITE</span> WORKS
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto text-sm sm:text-base font-medium leading-relaxed">
             Experience the pinnacle of data fulfillment. Each step is optimized for the speed and security you deserve.
@@ -163,7 +163,7 @@ export default function HowItWorks() {
                 <div className="inline-block px-4 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-[10px] font-black uppercase mb-4 tracking-widest">
                    The Royal Standard
                 </div>
-                <h4 className="text-3xl md:text-4xl font-black mb-4 text-white uppercase italic tracking-tight">PREMIUM DATA <span className="text-primary not-italic">FOR EVERY</span> CITIZEN 👑</h4>
+                <h4 className="text-3xl md:text-4xl font-black mb-4 text-white uppercase italic tracking-tight">PREMIUM DATA <span className="text-primary not-italic">FOR EVERY</span> CUSTOMER</h4>
                 <p className="text-slate-400 text-base md:text-lg leading-relaxed font-medium">
                   We don't just sell data; we deliver the highest level of stability and trust. Whether you are a small user or a heavy streamer, our platform ensures your connection is never interrupted. Spend small, enjoy like a king!
                 </p>

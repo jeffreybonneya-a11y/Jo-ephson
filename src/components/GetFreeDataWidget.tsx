@@ -121,7 +121,7 @@ export const GetFreeDataWidget: React.FC = () => {
 
     if (ref && isFdWin) {
       if (!auth.currentUser && !currentUser) {
-        toast.error("Please login to claim your Free Data spin! 🎁");
+        toast.error("Please login to claim your Free Data spin!");
         window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
         return;
       }
@@ -195,14 +195,14 @@ export const GetFreeDataWidget: React.FC = () => {
     const activeUser = currentUser || auth.currentUser;
 
     if (checkHasSpunToday(activeUser?.uid)) {
-      toast.error("You've already used your daily spin for today! Come back tomorrow 🎁");
+      toast.error("You've already used your daily spin for today! Come back tomorrow");
       setStage('daily_limit');
       return;
     }
 
     if (servicePrice <= 0) {
       setStage('spin');
-      toast.success("Spin unlocked for FREE! 🎁");
+      toast.success("Spin unlocked for FREE!");
       return;
     }
 
@@ -286,7 +286,7 @@ export const GetFreeDataWidget: React.FC = () => {
 
     const activeUser = currentUser || auth.currentUser;
     if (checkHasSpunToday(activeUser?.uid)) {
-      toast.error("You've already used your 1 spin for today! Come back tomorrow 🎁");
+      toast.error("You've already used your 1 spin for today! Come back tomorrow");
       setStage('daily_limit');
       return;
     }
@@ -314,7 +314,7 @@ export const GetFreeDataWidget: React.FC = () => {
       setIsSpinning(false);
       if (isWin) {
         setStage('win_form');
-        toast.success("🎉 WINNER! You won Free Data!");
+        toast.success("WINNER! You won Free Data!");
       } else {
         setStage('loss');
       }
@@ -362,7 +362,7 @@ export const GetFreeDataWidget: React.FC = () => {
       await addDoc(collection(db, "orders"), orderData);
       setIsSubmitting(false);
       setStage('win_success');
-      toast.success("Order submitted successfully to Admin! 🚀");
+      toast.success("Order submitted successfully to Admin!");
     } catch (err: any) {
       setIsSubmitting(false);
       console.error("Error creating Free Data Win order:", err);
@@ -507,7 +507,7 @@ export const GetFreeDataWidget: React.FC = () => {
                         Free Data Lucky Spin • 1 Spin / Day
                       </div>
                       <h3 className="text-lg sm:text-xl font-black uppercase text-slate-100 tracking-tight leading-tight">
-                        Get Free Data Promo 🎁
+                        Get Free Data Promo
                       </h3>
                       <p className="text-[11px] sm:text-xs text-slate-300 mt-1 font-medium leading-snug px-2">
                         {servicePrice <= 0 ? (
@@ -597,7 +597,7 @@ export const GetFreeDataWidget: React.FC = () => {
                     >
                       {/* Top Half: Win */}
                       <div className="absolute inset-0 bg-gradient-to-b from-amber-500 to-yellow-400 flex items-start justify-center pt-8 text-slate-950 font-black text-lg uppercase tracking-wider">
-                        Win 🎉
+                        Win
                       </div>
                       {/* Bottom Half: Try Again */}
                       <div 
@@ -646,7 +646,7 @@ export const GetFreeDataWidget: React.FC = () => {
                   </div>
                   <div>
                     <h3 className="text-xl sm:text-2xl font-black uppercase text-amber-400 tracking-tight">
-                      🎉 CONGRATULATIONS! YOU WON!
+                      CONGRATULATIONS! YOU WON!
                     </h3>
                     <p className="text-xs text-slate-300 mt-1 font-medium">
                       Select your network and enter your phone number to receive your free data bundle.
@@ -711,7 +711,7 @@ export const GetFreeDataWidget: React.FC = () => {
                         </>
                       ) : (
                         <>
-                          CLAIM FREE {network} DATA 🚀
+                          CLAIM FREE {network} DATA
                         </>
                       )}
                     </button>
@@ -727,7 +727,7 @@ export const GetFreeDataWidget: React.FC = () => {
                   </div>
                   <div>
                     <h3 className="text-2xl font-black uppercase text-emerald-400 tracking-tight">
-                      Claim Submitted! 👑
+                      Claim Submitted!
                     </h3>
                     <p className="text-xs text-slate-300 mt-2 font-medium leading-relaxed">
                       Your Free Data claim for <span className="font-bold text-amber-300">{network}</span> (<span className="font-mono text-amber-300 font-bold">{phone}</span>) has been logged in the admin dashboard. You will receive your data shortly!

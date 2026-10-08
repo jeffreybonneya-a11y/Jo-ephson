@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Button } from '@/components/ui/button';
-import { Gift, ArrowRight, Sparkles, Trophy, Zap } from 'lucide-react';
+import { Gift, ArrowRight, Zap } from 'lucide-react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
@@ -57,24 +57,23 @@ export default function FreeDataPromoCard({ onOpenModal }: FreeDataPromoCardProp
         {/* Content */}
         <div className="flex items-center gap-3.5 sm:gap-4 w-full sm:w-auto">
           {/* Visual Icon Badge */}
-          <div className="relative shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-tr from-amber-500 via-yellow-400 to-amber-300 text-slate-950 p-1.5 flex items-center justify-center shadow-[0_4px_16px_rgba(245,158,11,0.35)] overflow-hidden">
-            <Gift className="w-7 h-7 stroke-[2.5] animate-bounce" style={{ animationDuration: '2.5s' }} />
+          <div className="relative shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-tr from-amber-500 via-yellow-400 to-amber-300 text-slate-950 p-1.5 flex items-center justify-center shadow-sm overflow-hidden">
+            <Gift className="w-7 h-7 stroke-[2.2]" />
             <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-[#26FEDC] rounded-full border border-[#140A22]" />
           </div>
 
           {/* Text Details */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-0.5">
-              <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                <Sparkles className="w-2.5 h-2.5" />
+              <span className="inline-flex items-center text-[10px] font-bold uppercase tracking-wider text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
                 LUCKY SPIN & WIN
               </span>
-              <span className="text-[10px] text-[#26FEDC] font-bold flex items-center gap-0.5">
+              <span className="text-[10px] text-[#26FEDC] font-semibold flex items-center gap-0.5">
                 <Zap className="w-2.5 h-2.5 text-yellow-400 fill-yellow-400" />
                 {price <= 0 ? "100% Free" : `GH₵${price.toFixed(2)} Entry`}
               </span>
             </div>
-            <h3 className="text-base sm:text-lg font-black text-slate-100 tracking-tight leading-tight">
+            <h3 className="text-base sm:text-lg font-bold text-slate-100 tracking-tight leading-tight">
               Get Free Data Promo
             </h3>
             <p className="text-xs sm:text-sm text-slate-300 font-normal leading-tight mt-0.5">
@@ -88,9 +87,9 @@ export default function FreeDataPromoCard({ onOpenModal }: FreeDataPromoCardProp
           <Button
             id="claim-free-data-promo-btn"
             onClick={handleClick}
-            className="w-full sm:w-auto h-11 px-5 sm:px-6 rounded-xl font-black text-xs sm:text-sm bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 hover:brightness-110 shadow-[0_2px_12px_rgba(245,158,11,0.3)] flex items-center justify-center gap-2 border border-amber-300/60 transition-all active:scale-95 cursor-pointer"
+            className="w-full sm:w-auto h-11 px-5 sm:px-6 rounded-xl font-bold text-xs sm:text-sm bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 hover:brightness-105 shadow-sm flex items-center justify-center gap-2 border border-amber-300/60 transition-all active:scale-95 cursor-pointer"
           >
-            <span>Claim Free Data 🎁</span>
+            <span>Claim Free Data</span>
             <ArrowRight className="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
           </Button>
         </div>

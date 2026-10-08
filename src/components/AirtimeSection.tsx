@@ -141,7 +141,7 @@ export default function AirtimeSection({ profile, agentContext }: AirtimeSection
 
     const currentUser = auth.currentUser;
     if (!currentUser) {
-      toast.error("Please log in to purchase airtime! 👑", {
+      toast.error("Please log in to purchase airtime!", {
         description: "You must be signed in with your Google account to order.",
       });
       window.dispatchEvent(new CustomEvent("OPEN_AUTH_MODAL"));
@@ -214,7 +214,7 @@ export default function AirtimeSection({ profile, agentContext }: AirtimeSection
           : "https://kingjdeals.site";
 
       try {
-        toast.info("Opening secure payment window... 👑");
+        toast.info("Opening secure payment window...");
         await openPaystackPopup({
           key: publicKey,
           email: userEmail,
@@ -230,7 +230,7 @@ export default function AirtimeSection({ profile, agentContext }: AirtimeSection
             network: "MTN",
           },
           onSuccess: (verifiedRef) => {
-            toast.success("Payment received! Processing your MTN Airtime... 👑");
+            toast.success("Payment received! Processing your MTN Airtime...");
             setCompletedOrder({
               id: verifiedRef || generatedRef,
               recipientPhone: cleanPhone,
@@ -289,7 +289,7 @@ export default function AirtimeSection({ profile, agentContext }: AirtimeSection
 
         const initData = await initRes.json();
         if (initData.success && initData.authorization_url) {
-          toast.success("Redirecting to secure payment page... 👑");
+          toast.success("Redirecting to secure payment page...");
           window.location.href = initData.authorization_url;
         } else {
           throw new Error(initData.error || "Unable to retrieve payment URL.");
@@ -361,7 +361,7 @@ export default function AirtimeSection({ profile, agentContext }: AirtimeSection
               </div>
               <div>
                 <h3 className="text-xl font-black uppercase tracking-tight text-emerald-800 dark:text-emerald-300">
-                  Airtime Order Received! 👑
+                  Airtime Order Received!
                 </h3>
                 <p className="text-xs text-slate-600 dark:text-slate-300 font-semibold">
                   Reference: <span className="font-mono font-black">{completedOrder.id}</span>
@@ -592,7 +592,7 @@ export default function AirtimeSection({ profile, agentContext }: AirtimeSection
                     </>
                   ) : (
                     <>
-                      PAY GH₵{totalAmountToPay.toFixed(2)} WITH PAYSTACK 👑
+                      PAY GH₵{totalAmountToPay.toFixed(2)} WITH PAYSTACK
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
