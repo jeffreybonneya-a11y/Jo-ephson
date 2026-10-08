@@ -459,6 +459,12 @@ export default function CheckoutForm({
       const finalOrderId = doc(collection(db, "orders")).id;
       setOrderId(finalOrderId);
 
+      // Referral attribution tracking
+      const capturedRefCode = typeof window !== 'undefined'
+        ? (localStorage.getItem('kingj_referred_by') || sessionStorage.getItem('kingj_referred_by') || profile?.referredBy || '')
+        : (profile?.referredBy || '');
+      const validRefCode = capturedRefCode ? capturedRefCode.trim().toUpperCase() : '';
+
       // Determine reference code based on service category / network
       const cat = (bundle.category || bundle.network || "").trim().toLowerCase();
       const net = (bundle.network || "").trim().toLowerCase();
@@ -515,6 +521,7 @@ export default function CheckoutForm({
         reference: generatedRef,
         momoRefCode: generatedRef,
         momoNumber: MOMO_NUMBER,
+        ...(validRefCode ? { referredBy: validRefCode } : {}),
         ...(data.fcUserId ? { fcUserId: data.fcUserId } : {}),
         ...(data.fcUsername ? { fcUsername: data.fcUsername } : {}),
         ...(isAgentUser || profile?.isAgent ? { isAgentOrder: true } : {}),
@@ -608,6 +615,12 @@ export default function CheckoutForm({
       const finalOrderId = doc(collection(db, "orders")).id;
       setOrderId(finalOrderId);
 
+      // Referral attribution tracking
+      const capturedPaystackRef = typeof window !== 'undefined'
+        ? (localStorage.getItem('kingj_referred_by') || sessionStorage.getItem('kingj_referred_by') || profile?.referredBy || '')
+        : (profile?.referredBy || '');
+      const validPaystackRef = capturedPaystackRef ? capturedPaystackRef.trim().toUpperCase() : '';
+
       const wsPrice = Number(bundle.wholesalePrice || bundle.price);
       const agPrice = applicableBasePrice;
       const calculatedProfit = agPrice - wsPrice;
@@ -631,6 +644,7 @@ export default function CheckoutForm({
         reference: finalOrderId,
         paymentStatus: "pending",
         paymentMethod: "paystack",
+        ...(validPaystackRef ? { referredBy: validPaystackRef } : {}),
         ...(data.fcUserId ? { fcUserId: data.fcUserId } : {}),
         ...(data.fcUsername ? { fcUsername: data.fcUsername } : {}),
         ...(isAgentUser || profile?.isAgent ? { isAgentOrder: true } : {}),
@@ -811,6 +825,12 @@ export default function CheckoutForm({
       const finalOrderId = doc(collection(db, "orders")).id;
       setOrderId(finalOrderId);
 
+      // Referral attribution tracking
+      const capturedKoraRef = typeof window !== 'undefined'
+        ? (localStorage.getItem('kingj_referred_by') || sessionStorage.getItem('kingj_referred_by') || profile?.referredBy || '')
+        : (profile?.referredBy || '');
+      const validKoraRef = capturedKoraRef ? capturedKoraRef.trim().toUpperCase() : '';
+
       const wsPrice = Number(bundle.wholesalePrice || bundle.price);
       const agPrice = applicableBasePrice;
       const calculatedProfit = agPrice - wsPrice;
@@ -837,6 +857,7 @@ export default function CheckoutForm({
         paymentStatus: "pending",
         paymentMethod: "Korapay",
         payment_provider: "korapay",
+        ...(validKoraRef ? { referredBy: validKoraRef } : {}),
         ...(data.fcUserId ? { fcUserId: data.fcUserId } : {}),
         ...(data.fcUsername ? { fcUsername: data.fcUsername } : {}),
         ...(isAgentUser || profile?.isAgent ? { isAgentOrder: true } : {}),

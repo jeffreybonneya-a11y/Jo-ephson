@@ -9,6 +9,7 @@ import { Crown, Sparkles, ShieldCheck, ExternalLink, Smartphone } from 'lucide-r
 import { toast } from 'sonner';
 import AppDownloadModal from './AppDownloadModal';
 import WhatsAppChannelAdModal from './WhatsAppChannelAdModal';
+import ReferralPromoModal from './ReferralPromoModal';
 
 interface WelcomePageProps {
   onLoginSuccess?: () => void;
@@ -663,6 +664,9 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
         forceOpen={isWhatsAppAdOpen}
         onClose={() => setIsWhatsAppAdOpen(false)}
       />
+
+      {/* Official Referral & Share Promo Modal */}
+      <ReferralPromoModal />
     </div>
   );
 }

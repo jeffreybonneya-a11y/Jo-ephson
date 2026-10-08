@@ -12,7 +12,7 @@ import { Toaster, toast } from 'sonner';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { syncUserCustomerRecord, ADMIN_EMAILS } from '@/src/lib/userSync';
-import { doc, onSnapshot, query, collection, where, updateDoc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, query, collection, where, updateDoc, setDoc, getDoc, getDocs, increment, serverTimestamp } from 'firebase/firestore';
 import { MessageSquare, Zap, Loader2, Crown } from 'lucide-react';
 import { motion } from 'motion/react';
 import MyOrders from './components/MyOrders';
@@ -31,6 +31,7 @@ import WelcomePage from './components/WelcomePage';
 import SeoPageLayout from './components/SeoPageLayout';
 import AppDownloadModal from './components/AppDownloadModal';
 import WhatsAppChannelAdModal from './components/WhatsAppChannelAdModal';
+import ReferralPromoModal from './components/ReferralPromoModal';
 import { getSeoPageData, SeoPageData } from './data/seoPages';
 import { useSessionTimeout } from './hooks/useSessionTimeout';
 import { getApiUrl } from './lib/api';
@@ -131,6 +132,15 @@ export default function App() {
     const reference = params.get('reference') || params.get('trxref') || params.get('orderId') || params.get('order_id');
     const methodParam = params.get('method');
 
+    // Check for Referral Link ?ref=... or ?referrer=...
+    const refParam = params.get('ref') || params.get('referrer');
+    if (refParam) {
+      const cleanRef = refParam.trim().toUpperCase();
+      localStorage.setItem('kingj_referred_by', cleanRef);
+      sessionStorage.setItem('kingj_referred_by', cleanRef);
+      console.log(`[Referral Promo] Captured referral code from URL: ${cleanRef}`);
+    }
+
     if (reference) {
         toast.info("Verifying your payment, please wait...", { duration: 5000 });
 
@@ -187,6 +197,61 @@ export default function App() {
                             if (orderData.bundle === "AGENT ACCESS UNLOCK" && orderData.userId) {
                                 await updateDoc(doc(db, "users", orderData.userId), { isAgent: true });
                                 toast.success("Agent Access Unlocked! Welcome 👑");
+                            }
+
+                            // --- REAL REFERRAL ATTRIBUTION & QUALIFYING PURCHASE REWARD CREDIT ---
+                            try {
+                                const referralCode = orderData.referredBy || (typeof window !== 'undefined' ? localStorage.getItem('kingj_referred_by') : null);
+                                const purchaserUid = orderData.userId;
+                                
+                                if (referralCode && purchaserUid) {
+                                    // 1. Verify referrer exists and is NOT a self-referral
+                                    const cleanRefCode = referralCode.trim().toUpperCase();
+                                    const refQuery = query(collection(db, 'users'), where('referralCode', '==', cleanRefCode));
+                                    const refQuerySnap = await getDocs(refQuery);
+                                    
+                                    if (!refQuerySnap.empty) {
+                                        const referrerDoc = refQuerySnap.docs[0];
+                                        const referrerUid = referrerDoc.id;
+                                        
+                                        // Anti-fraud: prevent self-referral
+                                        if (referrerUid !== purchaserUid) {
+                                            // 2. Check if this referral already recorded to prevent duplicates
+                                            const referralRecordId = `ref_${referrerUid}_${purchaserUid}`;
+                                            const refRecordDocRef = doc(db, 'referrals', referralRecordId);
+                                            const refRecordSnap = await getDoc(refRecordDocRef);
+                                            
+                                            if (!refRecordSnap.exists()) {
+                                                // Create new verified referral record
+                                                await setDoc(refRecordDocRef, {
+                                                    id: referralRecordId,
+                                                    referrerUid,
+                                                    referrerCode: cleanRefCode,
+                                                    purchaserUid,
+                                                    purchaserEmail: orderData.email || 'Customer',
+                                                    purchaserName: orderData.customerName || 'Customer',
+                                                    orderId: reference,
+                                                    orderAmount: orderData.amount || 0,
+                                                    bundle: orderData.bundle || 'Data Bundle',
+                                                    status: 'successful',
+                                                    rewardEarned: true,
+                                                    rewardDelivered: false,
+                                                    rewardStatus: 'pending_delivery',
+                                                    createdAt: serverTimestamp(),
+                                                });
+                                                
+                                                // Increment referrer's successful referral count
+                                                await updateDoc(doc(db, 'users', referrerUid), {
+                                                    referralCount: increment(1)
+                                                });
+
+                                                console.log(`[Referral System] Successfully credited referrer ${referrerUid} for referral of ${purchaserUid}`);
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch (referralTrackErr) {
+                                console.warn('[Referral Tracking] Error crediting referral:', referralTrackErr);
                             }
                         } else {
                             await setDoc(orderDocRef, {
@@ -587,6 +652,9 @@ export default function App() {
 
       {/* Official WhatsApp Channel Announcement Ad */}
       <WhatsAppChannelAdModal />
+
+      {/* Official Referral & Share Promo Modal */}
+      <ReferralPromoModal user={user} profile={profile} />
     </div>
   );
 }

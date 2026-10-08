@@ -96,6 +96,7 @@ import {
   DollarSign,
   Smartphone,
   Coins,
+  Share2,
 } from "lucide-react";
 import { toast } from "sonner";
 import AdminBrandingManager from "./AdminBrandingManager";
@@ -207,6 +208,11 @@ export default function AdminDashboard() {
   const [isUpdatingRcStock, setIsUpdatingRcStock] = useState<boolean>(false);
   const [isFreeDataDisabled, setIsFreeDataDisabled] = useState<boolean>(false);
   const [freeDataPrice, setFreeDataPrice] = useState<number>(1);
+  const [isReferralPromoDisabled, setIsReferralPromoDisabled] = useState<boolean>(false);
+  const [referralRewardText, setReferralRewardText] = useState<string>("Invite friends to buy data and earn free data rewards!");
+  const [referralRewardTiers, setReferralRewardTiers] = useState<string>("1 friend = 1GB, 3 friends = 3GB, 5 friends = 5GB, 10 friends = 10GB");
+  const [isUpdatingReferralPromo, setIsUpdatingReferralPromo] = useState<boolean>(false);
+  const [allReferralsList, setAllReferralsList] = useState<any[]>([]);
 
   // Fast Delivery Settings (Separated Customer vs Agent)
   const [customerFastDeliveryEnabled, setCustomerFastDeliveryEnabled] = useState<boolean>(true);
@@ -471,6 +477,37 @@ export default function AdminDashboard() {
       }
     );
 
+    // 10b. Listen for Referral Promo Settings
+    const unsubReferralPromo = onSnapshot(
+      doc(db, "settings", "referral_promo"),
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          setIsReferralPromoDisabled(Boolean(data.disabled));
+          if (data.rewardDescription) {
+            setReferralRewardText(data.rewardDescription);
+          }
+          if (data.rewardTiers) {
+            setReferralRewardTiers(data.rewardTiers);
+          }
+        } else {
+          setIsReferralPromoDisabled(false);
+        }
+      }
+    );
+
+    // Listen for all referral records
+    const unsubAllReferrals = onSnapshot(
+      collection(db, "referrals"),
+      (snapshot) => {
+        const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setAllReferralsList(list);
+      },
+      (err) => {
+        console.warn("Notice: referrals collection query:", err);
+      }
+    );
+
     // 11. Listen for General Agent Store Wholesale / Creation Price Setting
     const unsubAgentStoreSetting = onSnapshot(
       doc(db, "settings", "agent_store"),
@@ -599,6 +636,8 @@ export default function AdminDashboard() {
       unsubProfitRequests();
       unsubResultsChecker();
       unsubFreeData();
+      unsubReferralPromo();
+      unsubAllReferrals();
       unsubAgentStoreSetting();
       unsubHiddenChargesSetting();
       unsubFastDelivery();
@@ -692,6 +731,31 @@ export default function AdminDashboard() {
       toast.error("Failed to update Free Data setting.");
     } finally {
       setIsUpdatingPrice(false);
+    }
+  };
+
+  const handleSaveReferralPromoSettings = async (disabled: boolean, rewardText?: string, tiersText?: string) => {
+    try {
+      setIsUpdatingReferralPromo(true);
+      await setDoc(
+        doc(db, "settings", "referral_promo"),
+        {
+          disabled,
+          rewardDescription: rewardText !== undefined ? rewardText : referralRewardText,
+          rewardTiers: tiersText !== undefined ? tiersText : referralRewardTiers,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      setIsReferralPromoDisabled(disabled);
+      if (rewardText !== undefined) setReferralRewardText(rewardText);
+      if (tiersText !== undefined) setReferralRewardTiers(tiersText);
+      toast.success("Referral & Share Promo settings updated! 👑");
+    } catch (err) {
+      console.error("Failed to update referral promo settings:", err);
+      toast.error("Failed to update Referral Promo settings.");
+    } finally {
+      setIsUpdatingReferralPromo(false);
     }
   };
 
@@ -3994,6 +4058,206 @@ export default function AdminDashboard() {
                     )}
                   </span>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Referral & Share Promo Settings Card */}
+          <Card className="rounded-3xl border-2 bg-white dark:bg-slate-950 dark:border-slate-800 overflow-hidden shadow-sm mt-6">
+            <CardHeader className="p-8 border-b dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <CardTitle className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-3">
+                  <Share2 className="w-7 h-7 text-amber-500" />
+                  Referral & Share Promo Settings 👑
+                </CardTitle>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => window.dispatchEvent(new CustomEvent('OPEN_REFERRAL_MODAL'))}
+                  className="rounded-xl border-amber-500/40 text-amber-600 dark:text-amber-400 font-bold text-xs hover:bg-amber-500/10 cursor-pointer self-start sm:self-auto"
+                >
+                  <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                  Preview Promo Modal
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-8 space-y-8">
+              {/* Feature Toggle Status */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 p-6 rounded-2xl border-2 border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40">
+                <div className="space-y-1 max-w-xl">
+                  <h4 className="font-black text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                    Referral Promo Status:{" "}
+                    {isReferralPromoDisabled ? (
+                      <span className="text-red-500 font-extrabold uppercase bg-red-500/10 px-3 py-1 rounded-full text-xs">
+                        Disabled (Hidden)
+                      </span>
+                    ) : (
+                      <span className="text-emerald-500 font-extrabold uppercase bg-emerald-500/10 px-3 py-1 rounded-full text-xs">
+                        Active / Enabled (Live)
+                      </span>
+                    )}
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                    Toggle switch ON (Disabled) to hide the Referral & Share Promo popup and banners across the site. Toggle OFF to make the referral promotion active for customers.
+                  </p>
+                </div>
+                <div className="flex items-center gap-4 bg-white dark:bg-slate-800 p-4 rounded-xl border dark:border-slate-700 shadow-sm shrink-0">
+                  <span className="text-xs font-black uppercase text-slate-700 dark:text-slate-300">
+                    Disable Promo
+                  </span>
+                  <Switch
+                    checked={isReferralPromoDisabled}
+                    onCheckedChange={(checked) => handleSaveReferralPromoSettings(checked, referralRewardText)}
+                  />
+                </div>
+              </div>
+
+              {/* Promo Reward Text Customization & Reward Tiers */}
+              <div className="p-6 rounded-2xl border-2 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-6">
+                <div className="space-y-1">
+                  <h4 className="font-black text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                    Promotional Reward Description 📢
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                    Customize the message shown to customers inside the popup explaining what they earn by referring friends.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <Input
+                    type="text"
+                    value={referralRewardText}
+                    onChange={(e) => setReferralRewardText(e.target.value)}
+                    placeholder="e.g. Invite your friends to buy data from King J Deals and earn FREE DATA!"
+                    className="h-12 px-4 rounded-xl border-2 font-medium text-sm dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                  />
+                </div>
+
+                {/* Reward Levels & Thresholds Configuration */}
+                <div className="pt-2 border-t dark:border-slate-800 space-y-3">
+                  <div className="space-y-1">
+                    <h4 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                      <Gift className="w-4 h-4 text-amber-500" />
+                      Referral Reward Tiers & Thresholds (Editable) 👑
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                      Configure reward thresholds and reward amounts shown to customers (e.g. 1 friend = 1GB FREE DATA, 3 friends = 3GB FREE DATA, 5 friends = 5GB FREE DATA, 10 friends = 10GB FREE DATA).
+                    </p>
+                  </div>
+                  <Input
+                    type="text"
+                    value={referralRewardTiers}
+                    onChange={(e) => setReferralRewardTiers(e.target.value)}
+                    placeholder="1 friend = 1GB, 3 friends = 3GB, 5 friends = 5GB, 10 friends = 10GB"
+                    className="h-12 px-4 rounded-xl border-2 font-medium text-sm dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                  />
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-2">
+                  <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                    Base Website: <strong className="font-mono text-amber-500">www.kingjdeals.site</strong> | Link format: <span className="font-mono">https://www.kingjdeals.site/?ref=UNIQUE_CODE</span>
+                  </div>
+
+                  <Button
+                    type="button"
+                    disabled={isUpdatingReferralPromo}
+                    onClick={() => handleSaveReferralPromoSettings(isReferralPromoDisabled, referralRewardText, referralRewardTiers)}
+                    className="h-11 px-6 rounded-xl font-black text-xs bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-md transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+                  >
+                    {isUpdatingReferralPromo ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" /> SAVING...
+                      </>
+                    ) : (
+                      <>
+                        SAVE REFERRAL SETTINGS 👑
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Referrals & Rewards Ledger Table */}
+              <div className="p-6 rounded-2xl border-2 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h4 className="font-black text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                      <Users className="w-5 h-5 text-amber-500" />
+                      Recorded Referrals & Rewards ({allReferralsList.length}) 👑
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                      Audit referring customers, referred customers, qualifying purchases, and reward delivery status.
+                    </p>
+                  </div>
+                </div>
+
+                {allReferralsList.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400 font-medium text-xs bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
+                    No referral purchases recorded yet. When referred visitors complete paid data orders, they will appear here.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="border-b dark:border-slate-800 text-slate-400 font-bold uppercase text-[10px]">
+                          <th className="py-2.5 px-3">Referrer Code</th>
+                          <th className="py-2.5 px-3">Referred Customer</th>
+                          <th className="py-2.5 px-3">Order Bundle</th>
+                          <th className="py-2.5 px-3">Reward Status</th>
+                          <th className="py-2.5 px-3 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y dark:divide-slate-800">
+                        {allReferralsList.map((ref) => (
+                          <tr key={ref.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td className="py-3 px-3 font-mono font-bold text-amber-500">{ref.referrerCode || "CODE"}</td>
+                            <td className="py-3 px-3 font-medium text-slate-900 dark:text-slate-200">
+                              <div>{ref.purchaserEmail || ref.purchaserName || "Customer"}</div>
+                              <div className="text-[10px] text-slate-400 font-mono">UID: {ref.purchaserUid?.slice(0, 8)}</div>
+                            </td>
+                            <td className="py-3 px-3 text-slate-600 dark:text-slate-300">
+                              <div>{ref.bundle || "Data Bundle"}</div>
+                              <div className="text-[10px] text-emerald-500 font-bold">GH₵{ref.orderAmount || 0}</div>
+                            </td>
+                            <td className="py-3 px-3">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                                ref.rewardDelivered
+                                  ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/30"
+                                  : "bg-amber-500/10 text-amber-500 border border-amber-500/30"
+                              }`}>
+                                {ref.rewardDelivered ? "Delivered" : "Pending Reward"}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-right">
+                              {!ref.rewardDelivered ? (
+                                <Button
+                                  size="sm"
+                                  onClick={async () => {
+                                    try {
+                                      await updateDoc(doc(db, "referrals", ref.id), {
+                                        rewardDelivered: true,
+                                        rewardStatus: "delivered",
+                                        deliveredAt: serverTimestamp(),
+                                      });
+                                      toast.success("Reward marked as delivered! 👑");
+                                    } catch (e) {
+                                      toast.error("Could not update reward status.");
+                                    }
+                                  }}
+                                  className="h-7 px-2.5 rounded-lg text-[10px] font-bold bg-emerald-500 hover:bg-emerald-600 text-white"
+                                >
+                                  Mark Delivered
+                                </Button>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 font-bold">✓ Complete</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

@@ -6,6 +6,7 @@ import {
   onSnapshot,
   orderBy,
   addDoc,
+  doc,
   serverTimestamp,
 } from "firebase/firestore";
 import { db, auth } from "../lib/firebase";
@@ -21,6 +22,13 @@ import {
   ChevronRight,
   AlertTriangle,
   Zap,
+  Gift,
+  Share2,
+  Sparkles,
+  Crown,
+  CheckCircle,
+  Users,
+  Clock,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
@@ -40,6 +48,8 @@ export default function MyOrders() {
   const [complaintOrder, setComplaintOrder] = useState<any | null>(null);
   const [complaintMsg, setComplaintMsg] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [referralCount, setReferralCount] = useState<number>(0);
+  const [userReferrals, setUserReferrals] = useState<any[]>([]);
 
   useEffect(() => {
     if (!auth.currentUser?.email) {
@@ -73,6 +83,36 @@ export default function MyOrders() {
     );
 
     return () => unsubscribe();
+  }, []);
+
+  // Listen to Referral Progress & Earned Rewards
+  useEffect(() => {
+    if (!auth.currentUser?.uid) return;
+    const currentUid = auth.currentUser.uid;
+
+    const unsubUser = onSnapshot(doc(db, "users", currentUid), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setReferralCount(Number(data.referralCount || 0));
+      }
+    });
+
+    const qRefs = query(
+      collection(db, "referrals"),
+      where("referrerUid", "==", currentUid),
+      orderBy("createdAt", "desc")
+    );
+    const unsubRefs = onSnapshot(qRefs, (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setUserReferrals(list);
+    }, (err) => {
+      console.warn("Referrals query notice:", err);
+    });
+
+    return () => {
+      unsubUser();
+      unsubRefs();
+    };
   }, []);
 
   const handleReportAdmin = (order: any) => {
@@ -127,6 +167,120 @@ export default function MyOrders() {
           >
             {orders.length} TOTAL
           </Badge>
+        </div>
+
+        {/* Customer Referral Progress & Refer & Earn Dashboard */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0E1A3D] via-[#0B132B] to-[#080E24] border-2 border-amber-500/40 p-5 text-white shadow-xl space-y-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-3 border-b border-amber-500/20">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-400 to-amber-600 flex items-center justify-center shrink-0 shadow-md">
+                <Gift className="w-6 h-6 text-slate-950 stroke-[2.4]" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-[10px] font-black uppercase text-amber-400 bg-amber-500/15 px-2 py-0.5 rounded-full border border-amber-500/30">
+                    REFER & EARN 👑
+                  </span>
+                  <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
+                    <Sparkles className="w-2.5 h-2.5" /> Free Data Rewards
+                  </span>
+                </div>
+                <h3 className="text-base sm:text-lg font-black text-white tracking-tight">Your Referral Progress 👑</h3>
+                <p className="text-xs text-slate-300 font-medium">Invite friends to King J Deals and track your free data rewards</p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('OPEN_REFERRAL_MODAL'))}
+              className="w-full sm:w-auto h-10 px-4 rounded-xl font-black text-xs bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 hover:brightness-110 shadow-md border border-amber-300/40 cursor-pointer shrink-0"
+            >
+              <Share2 className="w-3.5 h-3.5 mr-1.5" />
+              Share Link on WhatsApp 📲
+            </Button>
+          </div>
+
+          {/* Referral Milestones & Progress Bar */}
+          {(() => {
+            const count = referralCount;
+            // Determine tier
+            let nextThreshold = 1;
+            let nextReward = "1GB FREE DATA";
+            if (count >= 10) {
+              nextThreshold = count + 5;
+              nextReward = "VIP EXTRA FREE DATA";
+            } else if (count >= 5) {
+              nextThreshold = 10;
+              nextReward = "10GB FREE DATA";
+            } else if (count >= 3) {
+              nextThreshold = 5;
+              nextReward = "5GB FREE DATA";
+            } else if (count >= 1) {
+              nextThreshold = 3;
+              nextReward = "3GB FREE DATA";
+            } else {
+              nextThreshold = 1;
+              nextReward = "1GB FREE DATA";
+            }
+            const progressPercent = Math.min(100, Math.round((count / nextThreshold) * 100));
+
+            return (
+              <div className="space-y-3 bg-black/30 p-3.5 rounded-xl border border-white/5">
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="bg-white/5 p-2 rounded-lg border border-white/5">
+                    <span className="block text-[10px] uppercase font-bold text-slate-400">Friends Referred</span>
+                    <strong className="text-lg font-black text-amber-400">{count}</strong>
+                  </div>
+                  <div className="bg-white/5 p-2 rounded-lg border border-white/5">
+                    <span className="block text-[10px] uppercase font-bold text-slate-400">Next Reward</span>
+                    <strong className="text-xs sm:text-sm font-black text-emerald-400 block truncate">{nextReward}</strong>
+                  </div>
+                  <div className="bg-white/5 p-2 rounded-lg border border-white/5">
+                    <span className="block text-[10px] uppercase font-bold text-slate-400">Progress</span>
+                    <strong className="text-sm sm:text-base font-black text-white">{count} / {nextThreshold}</strong>
+                  </div>
+                </div>
+
+                {/* Visual Progress Bar */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[11px] font-bold text-slate-300">
+                    <span>Progress to {nextReward}:</span>
+                    <span className="text-amber-400">{progressPercent}%</span>
+                  </div>
+                  <div className="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+                    <div
+                      className="h-full bg-gradient-to-r from-amber-400 via-yellow-400 to-emerald-400 transition-all duration-500 rounded-full"
+                      style={{ width: `${progressPercent}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Referral History Statuses if any */}
+                {userReferrals.length > 0 && (
+                  <div className="pt-2 border-t border-white/10 space-y-1.5">
+                    <span className="text-[10px] uppercase font-black tracking-wider text-slate-400 block">Recent Referrals ({userReferrals.length}):</span>
+                    <div className="max-h-28 overflow-y-auto space-y-1.5 pr-1">
+                      {userReferrals.map((ref) => (
+                        <div key={ref.id} className="flex items-center justify-between text-xs bg-white/5 px-2.5 py-1.5 rounded-lg border border-white/5">
+                          <span className="font-medium text-slate-200 truncate max-w-[140px] sm:max-w-[200px]">
+                            {ref.purchaserEmail || ref.purchaserName || "Friend Order"}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                            ref.rewardDelivered
+                              ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                              : ref.rewardEarned
+                              ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                              : "bg-slate-700 text-slate-300"
+                          }`}>
+                            {ref.rewardDelivered ? "Reward Delivered" : ref.rewardEarned ? "Reward Earned" : "Successful"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         {orders.length === 0 ? (

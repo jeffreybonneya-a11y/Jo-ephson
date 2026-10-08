@@ -140,6 +140,9 @@ export interface UserProfile {
   authProvider?: string;
   providerId?: string;
   topupReference?: string;
+  referralCode?: string;
+  referredBy?: string;
+  referralCount?: number;
   updatedAt?: any;
 }
 
