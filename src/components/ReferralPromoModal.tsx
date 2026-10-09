@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Copy, Check, Lock } from 'lucide-react';
+import { X, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
@@ -25,12 +25,6 @@ export default function ReferralPromoModal({
 }: ReferralPromoModalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [hasCopiedBeforeShare, setHasCopiedBeforeShare] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return sessionStorage.getItem('kingj_referral_link_copied') === 'true';
-    }
-    return false;
-  });
   const [promoDisabled, setPromoDisabled] = useState(false);
   const [customRewardText, setCustomRewardText] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState<string>('KINGJ');
@@ -154,12 +148,13 @@ export default function ReferralPromoModal({
   // Construct referral link:
   const personalReferralUrl = `${OFFICIAL_BASE_URL}/?ref=${referralCode}`;
 
-  // WhatsApp pre-formatted share message requested by user:
-  // "Looking for affordable data? 👑
-  // You can now get 1GB of data for only GH₵4 on King J Deals.
-  // Buy affordable data from:
-  // https://www.kingjdeals.site/?ref=YOUR_REFERRAL_CODE"
-  const whatsappShareMessage = `Looking for affordable data? 👑\nYou can now get 1GB of data for only GH₵4 on King J Deals.\nBuy affordable data from:\n${personalReferralUrl}`;
+  // WhatsApp pre-formatted share message:
+  // Looking for affordable data? 👑
+  //
+  // You can now get 1GB of data for only GH₵4 on King J Deals. Buy affordable data from:
+  //
+  // https://www.kingjdeals.site/?ref=THE_CUSTOMERS_REFERRAL_CODE
+  const whatsappShareMessage = `Looking for affordable data? 👑\n\nYou can now get 1GB of data for only GH₵4 on King J Deals. Buy affordable data from:\n\n${personalReferralUrl}`;
   const whatsappShareUrl = `https://wa.me/?text=${encodeURIComponent(whatsappShareMessage)}`;
 
   // Close X Button logic:
@@ -201,13 +196,11 @@ export default function ReferralPromoModal({
     if (onClose) onClose();
   };
 
-  // Copy Link logic:
+  // Copy Link logic (optional convenience):
   // 1. Copy personal referral URL to clipboard
   // 2. Change button temporarily to "Link Copied"
   // 3. Display: "Link copied successfully. Now share it with your friends!"
   // 4. Return button to "Copy Link" after a short period
-  // 5. Update internal session state to confirm customer has successfully completed copy action
-  // 6. Unlocks WhatsApp share button
   const handleCopyLink = async () => {
     try {
       if (navigator.clipboard && window.isSecureContext) {
@@ -227,13 +220,12 @@ export default function ReferralPromoModal({
       }
 
       setCopied(true);
-      setHasCopiedBeforeShare(true);
       setCopyFeedbackVisible(true);
       sessionStorage.setItem('kingj_referral_link_copied', 'true');
 
       toast.success("Link copied successfully", {
         description: "Now share it with your friends on WhatsApp or social media to earn free data.",
-        duration: 4000,
+        duration: 3500,
       });
 
       // After a short period, revert button back to "Copy Link"
@@ -246,22 +238,14 @@ export default function ReferralPromoModal({
     }
   };
 
-  // WhatsApp Share button logic (Enforced: Customer MUST copy referral link first!):
+  // WhatsApp Share button logic (Enabled immediately, no copy requirement):
   const handleWhatsAppShare = () => {
-    // Check both local component state and sessionStorage
-    const isLinkCopied = hasCopiedBeforeShare || sessionStorage.getItem('kingj_referral_link_copied') === 'true';
-
-    if (!isLinkCopied) {
-      toast.error("Please copy the referral link first.", {
-        description: "Tap the 'Copy Link' button above to unlock WhatsApp sharing.",
-        duration: 4000,
-      });
-      return;
-    }
-
     sessionStorage.setItem('kingj_referral_shared_whatsapp', 'true');
     try {
-      window.open(whatsappShareUrl, '_blank', 'noopener,noreferrer');
+      const opened = window.open(whatsappShareUrl, '_blank', 'noopener,noreferrer');
+      if (!opened) {
+        window.location.href = whatsappShareUrl;
+      }
     } catch {
       window.location.href = whatsappShareUrl;
     }
@@ -403,33 +387,16 @@ export default function ReferralPromoModal({
             </Button>
 
             {/* 2. WhatsApp Share Button with Copy-Before-Share Enforcement */}
-            <div className="space-y-1.5">
-              <Button
-                id="btn-share-referral-whatsapp"
-                type="button"
-                onClick={handleWhatsAppShare}
-                size="lg"
-                className={`w-full h-11 sm:h-12 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 border ${
-                  hasCopiedBeforeShare
-                    ? 'bg-[#25D366] hover:bg-[#20ba5a] text-slate-950 border-[#25D366] cursor-pointer'
-                    : 'bg-slate-800/80 hover:bg-slate-800 text-slate-400 border-slate-700/80 cursor-not-allowed opacity-75'
-                }`}
-              >
-                {!hasCopiedBeforeShare ? (
-                  <>
-                    <Lock className="w-4 h-4 text-slate-400" />
-                    <span>Share on WhatsApp (Locked)</span>
-                  </>
-                ) : (
-                  <span>Share on WhatsApp</span>
-                )}
-              </Button>
-              {!hasCopiedBeforeShare && (
-                <p className="text-[11px] text-slate-400 text-center font-normal">
-                  Please copy your referral link above to unlock WhatsApp sharing
-                </p>
-              )}
-            </div>
+            {/* 2. WhatsApp Share Button - Enabled by default */}
+            <Button
+              id="btn-share-referral-whatsapp"
+              type="button"
+              onClick={handleWhatsAppShare}
+              size="lg"
+              className="w-full h-11 sm:h-12 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 border bg-[#25D366] hover:bg-[#20ba5a] text-slate-950 border-[#25D366] shadow-sm cursor-pointer"
+            >
+              <span>Share on WhatsApp</span>
+            </Button>
 
             {/* 3. Secondary Button: OK, I WILL DO THAT LATER */}
             <button
