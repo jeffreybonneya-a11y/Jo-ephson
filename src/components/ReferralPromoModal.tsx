@@ -107,16 +107,32 @@ export default function ReferralPromoModal({
       };
     }
 
-    // Auto-display logic:
-    // Only auto-display if promo is enabled by admin
+    // Auto-display logic (Appears once in a while, not always):
+    // 1. Only auto-display if promo is enabled by admin
+    // 2. Multi-day cooldown between auto-displays (5 days)
+    // 3. 7-day cooldown if explicitly dismissed
+    // 4. Do not nag customers who already shared on WhatsApp
+    // 5. Unobtrusive 20-second engagement delay
     const checkAndAutoDisplay = () => {
       if (promoDisabled) return;
 
       // Check if user dismissed it in this browser session
-      const sessionDismissed = sessionStorage.getItem('kingj_referral_promo_dismissed');
-      if (sessionDismissed === 'true') return;
+      if (sessionStorage.getItem('kingj_referral_promo_dismissed') === 'true') return;
 
-      // Check if dismissed with 24-hour cooldown
+      // Check if already auto-displayed in this browser session
+      if (sessionStorage.getItem('kingj_referral_promo_shown_session') === 'true') return;
+
+      // Multi-day cooldown (at least 5 days between automatic popups)
+      const lastShown = localStorage.getItem('kingj_referral_promo_last_shown');
+      if (lastShown) {
+        const lastShownTime = parseInt(lastShown, 10);
+        const FIVE_DAYS_MS = 5 * 24 * 60 * 60 * 1000;
+        if (!isNaN(lastShownTime) && Date.now() - lastShownTime < FIVE_DAYS_MS) {
+          return;
+        }
+      }
+
+      // Check if customer dismissed with cooldown (7 days)
       const dismissedUntil = localStorage.getItem('kingj_referral_promo_dismissed_until');
       if (dismissedUntil) {
         const expiry = parseInt(dismissedUntil, 10);
@@ -125,14 +141,25 @@ export default function ReferralPromoModal({
         }
       }
 
-      // Check if another high-priority checkout or auth modal is active
+      // Check if user has already shared on WhatsApp recently - don't nag active referrers
+      const hasShared = localStorage.getItem('kingj_referral_shared_whatsapp') || sessionStorage.getItem('kingj_referral_shared_whatsapp');
+      if (hasShared === 'true') return;
+
+      // Check if another high-priority checkout, payment or auth modal is active
       const isAuthModalOpen = document.querySelector('[role="dialog"][data-auth-modal="true"]');
       if (isAuthModalOpen) return;
 
-      // Sensible initial delay so user can orient on homepage first
+      // Sensible engagement delay (~20 seconds) so customer can browse comfortably without an immediate pop-up
       const timer = setTimeout(() => {
+        // Double check modal isn't already active or interrupted by user opening auth/checkout
+        const activeModal = document.querySelector('[role="dialog"]');
+        if (activeModal) return;
+
         setIsOpen(true);
-      }, 2400);
+        // Mark as shown immediately so reloads/navigation won't trigger it again
+        sessionStorage.setItem('kingj_referral_promo_shown_session', 'true');
+        localStorage.setItem('kingj_referral_promo_last_shown', Date.now().toString());
+      }, 20000);
 
       return () => clearTimeout(timer);
     };
@@ -162,15 +189,17 @@ export default function ReferralPromoModal({
   // - Does NOT start sharing
   // - Does NOT open WhatsApp
   // - Does NOT copy anything
-  // - Does NOT show popup again immediately during same session
+  // - Sets 7-day cooldown so it only appears once in a while
   const handleCloseX = () => {
     setIsOpen(false);
     sessionStorage.setItem('kingj_referral_promo_dismissed', 'true');
-    // Set 24 hour cooldown so it does not annoy the customer
+    // Set 7-day cooldown so it does not annoy the customer
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
     localStorage.setItem(
       'kingj_referral_promo_dismissed_until',
-      (Date.now() + 24 * 60 * 60 * 1000).toString()
+      (Date.now() + SEVEN_DAYS_MS).toString()
     );
+    localStorage.setItem('kingj_referral_promo_last_shown', Date.now().toString());
     if (onClose) onClose();
   };
 
@@ -179,16 +208,18 @@ export default function ReferralPromoModal({
   // - Does NOT open WhatsApp
   // - Does NOT copy link automatically
   // - Does NOT count customer as having participated
-  // - Remembers dismissal appropriately so popup doesn't immediately reappear
-  // - Does NOT permanently hide feature (accessible anytime via Refer & Earn button)
+  // - Remembers dismissal with 7-day cooldown so popup only appears once in a while
+  // - Accessible anytime via Refer & Earn button
   const handleDoLater = () => {
     setIsOpen(false);
     sessionStorage.setItem('kingj_referral_promo_dismissed', 'true');
-    // Cooldown of 24 hours so it won't pop up again today
+    // Cooldown of 7 days so it won't pop up again for a week
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
     localStorage.setItem(
       'kingj_referral_promo_dismissed_until',
-      (Date.now() + 24 * 60 * 60 * 1000).toString()
+      (Date.now() + SEVEN_DAYS_MS).toString()
     );
+    localStorage.setItem('kingj_referral_promo_last_shown', Date.now().toString());
     toast.info("You can access Refer & Earn anytime", {
       description: "Find your referral link in your Orders page or top promo banner.",
       duration: 3500,
@@ -241,6 +272,8 @@ export default function ReferralPromoModal({
   // WhatsApp Share button logic (Enabled immediately, no copy requirement):
   const handleWhatsAppShare = () => {
     sessionStorage.setItem('kingj_referral_shared_whatsapp', 'true');
+    localStorage.setItem('kingj_referral_shared_whatsapp', 'true');
+    localStorage.setItem('kingj_referral_promo_last_shown', Date.now().toString());
     try {
       const opened = window.open(whatsappShareUrl, '_blank', 'noopener,noreferrer');
       if (!opened) {

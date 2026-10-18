@@ -33,7 +33,6 @@ import AppDownloadModal from './components/AppDownloadModal';
 import WhatsAppChannelAdModal from './components/WhatsAppChannelAdModal';
 import ReferralPromoModal from './components/ReferralPromoModal';
 import { getSeoPageData, SeoPageData } from './data/seoPages';
-import { useSessionTimeout } from './hooks/useSessionTimeout';
 import { getApiUrl } from './lib/api';
 import { cleanupMonetagInPagePush } from './lib/monetag';
 
@@ -45,9 +44,6 @@ export default function App() {
   const [isHistoryView, setIsHistoryView] = useState(false);
   const [isStreamView, setIsStreamView] = useState(false);
   const [user, setUser] = useState<any>(null);
-
-  // 5-minute automatic session inactivity timeout
-  useSessionTimeout(user);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [announcement, setAnnouncement] = useState<{text: string, active: boolean, type: string, color?: string} | null>(null);
