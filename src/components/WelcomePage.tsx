@@ -94,7 +94,11 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
           if (user) {
             await syncUserCustomerRecord(user);
             const userFullName = user.displayName || (user.email ? user.email.split('@')[0] : 'Customer');
-            localStorage.setItem('kj_session_last_active_at', Date.now().toString());
+            try {
+              localStorage.setItem('kingj_authenticated_user', 'true');
+              localStorage.setItem('kingj_auth_uid', user.uid);
+              if (user.email) localStorage.setItem('kingj_auth_email', user.email);
+            } catch {}
             toast.success(`Welcome to King J Deals, ${userFullName}!`);
             if (onLoginSuccess) {
               onLoginSuccess();
@@ -105,7 +109,11 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
             await syncUserCustomerRecord(auth.currentUser);
           }
           const userFullName = result.user.displayName || (result.user.email ? result.user.email.split('@')[0] : 'Customer');
-          localStorage.setItem('kj_session_last_active_at', Date.now().toString());
+          try {
+            localStorage.setItem('kingj_authenticated_user', 'true');
+            if (result.user.uid) localStorage.setItem('kingj_auth_uid', result.user.uid);
+            if (result.user.email) localStorage.setItem('kingj_auth_email', result.user.email);
+          } catch {}
           toast.success(`Welcome to King J Deals, ${userFullName}!`);
           if (onLoginSuccess) {
             onLoginSuccess();
@@ -185,7 +193,11 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
         await syncUserCustomerRecord(user);
 
         const userFullName = user.displayName || (user.email ? user.email.split('@')[0] : 'Customer');
-        localStorage.setItem('kj_session_last_active_at', Date.now().toString());
+        try {
+          localStorage.setItem('kingj_authenticated_user', 'true');
+          localStorage.setItem('kingj_auth_uid', user.uid);
+          if (user.email) localStorage.setItem('kingj_auth_email', user.email);
+        } catch {}
         toast.success(`Welcome to King J Deals, ${userFullName}!`);
         if (onLoginSuccess) {
           onLoginSuccess();

@@ -155,6 +155,11 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       if (user) {
         // Safely synchronize user customer record with Firebase Auth
         await syncUserCustomerRecord(user);
+        try {
+          localStorage.setItem('kingj_authenticated_user', 'true');
+          localStorage.setItem('kingj_auth_uid', user.uid);
+          if (user.email) localStorage.setItem('kingj_auth_email', user.email);
+        } catch {}
       }
       
       toast.success("Logged in with Google!");

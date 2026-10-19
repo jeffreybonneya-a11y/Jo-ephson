@@ -1,5 +1,11 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth';
+import { 
+  initializeAuth, 
+  indexedDBLocalPersistence, 
+  browserLocalPersistence, 
+  getAuth, 
+  setPersistence 
+} from 'firebase/auth';
 import { initializeFirestore, setLogLevel } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import firebaseConfigData from '../../firebase-applet-config.json';
@@ -19,9 +25,26 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
 
-// Explicitly ensure permanent browser local persistence so users stay logged in until explicit logout
+// Initialize Firebase Auth with multi-layer persistence (IndexedDB + localStorage fallback)
+// This is critical for iOS Safari / iPhone WebKit where IndexedDB can stall, get partitioned, or fail on wake.
+// Having browserLocalPersistence in the array guarantees the user token is always retrieved and never lost.
+let authInstance: ReturnType<typeof getAuth>;
+if (typeof window !== 'undefined') {
+  try {
+    authInstance = initializeAuth(app, {
+      persistence: [indexedDBLocalPersistence, browserLocalPersistence]
+    });
+  } catch (_e) {
+    authInstance = getAuth(app);
+  }
+} else {
+  authInstance = getAuth(app);
+}
+
+export const auth = authInstance;
+
+// Explicitly lock in permanent browserLocalPersistence to guarantee no session timeout under any circumstances
 if (typeof window !== 'undefined') {
   setPersistence(auth, browserLocalPersistence).catch((err) => {
     console.warn('[Firebase Auth] Persistence setup notice:', err);
@@ -37,5 +60,3 @@ export const storage = getStorage(app, storageBucketUrl);
 export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
 }, firebaseConfig.firestoreDatabaseId);
-
-

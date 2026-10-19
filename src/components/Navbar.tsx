@@ -170,6 +170,11 @@ export default function Navbar({
 
   const handleLogout = async () => {
     try {
+      try {
+        localStorage.removeItem('kingj_authenticated_user');
+        localStorage.removeItem('kingj_auth_uid');
+        localStorage.removeItem('kingj_auth_email');
+      } catch {}
       await signOut(auth);
       onAdminView(false);
       onHistoryView(false);

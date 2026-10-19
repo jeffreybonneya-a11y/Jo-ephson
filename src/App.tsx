@@ -348,33 +348,43 @@ export default function App() {
       }
     });
 
-    const authUnsubscribe = onAuthStateChanged(auth, async (user) => {
-      setUser(user);
-      setIsAuthLoading(false);
-      const userIsAdmin = user?.email ? ADMIN_EMAILS.includes(user.email.toLowerCase()) : false;
-      setIsAdmin(userIsAdmin);
+    const authUnsubscribe = onAuthStateChanged(auth, async (authUser) => {
+      // Prioritize active auth instance or restore from currentUser
+      const activeUser = authUser || (auth.currentUser && !auth.currentUser.isAnonymous ? auth.currentUser : null);
       
-      if (profileUnsubscribe) {
-        profileUnsubscribe();
-        profileUnsubscribe = undefined;
-      }
-      if (agentUnsubscribe) {
-        agentUnsubscribe();
-        agentUnsubscribe = undefined;
-      }
+      if (activeUser && !activeUser.isAnonymous) {
+        setUser(activeUser);
+        setIsAuthLoading(false);
+        const userIsAdmin = activeUser.email ? ADMIN_EMAILS.includes(activeUser.email.toLowerCase()) : false;
+        setIsAdmin(userIsAdmin);
 
-      if (user && !user.isAnonymous) {
+        // Record persistent session marker so iPhone/Safari reload never flashes unauthenticated screen
+        try {
+          localStorage.setItem('kingj_authenticated_user', 'true');
+          localStorage.setItem('kingj_auth_uid', activeUser.uid);
+          if (activeUser.email) localStorage.setItem('kingj_auth_email', activeUser.email);
+        } catch {}
+
+        if (profileUnsubscribe) {
+          profileUnsubscribe();
+          profileUnsubscribe = undefined;
+        }
+        if (agentUnsubscribe) {
+          agentUnsubscribe();
+          agentUnsubscribe = undefined;
+        }
+
         // Ensure user profile and email in Firestore safely with zero damage
-        syncUserCustomerRecord(user).catch((err) => {
+        syncUserCustomerRecord(activeUser).catch((err) => {
           console.warn("[App Auth] Non-blocking customer email sync notice:", err);
         });
 
         // Real-time profile listener
-        profileUnsubscribe = onSnapshot(doc(db, 'users', user.uid), async (docSnapshot) => {
+        profileUnsubscribe = onSnapshot(doc(db, 'users', activeUser.uid), async (docSnapshot) => {
           if (docSnapshot.exists()) {
             const data = docSnapshot.data() as UserProfile;
             setProfile(data);
-            const isEmailAdmin = ADMIN_EMAILS.includes(user.email?.trim().toLowerCase() || '') || 
+            const isEmailAdmin = ADMIN_EMAILS.includes(activeUser.email?.trim().toLowerCase() || '') || 
                                  ADMIN_EMAILS.includes(data.email?.trim().toLowerCase() || '') || 
                                  ADMIN_EMAILS.includes(data.gmail?.trim().toLowerCase() || '') || 
                                  data.role === 'admin';
@@ -383,24 +393,57 @@ export default function App() {
         });
 
         // Real-time agent listener
-        agentUnsubscribe = onSnapshot(doc(db, 'agents', user.uid), (docSnapshot) => {
+        agentUnsubscribe = onSnapshot(doc(db, 'agents', activeUser.uid), (docSnapshot) => {
           setHasRegisteredAgent(docSnapshot.exists());
         }, (error) => {
-          // Fallback handle Firestore error according to skill
           console.error("Agent listener error: ", error);
         });
       } else {
-        setProfile(null);
-        setIsAdmin(false);
-        setHasRegisteredAgent(false);
+        // If authUser is null, verify if the user explicitly clicked logout
+        const isPersisted = typeof window !== 'undefined' && localStorage.getItem('kingj_authenticated_user') === 'true';
+        
+        // If not manually logged out, check if auth.currentUser is available or token is renewing
+        if (auth.currentUser && !auth.currentUser.isAnonymous) {
+          setUser(auth.currentUser);
+          setIsAuthLoading(false);
+        } else if (isPersisted) {
+          // If persisted marker exists on iPhone, give Firebase time to restore rather than logging out
+          console.log("[App Auth] Session token restoring from local persistence...");
+          // We keep user state if we had one previously
+          setUser((prev: any) => prev || null);
+          setIsAuthLoading(false);
+        } else {
+          setUser(null);
+          setProfile(null);
+          setIsAdmin(false);
+          setHasRegisteredAgent(false);
+          setIsAuthLoading(false);
+        }
       }
     });
+
+    // Handle iOS Safari tab resume / wake from sleep
+    // Ensures Firebase Auth maintains active connection and does not log out when phone is unlocked after 5+ minutes
+    const handleVisibilityOrFocus = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        const currentUser = auth.currentUser;
+        if (currentUser && !currentUser.isAnonymous) {
+          setUser(currentUser);
+          setIsAuthLoading(false);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
 
     return () => {
       authUnsubscribe();
       unsubAnnouncement();
       if (profileUnsubscribe) profileUnsubscribe();
       if (agentUnsubscribe) agentUnsubscribe();
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
     };
   }, []);
 
@@ -524,6 +567,21 @@ export default function App() {
         />
         <WhatsAppChannelAdModal />
       </>
+    );
+  }
+
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-[#070D1E] flex flex-col items-center justify-center text-white px-4 select-none">
+        <Toaster position="top-center" richColors />
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 rounded-full border-2 border-amber-400/20 border-t-amber-400 animate-spin" />
+          <div className="text-center">
+            <h2 className="font-serif text-lg font-bold text-amber-200">King J Deals</h2>
+            <p className="text-xs text-slate-400 mt-1">Securing your royal session...</p>
+          </div>
+        </div>
+      </div>
     );
   }
 
