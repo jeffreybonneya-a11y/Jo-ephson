@@ -5,6 +5,7 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   signInWithCredential,
+  signInWithRedirect,
   browserPopupRedirectResolver
 } from 'firebase/auth';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
@@ -171,15 +172,25 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       }
     } catch (error: any) {
       if (
-        error.code === 'auth/popup-closed-by-user' || 
-        error.message?.includes('popup-closed-by-user') ||
-        error.code === 'auth/cancelled-popup-request'
+        error?.code === 'auth/popup-closed-by-user' || 
+        error?.message?.includes('popup-closed-by-user') ||
+        error?.code === 'auth/cancelled-popup-request' ||
+        error?.message?.includes('cancelled-popup-request')
       ) {
         toast.info("Google sign-in was closed.");
         return;
       }
 
-      if (error.code === 'auth/popup-blocked' || error.message?.includes('popup-blocked')) {
+      if (error?.code === 'auth/popup-blocked' || error?.message?.includes('popup-blocked')) {
+        console.warn("[AuthModal] Pop-up blocked by browser policy. Attempting redirect fallback...");
+        if (!isIframe) {
+          try {
+            await signInWithRedirect(auth, provider);
+            return;
+          } catch (redirectErr) {
+            console.warn("[AuthModal] Redirect fallback notice:", redirectErr);
+          }
+        }
         toast.warning(
           isIframe 
             ? "Google Sign-In pop-up was blocked inside the preview frame. Click 'Open App in New Tab 🔗' below to log in!"

@@ -253,19 +253,28 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
         }
       }
     } catch (error: any) {
-      console.error(`[Firebase Auth Error] Code: ${error?.code || 'unknown'} | Message: ${error?.message || error}`);
-
-      // User closed popup intentionally or opened another request - gently notify without a red error banner
+      // User closed popup intentionally or opened another request - gently notify without logging a console error
       if (
-        error.code === 'auth/popup-closed-by-user' || 
-        error.message?.includes('popup-closed-by-user') ||
-        error.code === 'auth/cancelled-popup-request'
+        error?.code === 'auth/popup-closed-by-user' || 
+        error?.message?.includes('popup-closed-by-user') ||
+        error?.code === 'auth/cancelled-popup-request' ||
+        error?.message?.includes('cancelled-popup-request')
       ) {
         toast.info("Google sign-in was closed. Click Continue with Google whenever you're ready!");
         return;
       }
 
-      if (error.code === 'auth/popup-blocked' || error.message?.includes('popup-blocked')) {
+      // Browser popup blocked - handle cleanly and seamlessly fallback to redirect if not in an iframe
+      if (error?.code === 'auth/popup-blocked' || error?.message?.includes('popup-blocked')) {
+        console.warn("[Firebase Auth] Pop-up blocked by browser policy. Attempting redirect fallback...");
+        if (!isIframe) {
+          try {
+            await signInWithRedirect(auth, provider);
+            return;
+          } catch (redirectErr) {
+            console.warn("[Firebase Auth] Redirect fallback notice:", redirectErr);
+          }
+        }
         const msg = isIframe
           ? "Google Sign-In popup was blocked inside the preview iframe. Click 'Open App in New Tab 🔗' below to log in seamlessly!"
           : "The Google Sign-In pop-up was blocked by your browser. Please allow popups for this site or tap Continue with Google again.";
@@ -273,6 +282,8 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
         toast.warning(msg, { duration: 6000 });
         return;
       }
+
+      console.error(`[Firebase Auth Error] Code: ${error?.code || 'unknown'} | Message: ${error?.message || error}`);
 
       let userFriendlyMsg = "Google sign-in could not be completed. Please try again.";
 
