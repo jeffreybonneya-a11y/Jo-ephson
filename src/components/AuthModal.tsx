@@ -4,7 +4,8 @@ import { syncUserCustomerRecord } from '@/src/lib/userSync';
 import { 
   GoogleAuthProvider,
   signInWithPopup,
-  signInWithCredential
+  signInWithCredential,
+  browserPopupRedirectResolver
 } from 'firebase/auth';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { isNativeApp, isAndroidNative } from '@/src/lib/platform';
@@ -149,25 +150,32 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
     provider.setCustomParameters({ prompt: 'select_account' });
 
     try {
-      const result = await signInWithPopup(auth, provider);
+      console.log("[AuthModal] Initiating Google Sign-In with popup...");
+      const result = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
       const user = result.user;
 
       if (user) {
-        // Safely synchronize user customer record with Firebase Auth
-        await syncUserCustomerRecord(user);
         try {
           localStorage.setItem('kingj_authenticated_user', 'true');
           localStorage.setItem('kingj_auth_uid', user.uid);
           if (user.email) localStorage.setItem('kingj_auth_email', user.email);
         } catch {}
+
+        // Non-blocking sync to avoid masking a successful login
+        syncUserCustomerRecord(user).catch((syncErr) => {
+          console.warn("[AuthModal] Background customer sync notice:", syncErr);
+        });
+
+        toast.success("Logged in with Google!");
+        onClose();
       }
-      
-      toast.success("Logged in with Google!");
-      onClose();
     } catch (error: any) {
-      if (error.code === 'auth/popup-closed-by-user' || error.message?.includes('popup-closed-by-user')) {
-        // User closed the popup intentionally - notify gently without triggering error logs
-        toast.info("Google sign-in cancelled.");
+      if (
+        error.code === 'auth/popup-closed-by-user' || 
+        error.message?.includes('popup-closed-by-user') ||
+        error.code === 'auth/cancelled-popup-request'
+      ) {
+        toast.info("Google sign-in was closed.");
         return;
       }
 
@@ -175,23 +183,30 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         toast.warning(
           isIframe 
             ? "Google Sign-In pop-up was blocked inside the preview frame. Click 'Open App in New Tab 🔗' below to log in!"
-            : "Login pop-up was blocked by your browser. Please allow popups or click 'Open App in New Tab 🔗' below!",
+            : "Login pop-up was blocked by your browser. Please allow popups or tap Continue with Google again!",
           { duration: 7000 }
         );
         return;
       }
 
-      console.error("Login Error:", error);
-      let errorMessage = error.message || "Google login failed";
+      console.error(`[AuthModal Error] Code: ${error?.code || 'unknown'} | Message: ${error?.message || error}`);
+      let errorMessage = "Google sign-in could not be completed. Please try again.";
       
-      if (error.code === 'auth/internal-error' || error.message?.includes('internal-error')) {
-        errorMessage = "Google login encountered an iframe restriction. Please click 'Open App in New Tab 🔗' below to sign in!";
-      } else if (error.code === 'auth/unauthorized-domain') {
-        errorMessage = "This domain is not authorized in Firebase. Please add it to Authorized Domains in Firebase Console.";
+      if (error.code === 'auth/unauthorized-domain' || error.message?.includes('unauthorized-domain')) {
+        const currentDomain = typeof window !== 'undefined' ? window.location.hostname : 'kingjdeals.site';
+        errorMessage = `Domain (${currentDomain}) is not authorized in Firebase Console. Add "${currentDomain}" to Authentication → Settings → Authorized domains.`;
+      } else if (error.code === 'auth/operation-not-supported-in-this-environment') {
+        errorMessage = "Pop-up login is not supported in this browser. Please open in Chrome or Safari directly.";
+      } else if (error.code === 'auth/internal-error' || error.message?.includes('internal-error')) {
+        errorMessage = isIframe 
+          ? "Google login encountered an iframe restriction. Please click 'Open App in New Tab 🔗' below to sign in!"
+          : "Google login encountered an internal error. Please try again!";
       } else if (error.code === 'auth/network-request-failed' || error.message?.includes('network-request-failed')) {
-        errorMessage = "Google login was blocked inside the iframe by your browser. Please open the app in a new tab!";
+        errorMessage = "Network connection error. Please check your internet connection.";
       } else if (error.code === 'auth/invalid-credential' || error.message?.includes('invalid-credential')) {
         errorMessage = "Invalid or expired Google credential. Please try again!";
+      } else if (error.code) {
+        errorMessage = `Google login failed (${error.code}). Please try again!`;
       }
       
       toast.error(errorMessage, { duration: 6000 });

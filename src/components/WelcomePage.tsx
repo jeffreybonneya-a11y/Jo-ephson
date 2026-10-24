@@ -2,7 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { auth } from '@/src/lib/firebase';
 import { syncUserCustomerRecord } from '@/src/lib/userSync';
 import { initMonetagInPagePush, cleanupMonetagInPagePush } from '@/src/lib/monetag';
-import { GoogleAuthProvider, signInWithPopup, signInWithCredential } from 'firebase/auth';
+import { 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signInWithCredential, 
+  signInWithRedirect, 
+  getRedirectResult, 
+  browserPopupRedirectResolver 
+} from 'firebase/auth';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { isNativeApp, isAndroidNative } from '@/src/lib/platform';
 import { Crown, Sparkles, ShieldCheck, ExternalLink, Smartphone } from 'lucide-react';
@@ -29,6 +36,43 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
       setIsIframe(true);
     }
   }, []);
+
+  // Handle returning redirect results if redirect auth flow was used
+  useEffect(() => {
+    let isMounted = true;
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (!isMounted || !result || !result.user) return;
+        const user = result.user;
+        console.log("[WelcomePage] Google Redirect Sign-In resolved successfully:", user.email);
+
+        try {
+          localStorage.setItem('kingj_authenticated_user', 'true');
+          localStorage.setItem('kingj_auth_uid', user.uid);
+          if (user.email) localStorage.setItem('kingj_auth_email', user.email);
+        } catch {}
+
+        syncUserCustomerRecord(user).catch((err) => {
+          console.warn("[WelcomePage] Background customer record sync notice:", err);
+        });
+
+        const userFullName = user.displayName || (user.email ? user.email.split('@')[0] : 'Customer');
+        toast.success(`Welcome to King J Deals, ${userFullName}!`);
+        if (onLoginSuccess) {
+          onLoginSuccess();
+        }
+      })
+      .catch((redirectErr: any) => {
+        if (!isMounted) return;
+        if (redirectErr?.code && redirectErr.code !== 'auth/popup-closed-by-user') {
+          console.error("[WelcomePage] Redirect sign-in error:", redirectErr);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [onLoginSuccess]);
 
   // Initialize Monetag In-Page Push zone 11767716 ONLY when WelcomePage is active and user is unauthenticated
   useEffect(() => {
@@ -180,51 +224,76 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
       return; // CRITICAL: Stop here, never fall through to web signInWithPopup
     }
 
-    // 2. WEB BROWSER FLOW (signInWithPopup)
+    // 2. WEB BROWSER FLOW (signInWithPopup with browserPopupRedirectResolver)
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
 
     try {
-      const result = await signInWithPopup(auth, provider);
+      console.log("[WelcomePage] Initiating Google Sign-In via popup...");
+      const result = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
       const user = result.user;
 
       if (user) {
-        // Safely synchronize user customer record with Firebase Auth
-        await syncUserCustomerRecord(user);
-
-        const userFullName = user.displayName || (user.email ? user.email.split('@')[0] : 'Customer');
+        // Authentication has succeeded!
         try {
           localStorage.setItem('kingj_authenticated_user', 'true');
           localStorage.setItem('kingj_auth_uid', user.uid);
           if (user.email) localStorage.setItem('kingj_auth_email', user.email);
         } catch {}
+
+        // Non-blocking sync to avoid masking a successful login
+        syncUserCustomerRecord(user).catch((syncErr) => {
+          console.warn("[WelcomePage] Background customer record sync notice:", syncErr);
+        });
+
+        const userFullName = user.displayName || (user.email ? user.email.split('@')[0] : 'Customer');
         toast.success(`Welcome to King J Deals, ${userFullName}!`);
         if (onLoginSuccess) {
           onLoginSuccess();
         }
       }
     } catch (error: any) {
-      if (error.code === 'auth/popup-closed-by-user' || error.message?.includes('popup-closed-by-user')) {
-        toast.info("Google sign-in was cancelled. Click below when you're ready!");
+      console.error(`[Firebase Auth Error] Code: ${error?.code || 'unknown'} | Message: ${error?.message || error}`);
+
+      // User closed popup intentionally or opened another request - gently notify without a red error banner
+      if (
+        error.code === 'auth/popup-closed-by-user' || 
+        error.message?.includes('popup-closed-by-user') ||
+        error.code === 'auth/cancelled-popup-request'
+      ) {
+        toast.info("Google sign-in was closed. Click Continue with Google whenever you're ready!");
         return;
       }
 
       if (error.code === 'auth/popup-blocked' || error.message?.includes('popup-blocked')) {
         const msg = isIframe
-          ? "Google Sign-In popup was blocked inside the preview iframe. Click 'Open App in New Tab' to log in seamlessly!"
-          : "Login pop-up was blocked by your browser. Please allow popups or open in a new tab.";
+          ? "Google Sign-In popup was blocked inside the preview iframe. Click 'Open App in New Tab 🔗' below to log in seamlessly!"
+          : "The Google Sign-In pop-up was blocked by your browser. Please allow popups for this site or tap Continue with Google again.";
         setErrorMessage(msg);
         toast.warning(msg, { duration: 6000 });
         return;
       }
 
       let userFriendlyMsg = "Google sign-in could not be completed. Please try again.";
-      if (error.code === 'auth/internal-error' || error.message?.includes('internal-error')) {
-        userFriendlyMsg = "Sign-in encountered an environment restriction. Open in a new tab to complete login!";
+
+      if (error.code === 'auth/unauthorized-domain' || error.message?.includes('unauthorized-domain')) {
+        const currentDomain = typeof window !== 'undefined' ? window.location.hostname : 'kingjdeals.site';
+        userFriendlyMsg = `Domain (${currentDomain}) is not authorized in Firebase Console.\nAction required: Add "${currentDomain}" to Authentication → Settings → Authorized domains in Firebase Console.`;
+        console.error(`[Firebase Auth] Critical: Add "${currentDomain}" to Authorized domains in Firebase Console (Authentication > Settings > Authorized domains).`);
+      } else if (error.code === 'auth/operation-not-supported-in-this-environment') {
+        userFriendlyMsg = "Pop-up authentication is not supported in this browser environment. Please open in Chrome or Safari directly.";
       } else if (error.code === 'auth/network-request-failed' || error.message?.includes('network-request-failed')) {
-        userFriendlyMsg = "Network connection interrupted. Please check your connection and try again.";
-      } else if (error.code === 'auth/unauthorized-domain') {
-        userFriendlyMsg = "This domain is awaiting Firebase domain verification.";
+        userFriendlyMsg = "Network connection interrupted. Please check your internet connection and try again.";
+      } else if (error.code === 'auth/internal-error' || error.message?.includes('internal-error')) {
+        userFriendlyMsg = isIframe 
+          ? "Google Sign-In encountered an iframe restriction. Open in a new tab to complete login!"
+          : "Authentication encountered an unexpected internal error. Please try again.";
+      } else if (error.code === 'auth/configuration-not-found' || error.code === 'auth/app-not-authorized') {
+        userFriendlyMsg = "Google Sign-In is not enabled for this project in Firebase Console. Please verify Google provider is active.";
+      } else if (error.code === 'auth/account-exists-with-different-credential') {
+        userFriendlyMsg = "An account already exists with this email using a different sign-in method.";
+      } else if (error.code) {
+        userFriendlyMsg = `Google sign-in failed (${error.code}). Please try again.`;
       }
 
       setErrorMessage(userFriendlyMsg);

@@ -10,7 +10,7 @@ import Footer from './components/Footer';
 import { Bundle } from './types';
 import { Toaster, toast } from 'sonner';
 import { auth, db } from './lib/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, getRedirectResult } from 'firebase/auth';
 import { syncUserCustomerRecord, ADMIN_EMAILS } from '@/src/lib/userSync';
 import { doc, onSnapshot, query, collection, where, updateDoc, setDoc, getDoc, getDocs, increment, serverTimestamp } from 'firebase/firestore';
 import { MessageSquare, Zap, Loader2, Crown } from 'lucide-react';
@@ -347,6 +347,27 @@ export default function App() {
         setAnnouncement(snapshot.data() as any);
       }
     });
+
+    // Check for returning redirect auth credential
+    getRedirectResult(auth)
+      .then((res) => {
+        if (res?.user && !res.user.isAnonymous) {
+          console.log("[App Auth] Redirect result resolved:", res.user.email);
+          setUser(res.user);
+          setIsAuthLoading(false);
+          try {
+            localStorage.setItem('kingj_authenticated_user', 'true');
+            localStorage.setItem('kingj_auth_uid', res.user.uid);
+            if (res.user.email) localStorage.setItem('kingj_auth_email', res.user.email);
+          } catch {}
+          syncUserCustomerRecord(res.user).catch(console.warn);
+        }
+      })
+      .catch((err) => {
+        if (err?.code && err.code !== 'auth/popup-closed-by-user') {
+          console.warn("[App Auth] getRedirectResult notice:", err);
+        }
+      });
 
     const authUnsubscribe = onAuthStateChanged(auth, async (authUser) => {
       // Prioritize active auth instance or restore from currentUser
