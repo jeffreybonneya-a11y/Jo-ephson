@@ -1745,8 +1745,15 @@ app.get('/ads.txt', (req, res) => {
 });
 
 app.get('/robots.txt', (req, res) => {
-  res.type('text/plain');
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+
+  const robotsPath = path.join(process.cwd(), 'public', 'robots.txt');
+  if (fs.existsSync(robotsPath)) {
+    return res.sendFile(robotsPath);
+  }
+
   res.send(`User-agent: *
 Allow: /
 
@@ -1758,9 +1765,21 @@ Disallow: /api/
 Sitemap: https://kingjdeals.site/sitemap.xml`);
 });
 
-app.get('/sitemap.xml', (req, res) => {
-  res.type('application/xml');
+// Explicit sitemap routes and trailing slash / extensionless redirects
+app.get(['/sitemap', '/sitemap/'], (req, res) => {
+  res.redirect(301, 'https://kingjdeals.site/sitemap.xml');
+});
+
+app.get(['/sitemap.xml', '/sitemap.xml/'], (req, res) => {
+  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
   res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+
+  const sitemapPath = path.join(process.cwd(), 'public', 'sitemap.xml');
+  if (fs.existsSync(sitemapPath)) {
+    return res.sendFile(sitemapPath);
+  }
+
   const today = new Date().toISOString().split('T')[0];
   res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
