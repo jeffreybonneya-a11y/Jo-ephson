@@ -200,6 +200,25 @@ const ALLOWED_ORIGINS = [
 
 const app = express();
 
+// Early Express middleware: Permanent 301 WWW to Non-WWW redirect for kingjdeals.site
+app.use((req, res, next) => {
+    // Only redirect safe idempotent read requests (GET/HEAD) to protect POST/PUT/DELETE webhooks and APIs
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+        return next();
+    }
+
+    const hostHeader = (req.headers.host || '').trim();
+    const forwardedHost = (req.headers['x-forwarded-host'] as string || '').split(',')[0].trim();
+    const rawHost = (hostHeader || forwardedHost).split(':')[0].toLowerCase();
+
+    if (rawHost === 'www.kingjdeals.site') {
+        const redirectUrl = `https://kingjdeals.site${req.originalUrl || req.url}`;
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        return res.redirect(301, redirectUrl);
+    }
+    next();
+});
+
 app.use(cors({
     origin: (origin, callback) => {
         // Allow requests with no origin (like mobile app background requests, curl, server-to-server webhooks)
@@ -2659,7 +2678,9 @@ async function startServer() {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       const seo = getSeoPageData(req.path);
       const indexPath = path.join(distPath, 'index.html');
-      if (seo && fs.existsSync(indexPath)) {
+      const fileExists = fs.existsSync(indexPath);
+
+      if (seo && fileExists) {
         try {
           const template = fs.readFileSync(indexPath, 'utf8');
           const liveBundles = await getLiveBundlesForSeo();
@@ -2670,7 +2691,26 @@ async function startServer() {
           console.error("[Prod SEO Serve Error]", err);
         }
       }
-      res.sendFile(indexPath);
+
+      if (!fileExists) {
+        console.error("[Production HTML Fallback Error] dist/index.html missing at path:", indexPath);
+        return res.status(503).json({
+          success: false,
+          error: "Service Unavailable: Application build output missing (dist/index.html). Please run 'npm run build'.",
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      res.sendFile(indexPath, (err) => {
+        if (err && !res.headersSent) {
+          console.error("[Production HTML sendFile Error]", err);
+          res.status(500).json({
+            success: false,
+            error: "Failed to serve application HTML",
+            timestamp: new Date().toISOString()
+          });
+        }
+      });
     });
   }
   app.listen(3000, "0.0.0.0", () => console.log('Server running on 3000'));
