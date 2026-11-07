@@ -22,6 +22,7 @@ export interface Bundle {
   offerSlug?: string;
   volume?: string;
   category?: string;
+  packageType?: string;
   description?: string;
   imageUrl?: string;
   fastDelivery?: boolean;

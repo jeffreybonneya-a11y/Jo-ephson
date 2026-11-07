@@ -120,6 +120,7 @@ export default function CheckoutForm({
     "idle" | "processing" | "success"
   >("idle");
   const [orderId, setOrderId] = useState("");
+  const [orderAccessToken, setOrderAccessToken] = useState<string>("");
 
   // MoMo & Payment Method Selection Step States
   const [checkoutStep, setCheckoutStep] = useState<
@@ -380,27 +381,61 @@ export default function CheckoutForm({
   }, [bundle, auth.currentUser]);
 
   useEffect(() => {
+    let interval: any;
     let unsubscribe: (() => void) | undefined;
+
     if (orderStatus === "processing" && orderId) {
-      unsubscribe = onSnapshot(doc(db, "orders", orderId), (docSnap) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          if (data.status === "delivered" || data.status === "success") {
-            setOrderStatus("success");
-            if (data.network === "PC Games") {
-              setTimeout(() => onClose(), 1500);
+      // 1. Primary: Secure token-based HTTP status polling
+      const pollStatus = async () => {
+        try {
+          const tokenParam = orderAccessToken ? `?token=${encodeURIComponent(orderAccessToken)}` : '';
+          const res = await fetch(getApiUrl(`/api/orders/status/${encodeURIComponent(orderId)}${tokenParam}`));
+          if (res.ok) {
+            const data = await res.json();
+            if (data.status === "delivered" || data.status === "success" || data.status === "paid") {
+              setOrderStatus("success");
+              if (bundle?.network === "PC Games") {
+                setTimeout(() => onClose(), 1500);
+              }
+            } else if (data.status === "declined" || data.status === "failed") {
+              toast.error("Order was declined or failed.");
+              onClose();
             }
-          } else if (data.status === "declined" || data.status === "failed") {
-            toast.error("Order was declined or failed.");
-            onClose();
           }
+        } catch (e) {
+          // Polling retry
         }
-      });
+      };
+
+      pollStatus();
+      interval = setInterval(pollStatus, 3000);
+
+      // 2. Secondary: Firestore listener if permitted
+      try {
+        unsubscribe = onSnapshot(doc(db, "orders", orderId), (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data.status === "delivered" || data.status === "success" || data.status === "paid") {
+              setOrderStatus("success");
+              if (bundle?.network === "PC Games") {
+                setTimeout(() => onClose(), 1500);
+              }
+            } else if (data.status === "declined" || data.status === "failed") {
+              toast.error("Order was declined or failed.");
+              onClose();
+            }
+          }
+        }, () => {
+          // Graceful fallback to HTTP polling
+        });
+      } catch (e) {}
     }
+
     return () => {
+      if (interval) clearInterval(interval);
       if (unsubscribe) unsubscribe();
     };
-  }, [orderStatus, orderId, onClose]);
+  }, [orderStatus, orderId, orderAccessToken, onClose, bundle]);
 
   const ensureUser = async () => {
     if (auth.currentUser && !auth.currentUser.isAnonymous) {
@@ -411,14 +446,6 @@ export default function CheckoutForm({
 
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
     if (!bundle) return;
-    const activeUser = await ensureUser();
-    if (!activeUser) {
-      toast.error("Please log in before you can purchase any service!", {
-        description: "You must be signed in with your Google account to order.",
-      });
-      window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
-      return;
-    }
     setSavedFormData(data);
     if (selectedPaymentMethod === "paystack") {
       processPaystackPayment(data);
@@ -442,152 +469,102 @@ export default function CheckoutForm({
 
     try {
       const activeUser = await ensureUser();
-      if (!activeUser) {
-        toast.error("Please log in before you can purchase any service!", {
-          description: "You must be signed in with your Google account to order.",
-        });
-        window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
-        setIsSubmitting(false);
-        return;
-      }
-      const currentUid = activeUser.uid;
+      const cleanPhone = (data.recipientPhone || "").replace(/[^0-9]/g, '').trim();
+      const guestEmail = cleanPhone ? `${cleanPhone}@gmail.com` : "customer@gmail.com";
       const currentEmail = (profile?.email && profile.email.includes("@"))
         ? profile.email
-        : (activeUser.email || (data.recipientPhone ? `${data.recipientPhone.replace(/\s+/g, '')}@customer.kingjdeals.com` : "customer@kingjdeals.com"));
-      const currentName = profile?.fullName || activeUser.displayName || (data.recipientPhone ? `Customer (${data.recipientPhone})` : "Royal Customer");
-
-      const finalOrderId = doc(collection(db, "orders")).id;
-      setOrderId(finalOrderId);
+        : (activeUser?.email || guestEmail);
+      const currentName = profile?.fullName || activeUser?.displayName || (cleanPhone ? `Customer (${cleanPhone})` : "Customer");
 
       // Referral attribution tracking
       const capturedRefCode = typeof window !== 'undefined'
-        ? (localStorage.getItem('kingj_referred_by') || sessionStorage.getItem('kingj_referred_by') || profile?.referredBy || '')
+        ? (localStorage.getItem('dgn_referred_by') || sessionStorage.getItem('dgn_referred_by') || profile?.referredBy || '')
         : (profile?.referredBy || '');
       const validRefCode = capturedRefCode ? capturedRefCode.trim().toUpperCase() : '';
+
+      const isFastDeliveryActive = Boolean(isFastDeliveryPermitted && isFastDelivery);
+
+      // Create authoritative order on backend with resilient fallback
+      let finalOrderId = "";
+      let token = "";
+
+      try {
+        const createRes = await fetch(getApiUrl('/api/orders/create'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bundleId: bundle.id,
+            recipientPhone: cleanPhone,
+            recipientNetwork: data.recipientNetwork,
+            paymentMethod: 'momo_direct',
+            fastDelivery: isFastDeliveryActive,
+            fcUserId: data.fcUserId,
+            fcUsername: data.fcUsername,
+            referredBy: validRefCode,
+            agentId: agentContext?.id || (isAgentUser ? profile?.uid : undefined),
+            customerEmail: currentEmail,
+            customerName: currentName
+          })
+        });
+
+        if (createRes.ok) {
+          const orderResult = await createRes.json();
+          if (orderResult.success) {
+            finalOrderId = orderResult.orderId;
+            token = orderResult.orderAccessToken || "";
+          }
+        }
+      } catch (netErr) {
+        console.warn("[Checkout] Backend create notice, using direct fallback:", netErr);
+      }
+
+      if (!finalOrderId) {
+        finalOrderId = doc(collection(db, "orders")).id;
+        token = 'fallback_' + Math.random().toString(36).substring(2);
+        const currentUid = activeUser ? activeUser.uid : (cleanPhone ? `guest_${cleanPhone}` : `guest_${Date.now()}`);
+        await setDoc(doc(db, "orders", finalOrderId), {
+          id: finalOrderId,
+          reference: finalOrderId,
+          orderAccessToken: token,
+          email: currentEmail,
+          phone: cleanPhone,
+          network: data.recipientNetwork,
+          bundle: bundle.network === "PC Games" ? bundle.name : `${data.recipientNetwork} ${bundle.dataAmount}`,
+          amount: finalAmountToCharge,
+          status: "pending_verification",
+          paymentStatus: "pending_verification",
+          paymentMethod: "momo_direct",
+          userId: currentUid,
+          customerName: currentName,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      }
+
+      setOrderId(finalOrderId);
+      setOrderAccessToken(token);
 
       // Determine reference code based on service category / network
       const cat = (bundle.category || bundle.network || "").trim().toLowerCase();
       const net = (bundle.network || "").trim().toLowerCase();
-      const name = (bundle.name || "").trim().toLowerCase();
 
       let generatedRef = "";
-
-      if (
-        net === "pc games" || cat === "pc games" || cat === "fc 26" ||
-        net.includes("pc game") || cat.includes("pc game") || name.includes("pc game")
-      ) {
+      if (net === "pc games" || cat === "pc games" || cat === "fc 26") {
         generatedRef = "PC GAMES";
-      } else if (
-        net === "premium apps" || cat === "premium apps" ||
-        net.includes("premium app") || cat.includes("premium app") || name.includes("premium app")
-      ) {
+      } else if (net === "premium apps" || cat === "premium apps") {
         generatedRef = "PREMIUM APPS";
-      } else if (
-        net === "game coins" || cat === "game coins" ||
-        net.includes("game coin") || cat.includes("game coin") || name.includes("game coin") ||
-        net.includes("fc mobile") || cat.includes("fc mobile") ||
-        net.includes("pubg") || cat.includes("pubg")
-      ) {
+      } else if (net === "game coins" || cat === "game coins" || net.includes("fc mobile") || net.includes("pubg")) {
         generatedRef = "GAME COINS";
       } else {
-        // Use recipient phone number as the payment transfer reference code for data bundles, result checkers, etc.
         generatedRef = data.recipientPhone ? data.recipientPhone.trim() : (profile?.phoneNumber || "0535884851");
       }
 
       setMomoRefCode(generatedRef);
-
-      const wsPrice = Number(bundle.wholesalePrice || bundle.price);
-      const agPrice = applicableBasePrice;
-      const calculatedProfit = agPrice - wsPrice;
-
-      const isFastDeliveryActive = Boolean(isFastDeliveryPermitted && isFastDelivery);
-      const momoOrderData = {
-        email: currentEmail,
-        phone: data.recipientPhone || "",
-        network: data.recipientNetwork,
-        bundle: bundle.network === "PC Games" ? bundle.name : `${data.recipientNetwork} ${bundle.dataAmount}`,
-        amount: finalAmountToCharge,
-        fastDelivery: isFastDeliveryActive,
-        fastDeliveryFee: isFastDeliveryActive ? applicableFastDeliveryFee : 0,
-        ...(isFastDeliveryActive ? { fastDeliveryType: fastDeliveryScopeType } : {}),
-        basePrice: applicableBasePrice,
-        finalPrice: finalAmountToCharge,
-        status: "pending_verification",
-        paymentStatus: "pending_verification",
-        paymentMethod: "momo_direct",
-        createdAt: serverTimestamp(),
-        userId: currentUid,
-        customerName: currentName,
-        reference: generatedRef,
-        momoRefCode: generatedRef,
-        momoNumber: MOMO_NUMBER,
-        ...(validRefCode ? { referredBy: validRefCode } : {}),
-        ...(data.fcUserId ? { fcUserId: data.fcUserId } : {}),
-        ...(data.fcUsername ? { fcUsername: data.fcUsername } : {}),
-        ...(isAgentUser || profile?.isAgent ? { isAgentOrder: true } : {}),
-        ...(agentContext
-          ? {
-              agentId: agentContext.id,
-              agent_id: agentContext.id,
-              agentName: agentContext.agent_name,
-              agent_name: agentContext.agent_name,
-              wholesalePrice: wsPrice,
-              wholesale_price: wsPrice,
-              agentPrice: agPrice,
-              agent_price: agPrice,
-              profit: calculatedProfit,
-              agent_profit: calculatedProfit,
-              profitAwarded: false,
-              profit_credited: false,
-            }
-          : (profile?.isAgent && (profile.uid || activeUser?.uid) ? {
-              agentId: profile.uid || activeUser?.uid,
-              agent_id: profile.uid || activeUser?.uid,
-              agentName: profile.fullName || profile.username || "Agent",
-              agent_name: profile.fullName || profile.username || "Agent",
-              wholesalePrice: wsPrice,
-              wholesale_price: wsPrice,
-              agentPrice: agPrice,
-              agent_price: agPrice,
-              profit: calculatedProfit,
-              agent_profit: calculatedProfit,
-              profitAwarded: false,
-              profit_credited: false,
-            } : {})),
-      };
-
-      await setDoc(doc(db, "orders", finalOrderId), momoOrderData);
-
-      if (agentContext) {
-        const agentOrderData = {
-          id: finalOrderId,
-          agent_id: agentContext.id,
-          customer_details: {
-            name: currentName,
-            email: currentEmail,
-            phone: data.recipientPhone || "",
-            network: data.recipientNetwork,
-          },
-          wholesale_price: wsPrice,
-          agent_price: agPrice,
-          profit: calculatedProfit,
-          fastDelivery: isFastDeliveryActive,
-          fastDeliveryFee: isFastDeliveryActive ? applicableFastDeliveryFee : 0,
-          ...(isFastDeliveryActive ? { fastDeliveryType: "agent" } : {}),
-          basePrice: agPrice,
-          finalPrice: finalAmountToCharge,
-          status: "pending_verification",
-          created_at: serverTimestamp(),
-          paymentReference: generatedRef,
-        };
-        await setDoc(doc(db, "agent_orders", finalOrderId), agentOrderData);
-      }
-
       setIsSubmitting(false);
       setCheckoutStep("momo_pay");
     } catch (err: any) {
       console.error("MoMo Payment Error:", err);
-      toast.error("Could not generate MoMo transfer details. Please try again.");
+      toast.error(err.message || "Could not generate MoMo transfer details. Please try again.");
       setIsSubmitting(false);
     }
   };
@@ -598,113 +575,82 @@ export default function CheckoutForm({
 
     try {
       const activeUser = await ensureUser();
-      if (!activeUser) {
-        toast.error("Please log in before you can purchase any service!", {
-          description: "You must be signed in with your Google account to order.",
-        });
-        window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
-        setIsSubmitting(false);
-        return;
-      }
-      const currentUid = activeUser.uid;
+      const cleanPhone = (data.recipientPhone || "").replace(/[^0-9]/g, '').trim();
+      const guestEmail = cleanPhone ? `${cleanPhone}@gmail.com` : "customer@gmail.com";
       const currentEmail = (profile?.email && profile.email.includes("@"))
         ? profile.email
-        : (activeUser.email || (data.recipientPhone ? `${data.recipientPhone.replace(/\s+/g, '')}@customer.kingjdeals.com` : "customer@kingjdeals.com"));
-      const currentName = profile?.fullName || activeUser.displayName || (data.recipientPhone ? `Customer (${data.recipientPhone})` : "Royal Customer");
-
-      const finalOrderId = doc(collection(db, "orders")).id;
-      setOrderId(finalOrderId);
+        : (activeUser?.email || guestEmail);
+      const currentName = profile?.fullName || activeUser?.displayName || (cleanPhone ? `Customer (${cleanPhone})` : "Customer");
 
       // Referral attribution tracking
       const capturedPaystackRef = typeof window !== 'undefined'
-        ? (localStorage.getItem('kingj_referred_by') || sessionStorage.getItem('kingj_referred_by') || profile?.referredBy || '')
+        ? (localStorage.getItem('dgn_referred_by') || sessionStorage.getItem('dgn_referred_by') || profile?.referredBy || '')
         : (profile?.referredBy || '');
       const validPaystackRef = capturedPaystackRef ? capturedPaystackRef.trim().toUpperCase() : '';
 
-      const wsPrice = Number(bundle.wholesalePrice || bundle.price);
-      const agPrice = applicableBasePrice;
-      const calculatedProfit = agPrice - wsPrice;
-
       const isFastDeliveryActive = Boolean(isFastDeliveryPermitted && isFastDelivery);
-      const initialOrderData = {
-        email: currentEmail,
-        phone: data.recipientPhone || "",
-        network: data.recipientNetwork,
-        bundle: bundle.network === "PC Games" ? bundle.name : `${data.recipientNetwork} ${bundle.dataAmount}`,
-        amount: finalAmountToCharge,
-        fastDelivery: isFastDeliveryActive,
-        fastDeliveryFee: isFastDeliveryActive ? applicableFastDeliveryFee : 0,
-        ...(isFastDeliveryActive ? { fastDeliveryType: fastDeliveryScopeType } : {}),
-        basePrice: applicableBasePrice,
-        finalPrice: finalAmountToCharge,
-        status: "pending",
-        createdAt: serverTimestamp(),
-        userId: currentUid,
-        customerName: currentName,
-        reference: finalOrderId,
-        paymentStatus: "pending",
-        paymentMethod: "paystack",
-        ...(validPaystackRef ? { referredBy: validPaystackRef } : {}),
-        ...(data.fcUserId ? { fcUserId: data.fcUserId } : {}),
-        ...(data.fcUsername ? { fcUsername: data.fcUsername } : {}),
-        ...(isAgentUser || profile?.isAgent ? { isAgentOrder: true } : {}),
-        ...(agentContext
-          ? {
-              agentId: agentContext.id,
-              agent_id: agentContext.id,
-              agentName: agentContext.agent_name,
-              agent_name: agentContext.agent_name,
-              wholesalePrice: wsPrice,
-              wholesale_price: wsPrice,
-              agentPrice: agPrice,
-              agent_price: agPrice,
-              profit: calculatedProfit,
-              agent_profit: calculatedProfit,
-              profitAwarded: false,
-              profit_credited: false,
-            }
-          : (profile?.isAgent && (profile.uid || currentUid) ? {
-              agentId: profile.uid || currentUid,
-              agent_id: profile.uid || currentUid,
-              agentName: profile.fullName || profile.username || "Agent",
-              agent_name: profile.fullName || profile.username || "Agent",
-              wholesalePrice: wsPrice,
-              wholesale_price: wsPrice,
-              agentPrice: agPrice,
-              agent_price: agPrice,
-              profit: calculatedProfit,
-              agent_profit: calculatedProfit,
-              profitAwarded: false,
-              profit_credited: false,
-            } : {})),
-      };
 
-      await setDoc(doc(db, "orders", finalOrderId), initialOrderData);
+      // Create authoritative order on backend with resilient fallback
+      let finalOrderId = "";
+      let token = "";
+      let authoritativeAmount = finalAmountToCharge;
 
-      if (agentContext) {
-        const initialAgentOrderData = {
-          id: finalOrderId,
-          agent_id: agentContext.id,
-          customer_details: {
-            name: currentName,
-            email: currentEmail,
-            phone: data.recipientPhone || "",
-            network: data.recipientNetwork,
-          },
-          wholesale_price: wsPrice,
-          agent_price: agPrice,
-          profit: calculatedProfit,
-          fastDelivery: isFastDeliveryActive,
-          fastDeliveryFee: isFastDeliveryActive ? applicableFastDeliveryFee : 0,
-          ...(isFastDeliveryActive ? { fastDeliveryType: "agent" } : {}),
-          basePrice: agPrice,
-          finalPrice: finalAmountToCharge,
-          status: "pending",
-          created_at: serverTimestamp(),
-          paymentReference: finalOrderId,
-        };
-        await setDoc(doc(db, "agent_orders", finalOrderId), initialAgentOrderData);
+      try {
+        const createRes = await fetch(getApiUrl('/api/orders/create'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bundleId: bundle.id,
+            recipientPhone: cleanPhone,
+            recipientNetwork: data.recipientNetwork,
+            paymentMethod: 'paystack',
+            fastDelivery: isFastDeliveryActive,
+            fcUserId: data.fcUserId,
+            fcUsername: data.fcUsername,
+            referredBy: validPaystackRef,
+            agentId: agentContext?.id || (isAgentUser ? profile?.uid : undefined),
+            customerEmail: currentEmail,
+            customerName: currentName
+          })
+        });
+
+        if (createRes.ok) {
+          const orderResult = await createRes.json();
+          if (orderResult.success) {
+            finalOrderId = orderResult.orderId;
+            token = orderResult.orderAccessToken || "";
+            authoritativeAmount = Number(orderResult.amount) || finalAmountToCharge;
+          }
+        }
+      } catch (netErr) {
+        console.warn("[Checkout] Backend create notice, using direct fallback:", netErr);
       }
+
+      if (!finalOrderId) {
+        finalOrderId = doc(collection(db, "orders")).id;
+        token = 'fallback_' + Math.random().toString(36).substring(2);
+        const currentUid = activeUser ? activeUser.uid : (cleanPhone ? `guest_${cleanPhone}` : `guest_${Date.now()}`);
+        await setDoc(doc(db, "orders", finalOrderId), {
+          id: finalOrderId,
+          reference: finalOrderId,
+          orderAccessToken: token,
+          email: currentEmail,
+          phone: cleanPhone,
+          network: data.recipientNetwork,
+          bundle: bundle.network === "PC Games" ? bundle.name : `${data.recipientNetwork} ${bundle.dataAmount}`,
+          amount: finalAmountToCharge,
+          status: "pending",
+          paymentStatus: "pending",
+          paymentMethod: "paystack",
+          userId: currentUid,
+          customerName: currentName,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      }
+
+      setOrderId(finalOrderId);
+      setOrderAccessToken(token);
 
       const paystackEmail = currentEmail;
 
@@ -725,12 +671,12 @@ export default function CheckoutForm({
         toast.info("Launching secure checkout...");
         const redirectTarget = (typeof window !== 'undefined' && window.location.origin)
           ? window.location.origin
-          : 'https://kingjdeals.onrender.com';
+          : 'https://kingjdeals.site';
 
         await openPaystackPopup({
           key: publicKey,
           email: paystackEmail,
-          amount: Math.round(finalAmountToCharge * 100),
+          amount: Math.round(authoritativeAmount * 100),
           currency: "GHS",
           ref: finalOrderId,
           onSuccess: (ref) => {
@@ -746,14 +692,14 @@ export default function CheckoutForm({
         console.warn("Paystack Inline popup failed or blocked. Falling back to secure redirect mode:", popError);
         const redirectTarget = (typeof window !== 'undefined' && window.location.origin)
           ? window.location.origin
-          : 'https://kingjdeals.onrender.com';
+          : 'https://kingjdeals.site';
         
         const initResponse = await fetch(getApiUrl("/api/paystack-initialize"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             email: paystackEmail,
-            amount: Math.round(finalAmountToCharge * 100),
+            amount: Math.round(authoritativeAmount * 100),
             reference: finalOrderId,
             callback_url: redirectTarget + "/?reference=" + finalOrderId + "&method=paystack",
             currency: "GHS",
@@ -797,7 +743,7 @@ export default function CheckoutForm({
       }
     } catch (err: any) {
       console.error("Checkout Error:", err);
-      toast.error("Failed to start checkout. Please try again.");
+      toast.error(err.message || "Failed to start checkout. Please try again.");
       setIsSubmitting(false);
     }
   };
@@ -808,125 +754,91 @@ export default function CheckoutForm({
 
     try {
       const activeUser = await ensureUser();
-      if (!activeUser) {
-        toast.error("Please log in before you can purchase any service!", {
-          description: "You must be signed in with your Google account to order.",
-        });
-        window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
-        setIsSubmitting(false);
-        return;
-      }
-      const currentUid = activeUser.uid;
+      const cleanPhone = (data.recipientPhone || "").replace(/[^0-9]/g, '').trim();
+      const guestEmail = cleanPhone ? `${cleanPhone}@gmail.com` : "customer@gmail.com";
       const currentEmail = (profile?.email && profile.email.includes("@"))
         ? profile.email
-        : (activeUser.email || (data.recipientPhone ? `${data.recipientPhone.replace(/\s+/g, '')}@customer.kingjdeals.com` : "customer@kingjdeals.com"));
-      const currentName = profile?.fullName || activeUser.displayName || (data.recipientPhone ? `Customer (${data.recipientPhone})` : "Royal Customer");
-
-      const finalOrderId = doc(collection(db, "orders")).id;
-      setOrderId(finalOrderId);
+        : (activeUser?.email || guestEmail);
+      const currentName = profile?.fullName || activeUser?.displayName || (cleanPhone ? `Customer (${cleanPhone})` : "Customer");
 
       // Referral attribution tracking
       const capturedKoraRef = typeof window !== 'undefined'
-        ? (localStorage.getItem('kingj_referred_by') || sessionStorage.getItem('kingj_referred_by') || profile?.referredBy || '')
+        ? (localStorage.getItem('dgn_referred_by') || sessionStorage.getItem('dgn_referred_by') || profile?.referredBy || '')
         : (profile?.referredBy || '');
       const validKoraRef = capturedKoraRef ? capturedKoraRef.trim().toUpperCase() : '';
 
-      const wsPrice = Number(bundle.wholesalePrice || bundle.price);
-      const agPrice = applicableBasePrice;
-      const calculatedProfit = agPrice - wsPrice;
-
       const productDetails = bundle.network === "PC Games" ? bundle.name : `${data.recipientNetwork} ${bundle.dataAmount}`;
-
       const isFastDeliveryActive = Boolean(isFastDeliveryPermitted && isFastDelivery);
-      const initialOrderData = {
-        email: currentEmail,
-        phone: data.recipientPhone || "",
-        network: data.recipientNetwork,
-        bundle: productDetails,
-        amount: finalAmountToCharge,
-        fastDelivery: isFastDeliveryActive,
-        fastDeliveryFee: isFastDeliveryActive ? applicableFastDeliveryFee : 0,
-        ...(isFastDeliveryActive ? { fastDeliveryType: fastDeliveryScopeType } : {}),
-        basePrice: applicableBasePrice,
-        finalPrice: finalAmountToCharge,
-        status: "pending",
-        createdAt: serverTimestamp(),
-        userId: currentUid,
-        customerName: currentName,
-        reference: finalOrderId,
-        paymentStatus: "pending",
-        paymentMethod: "Korapay",
-        payment_provider: "korapay",
-        ...(validKoraRef ? { referredBy: validKoraRef } : {}),
-        ...(data.fcUserId ? { fcUserId: data.fcUserId } : {}),
-        ...(data.fcUsername ? { fcUsername: data.fcUsername } : {}),
-        ...(isAgentUser || profile?.isAgent ? { isAgentOrder: true } : {}),
-        ...(agentContext
-          ? {
-              agentId: agentContext.id,
-              agent_id: agentContext.id,
-              agentName: agentContext.agent_name,
-              agent_name: agentContext.agent_name,
-              wholesalePrice: wsPrice,
-              wholesale_price: wsPrice,
-              agentPrice: agPrice,
-              agent_price: agPrice,
-              profit: calculatedProfit,
-              agent_profit: calculatedProfit,
-              profitAwarded: false,
-              profit_credited: false,
-            }
-          : (profile?.isAgent && (profile.uid || currentUid) ? {
-              agentId: profile.uid || currentUid,
-              agent_id: profile.uid || currentUid,
-              agentName: profile.fullName || profile.username || "Agent",
-              agent_name: profile.fullName || profile.username || "Agent",
-              wholesalePrice: wsPrice,
-              wholesale_price: wsPrice,
-              agentPrice: agPrice,
-              agent_price: agPrice,
-              profit: calculatedProfit,
-              agent_profit: calculatedProfit,
-              profitAwarded: false,
-              profit_credited: false,
-            } : {})),
-      };
 
-      await setDoc(doc(db, "orders", finalOrderId), initialOrderData);
+      // Create authoritative order on backend with resilient fallback
+      let finalOrderId = "";
+      let token = "";
+      let authoritativeAmount = finalAmountToCharge;
 
-      if (agentContext) {
-        const initialAgentOrderData = {
+      try {
+        const createRes = await fetch(getApiUrl('/api/orders/create'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bundleId: bundle.id,
+            recipientPhone: cleanPhone,
+            recipientNetwork: data.recipientNetwork,
+            paymentMethod: 'korapay',
+            fastDelivery: isFastDeliveryActive,
+            fcUserId: data.fcUserId,
+            fcUsername: data.fcUsername,
+            referredBy: validKoraRef,
+            agentId: agentContext?.id || (isAgentUser ? profile?.uid : undefined),
+            customerEmail: currentEmail,
+            customerName: currentName
+          })
+        });
+
+        if (createRes.ok) {
+          const orderResult = await createRes.json();
+          if (orderResult.success) {
+            finalOrderId = orderResult.orderId;
+            token = orderResult.orderAccessToken || "";
+            authoritativeAmount = Number(orderResult.amount) || finalAmountToCharge;
+          }
+        }
+      } catch (netErr) {
+        console.warn("[Checkout] Backend create notice, using direct fallback:", netErr);
+      }
+
+      if (!finalOrderId) {
+        finalOrderId = doc(collection(db, "orders")).id;
+        token = 'fallback_' + Math.random().toString(36).substring(2);
+        const currentUid = activeUser ? activeUser.uid : (cleanPhone ? `guest_${cleanPhone}` : `guest_${Date.now()}`);
+        await setDoc(doc(db, "orders", finalOrderId), {
           id: finalOrderId,
-          agent_id: agentContext.id,
-          customer_details: {
-            name: currentName,
-            email: currentEmail,
-            phone: data.recipientPhone || "",
-            network: data.recipientNetwork,
-          },
-          wholesale_price: wsPrice,
-          agent_price: agPrice,
-          profit: calculatedProfit,
-          fastDelivery: isFastDeliveryActive,
-          fastDeliveryFee: isFastDeliveryActive ? applicableFastDeliveryFee : 0,
-          ...(isFastDeliveryActive ? { fastDeliveryType: "agent" } : {}),
-          basePrice: agPrice,
-          finalPrice: finalAmountToCharge,
+          reference: finalOrderId,
+          orderAccessToken: token,
+          email: currentEmail,
+          phone: cleanPhone,
+          network: data.recipientNetwork,
+          bundle: productDetails,
+          amount: finalAmountToCharge,
           status: "pending",
-          created_at: serverTimestamp(),
-          paymentReference: finalOrderId,
+          paymentStatus: "pending",
           paymentMethod: "Korapay",
           payment_provider: "korapay",
-        };
-        await setDoc(doc(db, "agent_orders", finalOrderId), initialAgentOrderData);
+          userId: currentUid,
+          customerName: currentName,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        }, { merge: true });
       }
+
+      setOrderId(finalOrderId);
+      setOrderAccessToken(token);
 
       const customerEmail = currentEmail;
       const customerName = currentName;
 
       const redirectTarget = (typeof window !== 'undefined' && window.location.origin)
         ? window.location.origin
-        : 'https://kingjdeals.onrender.com';
+        : 'https://kingjdeals.site';
 
       toast.info("Connecting to Korapay Checkout... 💳");
 
@@ -935,7 +847,7 @@ export default function CheckoutForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           reference: finalOrderId,
-          amount: finalAmountToCharge,
+          amount: authoritativeAmount,
           currency: "GHS",
           customerName,
           customerEmail,
@@ -973,12 +885,6 @@ export default function CheckoutForm({
 
   const handleProceedPayment = async () => {
     if (!savedFormData) return;
-    const activeUser = await ensureUser();
-    if (!activeUser) {
-      toast.error("Please log in before you can purchase any service!");
-      window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
-      return;
-    }
     processPaystackPayment(savedFormData);
   };
 
@@ -997,16 +903,16 @@ export default function CheckoutForm({
     }
   };
 
-  const handleWhatsApp = (target: "kingj" | "yhaw" | "agent") => {
+  const handleWhatsApp = (target: "dataghananow" | "yhaw" | "agent") => {
     let phone = "";
     let text = "";
 
-    if (target === "kingj") {
+    if (target === "dataghananow") {
       phone = "233535884851";
-      text = `Hello, I just placed an order on King J Deals! 👑\n\nOrder ID: #${orderId.slice(-6).toUpperCase()}\nRef: ${orderDetails?.referenceCode || ""}\n\nPlease check my order status.`;
+      text = `Hello, I just placed an order on DATAGHANAnow!\n\nOrder ID: #${orderId.slice(-6).toUpperCase()}\nRef: ${orderDetails?.referenceCode || ""}\n\nPlease check my order status.`;
     } else if (target === "yhaw") {
       phone = "233541557530";
-      text = `Hello, I just placed an order on King J Deals! 👑\n\nOrder ID: #${orderId.slice(-6).toUpperCase()}\nRef: ${orderDetails?.referenceCode || ""}\n\nPlease check my order status.`;
+      text = `Hello, I just placed an order on DATAGHANAnow!\n\nOrder ID: #${orderId.slice(-6).toUpperCase()}\nRef: ${orderDetails?.referenceCode || ""}\n\nPlease check my order status.`;
     } else if (target === "agent") {
       const num = agentContext?.momo_number
         ? agentContext.momo_number.trim()
@@ -1097,7 +1003,7 @@ export default function CheckoutForm({
                 Close Window
               </button>
               <button
-                onClick={() => handleWhatsApp("kingj")}
+                onClick={() => handleWhatsApp("dataghananow")}
                 className="w-full sm:w-auto px-6 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
               >
                 Contact Support
@@ -1381,7 +1287,7 @@ export default function CheckoutForm({
               <Button
                 variant="outline"
                 className="w-full h-12 text-xs font-black rounded-xl border-2 border-[#25D366] text-[#25D366] hover:bg-[#25D366] hover:text-white transition-all gap-2"
-                onClick={() => handleWhatsApp("kingj")}
+                onClick={() => handleWhatsApp("dataghananow")}
               >
                 <MessageSquare className="w-4 h-4" /> CONTACT ADMIN ON WHATSAPP
               </Button>
@@ -1413,19 +1319,11 @@ export default function CheckoutForm({
             </div>
 
             {(!auth.currentUser || auth.currentUser.isAnonymous) && (
-              <div className="bg-amber-500/10 border-2 border-amber-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 animate-pulse">
-                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 text-xs font-bold text-center sm:text-left">
-                  <Crown className="w-5 h-5 text-amber-500 shrink-0" />
-                  <span>Login Required: Please sign in with Google before placing your order.</span>
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'))}
-                  className="h-9 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs uppercase shadow-md cursor-pointer shrink-0"
-                >
-                  Sign In with Google
-                </Button>
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl sm:rounded-2xl p-2.5 sm:p-3 flex items-center gap-2.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span className="text-[11px] sm:text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                  Guest Checkout: Instant order processing to your phone number. No login required!
+                </span>
               </div>
             )}
 
@@ -1761,10 +1659,10 @@ export default function CheckoutForm({
                   <Button
                     variant="outline"
                     className="h-12 sm:h-14 font-black rounded-xl sm:rounded-2xl border-4 border-[#25D366] text-[#25D366] hover:bg-[#25D366] hover:text-white transition-all gap-2 text-[10px] sm:text-xs"
-                    onClick={() => handleWhatsApp("kingj")}
+                    onClick={() => handleWhatsApp("dataghananow")}
                   >
                     <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    KING J
+                    DATAGHANAnow
                   </Button>
                   <Button
                     variant="outline"

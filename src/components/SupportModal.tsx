@@ -45,7 +45,7 @@ export default function SupportModal({ isOpen, onClose, profile, agentContext }:
         createdAt: serverTimestamp(),
       });
       
-      toast.success("Message sent to King J!");
+      toast.success("Message sent to DATAGHANAnow!");
       reset();
       onClose();
     } catch (error: any) {
@@ -70,7 +70,7 @@ export default function SupportModal({ isOpen, onClose, profile, agentContext }:
               CUSTOMER SUPPORT
             </DialogTitle>
             <DialogDescription className="text-center text-slate-300 mt-2">
-              Send a message to King J. We'll get back to you as soon as possible.
+              Send a message to DATAGHANAnow. We'll get back to you as soon as possible.
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -92,7 +92,7 @@ export default function SupportModal({ isOpen, onClose, profile, agentContext }:
               <Label htmlFor="message" className="text-slate-700 dark:text-slate-300 font-bold">Your Message</Label>
               <Textarea 
                 id="message"
-                placeholder="Tell King J your concerns..."
+                placeholder="Tell DATAGHANAnow your concerns..."
                 className="min-h-[150px] border-slate-200 dark:border-slate-800 focus:border-primary rounded-xl resize-none dark:bg-slate-900 dark:text-white"
                 {...register('message')}
               />
@@ -139,11 +139,11 @@ export default function SupportModal({ isOpen, onClose, profile, agentContext }:
                   Email Support
                 </div>
                 <a 
-                  href="mailto:support@kingjdeals.site" 
+                  href="mailto:support@dataghananow.com" 
                   className="inline-flex items-center gap-1.5 text-xs text-primary font-black hover:underline"
                 >
                   <Mail className="w-3.5 h-3.5 text-primary shrink-0" />
-                  <span>support@kingjdeals.site</span>
+                  <span>support@dataghananow.com</span>
                 </a>
               </div>
 
@@ -160,7 +160,7 @@ export default function SupportModal({ isOpen, onClose, profile, agentContext }:
                   </a>
                 ) : (
                   <>
-                    <a href="https://wa.me/233535884851" target="_blank" rel="noreferrer" className="text-[10px] text-primary font-black hover:underline">CHAT WITH KING J: 0535884851</a>
+                    <a href="https://wa.me/233535884851" target="_blank" rel="noreferrer" className="text-[10px] text-primary font-black hover:underline">CHAT WITH SUPPORT: 0535884851</a>
                     <a href="https://wa.me/233541557530" target="_blank" rel="noreferrer" className="text-[10px] text-primary font-black hover:underline">CHAT WITH YHAW: 0541557530</a>
                   </>
                 )}

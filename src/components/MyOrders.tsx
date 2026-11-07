@@ -126,7 +126,7 @@ export default function MyOrders() {
     const idInfo = (order.accountIdentifier || order.konamiId)
       ? `\nKONAMI ID / Account: ${order.accountIdentifier || order.konamiId}`
       : '';
-    const text = `Hello King J, I have an issue with my order! 👑\n\nOrder Bundle: ${order.bundle || order.packageName}\nRef: ${refNumber}${idInfo}\n\nPlease check this for me.`;
+    const text = `Hello DataGhanaNow Support, I have an issue with my order!\n\nOrder Bundle: ${order.bundle || order.packageName}\nRef: ${refNumber}${idInfo}\n\nPlease check this for me.`;
     window.open(
       `https://wa.me/${phone}?text=${encodeURIComponent(text)}`,
       "_blank",
@@ -186,7 +186,7 @@ export default function MyOrders() {
                   </span>
                 </div>
                 <h3 className="text-base sm:text-lg font-black text-white tracking-tight">Your Referral Progress</h3>
-                <p className="text-xs text-slate-300 font-medium">Invite friends to King J Deals and track your free data rewards</p>
+                <p className="text-xs text-slate-300 font-medium">Invite friends to DataGhanaNow and track your free data rewards</p>
               </div>
             </div>
             <Button

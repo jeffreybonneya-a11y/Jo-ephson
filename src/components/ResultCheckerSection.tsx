@@ -222,7 +222,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
     const phoneClean = mobileNumber.trim().replace(/\s/g, '');
     setIsSubmitting(true);
 
-    const userEmail = activeUser.email || (phoneClean ? `${phoneClean}@customer.kingjdeals.com` : "customer@kingjdeals.com");
+    const userEmail = activeUser.email || (phoneClean ? `${phoneClean}@customer.dataghananow.com` : "customer@dataghananow.com");
     const userName = activeUser.displayName || (phoneClean ? `Customer (${phoneClean})` : "Royal Customer");
     const userUid = activeUser.uid;
 
@@ -324,7 +324,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
     const phoneClean = mobileNumber.trim().replace(/\s/g, '');
     setIsSubmitting(true);
 
-    const userEmail = activeUser.email || (phoneClean ? `${phoneClean}@customer.kingjdeals.com` : "customer@kingjdeals.com");
+    const userEmail = activeUser.email || (phoneClean ? `${phoneClean}@customer.dataghananow.com` : "customer@dataghananow.com");
     const userName = activeUser.displayName || (phoneClean ? `Customer (${phoneClean})` : "Royal Customer");
     const userUid = activeUser.uid;
 
@@ -416,9 +416,9 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
 
       try {
         toast.info("Launching secure checkout...");
-        const redirectTarget = (typeof window !== 'undefined' && window.location.origin && window.location.origin.includes('king-j-deals.onrender.com'))
+        const redirectTarget = (typeof window !== 'undefined' && window.location.origin)
           ? window.location.origin
-          : 'https://king-j-deals.onrender.com';
+          : 'https://kingjdeals.site';
 
         await openPaystackPopup({
           key: publicKey,
@@ -437,9 +437,9 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
         });
       } catch (popError) {
         console.warn("Paystack Inline popup failed or blocked. Falling back to secure redirect mode:", popError);
-        const redirectTarget = (typeof window !== 'undefined' && window.location.origin && window.location.origin.includes('king-j-deals.onrender.com'))
+        const redirectTarget = (typeof window !== 'undefined' && window.location.origin)
           ? window.location.origin
-          : 'https://king-j-deals.onrender.com';
+          : 'https://kingjdeals.site';
 
         const initResponse = await fetch(getApiUrl("/api/paystack-initialize"), {
           method: "POST",
@@ -492,7 +492,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
     const phoneClean = mobileNumber.trim().replace(/\s/g, '');
     setIsSubmitting(true);
 
-    const userEmail = activeUser.email || (phoneClean ? `${phoneClean}@customer.kingjdeals.com` : "customer@kingjdeals.com");
+    const userEmail = activeUser.email || (phoneClean ? `${phoneClean}@customer.dataghananow.com` : "customer@dataghananow.com");
     const userName = activeUser.displayName || (phoneClean ? `Customer (${phoneClean})` : "Royal Customer");
     const userUid = activeUser.uid;
 

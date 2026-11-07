@@ -1,14 +1,14 @@
 {
   "id": "/",
-  "name": "King J Deals",
-  "short_name": "King J Deals",
-  "description": "Premium Automated Data Deals",
+  "name": "DATAGHANAnow",
+  "short_name": "DATAGHANAnow",
+  "description": "Premium Automated Data & Digital Deals",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#000000",
-  "theme_color": "#000000",
+  "background_color": "#070D1E",
+  "theme_color": "#070D1E",
   "icons": [
     {
       "src": "/favicon-48x48.png",
@@ -39,12 +39,6 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
-    },
-    {
-      "src": "/logo.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
     }
   ]
 }

@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Loader2, Chrome, Crown, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
+import BrandWordmark from './BrandWordmark';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -157,9 +158,9 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
       if (user) {
         try {
-          localStorage.setItem('kingj_authenticated_user', 'true');
-          localStorage.setItem('kingj_auth_uid', user.uid);
-          if (user.email) localStorage.setItem('kingj_auth_email', user.email);
+          localStorage.setItem('dgn_authenticated_user', 'true');
+          localStorage.setItem('dgn_auth_uid', user.uid);
+          if (user.email) localStorage.setItem('dgn_auth_email', user.email);
         } catch {}
 
         // Non-blocking sync to avoid masking a successful login
@@ -204,7 +205,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       let errorMessage = "Google sign-in could not be completed. Please try again.";
       
       if (error.code === 'auth/unauthorized-domain' || error.message?.includes('unauthorized-domain')) {
-        const currentDomain = typeof window !== 'undefined' ? window.location.hostname : 'kingjdeals.site';
+        const currentDomain = typeof window !== 'undefined' ? window.location.hostname : 'dataghananow.com';
         errorMessage = `Domain (${currentDomain}) is not authorized in Firebase Console. Add "${currentDomain}" to Authentication → Settings → Authorized domains.`;
       } else if (error.code === 'auth/operation-not-supported-in-this-environment') {
         errorMessage = "Pop-up login is not supported in this browser. Please open in Chrome or Safari directly.";
@@ -233,23 +234,23 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/20 blur-3xl rounded-full translate-x-1/2 -translate-y-1/2" />
           <DialogHeader className="relative z-10">
             <div className="flex justify-center mb-3">
-              <div className="w-12 h-12 bg-primary/20 rounded-2xl flex items-center justify-center border border-primary/30 shadow-lg">
-                <Crown className="w-8 h-8 text-primary" />
-              </div>
+              <BrandWordmark size="lg" />
             </div>
-            <DialogTitle className="text-2xl font-black text-center tracking-tight">
-              WELCOME TO KING J DEALS
+            <DialogTitle className="text-xl sm:text-2xl font-black text-center tracking-tight">
+              ADMIN & AGENT ACCESS
             </DialogTitle>
             <DialogDescription className="text-center text-slate-300 text-xs mt-1">
-              Join King J Deals today for the fastest and most affordable data bundles in Ghana.
+              Sign in with your authorized administrator or agent Google account.
             </DialogDescription>
           </DialogHeader>
         </div>
 
         <div className="p-6 space-y-4">
           <div className="text-center space-y-2 py-2">
-            <h3 className="text-lg font-black text-slate-900 dark:text-white">SIGN IN WITH GOOGLE</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">One-click secure and instant login experience. No passwords required!</p>
+            <h3 className="text-lg font-black text-slate-900 dark:text-white">ADMIN / AGENT PORTAL</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Customer purchases require no login. Simply enter your phone number at checkout.
+            </p>
           </div>
 
           <Button 
@@ -292,13 +293,13 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
             <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/30 p-3 rounded-xl flex items-start gap-2.5">
               <ShieldCheck className="w-4 h-4 text-amber-600 dark:text-amber-500 mt-0.5" />
               <p className="text-[11px] text-amber-800 dark:text-amber-200 leading-relaxed">
-                Your data is safe with us. We only use your Google account to verify your identity and manage your royal wallet.
+                Your data is safe with us. We only use your Google account to verify your identity and manage your wallet.
               </p>
             </div>
           )}
 
           <p className="text-center text-[9px] text-slate-400 mt-4 px-4">
-            By continuing, you agree to King J Deals' Terms of Service and Privacy Policy.
+            By continuing, you agree to DATAGHANAnow Terms of Service and Privacy Policy.
           </p>
         </div>
       </DialogContent>

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { WHATSAPP_CHANNEL_URL } from '@/src/constants/links';
 
-const STORAGE_KEY = 'kingj_whatsapp_channel_btn_pos';
+const STORAGE_KEY = 'dgn_whatsapp_channel_btn_pos';
 const DRAG_THRESHOLD = 6; // Pixels required to differentiate a drag from a tap/click
 
 interface Position {
@@ -230,7 +230,7 @@ export default function WhatsAppChannelButton() {
       ref={buttonRef}
       role="button"
       tabIndex={0}
-      aria-label="Join King J Deals WhatsApp Channel"
+      aria-label="Join DataGhanaNow WhatsApp Channel"
       title="Join our WhatsApp Channel"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}

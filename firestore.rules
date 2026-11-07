@@ -35,19 +35,6 @@ service cloud.firestore {
                (request.auth.token.email.lower() == "kingjdeals@gmail.com") ||
                (request.auth.token.email.lower() == "jeffreybonneya@gmail.com") ||
                (request.auth.token.email.lower() == "emmagyapong62@gmail.com")
-             )) ||
-             (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
-               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin" ||
-               ("email" in get(/databases/$(database)/documents/users/$(request.auth.uid)).data && (
-                 get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email.lower() == "kingjdeals@gmail.com" ||
-                 get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email.lower() == "jeffreybonneya@gmail.com" ||
-                 get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email.lower() == "emmagyapong62@gmail.com"
-               )) ||
-               ("gmail" in get(/databases/$(database)/documents/users/$(request.auth.uid)).data && (
-                 get(/databases/$(database)/documents/users/$(request.auth.uid)).data.gmail.lower() == "kingjdeals@gmail.com" ||
-                 get(/databases/$(database)/documents/users/$(request.auth.uid)).data.gmail.lower() == "jeffreybonneya@gmail.com" ||
-                 get(/databases/$(database)/documents/users/$(request.auth.uid)).data.gmail.lower() == "emmagyapong62@gmail.com"
-               ))
              ))
       );
     }
@@ -245,91 +232,141 @@ service cloud.firestore {
 
     // Rules
     match /bundles/{bundleId} {
-      allow read: if true; // Publicly viewable
-      allow create, update, delete: if true;
+      allow read: if true; // Public store catalog
+      allow write: if isAdmin();
     }
 
     match /orders/{orderId} {
-      allow read, create, update: if true;
+      // Admins can read all orders; authenticated users can read their own orders or agent orders
+      allow read: if isAdmin() || (isAuthenticated() && (
+        resource.data.userId == request.auth.uid || 
+        resource.data.email == request.auth.token.email || 
+        resource.data.agentId == request.auth.uid
+      ));
+      // Direct client-side order creation is disabled; all orders must be created via POST /api/orders/create using Firebase Admin SDK
+      allow create: if false;
+      // Client can only update user confirmation flags on pending orders; cannot alter amount, status, or userId
+      allow update: if isAdmin() || (
+        isAuthenticated() && 
+        resource.data.userId == request.auth.uid && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['momoSentClicked', 'userConfirmedAt', 'momoTransactionId']) && 
+        resource.data.status in ['pending', 'pending_verification']
+      );
       allow delete: if isAdmin();
     }
 
     match /users/{userId} {
-      allow read, create, update: if true;
+      // Authenticated users can read their own profile; admins can read all
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      // Users can create their own profile, but cannot assign themselves admin role
+      allow create: if isAuthenticated() && request.auth.uid == userId && 
+                    isValidUser(request.resource.data) &&
+                    ((request.resource.data.role == 'user') || (request.resource.data.role == 'admin' && isAdmin()));
+      // Users can update their own profile, but cannot escalate to admin or inflate walletBalance
+      allow update: if isAuthenticated() && (
+        isAdmin() || 
+        (request.auth.uid == userId && isValidClientUserUpdate(request.resource.data, resource.data))
+      );
       allow delete: if isAdmin();
     }
 
     match /complaints/{complaintId} {
-      allow read, create, update: if true;
-      allow delete: if isAdmin();
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create: if isValidComplaint(request.resource.data);
+      allow update, delete: if isAdmin();
     }
 
     match /wallet_transactions/{transactionId} {
-      allow read, create, update: if true;
-      allow delete: if isAdmin();
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid && 
+                    request.resource.data.status == 'pending' && 
+                    isValidWalletTransaction(request.resource.data);
+      allow update, delete: if isAdmin();
     }
 
     match /messages/{messageId} {
-      allow read, create, update, delete: if true;
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create: if isValidMessage(request.resource.data);
+      allow update, delete: if isAdmin();
     }
 
     match /streamAccess/{accessId} {
-      allow read, create, update, delete: if true;
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create: if isValidStreamAccess(request.resource.data) && request.resource.data.status == 'pending';
+      allow update, delete: if isAdmin();
     }
 
     match /agents/{agentId} {
-      allow read: if true; // Public access for client store lookups
-      allow create, update: if true;
+      // Protected: Only admin or the agent owner can read the private details (momo_number, profit_balance)
+      // Public storefront customers read sanitized details via /api/agent-store/:slug
+      allow read: if isAdmin() || (isAuthenticated() && request.auth.uid == agentId);
+      // Direct client-side agent creation is disabled; agent records can only be created via backend admin / Admin SDK workflow
+      allow create: if false;
+      // Agent owner can update profile info, but can never modify their profit_balance
+      allow update: if isAdmin() || (
+        isAuthenticated() && 
+        request.auth.uid == agentId && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['agent_name', 'momo_name', 'momo_number', 'prices']) && 
+        request.resource.data.profit_balance == resource.data.profit_balance
+      );
       allow delete: if isAdmin();
     }
 
     match /agent_orders/{orderId} {
-      allow read, create, update, delete: if true;
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.agent_id == request.auth.uid);
+      allow create: if isAdmin() || (isAuthenticated() && request.resource.data.status in ['pending', 'pending_verification']);
+      allow update, delete: if isAdmin();
     }
 
     match /profit_requests/{requestId} {
-      allow read, create, update, delete: if true;
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.agent_id == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.agent_id == request.auth.uid && 
+                    request.resource.data.status == 'pending' && 
+                    isValidProfitRequest(request.resource.data);
+      allow update, delete: if isAdmin();
     }
 
     match /settings/{settingId} {
-      allow read, write: if true;
+      allow read: if true; // Public configuration (announcement, fast delivery, charges, etc.)
+      allow write: if isAdmin();
     }
 
     match /referrals/{referralId} {
-      // Anyone can read their own referrals or admins can read/manage all
-      allow read, create, update: if true;
-      allow delete: if isAdmin();
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.referrerUid == request.auth.uid);
+      allow write: if isAdmin();
     }
 
     match /booking_codes/{codeId} {
-      allow read, create, update, delete: if true;
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     match /booking_code_purchases/{purchaseId} {
-      allow read, create, update: if true;
-      allow delete: if isAdmin();
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create: if isAdmin() || (isAuthenticated() && request.resource.data.status == 'pending');
+      allow update, delete: if isAdmin();
     }
 
     match /booking_code_orders/{orderId} {
-      allow read, create, update: if true;
-      allow delete: if isAdmin();
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create: if isAdmin() || (isAuthenticated() && request.resource.data.status == 'pending');
+      allow update, delete: if isAdmin();
     }
 
     match /app_downloads/{downloadId} {
-      // Anyone can log their download event
       allow create: if true;
-      // Admins can view and manage all app download records
       allow read, update, delete: if isAdmin();
     }
 
     match /efootballProducts/{productId} {
       allow read: if true;
-      allow create, update, delete: if true;
+      allow write: if isAdmin();
     }
 
     match /efootballOrders/{orderId} {
-      allow read, create, update: if true;
-      allow delete: if isAdmin();
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow create: if isAdmin() || (isAuthenticated() && request.resource.data.status in ['pending', 'PAYMENT_PENDING']);
+      allow update, delete: if isAdmin();
     }
   }
 }

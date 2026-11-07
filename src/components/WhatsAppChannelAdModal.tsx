@@ -32,11 +32,11 @@ export default function WhatsAppChannelAdModal({ forceOpen, onClose }: WhatsAppC
     }
 
     // Auto-display once when a customer opens the site in their session
-    const hasSeenInSession = sessionStorage.getItem('kingj_wa_channel_ad_seen');
+    const hasSeenInSession = sessionStorage.getItem('dgn_wa_channel_ad_seen');
     if (!hasSeenInSession) {
       const timer = setTimeout(() => {
         setIsOpen(true);
-        sessionStorage.setItem('kingj_wa_channel_ad_seen', 'true');
+        sessionStorage.setItem('dgn_wa_channel_ad_seen', 'true');
       }, 700);
 
       return () => clearTimeout(timer);
@@ -53,7 +53,7 @@ export default function WhatsAppChannelAdModal({ forceOpen, onClose }: WhatsAppC
 
   const handleClose = () => {
     setIsOpen(false);
-    sessionStorage.setItem('kingj_wa_channel_ad_seen', 'true');
+    sessionStorage.setItem('dgn_wa_channel_ad_seen', 'true');
     if (onClose) onClose();
   };
 
@@ -64,8 +64,8 @@ export default function WhatsAppChannelAdModal({ forceOpen, onClose }: WhatsAppC
       window.location.href = WHATSAPP_CHANNEL_URL;
     }
 
-    toast.success("Opening King J Deals WhatsApp Channel!", {
-      description: "Welcome to the royal community. Enjoy price discounts & exclusive rewards!",
+    toast.success("Opening DataGhanaNow WhatsApp Channel!", {
+      description: "Welcome to the community. Enjoy price discounts & exclusive rewards!",
       duration: 4000,
     });
 
@@ -151,9 +151,9 @@ export default function WhatsAppChannelAdModal({ forceOpen, onClose }: WhatsAppC
           <div className="text-center space-y-1.5 mb-3.5">
             <h2 
               id="wa-ad-title"
-              className="font-serif text-xl sm:text-2xl font-black bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 bg-clip-text text-transparent tracking-tight leading-tight"
+              className="text-xl sm:text-2xl font-black bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 bg-clip-text text-transparent tracking-tight leading-tight"
             >
-              Join the King J Deals WhatsApp Channel
+              Join the DataGhanaNow WhatsApp Channel
             </h2>
             <p className="text-xs sm:text-sm text-slate-300 font-medium leading-relaxed max-w-xs mx-auto">
               Get instant updates on <strong className="text-amber-300">discounts on prices</strong> and claim <strong className="text-emerald-300">more rewards at stake</strong>!
@@ -207,7 +207,7 @@ export default function WhatsAppChannelAdModal({ forceOpen, onClose }: WhatsAppC
               onClick={handleClose}
               className="w-full py-2 text-center text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
             >
-              Maybe Later • Continue to King J Deals
+              Maybe Later • Continue to DataGhanaNow
             </button>
           </div>
         </motion.div>

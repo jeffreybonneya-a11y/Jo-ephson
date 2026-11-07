@@ -16,6 +16,7 @@ import { Crown, Sparkles, ShieldCheck, ExternalLink, Smartphone } from 'lucide-r
 import { toast } from 'sonner';
 import AppDownloadModal from './AppDownloadModal';
 import WhatsAppChannelAdModal from './WhatsAppChannelAdModal';
+import BrandWordmark from './BrandWordmark';
 
 interface WelcomePageProps {
   onLoginSuccess?: () => void;
@@ -47,9 +48,9 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
         console.log("[WelcomePage] Google Redirect Sign-In resolved successfully:", user.email);
 
         try {
-          localStorage.setItem('kingj_authenticated_user', 'true');
-          localStorage.setItem('kingj_auth_uid', user.uid);
-          if (user.email) localStorage.setItem('kingj_auth_email', user.email);
+          localStorage.setItem('dgn_authenticated_user', 'true');
+          localStorage.setItem('dgn_auth_uid', user.uid);
+          if (user.email) localStorage.setItem('dgn_auth_email', user.email);
         } catch {}
 
         syncUserCustomerRecord(user).catch((err) => {
@@ -57,7 +58,7 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
         });
 
         const userFullName = user.displayName || (user.email ? user.email.split('@')[0] : 'Customer');
-        toast.success(`Welcome to King J Deals, ${userFullName}!`);
+        toast.success(`Welcome to DATAGHANAnow, ${userFullName}!`);
         if (onLoginSuccess) {
           onLoginSuccess();
         }
@@ -139,11 +140,11 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
             await syncUserCustomerRecord(user);
             const userFullName = user.displayName || (user.email ? user.email.split('@')[0] : 'Customer');
             try {
-              localStorage.setItem('kingj_authenticated_user', 'true');
-              localStorage.setItem('kingj_auth_uid', user.uid);
-              if (user.email) localStorage.setItem('kingj_auth_email', user.email);
+              localStorage.setItem('dgn_authenticated_user', 'true');
+              localStorage.setItem('dgn_auth_uid', user.uid);
+              if (user.email) localStorage.setItem('dgn_auth_email', user.email);
             } catch {}
-            toast.success(`Welcome to King J Deals, ${userFullName}!`);
+            toast.success(`Welcome to DATAGHANAnow, ${userFullName}!`);
             if (onLoginSuccess) {
               onLoginSuccess();
             }
@@ -154,11 +155,11 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
           }
           const userFullName = result.user.displayName || (result.user.email ? result.user.email.split('@')[0] : 'Customer');
           try {
-            localStorage.setItem('kingj_authenticated_user', 'true');
-            if (result.user.uid) localStorage.setItem('kingj_auth_uid', result.user.uid);
-            if (result.user.email) localStorage.setItem('kingj_auth_email', result.user.email);
+            localStorage.setItem('dgn_authenticated_user', 'true');
+            if (result.user.uid) localStorage.setItem('dgn_auth_uid', result.user.uid);
+            if (result.user.email) localStorage.setItem('dgn_auth_email', result.user.email);
           } catch {}
-          toast.success(`Welcome to King J Deals, ${userFullName}!`);
+          toast.success(`Welcome to DATAGHANAnow, ${userFullName}!`);
           if (onLoginSuccess) {
             onLoginSuccess();
           }
@@ -180,7 +181,7 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
           errMsg.includes('default_web_client_id')
         ) {
           const msg = "Google Sign-In Configuration Error (Code 10 / DEVELOPER_ERROR)\n\n" +
-            "• Package ID: com.kingjdeals.app\n" +
+            "• Package ID: com.dataghananow.app\n" +
             "• Release SHA-1: BB:61:07:1E:39:16:FC:C9:9B:1F:0A:20:39:31:4E:72:E3:0E:5C:B4\n" +
             "• Current Web Client ID: " + (envWebClientId || "768663077481-web.apps.googleusercontent.com") + "\n\n" +
             "Action Required in Firebase Console:\n" +
@@ -236,9 +237,9 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
       if (user) {
         // Authentication has succeeded!
         try {
-          localStorage.setItem('kingj_authenticated_user', 'true');
-          localStorage.setItem('kingj_auth_uid', user.uid);
-          if (user.email) localStorage.setItem('kingj_auth_email', user.email);
+          localStorage.setItem('dgn_authenticated_user', 'true');
+          localStorage.setItem('dgn_auth_uid', user.uid);
+          if (user.email) localStorage.setItem('dgn_auth_email', user.email);
         } catch {}
 
         // Non-blocking sync to avoid masking a successful login
@@ -247,7 +248,7 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
         });
 
         const userFullName = user.displayName || (user.email ? user.email.split('@')[0] : 'Customer');
-        toast.success(`Welcome to King J Deals, ${userFullName}!`);
+        toast.success(`Welcome to DATAGHANAnow, ${userFullName}!`);
         if (onLoginSuccess) {
           onLoginSuccess();
         }
@@ -288,7 +289,7 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
       let userFriendlyMsg = "Google sign-in could not be completed. Please try again.";
 
       if (error.code === 'auth/unauthorized-domain' || error.message?.includes('unauthorized-domain')) {
-        const currentDomain = typeof window !== 'undefined' ? window.location.hostname : 'kingjdeals.site';
+        const currentDomain = typeof window !== 'undefined' ? window.location.hostname : 'dataghananow.com';
         userFriendlyMsg = `Domain (${currentDomain}) is not authorized in Firebase Console.\nAction required: Add "${currentDomain}" to Authentication → Settings → Authorized domains in Firebase Console.`;
         console.error(`[Firebase Auth] Critical: Add "${currentDomain}" to Authorized domains in Firebase Console (Authentication > Settings > Authorized domains).`);
       } else if (error.code === 'auth/operation-not-supported-in-this-environment') {
@@ -315,263 +316,16 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
   };
 
   return (
-    <div id="kingj-welcome-screen" className="relative min-h-screen w-full bg-[#070D1E] text-white flex flex-col justify-between items-center px-4 py-8 sm:py-12 overflow-x-hidden select-none">
-      {/* SCOPED SPEEDER LOADER STYLES */}
-      <style>{`
-        .kingj-speeder-canvas {
-          position: absolute;
-          inset: 0;
-          width: 100%;
-          height: 100%;
-          overflow: hidden;
-          pointer-events: none;
-          z-index: 1;
-        }
-
-        .kingj-speeder-canvas .loader {
-          position: absolute;
-          top: 30%;
-          left: 50%;
-          margin-left: -75px;
-          margin-top: -30px;
-          opacity: 0.35;
-          transform: scale(0.85);
-        }
-
-        @media (min-width: 640px) {
-          .kingj-speeder-canvas .loader {
-            top: 25%;
-            margin-left: -90px;
-            transform: scale(1.1);
-            opacity: 0.45;
-          }
-        }
-
-        .kingj-speeder-canvas .speeder {
-          animation: kj_speeder 0.45s linear infinite;
-        }
-
-        .kingj-speeder-canvas .speeder > span {
-          height: 4px;
-          width: 32px;
-          background: #f59e0b;
-          position: absolute;
-          top: -17px;
-          left: 55px;
-          border-radius: 2px 10px 1px 0;
-        }
-
-        .kingj-speeder-canvas .base span {
-          position: absolute;
-          width: 0;
-          height: 0;
-          border-top: 6px solid transparent;
-          border-right: 90px solid #f59e0b;
-          border-bottom: 6px solid transparent;
-        }
-
-        .kingj-speeder-canvas .base span:before {
-          content: "";
-          height: 20px;
-          width: 20px;
-          border-radius: 50%;
-          background: #f59e0b;
-          position: absolute;
-          right: -98px;
-          top: -15px;
-        }
-
-        .kingj-speeder-canvas .base span:after {
-          content: "";
-          position: absolute;
-          width: 0;
-          height: 0;
-          border-top: 0 solid transparent;
-          border-right: 48px solid #1e293b;
-          border-bottom: 15px solid transparent;
-          top: -15px;
-          right: -88px;
-        }
-
-        .kingj-speeder-canvas .face {
-          position: absolute;
-          height: 11px;
-          width: 18px;
-          background: #f59e0b;
-          border-radius: 20px 20px 0 0;
-          transform: rotate(-40deg);
-          right: -112px;
-          top: -14px;
-        }
-
-        .kingj-speeder-canvas .face:after {
-          content: "";
-          height: 11px;
-          width: 11px;
-          background: #070d1e;
-          right: 3px;
-          top: 6px;
-          position: absolute;
-          transform: rotate(40deg);
-          transform-origin: 50% 50%;
-          border-radius: 0 0 0 2px;
-        }
-
-        .kingj-speeder-canvas .loader > span > span {
-          width: 28px;
-          height: 1.5px;
-          background: #fbbf24;
-          position: absolute;
-        }
-
-        .kingj-speeder-canvas .fazer1 {
-          top: -4px;
-          animation: kj_fazer1 0.3s linear infinite;
-        }
-
-        .kingj-speeder-canvas .fazer2 {
-          top: 3px;
-          animation: kj_fazer2 0.45s linear infinite;
-        }
-
-        .kingj-speeder-canvas .fazer3 {
-          top: 1px;
-          animation: kj_fazer3 0.35s linear infinite;
-          animation-delay: -0.6s;
-        }
-
-        .kingj-speeder-canvas .fazer4 {
-          top: 6px;
-          animation: kj_fazer4 0.7s linear infinite;
-          animation-delay: -0.8s;
-        }
-
-        @keyframes kj_fazer1 {
-          0% { left: 20px; opacity: 1; }
-          100% { left: -90px; opacity: 0; }
-        }
-
-        @keyframes kj_fazer2 {
-          0% { left: 20px; opacity: 1; }
-          100% { left: -110px; opacity: 0; }
-        }
-
-        @keyframes kj_fazer3 {
-          0% { left: 20px; opacity: 1; }
-          100% { left: -70px; opacity: 0; }
-        }
-
-        @keyframes kj_fazer4 {
-          0% { left: 20px; opacity: 1; }
-          100% { left: -140px; opacity: 0; }
-        }
-
-        @keyframes kj_speeder {
-          0% { transform: translate(2px, 1px) rotate(0deg); }
-          10% { transform: translate(-1px, -3px) rotate(-1deg); }
-          20% { transform: translate(-2px, 0px) rotate(1deg); }
-          30% { transform: translate(1px, 2px) rotate(0deg); }
-          40% { transform: translate(1px, -1px) rotate(1deg); }
-          50% { transform: translate(-1px, 2px) rotate(-1deg); }
-          60% { transform: translate(-2px, 1px) rotate(0deg); }
-          70% { transform: translate(2px, 1px) rotate(-1deg); }
-          80% { transform: translate(-1px, -1px) rotate(1deg); }
-          90% { transform: translate(2px, 1px) rotate(0deg); }
-          100% { transform: translate(1px, -2px) rotate(-1deg); }
-        }
-
-        .kingj-speeder-canvas .longfazers {
-          position: absolute;
-          width: 100%;
-          height: 100%;
-          top: 0;
-          left: 0;
-          opacity: 0.3;
-        }
-
-        .kingj-speeder-canvas .longfazers span {
-          position: absolute;
-          height: 1.5px;
-          width: 25%;
-          background: linear-gradient(90deg, transparent, #f59e0b, transparent);
-        }
-
-        .kingj-speeder-canvas .lf {
-          top: 15%;
-          animation: kj_lf 0.7s linear infinite;
-          animation-delay: -3s;
-        }
-
-        .kingj-speeder-canvas .lf2 {
-          top: 38%;
-          animation: kj_lf2 0.9s linear infinite;
-          animation-delay: -1s;
-        }
-
-        .kingj-speeder-canvas .lf3 {
-          top: 62%;
-          animation: kj_lf3 0.65s linear infinite;
-        }
-
-        .kingj-speeder-canvas .lf4 {
-          top: 85%;
-          animation: kj_lf4 0.55s linear infinite;
-          animation-delay: -2s;
-        }
-
-        @keyframes kj_lf {
-          0% { transform: translate(400%, 0); }
-          100% { transform: translate(-400%, 0); opacity: 0; }
-        }
-
-        @keyframes kj_lf2 {
-          0% { transform: translate(400%, 0); }
-          100% { transform: translate(-400%, 0); opacity: 0; }
-        }
-
-        @keyframes kj_lf3 {
-          0% { transform: translate(400%, 0); }
-          100% { transform: translate(-400%, 0); opacity: 0; }
-        }
-
-        @keyframes kj_lf4 {
-          0% { transform: translate(400%, 0); }
-          100% { transform: translate(-400%, 0); opacity: 0; }
-        }
-      `}</style>
-
-      {/* SPEEDER LOADER ANIMATION BACKGROUND */}
-      <div className="kingj-speeder-canvas" aria-hidden="true">
-        <div className="loader speeder">
-          <span>
-            <span className="fazer1"></span>
-            <span className="fazer2"></span>
-            <span className="fazer3"></span>
-            <span className="fazer4"></span>
-          </span>
-          <div className="base">
-            <span></span>
-            <div className="face"></div>
-          </div>
-        </div>
-        <div className="longfazers">
-          <span className="lf"></span>
-          <span className="lf2"></span>
-          <span className="lf3"></span>
-          <span className="lf4"></span>
-        </div>
-      </div>
-      {/* Atmospheric Royal Glow Backdrop */}
-      <div className="absolute inset-0 bg-radial from-amber-500/10 via-transparent to-transparent pointer-events-none z-[2]" />
-      <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[500px] h-[350px] bg-primary/15 blur-[120px] rounded-full pointer-events-none z-[2]" />
-      <div className="absolute -bottom-32 left-1/2 -translate-x-1/2 w-[400px] h-[300px] bg-blue-600/10 blur-[100px] rounded-full pointer-events-none z-[2]" />
+    <div id="dataghananow-welcome-screen" className="relative min-h-screen w-full bg-[#070D1E] text-white flex flex-col justify-between items-center px-4 py-8 sm:py-12 overflow-x-hidden select-none">
+      {/* Atmospheric Royal Glow Backdrop (Static & Performance-Optimized) */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-500/15 via-[#070D1E]/90 to-[#070D1E] pointer-events-none z-[1]" />
+      <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[600px] h-[350px] bg-amber-500/10 blur-[130px] rounded-full pointer-events-none z-[1]" />
+      <div className="absolute -bottom-32 left-1/2 -translate-x-1/2 w-[500px] h-[300px] bg-blue-600/10 blur-[120px] rounded-full pointer-events-none z-[1]" />
 
       {/* 1. TOP BRANDING & WELCOME MESSAGE */}
-      <header className="relative z-10 w-full max-w-xl text-center pt-2 sm:pt-4 space-y-2.5">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-900/80 border border-amber-500/30 text-amber-400 text-[11px] font-black uppercase tracking-widest shadow-[0_0_20px_rgba(245,158,11,0.15)] backdrop-blur-md">
-          <Crown className="w-3.5 h-3.5 text-amber-400" />
-          <span>KING J DEALS</span>
-          <Crown className="w-3.5 h-3.5 text-amber-400" />
+      <header className="relative z-10 w-full max-w-xl text-center pt-2 sm:pt-4 space-y-3">
+        <div className="flex justify-center mb-1">
+          <BrandWordmark size="xl" showTagline={false} />
         </div>
 
         <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight">
@@ -586,7 +340,7 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
       {/* 3. UIVERSE-INSPIRED LOGIN CARD */}
       <main className="relative z-10 w-full flex justify-center items-center my-auto py-6">
         <div
-          id="kingj-login-card"
+          id="dataghananow-login-card"
           className="relative w-full rounded-3xl p-6 sm:p-8 bg-[#0F172A]/90 border border-slate-700/80 shadow-[0_20px_60px_rgba(0,0,0,0.6),0_0_40px_rgba(245,158,11,0.08)] backdrop-blur-xl transition-all"
           style={{ width: 'min(92vw, 440px)' }}
         >
@@ -595,13 +349,13 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
 
           {/* Card Header */}
           <div className="text-center space-y-2 mb-6">
-            <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-600/5 border border-amber-500/40 flex items-center justify-center shadow-[0_0_25px_rgba(245,158,11,0.2)]">
-              <Crown className="w-8 h-8 text-amber-400" />
+            <div className="flex justify-center mb-2">
+              <BrandWordmark size="md" />
             </div>
 
             <div className="pt-1">
               <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                Welcome Back
+                Welcome to DATAGHANAnow
               </h2>
               <p className="text-xs text-slate-400 font-medium mt-1">
                 Sign in with your Google account to continue
@@ -704,7 +458,7 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
                 className="w-full py-2.5 px-4 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 hover:text-emerald-200 text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm active:scale-98"
               >
                 <span className="text-sm">📢</span>
-                <span>Join King J Deals WhatsApp Channel</span>
+                <span>Join DATAGHANAnow WhatsApp Channel</span>
               </button>
 
               <button
@@ -713,7 +467,7 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
                 className="w-full py-2.5 px-4 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 hover:text-amber-200 text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm active:scale-98"
               >
                 <Smartphone className="w-4 h-4 text-amber-400" />
-                <span>📱 Download King J Deals Android App</span>
+                <span>📱 Download DATAGHANAnow Android App</span>
               </button>
             </div>
           </div>
@@ -737,10 +491,10 @@ export default function WelcomePage({ onLoginSuccess }: WelcomePageProps) {
       {/* 10. FOOTER TAGLINE */}
       <footer className="relative z-10 w-full text-center pb-2 pt-4 space-y-1">
         <p className="text-xs sm:text-sm font-black tracking-wide text-amber-400">
-          Spend small, Enjoy like a King
+          Fast &amp; Reliable Data Deals in Ghana
         </p>
         <p className="text-[10px] text-slate-500 font-medium">
-          © {new Date().getFullYear()} King J Deals. All rights reserved.
+          © {new Date().getFullYear()} DATAGHANAnow. All rights reserved.
         </p>
       </footer>
 

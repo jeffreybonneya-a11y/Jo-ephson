@@ -221,7 +221,11 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization', 'x-paystack-signature', 'x-korapay-signature', 'Accept']
 }));
 
-app.use(express.json());
+app.use(express.json({
+    verify: (req: any, res, buf) => {
+        req.rawBody = buf;
+    }
+}));
 app.use(express.urlencoded({ extended: true }));
 
 // NALO Solutions USSD Status and Diagnostic Endpoint
@@ -390,6 +394,367 @@ async function verifyFastDeliverySettings(params: {
         finalPrice: params.basePrice + configuredFee,
     };
 }
+
+const ADMIN_EMAILS_LIST = ['kingjdeals@gmail.com', 'jeffreybonneya@gmail.com', 'emmagyapong62@gmail.com'];
+
+async function verifyAdminAuth(req: express.Request): Promise<boolean> {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return false;
+    }
+    const token = authHeader.slice(7).trim();
+    try {
+        if (admin.apps.length > 0) {
+            const decoded = await admin.auth().verifyIdToken(token);
+            const email = (decoded.email || '').toLowerCase().trim();
+            if (ADMIN_EMAILS_LIST.includes(email)) {
+                return true;
+            }
+        }
+    } catch (e) {
+        // Token verification exception
+    }
+    return false;
+}
+
+async function calculateAuthoritativePrice(params: {
+    bundleId?: string;
+    recipientNetwork: string;
+    isFastDelivery: boolean;
+    agentId?: string;
+}) {
+    let basePrice = 0;
+    let wholesalePrice = 0;
+    let bundleName = "";
+    let dataAmount = "";
+    let category = "";
+    let agentProfit = 0;
+    let agentPrice = 0;
+
+    let bundleDoc: any = null;
+    if (params.bundleId) {
+        const snap = await getFirestoreDoc('bundles', params.bundleId);
+        if (snap && snap.exists) {
+            bundleDoc = snap.data();
+        }
+    }
+
+    if (!bundleDoc) {
+        try {
+            const cRef = clientCollection(serverClientDb, 'bundles');
+            const q = clientQuery(cRef, clientWhere('network', '==', params.recipientNetwork), clientLimit(50));
+            const snap = await clientGetDocs(q);
+            const found = snap.docs.find(d => d.id === params.bundleId || (d.data().name && params.bundleId && d.data().name.includes(params.bundleId)));
+            if (found) {
+                bundleDoc = found.data();
+            }
+        } catch (e) {}
+    }
+
+    if (bundleDoc) {
+        basePrice = Number(bundleDoc.price) || 0;
+        wholesalePrice = Number(bundleDoc.wholesalePrice || bundleDoc.price) || basePrice;
+        bundleName = bundleDoc.name || bundleDoc.dataAmount || "";
+        dataAmount = bundleDoc.dataAmount || "";
+        category = bundleDoc.category || params.recipientNetwork;
+    } else {
+        bundleName = params.bundleId || params.recipientNetwork;
+        basePrice = 0;
+    }
+
+    // Check hidden charges from settings/hidden_charges
+    let hiddenFee = 0;
+    try {
+        const hcSnap = await getFirestoreDoc('settings', 'hidden_charges');
+        if (hcSnap && hcSnap.exists) {
+            const hc = hcSnap.data();
+            const net = params.recipientNetwork.toUpperCase();
+            if (params.agentId) {
+                if (bundleDoc?.wholesaleHiddenFee != null) {
+                    hiddenFee = Number(bundleDoc.wholesaleHiddenFee);
+                } else if (net === 'MTN') hiddenFee = Number(hc.wholesaleMTNCharge) || 0;
+                else if (net === 'TELECEL') hiddenFee = Number(hc.wholesaleTelecelCharge) || 0;
+                else if (net === 'AIRTELTIGO' || net === 'AT') hiddenFee = Number(hc.wholesaleAirtelTigoCharge) || 0;
+                else if (net.includes('GAME')) hiddenFee = Number(hc.wholesaleGameCharge) || 0;
+            } else {
+                if (bundleDoc?.retailHiddenFee != null) {
+                    hiddenFee = Number(bundleDoc.retailHiddenFee);
+                } else if (net === 'MTN') hiddenFee = Number(hc.retailMTNCharge || hc.mtnCharge || hc.mainStoreMTNCharge) || 0;
+                else if (net === 'TELECEL') hiddenFee = Number(hc.retailTelecelCharge || hc.telecelCharge || hc.mainStoreTelecelCharge) || 0;
+                else if (net === 'AIRTELTIGO' || net === 'AT') hiddenFee = Number(hc.retailAirtelTigoCharge || hc.airteltigoCharge) || 0;
+                else if (net.includes('GAME')) hiddenFee = Number(hc.retailGameCharge || hc.gameCharge || hc.mainStoreGameCharge) || 0;
+            }
+            if (params.agentId && hc.agentStoreCharge) {
+                hiddenFee += Number(hc.agentStoreCharge) || 0;
+            }
+        }
+    } catch (e) {}
+
+    // Agent Custom Price check if applicable
+    let agentDetails: any = null;
+    if (params.agentId) {
+        try {
+            const agentSnap = await getFirestoreDoc('agents', params.agentId);
+            if (agentSnap && agentSnap.exists) {
+                agentDetails = agentSnap.data();
+                if (agentDetails.prices && params.bundleId && agentDetails.prices[params.bundleId]) {
+                    const customP = Number(agentDetails.prices[params.bundleId]);
+                    if (!isNaN(customP) && customP >= wholesalePrice) {
+                        basePrice = customP;
+                    }
+                }
+            }
+        } catch (e) {}
+        agentPrice = basePrice;
+        agentProfit = Math.max(0, agentPrice - wholesalePrice);
+    }
+
+    // Fast Delivery calculation
+    const isAgent = Boolean(params.agentId);
+    const fdResult = await verifyFastDeliverySettings({
+        requestedFastDelivery: params.isFastDelivery,
+        network: params.recipientNetwork,
+        isAgent: isAgent,
+        basePrice: basePrice
+    });
+
+    const finalAmount = Math.round((fdResult.finalPrice + hiddenFee) * 100) / 100;
+
+    return {
+        bundleDoc,
+        basePrice: fdResult.basePrice,
+        fastDelivery: fdResult.isFastDelivery,
+        fastDeliveryFee: fdResult.fastDeliveryFee,
+        fastDeliveryType: fdResult.fastDeliveryType,
+        hiddenFee,
+        finalAmount,
+        wholesalePrice,
+        agentPrice,
+        agentProfit,
+        agentDetails,
+        bundleName,
+        dataAmount,
+        category
+    };
+}
+
+// REST Endpoint: Secure Backend Order Creation with Authoritative Pricing
+app.post('/api/orders/create', async (req, res) => {
+    try {
+        const {
+            bundleId,
+            recipientPhone,
+            recipientNetwork,
+            paymentMethod = 'paystack',
+            fastDelivery = false,
+            fcUserId,
+            fcUsername,
+            referredBy,
+            agentId,
+            customerEmail: providedEmail,
+            customerName: providedName
+        } = req.body;
+
+        if (!recipientNetwork) {
+            return res.status(400).json({ success: false, error: 'recipientNetwork is required' });
+        }
+
+        const cleanPhone = (recipientPhone || '').replace(/[^0-9]/g, '').trim();
+        const isGame = recipientNetwork.includes('FC Mobile') || recipientNetwork.includes('PUBG') || recipientNetwork === 'PC Games';
+        
+        if (!isGame && (!cleanPhone || !/^0[0-9]{9}$/.test(cleanPhone))) {
+            return res.status(400).json({
+                success: false,
+                error: 'Phone must start with 0 and be 10 digits total (e.g., 05XXXXXXXX)'
+            });
+        }
+
+        const pricing = await calculateAuthoritativePrice({
+            bundleId,
+            recipientNetwork,
+            isFastDelivery: Boolean(fastDelivery),
+            agentId
+        });
+
+        const generatedRef = 'DGN_' + Date.now() + '_' + crypto.randomBytes(4).toString('hex').toUpperCase();
+        const orderAccessToken = crypto.randomBytes(32).toString('hex');
+        const orderId = clientDoc(clientCollection(serverClientDb, 'orders')).id;
+
+        const customerEmail = (providedEmail && providedEmail.includes('@')) 
+            ? providedEmail 
+            : (cleanPhone ? `${cleanPhone}@gmail.com` : "customer@gmail.com");
+        const customerName = providedName || (cleanPhone ? `Customer (${cleanPhone})` : "Customer");
+        const customerUid = cleanPhone ? `guest_${cleanPhone}` : `guest_${Date.now()}`;
+
+        const orderData: any = {
+            id: orderId,
+            reference: orderId,
+            paymentReference: generatedRef,
+            orderAccessToken: orderAccessToken,
+            email: customerEmail,
+            phone: cleanPhone || "",
+            network: recipientNetwork,
+            bundle: pricing.bundleName ? `${recipientNetwork} ${pricing.bundleName}` : `${recipientNetwork} Bundle`,
+            bundleId: bundleId || "",
+            amount: pricing.finalAmount,
+            basePrice: pricing.basePrice,
+            finalPrice: pricing.finalAmount,
+            fastDelivery: pricing.fastDelivery,
+            fastDeliveryFee: pricing.fastDeliveryFee,
+            ...(pricing.fastDelivery ? { fastDeliveryType: pricing.fastDeliveryType } : {}),
+            status: "pending",
+            paymentStatus: "pending",
+            paymentMethod: paymentMethod,
+            userId: customerUid,
+            customerName: customerName,
+            createdAt: clientServerTimestamp(),
+            updatedAt: clientServerTimestamp(),
+            ...(referredBy ? { referredBy: String(referredBy).trim().toUpperCase() } : {}),
+            ...(fcUserId ? { fcUserId } : {}),
+            ...(fcUsername ? { fcUsername } : {}),
+        };
+
+        if (pricing.agentDetails) {
+            orderData.isAgentOrder = true;
+            orderData.agentId = pricing.agentDetails.id || agentId;
+            orderData.agent_id = pricing.agentDetails.id || agentId;
+            orderData.agentName = pricing.agentDetails.agent_name || "Agent";
+            orderData.agent_name = pricing.agentDetails.agent_name || "Agent";
+            orderData.wholesalePrice = pricing.wholesalePrice;
+            orderData.wholesale_price = pricing.wholesalePrice;
+            orderData.agentPrice = pricing.agentPrice;
+            orderData.agent_price = pricing.agentPrice;
+            orderData.profit = pricing.agentProfit;
+            orderData.agent_profit = pricing.agentProfit;
+            orderData.profitAwarded = false;
+            orderData.profit_credited = false;
+        }
+
+        await setFirestoreDoc('orders', orderId, orderData, false);
+
+        if (pricing.agentDetails) {
+            const agentOrderData = {
+                id: orderId,
+                agent_id: pricing.agentDetails.id || agentId,
+                customer_details: {
+                    name: customerName,
+                    email: customerEmail,
+                    phone: cleanPhone,
+                    network: recipientNetwork
+                },
+                wholesale_price: pricing.wholesalePrice,
+                agent_price: pricing.agentPrice,
+                profit: pricing.agentProfit,
+                fastDelivery: pricing.fastDelivery,
+                fastDeliveryFee: pricing.fastDeliveryFee,
+                ...(pricing.fastDelivery ? { fastDeliveryType: pricing.fastDeliveryType } : {}),
+                basePrice: pricing.basePrice,
+                finalPrice: pricing.finalAmount,
+                status: "pending",
+                paymentStatus: "pending",
+                created_at: clientServerTimestamp(),
+                paymentReference: orderId
+            };
+            await setFirestoreDoc('agent_orders', orderId, agentOrderData, false);
+        }
+
+        return res.status(200).json({
+            success: true,
+            orderId,
+            orderAccessToken,
+            reference: orderId,
+            paymentReference: generatedRef,
+            amount: pricing.finalAmount,
+            customerEmail,
+            customerPhone: cleanPhone,
+            network: recipientNetwork,
+            bundle: orderData.bundle
+        });
+    } catch (err: any) {
+        console.error('[Create Order Error]:', err.message || err);
+        return res.status(400).json({ success: false, error: err.message || 'Failed to create order' });
+    }
+});
+
+// REST Endpoint: Token-Protected Order Status Retrieval
+app.get('/api/orders/status/:orderId', async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        const token = (req.query.token as string) || (req.headers['x-order-token'] as string);
+        
+        if (!orderId) {
+            return res.status(400).json({ success: false, error: 'orderId is required' });
+        }
+
+        const orderSnap = await getFirestoreDoc('orders', orderId);
+        if (!orderSnap || !orderSnap.exists) {
+            return res.status(404).json({ success: false, error: 'Order not found' });
+        }
+
+        const data = orderSnap.data();
+
+        // Validate token or admin authentication
+        const isAuthorizedByToken = Boolean(token && data.orderAccessToken && token === data.orderAccessToken);
+        const isAuthorizedAdmin = !isAuthorizedByToken && (await verifyAdminAuth(req));
+
+        if (!isAuthorizedByToken && !isAuthorizedAdmin) {
+            return res.status(403).json({ success: false, error: 'Unauthorized to view this order status' });
+        }
+
+        return res.json({
+            success: true,
+            orderId,
+            status: data.status,
+            paymentStatus: data.paymentStatus,
+            amount: data.amount,
+            network: data.network,
+            bundle: data.bundle,
+            createdAt: data.createdAt,
+            updatedAt: data.updatedAt
+        });
+    } catch (err: any) {
+        console.error('[Order Status Error]:', err.message || err);
+        return res.status(500).json({ success: false, error: 'Failed to retrieve order status' });
+    }
+});
+
+// REST Endpoint: Sanitized Public Agent Storefront Lookup
+app.get('/api/agent-store/:slug', async (req, res) => {
+    try {
+        const { slug } = req.params;
+        if (!slug) {
+            return res.status(400).json({ success: false, error: 'slug is required' });
+        }
+
+        const cRef = clientCollection(serverClientDb, 'agents');
+        const q = clientQuery(cRef, clientWhere('agent_slug', '==', slug.toLowerCase().trim()), clientLimit(1));
+        let snap = await clientGetDocs(q);
+
+        if (snap.empty) {
+            const qExact = clientQuery(cRef, clientWhere('agent_slug', '==', slug.trim()), clientLimit(1));
+            snap = await clientGetDocs(qExact);
+        }
+
+        if (snap.empty) {
+            return res.status(404).json({ success: false, error: 'Agent storefront not found' });
+        }
+
+        const docData = snap.docs[0].data();
+        // Strict data sanitization: strictly NO momo_number, momo_name, or profit_balance returned
+        return res.json({
+            success: true,
+            agent: {
+                id: snap.docs[0].id,
+                agent_name: docData.agent_name,
+                agent_slug: docData.agent_slug,
+                prices: docData.prices || {}
+            }
+        });
+    } catch (err: any) {
+        console.error('[Agent Store Error]:', err.message || err);
+        return res.status(500).json({ success: false, error: 'Failed to fetch agent store' });
+    }
+});
 
 // Endpoint to initialize a Paystack transaction and get a direct redirect URL
 async function handlePaystackInitialize(req: express.Request, res: express.Response) {
@@ -916,8 +1281,8 @@ async function updateFirestoreOrderPaymentSuccess(reference: string) {
 async function verifyPaystackReference(reference: string) {
     const key = getPaystackSecretKey();
     if (!key || (!key.startsWith('sk_') && !key.startsWith('sat_'))) {
-        console.warn('[Paystack Backend Warning] PAYSTACK_SECRET_KEY is missing or invalid in server environment. Defaulting to resilient verification.');
-        return { status: true, data: { status: 'success', gateway_response: 'Successful (Resilient Fallback Verification)' } };
+        console.warn('[Paystack Backend Error] PAYSTACK_SECRET_KEY is missing or invalid in server environment.');
+        return { status: false, message: 'Paystack secret key is missing or not configured on the server' };
     }
     
     try {
@@ -931,11 +1296,8 @@ async function verifyPaystackReference(reference: string) {
         return response.data;
     } catch (err: any) {
         const errorMsg = err.response?.data?.message || err.message || 'Verification failed';
-        console.warn(`[Paystack Backend Error] Paystack verify API call notice for reference ${reference}: ${errorMsg}`);
-        if (err.response?.data?.data?.status === 'failed' || err.response?.data?.data?.status === 'abandoned') {
-            return { status: false, message: errorMsg, data: err.response?.data?.data || {} };
-        }
-        return { status: true, data: { status: 'success', gateway_response: 'Successful (Resilient Verification)' } };
+        console.warn(`[Paystack Backend Error] Paystack verify API call error for reference ${reference}: ${errorMsg}`);
+        return { status: false, message: errorMsg, data: err.response?.data?.data || {} };
     }
 }
 
@@ -975,17 +1337,66 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
             return res.status(400).json({ 
                 success: false, 
                 verified: false,
-                error: 'Payment was not completed. Your booking code has not been released.', 
+                error: verifyResult?.message || 'Payment was not completed.', 
                 status: paystackStatus || 'failed' 
             });
         }
 
         const amountInMainCurrency = paystackData?.amount ? paystackData.amount / 100 : 0;
-        const currency = paystackData?.currency || "GHS";
+        const currency = (paystackData?.currency || "GHS").toUpperCase();
         const customerEmail = paystackData?.customer?.email || "";
         const customerName = [paystackData?.customer?.first_name, paystackData?.customer?.last_name].filter(Boolean).join(" ").trim() || paystackData?.customer?.name || "";
         const customerPhone = paystackData?.customer?.phone || "";
         const paymentTimestamp = paystackData?.paid_at || new Date().toISOString();
+
+        // 1. Strict Currency Check: Must be GHS
+        if (currency !== "GHS") {
+            console.warn(`[Paystack Backend Warning] Transaction ${reference} currency mismatch: received ${currency}, expected GHS`);
+            return res.status(400).json({
+                success: false,
+                verified: false,
+                error: `Invalid payment currency: ${currency}. Only GHS is accepted.`
+            });
+        }
+
+        // 2. Fetch existing order from Firestore to check idempotency and amount
+        const orderSnap = await getFirestoreDoc('orders', reference);
+        const existingData = orderSnap?.exists ? orderSnap.data() : null;
+
+        // Idempotency check: if order is already fulfilled or verified as paid, do not double-fulfill
+        if (existingData && (existingData.status === 'paid' || existingData.status === 'delivered' || existingData.paymentStatus === 'success')) {
+            console.log(`[Paystack Backend] Order ${reference} was already successfully verified and fulfilled.`);
+            return res.json({
+                success: true,
+                message: "Order already verified and processed ✅",
+                verified: true,
+                data: paystackData
+            });
+        }
+
+        // 3. Strict Authoritative Amount Check (Exact Pesewa Comparison)
+        if (existingData && existingData.amount != null) {
+            const expectedPesewas = Math.round(Number(existingData.amount) * 100);
+            const verifiedPesewas = Math.round(amountInMainCurrency * 100);
+
+            if (expectedPesewas > 0 && verifiedPesewas !== expectedPesewas) {
+                const isUnderpayment = verifiedPesewas < expectedPesewas;
+                console.warn(`[Paystack Security Alert] Amount mismatch on reference ${reference}: paid ${verifiedPesewas} pesewas, expected ${expectedPesewas} pesewas`);
+                await updateFirestoreDoc('orders', reference, {
+                    paymentStatus: isUnderpayment ? "underpaid" : "overpaid",
+                    status: "failed",
+                    amountPaid: amountInMainCurrency,
+                    updatedAt: clientServerTimestamp()
+                });
+                return res.status(400).json({
+                    success: false,
+                    verified: false,
+                    error: isUnderpayment
+                        ? `Underpayment detected. Paid ${amountInMainCurrency} GHS, required ${existingData.amount} GHS.`
+                        : `Overpayment detected. Paid ${amountInMainCurrency} GHS, required ${existingData.amount} GHS. Sent for reconciliation.`
+                });
+            }
+        }
 
         console.log(`[Paystack Backend Success] Reference ${reference} verified! Customer: ${customerEmail || 'Guest'}`);
 
@@ -993,9 +1404,6 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
 
         // Update/Save verified order details in Firestore
         try {
-            const orderSnap = await getFirestoreDoc('orders', reference);
-            const existingData = orderSnap?.exists ? orderSnap.data() : null;
-
             // Check if this purchase is a booking code
             const isBookingCode = existingData?.serviceType === 'booking_code' ||
                 existingData?.bookingCodeId ||
@@ -1382,8 +1790,8 @@ async function verifyKorapayReference(reference: string) {
         process.env.KORA_SECRET_KEY
     );
     if (!secretKey) {
-        console.warn('[Korapay Backend Warning] KORAPAY_SECRET_KEY is missing in server environment. Defaulting to resilient verification.');
-        return { status: true, data: { status: 'success', gateway_response: 'Successful (Resilient Fallback Verification)' } };
+        console.warn('[Korapay Backend Error] KORAPAY_SECRET_KEY is missing in server environment.');
+        return { status: false, message: 'Korapay secret key is missing or not configured on the server' };
     }
     
     try {
@@ -1397,11 +1805,8 @@ async function verifyKorapayReference(reference: string) {
         return response.data;
     } catch (err: any) {
         const errorMsg = err.response?.data?.message || err.message || 'Verification failed';
-        console.warn(`[Korapay Backend Error] Korapay verify API call notice for reference ${reference}: ${errorMsg}`);
-        if (err.response?.data?.data?.status === 'failed' || err.response?.data?.data?.status === 'expired') {
-            return { status: false, message: errorMsg, data: err.response?.data?.data || {} };
-        }
-        return { status: true, data: { status: 'success', gateway_response: 'Successful (Resilient Verification)' } };
+        console.warn(`[Korapay Backend Error] Korapay verify API call error for reference ${reference}: ${errorMsg}`);
+        return { status: false, message: errorMsg, data: err.response?.data?.data || {} };
     }
 }
 
@@ -1444,21 +1849,68 @@ async function handleKorapayVerificationRequest(req: express.Request, res: expre
             return res.status(400).json({ 
                 success: false, 
                 verified: false,
-                error: 'Korapay payment was cancelled or not completed.', 
+                error: verifyResult?.message || 'Korapay payment was cancelled or not completed.', 
                 status: koraStatus || 'failed' 
             });
         }
 
-        const amount = koraData?.amount || 0;
-        const currency = koraData?.currency || "GHS";
+        const amount = Number(koraData?.amount) || 0;
+        const currency = (koraData?.currency || "GHS").toUpperCase();
         const customerEmail = koraData?.customer?.email || "";
         const customerName = koraData?.customer?.name || "";
+
+        // 1. Strict Currency Check: Must be GHS
+        if (currency !== "GHS") {
+            console.warn(`[Korapay Backend Warning] Transaction ${reference} currency mismatch: received ${currency}, expected GHS`);
+            return res.status(400).json({
+                success: false,
+                verified: false,
+                error: `Invalid payment currency: ${currency}. Only GHS is accepted.`
+            });
+        }
+
+        // 2. Fetch existing order from Firestore to check idempotency and amount
+        const orderSnap = await getFirestoreDoc('orders', reference);
+        const existingData = orderSnap?.exists ? orderSnap.data() : null;
+
+        // Idempotency check: if order is already fulfilled or verified as paid, do not double-fulfill
+        if (existingData && (existingData.status === 'paid' || existingData.status === 'delivered' || existingData.paymentStatus === 'success')) {
+            console.log(`[Korapay Backend] Order ${reference} was already successfully verified and fulfilled.`);
+            return res.json({
+                success: true,
+                message: "Order already verified and processed ✅",
+                verified: true,
+                data: koraData
+            });
+        }
+
+        // 3. Strict Authoritative Amount Check (Exact Pesewa Comparison)
+        if (existingData && existingData.amount != null) {
+            const expectedPesewas = Math.round(Number(existingData.amount) * 100);
+            const verifiedPesewas = Math.round(amount * 100);
+
+            if (expectedPesewas > 0 && verifiedPesewas !== expectedPesewas) {
+                const isUnderpayment = verifiedPesewas < expectedPesewas;
+                console.warn(`[Korapay Security Alert] Amount mismatch on reference ${reference}: paid ${verifiedPesewas} pesewas, expected ${expectedPesewas} pesewas`);
+                await updateFirestoreDoc('orders', reference, {
+                    paymentStatus: isUnderpayment ? "underpaid" : "overpaid",
+                    status: "failed",
+                    amountPaid: amount,
+                    updatedAt: clientServerTimestamp()
+                });
+                return res.status(400).json({
+                    success: false,
+                    verified: false,
+                    error: isUnderpayment
+                        ? `Underpayment detected. Paid ${amount} GHS, required ${existingData.amount} GHS.`
+                        : `Overpayment detected. Paid ${amount} GHS, required ${existingData.amount} GHS. Sent for reconciliation.`
+                });
+            }
+        }
 
         console.log(`[Korapay Backend Success] Reference ${reference} verified! Customer: ${customerEmail || 'Guest'}`);
 
         try {
-            const orderSnap = await getFirestoreDoc('orders', reference);
-
             const orderPayload = {
                 paymentStatus: "success",
                 status: "paid",
@@ -1476,7 +1928,6 @@ async function handleKorapayVerificationRequest(req: express.Request, res: expre
             };
 
             if (orderSnap && orderSnap.exists) {
-                const existingData = orderSnap.data();
                 await updateFirestoreDoc('orders', reference, orderPayload);
                 if (existingData?.bundle === "AGENT ACCESS UNLOCK" && existingData?.userId) {
                     await updateFirestoreDoc('users', existingData.userId, { isAgent: true });
@@ -1559,18 +2010,28 @@ app.post('/api/paystack-webhook', async (req, res) => {
         
         console.log('[Paystack Webhook] Incoming webhook call with signature header:', signature ? 'Present' : 'None');
         
-        if (secretKey && signature) {
-            const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
-            const computedSignature = crypto.createHmac('sha512', secretKey)
-                .update(rawBody)
-                .digest('hex');
-            
-            if (signature !== computedSignature) {
-                console.warn('[Paystack Webhook Error] Signature verification failed!');
-                return res.status(401).json({ status: false, message: 'Invalid webhook signature' });
-            }
-            console.log('[Paystack Webhook] Signature verified successfully.');
+        // 1. Mandatory Header and Secret Key Check: Reject missing signatures
+        if (!signature) {
+            console.warn('[Paystack Webhook Security Warning] Rejected webhook: Missing x-paystack-signature header.');
+            return res.status(400).json({ status: false, message: 'Missing x-paystack-signature header' });
         }
+
+        if (!secretKey) {
+            console.error('[Paystack Webhook Error] PAYSTACK_SECRET_KEY is not configured on server.');
+            return res.status(500).json({ status: false, message: 'Webhook receiver configuration error' });
+        }
+
+        // 2. Strict HMAC-SHA512 verification against raw body buffer
+        const rawBody = (req as any).rawBody || (typeof req.body === 'string' ? req.body : JSON.stringify(req.body));
+        const computedSignature = crypto.createHmac('sha512', secretKey)
+            .update(rawBody)
+            .digest('hex');
+        
+        if (signature !== computedSignature) {
+            console.warn('[Paystack Webhook Security Alert] Signature verification failed! Mismatched HMAC.');
+            return res.status(401).json({ status: false, message: 'Invalid webhook signature' });
+        }
+        console.log('[Paystack Webhook] Signature verified successfully.');
 
         const payload = req.body;
         const event = payload?.event;
@@ -1579,17 +2040,61 @@ app.post('/api/paystack-webhook', async (req, res) => {
         
         console.log(`[Paystack Webhook Details] Event: ${event}, Reference: ${reference}, Status: ${data.status}`);
         
-        if (event === 'charge.success' || data.status === 'success') {
+        if (event === 'charge.success' && (data.status === 'success' || data.status === 'paid')) {
             if (reference) {
-                await updateFirestoreOrderPaymentStatus(reference, "success");
+                // Currency validation: GHS only
+                const currency = (data.currency || 'GHS').toUpperCase();
+                if (currency !== 'GHS') {
+                    console.warn(`[Paystack Webhook Warning] Webhook reference ${reference} has invalid currency: ${currency}`);
+                    return res.status(400).json({ status: false, message: 'Invalid currency' });
+                }
+
+                const amountInGHS = Number(data.amount) / 100;
                 const existingOrderSnap = await getFirestoreDoc('orders', reference);
                 const existingOrder = existingOrderSnap?.exists ? existingOrderSnap.data() : null;
+
+                // Idempotency: skip if already fulfilled
+                if (existingOrder && (existingOrder.status === 'paid' || existingOrder.status === 'delivered')) {
+                    console.log(`[Paystack Webhook] Order ${reference} was already fulfilled.`);
+                    return res.status(200).json({ status: true, message: 'Already fulfilled' });
+                }
+
+                // Amount validation
+                if (existingOrder && existingOrder.amount != null) {
+                    const expectedAmount = Number(existingOrder.amount);
+                    if (expectedAmount > 0 && amountInGHS < expectedAmount - 0.05) {
+                        console.warn(`[Paystack Webhook Security Alert] Underpayment on reference ${reference}: paid ${amountInGHS}, expected ${expectedAmount}`);
+                        await updateFirestoreDoc('orders', reference, {
+                            paymentStatus: 'underpaid',
+                            status: 'failed',
+                            amountPaid: amountInGHS,
+                            updatedAt: clientServerTimestamp()
+                        });
+                        return res.status(400).json({ status: false, message: 'Underpayment rejected' });
+                    }
+                }
+
+                await updateFirestoreOrderPaymentStatus(reference, "success");
                 const resolvedPaymentMethod = existingOrder?.paymentMethod === 'momo' ? 'momo' : (existingOrder?.paymentMethod || "Paystack");
                 await updateFirestoreDoc('orders', reference, {
                     payment_provider: "paystack",
                     paymentMethod: resolvedPaymentMethod,
+                    amountPaid: amountInGHS,
+                    paidAt: clientServerTimestamp(),
                     updatedAt: clientServerTimestamp()
                 });
+
+                // Update agent_orders if present
+                const agentSnap = await getFirestoreDoc('agent_orders', reference);
+                if (agentSnap && agentSnap.exists) {
+                    await updateFirestoreDoc('agent_orders', reference, {
+                        status: 'success',
+                        paymentStatus: 'success',
+                        payment_provider: 'paystack',
+                        paymentMethod: 'Paystack',
+                        paymentReference: reference
+                    });
+                }
                 console.log(`[Paystack Webhook Success] Processed charge.success for ${reference}`);
             }
         } else if (event === 'charge.failed' || data.status === 'failed') {
@@ -1610,22 +2115,32 @@ app.post('/api/paystack-webhook', async (req, res) => {
 app.post('/api/korapay-webhook', async (req, res) => {
     try {
         const secretKey = getSanitizedKey(process.env.KORAPAY_SECRET_KEY);
-        const signature = req.headers['x-korapay-signature'] as string;
+        const signature = (req.headers['x-korapay-signature'] || req.headers['x-korapay-hash']) as string;
         
         console.log('[Korapay Webhook] Incoming webhook call with signature header:', signature ? 'Present' : 'None');
         
-        if (secretKey && signature) {
-            const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
-            const computedSignature = crypto.createHmac('sha256', secretKey)
-                .update(rawBody)
-                .digest('hex');
-            
-            if (signature !== computedSignature) {
-                console.warn('[Korapay Webhook Error] Signature verification failed!');
-                return res.status(401).json({ status: false, message: 'Invalid webhook signature' });
-            }
-            console.log('[Korapay Webhook] Signature verified successfully.');
+        // 1. Mandatory Header and Secret Key Check: Reject missing signatures
+        if (!signature) {
+            console.warn('[Korapay Webhook Security Warning] Rejected webhook: Missing x-korapay-signature header.');
+            return res.status(400).json({ status: false, message: 'Missing x-korapay-signature header' });
         }
+
+        if (!secretKey) {
+            console.error('[Korapay Webhook Error] KORAPAY_SECRET_KEY is not configured on server.');
+            return res.status(500).json({ status: false, message: 'Webhook receiver configuration error' });
+        }
+
+        // 2. Strict HMAC-SHA256 verification against raw body buffer
+        const rawBody = (req as any).rawBody || (typeof req.body === 'string' ? req.body : JSON.stringify(req.body));
+        const computedSignature = crypto.createHmac('sha256', secretKey)
+            .update(rawBody)
+            .digest('hex');
+        
+        if (signature !== computedSignature) {
+            console.warn('[Korapay Webhook Security Alert] Signature verification failed! Mismatched HMAC.');
+            return res.status(401).json({ status: false, message: 'Invalid webhook signature' });
+        }
+        console.log('[Korapay Webhook] Signature verified successfully.');
 
         const payload = req.body;
         const event = payload?.event || payload?.type;
@@ -1634,14 +2149,60 @@ app.post('/api/korapay-webhook', async (req, res) => {
         
         console.log(`[Korapay Webhook Details] Event: ${event}, Reference: ${reference}, Status: ${data.status}`);
         
-        if (event === 'charge.success' || data.status === 'success') {
+        if (event === 'charge.success' && (data.status === 'success' || data.status === 'paid')) {
             if (reference) {
+                // Currency validation: GHS only
+                const currency = (data.currency || 'GHS').toUpperCase();
+                if (currency !== 'GHS') {
+                    console.warn(`[Korapay Webhook Warning] Webhook reference ${reference} has invalid currency: ${currency}`);
+                    return res.status(400).json({ status: false, message: 'Invalid currency' });
+                }
+
+                const amountInGHS = Number(data.amount);
+                const existingOrderSnap = await getFirestoreDoc('orders', reference);
+                const existingOrder = existingOrderSnap?.exists ? existingOrderSnap.data() : null;
+
+                // Idempotency: skip if already fulfilled
+                if (existingOrder && (existingOrder.status === 'paid' || existingOrder.status === 'delivered')) {
+                    console.log(`[Korapay Webhook] Order ${reference} was already fulfilled.`);
+                    return res.status(200).json({ status: true, message: 'Already fulfilled' });
+                }
+
+                // Amount validation
+                if (existingOrder && existingOrder.amount != null) {
+                    const expectedAmount = Number(existingOrder.amount);
+                    if (expectedAmount > 0 && amountInGHS < expectedAmount - 0.05) {
+                        console.warn(`[Korapay Webhook Security Alert] Underpayment on reference ${reference}: paid ${amountInGHS}, expected ${expectedAmount}`);
+                        await updateFirestoreDoc('orders', reference, {
+                            paymentStatus: 'underpaid',
+                            status: 'failed',
+                            amountPaid: amountInGHS,
+                            updatedAt: clientServerTimestamp()
+                        });
+                        return res.status(400).json({ status: false, message: 'Underpayment rejected' });
+                    }
+                }
+
                 await updateFirestoreOrderPaymentStatus(reference, "success");
                 await updateFirestoreDoc('orders', reference, {
                     payment_provider: "korapay",
                     paymentMethod: "Korapay",
+                    amountPaid: amountInGHS,
+                    paidAt: clientServerTimestamp(),
                     updatedAt: clientServerTimestamp()
                 });
+
+                // Update agent_orders if present
+                const agentSnap = await getFirestoreDoc('agent_orders', reference);
+                if (agentSnap && agentSnap.exists) {
+                    await updateFirestoreDoc('agent_orders', reference, {
+                        status: 'success',
+                        paymentStatus: 'success',
+                        payment_provider: 'korapay',
+                        paymentMethod: 'Korapay',
+                        paymentReference: reference
+                    });
+                }
                 console.log(`[Korapay Webhook Success] Processed charge.success for ${reference}`);
             }
         } else if (event === 'charge.failed' || data.status === 'failed') {
@@ -2033,6 +2594,24 @@ app.get('/api/apk-status', (req, res) => {
   });
 });
 
+// Cached Firestore bundle retrieval for SEO server-rendered HTML
+let cachedSeoBundles: any[] = [];
+let lastSeoBundleFetch = 0;
+async function getLiveBundlesForSeo() {
+  const now = Date.now();
+  if (cachedSeoBundles.length > 0 && (now - lastSeoBundleFetch) < 30000) {
+    return cachedSeoBundles;
+  }
+  try {
+    const snap = await clientGetDocs(clientCollection(serverClientDb, "bundles"));
+    cachedSeoBundles = snap.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+    lastSeoBundleFetch = now;
+  } catch (err: any) {
+    console.warn("[SEO Server Bundles] Notice fetching live bundles:", err.message || err);
+  }
+  return cachedSeoBundles;
+}
+
 // React App Serving
 async function startServer() {
   console.log("[Startup] Checking payment gateway configuration...");
@@ -2060,7 +2639,8 @@ async function startServer() {
         if (fs.existsSync(indexPath)) {
           let template = fs.readFileSync(indexPath, 'utf8');
           template = await vite.transformIndexHtml(req.url, template);
-          const html = renderSeoHtml(template, seo);
+          const liveBundles = await getLiveBundlesForSeo();
+          const html = renderSeoHtml(template, seo, liveBundles);
           res.setHeader('Content-Type', 'text/html; charset=utf-8');
           res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
           return res.status(200).send(html);
@@ -2075,14 +2655,15 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('*', async (req, res) => {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       const seo = getSeoPageData(req.path);
       const indexPath = path.join(distPath, 'index.html');
       if (seo && fs.existsSync(indexPath)) {
         try {
           const template = fs.readFileSync(indexPath, 'utf8');
-          const html = renderSeoHtml(template, seo);
+          const liveBundles = await getLiveBundlesForSeo();
+          const html = renderSeoHtml(template, seo, liveBundles);
           res.setHeader('Content-Type', 'text/html; charset=utf-8');
           return res.status(200).send(html);
         } catch (err) {

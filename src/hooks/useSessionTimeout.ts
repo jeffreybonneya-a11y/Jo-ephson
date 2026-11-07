@@ -9,6 +9,7 @@ export function useSessionTimeout(_user?: any) {
     // Clean up any legacy inactivity tracking key from browser storage
     if (typeof window !== 'undefined') {
       try {
+        localStorage.removeItem('dgn_session_last_active_at');
         localStorage.removeItem('kj_session_last_active_at');
       } catch {
         // Ignore storage exceptions

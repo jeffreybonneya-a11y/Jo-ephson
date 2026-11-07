@@ -4,22 +4,26 @@ import { db } from '@/src/lib/firebase';
 import { BrandingSettings } from '@/src/types';
 import { toast } from 'sonner';
 
-const BRANDING_CACHE_KEY = 'kjd_site_branding_cache';
+const BRANDING_CACHE_KEY = 'dgn_site_branding_cache';
 
 const DEFAULT_BRANDING: BrandingSettings = {
-  logoUrl: '',
-  brandName: 'KING J DEALS',
+  logoUrl: '/dataghananow-logo.png',
+  brandName: 'DATAGHANAnow',
   tagline: "Ghana's Premier Data & Digital Hub",
-  showCrown: true,
-  logoShape: 'rounded',
-  logoHeight: 48,
+  showCrown: false,
+  logoShape: 'original',
+  logoHeight: 52,
   logoBgStyle: 'dark',
-  showTextInNavbar: false,
+  showTextInNavbar: true,
 };
 
 export function useBranding() {
   const [branding, setBranding] = useState<BrandingSettings>(() => {
     try {
+      // Invalidate old legacy cache if present
+      if (localStorage.getItem('kjd_site_branding_cache')) {
+        localStorage.removeItem('kjd_site_branding_cache');
+      }
       const cached = localStorage.getItem(BRANDING_CACHE_KEY);
       if (cached) {
         return { ...DEFAULT_BRANDING, ...JSON.parse(cached) };
@@ -92,7 +96,7 @@ export function useBranding() {
       try {
         localStorage.removeItem(BRANDING_CACHE_KEY);
       } catch (e) {}
-      toast.success('Reset to default King J Deals branding!');
+      toast.success('Reset to default DATAGHANAnow branding!');
       return true;
     } catch (err: any) {
       console.error('Error resetting branding:', err);

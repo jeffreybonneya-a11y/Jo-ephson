@@ -1,7 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 
 /**
- * Platform detection utilities for King J Deals.
+ * Platform detection utilities for DATAGHANAnow.
  * Determines whether the app is executing inside a native Capacitor shell (Android / iOS)
  * or in a standard browser environment.
  */

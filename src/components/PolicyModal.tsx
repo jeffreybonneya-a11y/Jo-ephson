@@ -19,7 +19,7 @@ export default function PolicyModal({ type, onClose }: PolicyModalProps) {
             <DialogHeader>
               <DialogTitle className="text-2xl font-black text-amber-400 flex items-center gap-2">
                 <Crown className="w-6 h-6 text-amber-400" />
-                About King J Deals
+                About DataGhanaNow
               </DialogTitle>
               <DialogDescription className="text-slate-400">
                 Ghana's Premier Digital Dealership &amp; Mobile Data Hub
@@ -28,13 +28,13 @@ export default function PolicyModal({ type, onClose }: PolicyModalProps) {
 
             <div className="text-sm text-slate-300 leading-relaxed space-y-3">
               <p>
-                <strong>King J Deals</strong> is a verified Ghanaian digital service provider specializing in affordable, non-expiry mobile data bundles across MTN, Telecel, and AirtelTigo networks.
+                <strong>DataGhanaNow</strong> is a verified Ghanaian digital service provider specializing in affordable, non-expiry mobile data bundles across MTN, Telecel, and AirtelTigo networks.
               </p>
               <p>
                 Our platform operates an automated dispatch architecture that delivers non-expiry data directly to your mobile phone number within 5 to 15 minutes under normal network conditions.
               </p>
               <p>
-                In addition to mobile data bundles, King J Deals offers digital vouchers, result checker PINs (WAEC WASSCE/BECE/NOVDEC), and gaming top-ups with instant electronic delivery and 24/7 dedicated support.
+                In addition to mobile data bundles, DataGhanaNow offers digital vouchers, result checker PINs (WAEC WASSCE/BECE/NOVDEC), and gaming top-ups with instant electronic delivery and 24/7 dedicated support.
               </p>
             </div>
           </div>
@@ -65,7 +65,7 @@ export default function PolicyModal({ type, onClose }: PolicyModalProps) {
                 <Mail className="w-5 h-5 text-amber-400 shrink-0" />
                 <div>
                   <div className="text-xs text-slate-400">Official Email</div>
-                  <a href="mailto:support@kingjdeals.site" className="font-bold text-white hover:text-amber-400 transition-colors">support@kingjdeals.site</a>
+                  <a href="mailto:support@dataghananow.com" className="font-bold text-white hover:text-amber-400 transition-colors">support@dataghananow.com</a>
                 </div>
               </div>
 
@@ -88,19 +88,19 @@ export default function PolicyModal({ type, onClose }: PolicyModalProps) {
                 Privacy Policy
               </DialogTitle>
               <DialogDescription className="text-slate-400">
-                How King J Deals collects and protects your personal information.
+                How DataGhanaNow collects and protects your personal information.
               </DialogDescription>
             </DialogHeader>
 
             <div className="text-xs text-slate-300 leading-relaxed space-y-3">
               <p>
-                <strong>Information We Collect:</strong> When you purchase data or digital products on King J Deals, we collect your phone number, email address, transaction references, and network carrier details necessary to fulfill your order.
+                <strong>Information We Collect:</strong> When you purchase data or digital products on DataGhanaNow, we collect your phone number, email address, transaction references, and network carrier details necessary to fulfill your order.
               </p>
               <p>
                 <strong>How Information Is Used:</strong> Your contact information is strictly used for order processing, automated dispatching, payment verification, and sending order confirmation updates via SMS/Email.
               </p>
               <p>
-                <strong>Payment Security:</strong> All financial transactions are securely processed via licensed payment gateways (Paystack and Korapay). King J Deals does not store or handle raw bank card numbers or Mobile Money PINs.
+                <strong>Payment Security:</strong> All financial transactions are securely processed via licensed payment gateways (Paystack and Korapay). DataGhanaNow does not store or handle raw bank card numbers or Mobile Money PINs.
               </p>
               <p>
                 <strong>Data Protection:</strong> We implement bank-grade encryption and Firestore access rules. Your information is never sold, rented, or shared with third parties.
@@ -117,7 +117,7 @@ export default function PolicyModal({ type, onClose }: PolicyModalProps) {
                 Terms of Service
               </DialogTitle>
               <DialogDescription className="text-slate-400">
-                Terms and conditions for using King J Deals.
+                Terms and conditions for using DataGhanaNow.
               </DialogDescription>
             </DialogHeader>
 
@@ -126,7 +126,7 @@ export default function PolicyModal({ type, onClose }: PolicyModalProps) {
                 <strong>Order Processing:</strong> Orders are processed automatically upon successful payment verification. Data bundle top-ups are credited directly to the beneficiary phone number provided during checkout.
               </p>
               <p>
-                <strong>Accuracy of Details:</strong> Customers must ensure that the recipient phone number and mobile network selected during checkout are correct. King J Deals is not liable for orders fulfilled to incorrectly typed recipient numbers.
+                <strong>Accuracy of Details:</strong> Customers must ensure that the recipient phone number and mobile network selected during checkout are correct. DataGhanaNow is not liable for orders fulfilled to incorrectly typed recipient numbers.
               </p>
               <p>
                 <strong>Service Availability:</strong> Top-up delivery speeds depend on telecom network uptime in Ghana (MTN, Telecel, AirtelTigo). Standard delivery window is 5 to 15 minutes.
@@ -149,7 +149,7 @@ export default function PolicyModal({ type, onClose }: PolicyModalProps) {
 
             <div className="text-xs text-slate-300 leading-relaxed space-y-3">
               <p>
-                <strong>Failed Deliveries:</strong> If a paid order fails to deliver due to a system error or telecom network blockage, King J Deals will automatically re-attempt delivery or issue a full refund to your Mobile Money account or bank card.
+                <strong>Failed Deliveries:</strong> If a paid order fails to deliver due to a system error or telecom network blockage, DataGhanaNow will automatically re-attempt delivery or issue a full refund to your Mobile Money account or bank card.
               </p>
               <p>
                 <strong>Refund Timeframe:</strong> Approved refunds are processed within 24 to 48 hours upon verification by our support desk.

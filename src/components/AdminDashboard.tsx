@@ -121,6 +121,67 @@ const parseDataAmountToMB = (amountStr: string): number => {
   return val * 1024;
 };
 
+export const getCleanAdminBundles = (rawBundles: Bundle[]): Bundle[] => {
+  if (!Array.isArray(rawBundles)) return [];
+
+  // 1. Filter out inactive documents (active === false)
+  const activeOnly = rawBundles.filter((b) => b.active !== false);
+
+  // 2. Filter out Telecel 1GB, 2GB, 3GB, 4GB, and 5GB offers (must be >= 10GB)
+  const validOffers = activeOnly.filter((b) => {
+    const net = (b.network || b.category || "").trim().toLowerCase();
+    if (net === "telecel") {
+      const amtStr = (b.dataAmount || b.name || "").trim().toLowerCase();
+      const numMatch = amtStr.match(/([\d.,]+)/);
+      if (!numMatch) return true;
+      const val = parseFloat(numMatch[1].replace(/,/g, ""));
+      if (amtStr.includes("mb")) return false;
+      if (val >= 1 && val <= 5) return false;
+      if (val < 10) return false;
+    }
+    return true;
+  });
+
+  // 3. Clean deduplication by composite identity key
+  const seenMap = new Map<string, Bundle>();
+  for (const b of validOffers) {
+    const net = (b.network || b.category || "").trim().toLowerCase();
+    const amount = (b.dataAmount || "").trim().toLowerCase().replace(/\s/g, "");
+    const name = (b.name || "").trim().toLowerCase().replace(/\s/g, "");
+    const pType = (b.packageType || "").trim().toLowerCase().replace(/\s/g, "");
+
+    const key = `${net}__${amount || name}__${name}__${pType}`;
+    if (!seenMap.has(key)) {
+      seenMap.set(key, b);
+    }
+  }
+
+  const result = Array.from(seenMap.values());
+
+  // Sort by category order then capacity / price
+  result.sort((a, b) => {
+    const catA = (a.category || a.network || "").trim();
+    const catB = (b.category || b.network || "").trim();
+    const networkOrder: Record<string, number> = {
+      MTN: 1,
+      Telecel: 2,
+      AirtelTigo: 3,
+      "FC Mobile Points": 4,
+      "FC Mobile Silver": 5,
+    };
+    const orderA = networkOrder[catA] || 99;
+    const orderB = networkOrder[catB] || 99;
+    if (orderA !== orderB) return orderA - orderB;
+
+    const mbA = parseDataAmountToMB(a.dataAmount);
+    const mbB = parseDataAmountToMB(b.dataAmount);
+    if (mbA !== mbB) return mbA - mbB;
+    return Number(a.price) - Number(b.price);
+  });
+
+  return result;
+};
+
 const formatCustomerDateTime = (val: any): string => {
   if (!val) return "Not Recorded";
   try {
@@ -936,10 +997,40 @@ export default function AdminDashboard() {
         data.network = data.category;
       }
 
+      // Check Telecel minimum 10GB rule
+      const targetNet = (data.network || data.category || "").trim().toLowerCase();
+      if (targetNet === "telecel" && data.active) {
+        const mb = parseDataAmountToMB(data.dataAmount || "");
+        if (mb < 10 * 1024) {
+          toast.error("Telecel active data bundles must start at 10GB. 1GB–5GB offers are disabled.");
+          return;
+        }
+      }
+
       if (editingBundle) {
         await updateDoc(doc(db, "bundles", editingBundle.id), data);
         toast.success("Product updated successfully!");
       } else {
+        // Prevent duplicate active bundle creation
+        const normNet = targetNet;
+        const normSize = (data.dataAmount || "").trim().toLowerCase().replace(/\s/g, "");
+        const normName = (data.name || "").trim().toLowerCase().replace(/\s/g, "");
+        const activeClean = getCleanAdminBundles(bundles);
+        const duplicateExists = activeClean.some((b) => {
+          const bNet = (b.network || b.category || "").trim().toLowerCase();
+          const bSize = (b.dataAmount || "").trim().toLowerCase().replace(/\s/g, "");
+          const bName = (b.name || "").trim().toLowerCase().replace(/\s/g, "");
+          if (bNet !== normNet) return false;
+          if (normSize && bSize === normSize) return true;
+          if (normName && bName === normName) return true;
+          return false;
+        });
+
+        if (duplicateExists) {
+          toast.error(`An active ${data.network || data.category} offer for ${data.dataAmount || data.name} already exists! Please edit the existing offer instead.`);
+          return;
+        }
+
         await addDoc(collection(db, "bundles"), {
           ...data,
           createdAt: serverTimestamp(),
@@ -2038,7 +2129,7 @@ export default function AdminDashboard() {
     }, 500);
   };
 
-  const filteredWholesaleBundles = bundles.filter((b) => {
+  const filteredWholesaleBundles = getCleanAdminBundles(bundles).filter((b) => {
     const matchesCat =
       wholesaleCategoryFilter === "ALL" ||
       b.category === wholesaleCategoryFilter ||
@@ -3041,7 +3132,7 @@ export default function AdminDashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {bundles
+                    {getCleanAdminBundles(bundles)
                       .filter((b) =>
                         [
                           "MTN",
@@ -4128,7 +4219,7 @@ export default function AdminDashboard() {
                     type="text"
                     value={referralRewardText}
                     onChange={(e) => setReferralRewardText(e.target.value)}
-                    placeholder="e.g. Invite your friends to buy data from King J Deals and earn FREE DATA!"
+                    placeholder="e.g. Invite your friends to buy data from DATAGHANAnow and earn FREE DATA!"
                     className="h-12 px-4 rounded-xl border-2 font-medium text-sm dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
                   />
                 </div>
@@ -4155,7 +4246,7 @@ export default function AdminDashboard() {
 
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-2">
                   <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    Base Website: <strong className="font-mono text-amber-500">www.kingjdeals.site</strong> | Link format: <span className="font-mono">https://www.kingjdeals.site/?ref=UNIQUE_CODE</span>
+                    Base Website: <strong className="font-mono text-amber-500">www.dataghananow.com</strong> | Link format: <span className="font-mono">https://www.dataghananow.com/?ref=UNIQUE_CODE</span>
                   </div>
 
                   <Button

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import BrandWordmark from './BrandWordmark';
 import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { UserProfile } from '../types';
@@ -14,8 +15,8 @@ interface ReferralPromoModalProps {
   profile?: UserProfile | null;
 }
 
-const OFFICIAL_BASE_DOMAIN = 'www.kingjdeals.site';
-const OFFICIAL_BASE_URL = 'https://www.kingjdeals.site';
+const OFFICIAL_BASE_DOMAIN = 'kingjdeals.site';
+const OFFICIAL_BASE_URL = 'https://kingjdeals.site';
 
 export default function ReferralPromoModal({
   forceOpen = false,
@@ -27,7 +28,7 @@ export default function ReferralPromoModal({
   const [copied, setCopied] = useState(false);
   const [promoDisabled, setPromoDisabled] = useState(false);
   const [customRewardText, setCustomRewardText] = useState<string | null>(null);
-  const [referralCode, setReferralCode] = useState<string>('KINGJ');
+  const [referralCode, setReferralCode] = useState<string>('DGN-NOW');
   const [copyFeedbackVisible, setCopyFeedbackVisible] = useState(false);
 
   // 1. Generate or fetch personal referral code
@@ -38,13 +39,13 @@ export default function ReferralPromoModal({
       code = profile.referralCode;
     } else if (user?.uid) {
       // Create stable personal code based on user UID or phone
-      const savedCode = localStorage.getItem(`kj_ref_code_${user.uid}`);
+      const savedCode = localStorage.getItem(`dgn_ref_code_${user.uid}`);
       if (savedCode) {
         code = savedCode;
       } else {
         const uidSuffix = user.uid.replace(/[^a-zA-Z0-9]/g, '').slice(0, 5).toUpperCase();
-        code = `KJD-${uidSuffix || 'VIP'}`;
-        localStorage.setItem(`kj_ref_code_${user.uid}`, code);
+        code = `DGN-${uidSuffix || 'VIP'}`;
+        localStorage.setItem(`dgn_ref_code_${user.uid}`, code);
         // Persist non-blockingly to user profile in firestore
         try {
           updateDoc(doc(db, 'users', user.uid), { referralCode: code }).catch(() => {
@@ -56,13 +57,13 @@ export default function ReferralPromoModal({
       }
     } else {
       // Guest customer: create or reuse persistent guest code
-      const guestSaved = localStorage.getItem('kj_guest_referral_code');
+      const guestSaved = localStorage.getItem('dgn_guest_referral_code') || localStorage.getItem('kj_guest_referral_code');
       if (guestSaved) {
-        code = guestSaved;
+        code = guestSaved.startsWith('KJD-') || guestSaved.startsWith('KJ-') ? guestSaved.replace(/^(KJD|KJ)-/, 'DGN-') : guestSaved;
       } else {
         const rand = Math.random().toString(36).substring(2, 7).toUpperCase();
-        code = `KJD-${rand}`;
-        localStorage.setItem('kj_guest_referral_code', code);
+        code = `DGN-${rand}`;
+        localStorage.setItem('dgn_guest_referral_code', code);
       }
     }
 
@@ -117,13 +118,11 @@ export default function ReferralPromoModal({
       if (promoDisabled) return;
 
       // Check if user dismissed it in this browser session
-      if (sessionStorage.getItem('kingj_referral_promo_dismissed') === 'true') return;
-
+      if (sessionStorage.getItem('dgn_referral_promo_dismissed') === 'true') return;
       // Check if already auto-displayed in this browser session
-      if (sessionStorage.getItem('kingj_referral_promo_shown_session') === 'true') return;
-
+      if (sessionStorage.getItem('dgn_referral_promo_shown_session') === 'true') return;
       // Multi-day cooldown (at least 5 days between automatic popups)
-      const lastShown = localStorage.getItem('kingj_referral_promo_last_shown');
+      const lastShown = localStorage.getItem('dgn_referral_promo_last_shown');
       if (lastShown) {
         const lastShownTime = parseInt(lastShown, 10);
         const FIVE_DAYS_MS = 5 * 24 * 60 * 60 * 1000;
@@ -131,18 +130,16 @@ export default function ReferralPromoModal({
           return;
         }
       }
-
       // Check if customer dismissed with cooldown (7 days)
-      const dismissedUntil = localStorage.getItem('kingj_referral_promo_dismissed_until');
+      const dismissedUntil = localStorage.getItem('dgn_referral_promo_dismissed_until');
       if (dismissedUntil) {
         const expiry = parseInt(dismissedUntil, 10);
         if (!isNaN(expiry) && Date.now() < expiry) {
           return;
         }
       }
-
       // Check if user has already shared on WhatsApp recently - don't nag active referrers
-      const hasShared = localStorage.getItem('kingj_referral_shared_whatsapp') || sessionStorage.getItem('kingj_referral_shared_whatsapp');
+      const hasShared = localStorage.getItem('dgn_referral_shared_whatsapp') || sessionStorage.getItem('dgn_referral_shared_whatsapp');
       if (hasShared === 'true') return;
 
       // Check if another high-priority checkout, payment or auth modal is active
@@ -157,8 +154,8 @@ export default function ReferralPromoModal({
 
         setIsOpen(true);
         // Mark as shown immediately so reloads/navigation won't trigger it again
-        sessionStorage.setItem('kingj_referral_promo_shown_session', 'true');
-        localStorage.setItem('kingj_referral_promo_last_shown', Date.now().toString());
+        sessionStorage.setItem('dgn_referral_promo_shown_session', 'true');
+        localStorage.setItem('dgn_referral_promo_last_shown', Date.now().toString());
       }, 20000);
 
       return () => clearTimeout(timer);
@@ -178,10 +175,10 @@ export default function ReferralPromoModal({
   // WhatsApp pre-formatted share message:
   // Looking for affordable data? 👑
   //
-  // You can now get 1GB of data for only GH₵4 on King J Deals. Buy affordable data from:
+  // You can now get 1GB of data for only GH₵4 on DATAGHANAnow. Buy affordable data from:
   //
-  // https://www.kingjdeals.site/?ref=THE_CUSTOMERS_REFERRAL_CODE
-  const whatsappShareMessage = `Looking for affordable data? 👑\n\nYou can now get 1GB of data for only GH₵4 on King J Deals. Buy affordable data from:\n\n${personalReferralUrl}`;
+  // https://www.dataghananow.com/?ref=THE_CUSTOMERS_REFERRAL_CODE
+  const whatsappShareMessage = `Looking for affordable data? 🚀\n\nYou can now get 1GB of data for only GH₵4 on DATAGHANAnow. Buy affordable data from:\n\n${personalReferralUrl}`;
   const whatsappShareUrl = `https://wa.me/?text=${encodeURIComponent(whatsappShareMessage)}`;
 
   // Close X Button logic:
@@ -192,14 +189,14 @@ export default function ReferralPromoModal({
   // - Sets 7-day cooldown so it only appears once in a while
   const handleCloseX = () => {
     setIsOpen(false);
-    sessionStorage.setItem('kingj_referral_promo_dismissed', 'true');
+    sessionStorage.setItem('dgn_referral_promo_dismissed', 'true');
     // Set 7-day cooldown so it does not annoy the customer
     const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
     localStorage.setItem(
-      'kingj_referral_promo_dismissed_until',
+      'dgn_referral_promo_dismissed_until',
       (Date.now() + SEVEN_DAYS_MS).toString()
     );
-    localStorage.setItem('kingj_referral_promo_last_shown', Date.now().toString());
+    localStorage.setItem('dgn_referral_promo_last_shown', Date.now().toString());
     if (onClose) onClose();
   };
 
@@ -212,14 +209,14 @@ export default function ReferralPromoModal({
   // - Accessible anytime via Refer & Earn button
   const handleDoLater = () => {
     setIsOpen(false);
-    sessionStorage.setItem('kingj_referral_promo_dismissed', 'true');
+    sessionStorage.setItem('dgn_referral_promo_dismissed', 'true');
     // Cooldown of 7 days so it won't pop up again for a week
     const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
     localStorage.setItem(
-      'kingj_referral_promo_dismissed_until',
+      'dgn_referral_promo_dismissed_until',
       (Date.now() + SEVEN_DAYS_MS).toString()
     );
-    localStorage.setItem('kingj_referral_promo_last_shown', Date.now().toString());
+    localStorage.setItem('dgn_referral_promo_last_shown', Date.now().toString());
     toast.info("You can access Refer & Earn anytime", {
       description: "Find your referral link in your Orders page or top promo banner.",
       duration: 3500,
@@ -252,7 +249,7 @@ export default function ReferralPromoModal({
 
       setCopied(true);
       setCopyFeedbackVisible(true);
-      sessionStorage.setItem('kingj_referral_link_copied', 'true');
+      sessionStorage.setItem('dgn_referral_link_copied', 'true');
 
       toast.success("Link copied successfully", {
         description: "Now share it with your friends on WhatsApp or social media to earn free data.",
@@ -271,9 +268,9 @@ export default function ReferralPromoModal({
 
   // WhatsApp Share button logic (Enabled immediately, no copy requirement):
   const handleWhatsAppShare = () => {
-    sessionStorage.setItem('kingj_referral_shared_whatsapp', 'true');
-    localStorage.setItem('kingj_referral_shared_whatsapp', 'true');
-    localStorage.setItem('kingj_referral_promo_last_shown', Date.now().toString());
+    sessionStorage.setItem('dgn_referral_shared_whatsapp', 'true');
+    localStorage.setItem('dgn_referral_shared_whatsapp', 'true');
+    localStorage.setItem('dgn_referral_promo_last_shown', Date.now().toString());
     try {
       const opened = window.open(whatsappShareUrl, '_blank', 'noopener,noreferrer');
       if (!opened) {
@@ -284,7 +281,7 @@ export default function ReferralPromoModal({
     }
 
     toast.success("Opening WhatsApp", {
-      description: "Send your King J Deals referral link to friends and group chats.",
+      description: "Send your DATAGHANAnow referral link to friends and group chats.",
       duration: 3500,
     });
   };
@@ -309,7 +306,7 @@ export default function ReferralPromoModal({
           className="fixed inset-0 bg-slate-950/85 backdrop-blur-md cursor-pointer"
         />
 
-        {/* Modal Window in King J Deals Royal Navy & Brushed Gold Design */}
+        {/* Modal Window in DATAGHANAnow Royal Navy & Brushed Gold Design */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 12 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -331,7 +328,10 @@ export default function ReferralPromoModal({
             <X className="w-4 h-4" />
           </button>
 
-          {/* Official Referral Program Label */}
+          {/* Official Referral Program Label & Logo */}
+          <div className="flex justify-center mb-3">
+            <BrandWordmark size="md" />
+          </div>
           <div className="text-center mb-2.5">
             <span className="text-[11px] font-semibold tracking-wider uppercase text-amber-400/90">
               OFFICIAL REFERRAL PROGRAM
@@ -347,10 +347,10 @@ export default function ReferralPromoModal({
               SHARE & WIN FREE DATA
             </h2>
             <p className="text-sm font-medium text-slate-200 leading-snug max-w-sm mx-auto">
-              Invite your friends to buy data from King J Deals and earn <span className="text-amber-400 font-bold uppercase">FREE DATA</span>.
+              Invite your friends to buy data from DATAGHANAnow and earn <span className="text-amber-400 font-bold uppercase">FREE DATA</span>.
             </p>
             <p className="text-xs text-slate-400 leading-relaxed max-w-xs mx-auto">
-              The more friends you successfully bring to King J Deals, the more free data you can earn.
+              The more friends you successfully bring to DATAGHANAnow, the more free data you can earn.
             </p>
           </div>
 
@@ -364,7 +364,7 @@ export default function ReferralPromoModal({
             </div>
 
             <p className="text-xs text-slate-300 leading-relaxed font-normal">
-              Copy your unique referral link below and share it with your friends. Whenever they purchase data on King J Deals through your link, you automatically earn bonus data rewards.
+              Copy your unique referral link below and share it with your friends. Whenever they purchase data on DATAGHANAnow through your link, you automatically earn bonus data rewards.
             </p>
 
             {/* Display Personal Referral Link & Code */}

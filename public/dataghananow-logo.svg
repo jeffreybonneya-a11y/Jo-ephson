@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 120" width="620" height="120">
+  <defs>
+    <linearGradient id="ghanaGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#F59E0B" />
+      <stop offset="40%" stop-color="#FBBF24" />
+      <stop offset="75%" stop-color="#10B981" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(10, 88)">
+    <text x="0" y="0" font-family="Plus Jakarta Sans, system-ui, -apple-system, sans-serif" font-weight="900" font-size="74" letter-spacing="-2px" fill="url(#ghanaGradient)">DATAGHANA</text>
+    <text x="475" y="0" font-family="Plus Jakarta Sans, system-ui, -apple-system, sans-serif" font-weight="800" font-style="italic" font-size="64" letter-spacing="-1px" fill="#F59E0B">now</text>
+  </g>
+</svg>

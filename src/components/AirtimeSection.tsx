@@ -151,11 +151,11 @@ export default function AirtimeSection({ profile, agentContext }: AirtimeSection
     setIsSubmitting(true);
     localStorage.setItem("last_recipient_phone", cleanPhone);
 
-    const generatedRef = `KJD-AIRTIME-${Date.now()}-${Math.floor(Math.random() * 8999 + 1000)}`;
+    const generatedRef = `DGN-AIRTIME-${Date.now()}-${Math.floor(Math.random() * 8999 + 1000)}`;
     const userEmail =
       currentUser.email ||
       profile?.email ||
-      `${cleanPhone}@customer.kingjdeals.com`;
+      `${cleanPhone}@customer.dataghananow.site`;
     const customerDisplayName =
       profile?.fullName || currentUser.displayName || `Customer (${cleanPhone})`;
 
@@ -211,7 +211,7 @@ export default function AirtimeSection({ profile, agentContext }: AirtimeSection
       const redirectTarget =
         typeof window !== "undefined" && window.location.origin
           ? window.location.origin
-          : "https://kingjdeals.site";
+          : "https://dataghananow.com";
 
       try {
         toast.info("Opening secure payment window...");

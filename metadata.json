@@ -1,6 +1,6 @@
 {
-  "name": "King J Deals",
-  "description": "Full-stack automated data reseller site for King J Deals. Instant delivery, real-time pricing, and royal service.",
+  "name": "DATAGHANAnow",
+  "description": "Full-stack automated data reseller site for DATAGHANAnow. Instant delivery, real-time pricing, and royal service.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

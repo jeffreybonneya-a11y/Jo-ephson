@@ -101,7 +101,7 @@ export default function AdminEFootballTab({ adminEmail }: AdminEFootballTabProps
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const currentAdmin = auth.currentUser?.email || adminEmail || 'admin@kingjdeals.com';
+  const currentAdmin = auth.currentUser?.email || adminEmail || 'admin@dataghananow.com';
 
   // 1. Real-time Subscription to eFootball Cover Setting
   useEffect(() => {
@@ -781,9 +781,9 @@ export default function AdminEFootballTab({ adminEmail }: AdminEFootballTabProps
 
                 // Mailto link for customer's authenticated website Gmail
                 const mailtoLink = `mailto:${encodeURIComponent(customerEmail)}?subject=${encodeURIComponent(
-                  `King J Deals - eFootball Order #${order.orderId} (${order.productName})`
+                  `DataGhanaNow - eFootball Order #${order.orderId} (${order.productName})`
                 )}&body=${encodeURIComponent(
-                  `Hello ${order.customerName},\n\nThis is King J Deals regarding your eFootball Coins order #${order.orderId} (${order.productName}).\n\nPlatform: ${platformDisplay}\nAccount: ${accountIdentifier}\n\n`
+                  `Hello ${order.customerName},\n\nThis is DataGhanaNow regarding your eFootball Coins order #${order.orderId} (${order.productName}).\n\nPlatform: ${platformDisplay}\nAccount: ${accountIdentifier}\n\n`
                 )}`;
 
                 return (

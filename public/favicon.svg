@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Ghana Red to Emerald Green Gradient for G loop -->
+    <linearGradient id="gArcGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E11D48" />
+      <stop offset="45%" stop-color="#EF4444" />
+      <stop offset="75%" stop-color="#10B981" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(16, 16) scale(0.9375)">
+    <!-- Yellow D Stem & Outer Curve -->
+    <path d="M 60 40 L 260 40 C 370 40 440 100 440 256 C 440 412 370 472 260 472 L 60 472 Z M 124 104 L 124 408 L 245 408 C 315 408 372 360 372 256 C 372 152 315 104 245 104 Z" fill="#FACC15" />
+
+    <!-- Red/Green Overlaid G Circle -->
+    <path d="M 280 64 C 174 64 88 150 88 256 C 88 362 174 448 280 448 C 360 448 428 398 456 328 C 458 322 450 316 440 316 L 310 316 C 298 316 290 324 290 336 L 290 348 C 290 358 298 366 308 366 L 388 366 C 364 400 324 420 280 420 C 190 420 116 346 116 256 C 116 166 190 92 280 92 C 348 92 408 134 436 194 C 440 202 450 204 456 198 L 476 178 C 482 172 480 162 474 156 C 434 98 362 64 280 64 Z" fill="url(#gArcGradient)" opacity="0.95" />
+
+    <!-- Central Dark Star -->
+    <polygon points="256,220 265,246 293,246 270,263 279,290 256,273 233,290 242,263 219,246 247,246" fill="#0F172A" />
+  </g>
+</svg>

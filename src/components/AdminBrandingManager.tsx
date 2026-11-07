@@ -22,7 +22,7 @@ import {
   UploadCloud
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { uploadToCloudinary, isCloudinaryUrl, CLOUDINARY_CLOUD_NAME } from '@/src/lib/cloudinary';
+import { uploadToCloudinary, isCloudinaryUrl, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from '@/src/lib/cloudinary';
 
 /**
  * Filter an existing image data URL / remote image to remove black or white background and re-export
@@ -83,8 +83,8 @@ export default function AdminBrandingManager() {
   const { branding, updateBranding, resetBranding, defaultBranding } = useBranding();
 
   // Local draft state
-  const [logoUrl, setLogoUrl] = useState<string>(branding.logoUrl || '');
-  const [brandName, setBrandName] = useState<string>(branding.brandName || 'KING J DEALS');
+  const [logoUrl, setLogoUrl] = useState<string>(branding.logoUrl || '/dataghananow-logo.png');
+  const [brandName, setBrandName] = useState<string>(branding.brandName || 'DataGhanaNow');
   const [tagline, setTagline] = useState<string>(branding.tagline || "Ghana's Premier Data & Digital Hub");
   const [showCrown, setShowCrown] = useState<boolean>(branding.showCrown !== false);
   const [logoShape, setLogoShape] = useState<'rounded' | 'circle' | 'square' | 'original'>(
@@ -105,8 +105,8 @@ export default function AdminBrandingManager() {
 
   // Synchronize when remote branding changes
   useEffect(() => {
-    setLogoUrl(branding.logoUrl || '');
-    setBrandName(branding.brandName || 'KING J DEALS');
+    setLogoUrl(branding.logoUrl || '/dataghananow-logo.png');
+    setBrandName(branding.brandName || 'DataGhanaNow');
     setTagline(branding.tagline || "Ghana's Premier Data & Digital Hub");
     setShowCrown(branding.showCrown !== false);
     setLogoShape(branding.logoShape || 'rounded');
@@ -178,7 +178,7 @@ export default function AdminBrandingManager() {
     setIsSaving(true);
     const success = await updateBranding({
       logoUrl,
-      brandName: brandName.trim() || 'KING J DEALS',
+      brandName: brandName.trim() || 'DataGhanaNow',
       tagline: tagline.trim(),
       showCrown,
       logoShape,
@@ -194,14 +194,14 @@ export default function AdminBrandingManager() {
   };
 
   const handleReset = async () => {
-    if (confirm('Are you sure you want to reset the site logo and branding back to default King J Deals?')) {
+    if (confirm('Are you sure you want to reset the site logo and branding back to default DataGhanaNow?')) {
       setIsSaving(true);
       await resetBranding();
-      setLogoUrl('');
-      setBrandName('KING J DEALS');
+      setLogoUrl('/dataghananow-logo.png');
+      setBrandName('DataGhanaNow');
       setTagline("Ghana's Premier Data & Digital Hub");
-      setShowCrown(true);
-      setLogoShape('rounded');
+      setShowCrown(false);
+      setLogoShape('original');
       setLogoHeight(52);
       setShowTextInNavbar(false);
       setLogoBgStyle('dark');
@@ -235,7 +235,7 @@ export default function AdminBrandingManager() {
 
   const hasChanges =
     logoUrl !== (branding.logoUrl || '') ||
-    brandName !== (branding.brandName || 'KING J DEALS') ||
+    brandName !== (branding.brandName || 'DataGhanaNow') ||
     tagline !== (branding.tagline || "Ghana's Premier Data & Digital Hub") ||
     showCrown !== (branding.showCrown !== false) ||
     logoShape !== (branding.logoShape || 'rounded') ||
@@ -347,7 +347,7 @@ export default function AdminBrandingManager() {
                       />
                     </div>
                     <p className="text-xs text-slate-400">
-                      Cloud Name: {CLOUDINARY_CLOUD_NAME} • Preset: kingjdeals_uploads
+                      Cloud Name: {CLOUDINARY_CLOUD_NAME} • Preset: {CLOUDINARY_UPLOAD_PRESET}
                     </p>
                   </div>
                 ) : (
@@ -595,7 +595,7 @@ export default function AdminBrandingManager() {
                 <Input
                   value={brandName}
                   onChange={(e) => setBrandName(e.target.value)}
-                  placeholder="KING J DEALS"
+                  placeholder="DataGhanaNow"
                   className="h-11 rounded-xl font-bold uppercase"
                 />
               </div>
@@ -607,7 +607,7 @@ export default function AdminBrandingManager() {
                     Display Brand Text Beside Logo in Header
                   </div>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Shows large gold text "{brandName || 'KING J DEALS'}" directly next to your logo in the top bar.
+                    Shows large gold text "{brandName || 'DataGhanaNow'}" directly next to your logo in the top bar.
                   </p>
                 </div>
                 <button
@@ -669,14 +669,14 @@ export default function AdminBrandingManager() {
                         />
                         {showTextInNavbar && (
                           <span className="font-serif font-black text-xl tracking-wide bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 bg-clip-text text-transparent select-none drop-shadow-sm">
-                            {brandName || 'KING J DEALS'}
+                            {brandName || 'DataGhanaNow'}
                           </span>
                         )}
                       </>
                     ) : (
                       <div className="flex items-center gap-2.5 px-1">
                         <span className="font-serif font-black text-xl tracking-wide bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 bg-clip-text text-transparent">
-                          {brandName || 'KING J DEALS'}
+                          {brandName || 'DataGhanaNow'}
                         </span>
                         {showCrown && <span className="text-amber-400 text-xl">👑</span>}
                       </div>
@@ -686,7 +686,7 @@ export default function AdminBrandingManager() {
                   <div className="flex items-center gap-1.5">
                     <div className="w-6 h-6 rounded-lg bg-slate-800 border border-slate-700" />
                     <div className="w-6 h-6 rounded-lg bg-amber-400 text-slate-950 flex items-center justify-center text-[10px] font-black">
-                      KJ
+                      DGN
                     </div>
                   </div>
                 </div>
@@ -748,11 +748,8 @@ export default function AdminBrandingManager() {
                       />
                     )}
                     <div className="flex items-center gap-1.5 font-black text-sm tracking-tight text-white">
-                      <span className="bg-amber-400 text-slate-950 px-2 py-0.5 rounded-md text-xs">
-                        {brandName.split(' ')[0] || 'KING'}
-                      </span>
                       <span className="text-amber-400">
-                        {brandName.split(' ').slice(1).join(' ') || 'DEALS'} {showCrown && '👑'}
+                        {brandName || 'DataGhanaNow'} {showCrown && '👑'}
                       </span>
                     </div>
                   </div>

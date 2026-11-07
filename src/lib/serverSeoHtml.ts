@@ -1,6 +1,43 @@
 import { SeoPageData } from '../data/seoPages';
+import { SeoBundleRow, getNetworkSeoBundles } from './seoPriceTables';
 
-export function renderSeoHtml(template: string, seo: SeoPageData): string {
+function buildServerTableHtml(networkTitle: string, rows: SeoBundleRow[]): string {
+  return `
+    <section style="margin-bottom: 2.5rem;">
+      <h2 style="font-size: 1.5rem; font-weight: 800; color: #ffffff; margin-bottom: 1rem; border-left: 4px solid #fbbf24; padding-left: 0.75rem;">
+        ${networkTitle} Price Comparison List
+      </h2>
+      <div style="overflow-x: auto; background: #0f172a; border: 1px solid #1e293b; border-radius: 0.75rem; padding: 0.5rem; margin-top: 0.75rem;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.875rem; color: #f8fafc;">
+          <thead>
+            <tr style="border-bottom: 2px solid #1e293b; color: #fbbf24; font-weight: 800;">
+              <th scope="col" style="padding: 0.75rem;">Network</th>
+              <th scope="col" style="padding: 0.75rem;">Bundle Size</th>
+              <th scope="col" style="padding: 0.75rem;">Retail Price</th>
+              <th scope="col" style="padding: 0.75rem;">Calculated Rate / GB</th>
+              <th scope="col" style="padding: 0.75rem; text-align: right;">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr style="border-bottom: 1px solid #1e293b;">
+                <td style="padding: 0.75rem; font-weight: 700;">${r.network}</td>
+                <td style="padding: 0.75rem; font-weight: 800; color: #fde047;">${r.dataAmount}</td>
+                <td style="padding: 0.75rem; font-weight: 800; color: #34d399;">GH₵ ${r.price.toFixed(2)}</td>
+                <td style="padding: 0.75rem; color: #cbd5e1;">${r.pricePerGb}</td>
+                <td style="padding: 0.75rem; text-align: right;">
+                  <a href="/" style="display: inline-block; background: #fbbf24; color: #020617; font-weight: 800; padding: 0.35rem 0.75rem; border-radius: 0.5rem; text-decoration: none; font-size: 0.75rem;">Order Now</a>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
+
+export function renderSeoHtml(template: string, seo: SeoPageData, liveBundles?: any[]): string {
   // Breadcrumb schema
   const breadcrumbSchema = {
     "@context": "https://schema.org",
@@ -56,9 +93,9 @@ export function renderSeoHtml(template: string, seo: SeoPageData): string {
     "description": seo.metaDescription,
     "provider": {
       "@type": "Organization",
-      "name": "King J Deals",
+      "name": "DATAGHANAnow",
       "url": "https://kingjdeals.site/",
-      "logo": "https://kingjdeals.site/icon-512.png"
+      "logo": "https://kingjdeals.site/dataghananow-logo.png"
     },
     "areaServed": {
       "@type": "Country",
@@ -72,6 +109,21 @@ export function renderSeoHtml(template: string, seo: SeoPageData): string {
     ${faqSchema ? `<script type="application/ld+json">${JSON.stringify(faqSchema)}</script>` : ''}
     <script type="application/ld+json">${JSON.stringify(serviceSchema)}</script>
   `;
+
+  // Determine tables to render for bots based on page route
+  let tablesHtml = '';
+  if (seo.slug === 'mtn-data-bundles') {
+    tablesHtml = buildServerTableHtml('MTN Ghana Data Bundles', getNetworkSeoBundles('MTN', liveBundles));
+  } else if (seo.slug === 'telecel-data-bundles') {
+    tablesHtml = buildServerTableHtml('Telecel Ghana Data Bundles', getNetworkSeoBundles('Telecel', liveBundles));
+  } else if (seo.slug === 'airteltigo-data-bundles') {
+    tablesHtml = buildServerTableHtml('AirtelTigo (AT) Ghana Data Bundles', getNetworkSeoBundles('AirtelTigo', liveBundles));
+  } else if (seo.slug === 'data-bundles' || seo.slug === 'home' || seo.slug === '') {
+    tablesHtml = 
+      buildServerTableHtml('MTN Ghana Data Bundles', getNetworkSeoBundles('MTN', liveBundles)) +
+      buildServerTableHtml('Telecel Ghana Data Bundles', getNetworkSeoBundles('Telecel', liveBundles)) +
+      buildServerTableHtml('AirtelTigo (AT) Ghana Data Bundles', getNetworkSeoBundles('AirtelTigo', liveBundles));
+  }
 
   // Semantic HTML pre-rendered inside root for search bots
   const semanticContent = `
@@ -93,7 +145,7 @@ export function renderSeoHtml(template: string, seo: SeoPageData): string {
         </p>
         <div style="margin-bottom: 2rem;">
           <a href="/" style="display: inline-block; background-color: #fbbf24; color: #020617; font-weight: 800; padding: 0.875rem 1.75rem; border-radius: 0.75rem; text-decoration: none; font-size: 1rem;">
-            Order on King J Deals Store
+            Order on DATAGHANAnow Store
           </a>
         </div>
         <section style="margin-bottom: 2.5rem;">
@@ -102,6 +154,9 @@ export function renderSeoHtml(template: string, seo: SeoPageData): string {
           </h2>
           ${seo.overviewParagraphs.map(p => `<p style="font-size: 1rem; color: #94a3b8; line-height: 1.6; margin-bottom: 0.75rem;">${p}</p>`).join('')}
         </section>
+
+        ${tablesHtml}
+
         <section style="margin-bottom: 2.5rem;">
           <h2 style="font-size: 1.5rem; font-weight: 800; color: #ffffff; margin-bottom: 1rem; border-left: 4px solid #fbbf24; padding-left: 0.75rem;">
             ${seo.featuresHeading}
@@ -162,7 +217,7 @@ export function renderSeoHtml(template: string, seo: SeoPageData): string {
           </ul>
         </section>
         <footer style="margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid #1e293b; font-size: 0.75rem; color: #64748b; text-align: center;">
-          <p>King J Deals &copy; ${new Date().getFullYear()}. Independent digital deals vendor in Ghana. All brand trademarks belong to their respective owners.</p>
+          <p>DATAGHANAnow &copy; ${new Date().getFullYear()}. Independent digital deals vendor in Ghana. All brand trademarks belong to their respective owners.</p>
         </footer>
       </article>
     </main>

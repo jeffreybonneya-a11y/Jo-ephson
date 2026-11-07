@@ -61,7 +61,7 @@ const DEFAULT_SETTINGS: ThemeSettings = {
 
 export function useTheme() {
   const [settings, setSettings] = useState<ThemeSettings>(() => {
-    const saved = localStorage.getItem('king-j-theme-settings');
+    const saved = localStorage.getItem('dgn-theme-settings') || localStorage.getItem('king-j-theme-settings');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -89,7 +89,7 @@ export function useTheme() {
   const updateSetting = useCallback(<K extends keyof ThemeSettings>(key: K, value: ThemeSettings[K]) => {
     setSettings(prev => {
       const next = { ...prev, [key]: value };
-      localStorage.setItem('king-j-theme-settings', JSON.stringify(next));
+      localStorage.setItem('dgn-theme-settings', JSON.stringify(next));
       console.log(`[Theme] ${String(key)} updated to:`, value);
       return next;
     });
@@ -97,6 +97,7 @@ export function useTheme() {
 
   const resetSettings = useCallback(() => {
     setSettings(DEFAULT_SETTINGS);
+    localStorage.removeItem('dgn-theme-settings');
     localStorage.removeItem('king-j-theme-settings');
   }, []);
 

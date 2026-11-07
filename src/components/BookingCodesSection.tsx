@@ -1514,7 +1514,7 @@ export default function BookingCodesSection({
                   {/* Subtle security watermark */}
                   <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
                     <span className="text-white/20 font-black text-2xl sm:text-3xl font-mono -rotate-12 select-none uppercase">
-                      KING J DEALS PREVIEW
+                      DATAGHANANOW PREVIEW
                     </span>
                   </div>
                 </div>

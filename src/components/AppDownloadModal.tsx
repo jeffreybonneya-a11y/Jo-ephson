@@ -14,14 +14,15 @@ import {
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { logAppDownload } from '@/src/lib/downloadTracking';
+import BrandWordmark from './BrandWordmark';
 
 interface AppDownloadModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-export const PRODUCTION_APK_URL = 'https://kingjdeals.site/downloads/King-J-Deals.apk';
-export const APK_FILENAME = 'King-J-Deals.apk';
+export const PRODUCTION_APK_URL = 'https://dataghananow.com/downloads/DATAGHANAnow.apk';
+export const APK_FILENAME = 'DATAGHANAnow.apk';
 export const APK_SIZE_LABEL = '9.97 MB';
 
 export const detectDevice = (): 'android' | 'ios' | 'desktop' => {
@@ -69,7 +70,7 @@ export default function AppDownloadModal({ isOpen, onClose }: AppDownloadModalPr
         setDownloadStep('downloading');
         triggerApkDownload();
         logAppDownload({ deviceType: 'android', source: 'website_modal_android_auto' });
-        toast.success("Downloading King-J-Deals.apk!", {
+        toast.success("Downloading DATAGHANAnow.apk!", {
           description: "Check your phone notification bar for download progress.",
           duration: 5000,
         });
@@ -88,7 +89,7 @@ export default function AppDownloadModal({ isOpen, onClose }: AppDownloadModalPr
     triggerApkDownload();
     logAppDownload({ deviceType, source: 'website_modal_button_click', force: true });
 
-    toast.success("Downloading King-J-Deals.apk!", {
+    toast.success("Downloading DATAGHANAnow.apk!", {
       description: "Look in your phone's notification bar for download progress.",
       duration: 5000,
     });
@@ -132,28 +133,21 @@ export default function AppDownloadModal({ isOpen, onClose }: AppDownloadModalPr
           </button>
 
           {/* Header Section */}
-          <div className="flex flex-col items-center text-center space-y-1.5 mb-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-black border border-amber-500/40 p-1 flex items-center justify-center shadow-lg">
-              <img 
-                src="/icon-512.png" 
-                alt="King J Deals" 
-                className="w-full h-full object-contain rounded-xl"
-                onError={(e) => {
-                  (e.target as HTMLElement).style.display = 'none';
-                }}
-              />
+          <div className="flex flex-col items-center text-center space-y-2 mb-3.5">
+            <div className="flex items-center justify-center">
+              <BrandWordmark size="md" />
             </div>
 
             <div>
-              <h2 className="font-serif text-xl sm:text-2xl font-black bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 bg-clip-text text-transparent tracking-tight">
-                King J Deals App
+              <h2 className="text-xl sm:text-2xl font-black bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 bg-clip-text text-transparent tracking-tight">
+                DataGhanaNow App
               </h2>
               <p className="text-xs sm:text-sm text-slate-300 font-medium mt-0.5 leading-snug max-w-xs mx-auto">
                 {deviceType === 'android'
-                  ? "Get the King J Deals Android app for a faster and easier experience."
+                  ? "Get the DataGhanaNow Android app for a faster and easier experience."
                   : deviceType === 'ios'
-                  ? "The King J Deals app is currently available for Android devices."
-                  : "The King J Deals app is designed for Android mobile devices."}
+                  ? "The DataGhanaNow app is currently available for Android devices."
+                  : "The DataGhanaNow app is designed for Android mobile devices."}
               </p>
             </div>
           </div>
@@ -165,7 +159,7 @@ export default function AppDownloadModal({ isOpen, onClose }: AppDownloadModalPr
               {downloadStep === 'downloading' && (
                 <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-2.5 flex items-center justify-center gap-2 text-amber-300 text-xs font-bold animate-pulse">
                   <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
-                  <span>Downloading King-J-Deals.apk ({APK_SIZE_LABEL})...</span>
+                  <span>Downloading DATAGHANAnow.apk ({APK_SIZE_LABEL})...</span>
                 </div>
               )}
 
@@ -185,7 +179,7 @@ export default function AppDownloadModal({ isOpen, onClose }: AppDownloadModalPr
                 <Download className="w-5 h-5 fill-slate-950" />
                 <span>
                   {downloadStep === 'downloading' 
-                    ? "Downloading King-J-Deals.apk..." 
+                    ? "Downloading DATAGHANAnow.apk..." 
                     : downloadStep === 'completed'
                     ? "Download Again"
                     : "Download App"}
@@ -194,7 +188,7 @@ export default function AppDownloadModal({ isOpen, onClose }: AppDownloadModalPr
 
               {/* Minimal Metadata Note */}
               <p className="text-[11px] text-slate-400 font-medium text-center">
-                King-J-Deals.apk • {APK_SIZE_LABEL} • Android 7.0+ • Free
+                DATAGHANAnow.apk • {APK_SIZE_LABEL} • Android 7.0+ • Free
               </p>
 
               {/* Expandable "How to install" section below the main button */}
@@ -216,7 +210,7 @@ export default function AppDownloadModal({ isOpen, onClose }: AppDownloadModalPr
                   >
                     <div className="flex items-start gap-2">
                       <span className="w-4 h-4 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center font-black text-[9px] shrink-0 mt-0.5">1</span>
-                      <p>Open your browser notification or Downloads folder and tap <strong>King-J-Deals.apk</strong>.</p>
+                      <p>Open your browser notification or Downloads folder and tap <strong>DATAGHANAnow.apk</strong>.</p>
                     </div>
                     <div className="flex items-start gap-2">
                       <span className="w-4 h-4 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center font-black text-[9px] shrink-0 mt-0.5">2</span>
@@ -224,7 +218,7 @@ export default function AppDownloadModal({ isOpen, onClose }: AppDownloadModalPr
                     </div>
                     <div className="flex items-start gap-2">
                       <span className="w-4 h-4 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center font-black text-[9px] shrink-0 mt-0.5">3</span>
-                      <p>Tap <strong>Install</strong> to start using King J Deals on your phone!</p>
+                      <p>Tap <strong>Install</strong> to start using DataGhanaNow on your phone!</p>
                     </div>
                   </motion.div>
                 )}
@@ -241,7 +235,7 @@ export default function AppDownloadModal({ isOpen, onClose }: AppDownloadModalPr
                   <span>iOS Availability Notice</span>
                 </div>
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  The King J Deals app is currently available for <strong>Android</strong> devices. <strong>iOS support is coming later!</strong>
+                  The DataGhanaNow app is currently available for <strong>Android</strong> devices. <strong>iOS support is coming later!</strong>
                 </p>
                 <p className="text-xs text-slate-400 leading-relaxed">
                   You can continue using our full mobile website with all features, instant airtime, and data deliveries directly on Safari.
@@ -271,7 +265,7 @@ export default function AppDownloadModal({ isOpen, onClose }: AppDownloadModalPr
                   <span>Android Mobile App</span>
                 </div>
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  The King J Deals app is designed for Android mobile devices. Open <strong>kingjdeals.site</strong> on your Android phone to download directly, or download the APK below to transfer it to your phone.
+                  The DataGhanaNow app is designed for Android mobile devices. Open <strong>dataghananow.com</strong> on your Android phone to download directly, or download the APK below to transfer it to your phone.
                 </p>
               </div>
 
@@ -285,10 +279,10 @@ export default function AppDownloadModal({ isOpen, onClose }: AppDownloadModalPr
                   <Download className="w-4 h-4 fill-slate-950" />
                   <span>
                     {downloadStep === 'downloading' 
-                      ? "Downloading King-J-Deals.apk..." 
+                      ? "Downloading DATAGHANAnow.apk..." 
                       : downloadStep === 'completed'
-                      ? "Download Again (King-J-Deals.apk)"
-                      : `Download King-J-Deals.apk (${APK_SIZE_LABEL})`}
+                      ? "Download Again (DATAGHANAnow.apk)"
+                      : `Download DATAGHANAnow.apk (${APK_SIZE_LABEL})`}
                   </span>
                 </Button>
 

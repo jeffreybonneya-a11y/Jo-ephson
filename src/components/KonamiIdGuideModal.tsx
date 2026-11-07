@@ -54,7 +54,7 @@ export default function KonamiIdGuideModal({
               SECURITY WARNING: NEVER ENTER YOUR PASSWORD
             </p>
             <p className="text-[11px] sm:text-xs text-yellow-100/90 leading-relaxed font-medium">
-              King J Deals only requires your public <span className="font-bold underline">KONAMI ID</span> or the <span className="font-bold underline">email address</span> associated with your eFootball account. <strong>Never enter or share your KONAMI/eFootball password</strong> with anyone.
+              DataGhanaNow only requires your public <span className="font-bold underline">KONAMI ID</span> or the <span className="font-bold underline">email address</span> associated with your eFootball account. <strong>Never enter or share your KONAMI/eFootball password</strong> with anyone.
             </p>
           </div>
         </div>

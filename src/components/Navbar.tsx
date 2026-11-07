@@ -3,13 +3,14 @@ import { toast } from 'sonner';
 import { auth, db } from '@/src/lib/firebase';
 import { signOut } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
-import { LogIn, LogOut, LayoutDashboard, History, User, Crown, Home, MessageCircle, Download, DollarSign, Smartphone, Gift } from 'lucide-react';
+import { LogOut, LayoutDashboard, User, ShieldCheck, Menu, X } from 'lucide-react';
 import { onSnapshot, collection, query, where } from 'firebase/firestore';
 import { UserProfile } from '@/src/types';
 import { useBranding } from '@/src/hooks/useBranding';
 import { isOrderSuccessfullyPaid } from '@/src/lib/orderDeduplication';
 import AuthModal from './AuthModal';
 import SupportModal from './SupportModal';
+import BrandWordmark from './BrandWordmark';
 
 interface NavbarProps {
   onAdminView: (isAdmin: boolean) => void;
@@ -47,7 +48,7 @@ export default function Navbar({
   const { branding } = useBranding();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
-  const [greeting, setGreeting] = useState('');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
@@ -57,11 +58,6 @@ export default function Navbar({
   }, []);
 
   useEffect(() => {
-    const hours = new Date().getHours();
-    if (hours < 12) setGreeting('Good Morning');
-    else if (hours < 18) setGreeting('Good Afternoon');
-    else setGreeting('Good Evening');
-
     if (user && isAdmin) {
       let messagesCount = 0;
       let ordersCount = 0;
@@ -171,9 +167,9 @@ export default function Navbar({
   const handleLogout = async () => {
     try {
       try {
-        localStorage.removeItem('kingj_authenticated_user');
-        localStorage.removeItem('kingj_auth_uid');
-        localStorage.removeItem('kingj_auth_email');
+        localStorage.removeItem('dgn_authenticated_user');
+        localStorage.removeItem('dgn_auth_uid');
+        localStorage.removeItem('dgn_auth_email');
       } catch {}
       await signOut(auth);
       onAdminView(false);
@@ -194,12 +190,23 @@ export default function Navbar({
       <nav className="fixed top-0 left-0 right-0 z-50 bg-[#06040A]/95 backdrop-blur-md border-b border-purple-500/20 shadow-[0_4px_25px_rgba(0,0,0,0.6)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16 sm:h-20">
-            <div className="flex items-center gap-2">
+            {/* Left: Hamburger menu & Brand Logo / Name */}
+            <div className="flex items-center gap-3">
+              {!agentContext && (
+                <button
+                  type="button"
+                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                  className="p-2 rounded-xl bg-[#120A1E] text-amber-300 border border-amber-500/30 hover:bg-amber-500/10 transition-colors cursor-pointer"
+                  aria-label="Toggle Menu"
+                >
+                  {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                </button>
+              )}
+
               <div 
                 className="flex items-center gap-2 cursor-pointer select-none group"
-                onClick={() => { onAdminView(false); onHistoryView(false); onStreamView(false); onDownloadView(false); }}
+                onClick={() => { onAdminView(false); onHistoryView(false); onStreamView(false); onDownloadView(false); setIsMobileMenuOpen(false); }}
               >
-                {/* Clean Logo & Text Container with no black box */}
                 {agentContext ? (
                   <div className="relative p-0.5 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.25)]">
                     <div className="bg-[#06040A] px-3.5 py-1.5 rounded-[14px] flex items-center gap-2 border border-amber-500/40">
@@ -209,144 +216,31 @@ export default function Navbar({
                       <span className="text-amber-400 text-lg md:text-xl">👑</span>
                     </div>
                   </div>
-                ) : branding.logoUrl ? (
-                  /* Custom Logo: Clean, direct image with optional mix-blend for black bg removal and prominent size */
-                  <div className="flex items-center gap-3 py-1 group-hover:opacity-95 transition-all">
-                    <img
-                      src={branding.logoUrl}
-                      alt={branding.brandName || "Site Logo"}
-                      style={{ 
-                        height: `${Math.max(branding.logoHeight || 58, 52)}px`, 
-                        maxHeight: '72px',
-                        maxWidth: '320px'
-                      }}
-                      className={`${
-                        branding.logoShape === 'circle'
-                          ? 'rounded-full object-cover aspect-square'
-                          : branding.logoShape === 'square'
-                          ? 'rounded-lg object-contain aspect-square'
-                          : branding.logoShape === 'original'
-                          ? 'rounded-none object-contain'
-                          : 'rounded-xl object-contain'
-                      } shrink-0 transition-transform duration-200 group-hover:scale-105 filter drop-shadow-sm select-none`}
-                    />
-                    {branding.showTextInNavbar && (
-                      <span className="font-serif font-black text-xl md:text-2xl tracking-wide bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 bg-clip-text text-transparent select-none drop-shadow-sm">
-                        {branding.brandName || "KING J DEALS"}
-                      </span>
-                    )}
-                  </div>
                 ) : (
-                  /* Fallback when no custom logo is uploaded yet: Larger typography */
-                  <div className="flex items-center gap-2.5 px-1 py-1">
-                    <span className="font-serif font-black text-xl sm:text-2xl tracking-wide bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 bg-clip-text text-transparent drop-shadow-sm">
-                      {branding.brandName || "KING J DEALS"}
-                    </span>
-                    {branding.showCrown !== false && (
-                      <span className="text-amber-400 text-xl sm:text-2xl animate-pulse">👑</span>
+                  <div className="flex items-center gap-2 py-0.5 group-hover:opacity-95 transition-all">
+                    {(!branding.logoUrl || branding.logoUrl === '/dataghananow-logo.png' || branding.logoUrl === '/dataghananow-logo.svg') ? (
+                      <BrandWordmark size="md" />
+                    ) : (
+                      <img
+                        src={branding.logoUrl}
+                        alt={branding.brandName || "DATAGHANAnow"}
+                        decoding="async"
+                        style={{ 
+                          height: `${Math.max(branding.logoHeight || 44, 38)}px`, 
+                          maxHeight: '56px',
+                          maxWidth: '240px'
+                        }}
+                        className="w-auto object-contain shrink-0 transition-transform duration-200 group-hover:scale-[1.02] select-none transform-gpu"
+                      />
                     )}
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Desktop Navigation Tabs */}
-            {!agentContext && (
-              <div className="hidden md:flex items-center gap-1.5 bg-[#120A1E]/90 p-1.5 rounded-2xl border border-purple-500/20 shadow-inner backdrop-blur-md">
-                 <button 
-                  onClick={() => { onAdminView(false); onHistoryView(false); onStreamView(false); onDownloadView(false); }}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-extrabold text-xs tracking-wider transition-all cursor-pointer ${!isAdminView && !isHistoryView && !isStreamView && !isDownloadView ? 'bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 shadow-[0_2px_10px_rgba(245,158,11,0.3)] scale-[1.02]' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
-                 >
-                   <Home className="w-4 h-4" />
-                   HOME
-                 </button>
-                 <button 
-                  onClick={() => {
-                    onAdminView(false);
-                    onHistoryView(false);
-                    onStreamView(false);
-                    onDownloadView(false);
-                    setTimeout(() => {
-                      window.dispatchEvent(new Event('NAVIGATE_TO_BOOKING_CODES'));
-                    }, 50);
-                  }}
-                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-extrabold text-xs tracking-wider text-slate-300 hover:text-amber-400 hover:bg-white/5 transition-all cursor-pointer"
-                 >
-                   <DollarSign className="w-4 h-4 text-amber-400" />
-                   BOOKING CODES
-                 </button>
-                 <button 
-                  onClick={() => user ? onStreamView(!isStreamView) : openAuth()}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-extrabold text-xs tracking-wider transition-all cursor-pointer ${isStreamView ? 'bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 shadow-[0_2px_10px_rgba(245,158,11,0.3)] scale-[1.02]' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
-                 >
-                   <Crown className="w-4 h-4" />
-                   AGENT STORE
-                 </button>
-                 <button 
-                  onClick={() => user ? onHistoryView(!isHistoryView) : openAuth()}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-extrabold text-xs tracking-wider transition-all cursor-pointer ${isHistoryView ? 'bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 shadow-[0_2px_10px_rgba(245,158,11,0.3)] scale-[1.02]' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
-                 >
-                   <History className="w-4 h-4" />
-                   HISTORY
-                 </button>
-                 <button 
-                  onClick={() => window.dispatchEvent(new CustomEvent('OPEN_REFERRAL_MODAL'))}
-                  className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl font-extrabold text-xs tracking-wider text-amber-300 hover:text-amber-200 hover:bg-amber-500/10 border border-amber-500/30 transition-all cursor-pointer shadow-sm"
-                  title="Share & Earn Free Data"
-                 >
-                   <Gift className="w-4 h-4 text-amber-400" />
-                   REFER & EARN
-                 </button>
-                 <button 
-                  onClick={() => window.dispatchEvent(new CustomEvent('OPEN_APP_DOWNLOAD_MODAL'))}
-                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-extrabold text-xs tracking-wider text-amber-300 hover:text-amber-200 hover:bg-amber-500/10 border border-amber-500/30 transition-all cursor-pointer shadow-sm"
-                  title="Download Official King J Deals Android App"
-                 >
-                   <Smartphone className="w-4 h-4 text-amber-400" />
-                   DOWNLOAD APP
-                 </button>
-                 {downloadReady && (
-                   <button 
-                    onClick={() => onDownloadView(!isDownloadView)}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-extrabold text-xs tracking-wider transition-all animate-pulse ${isDownloadView ? 'bg-emerald-500 text-slate-950 shadow-md scale-105' : 'bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30'}`}
-                   >
-                     <Download className="w-4 h-4" />
-                     DOWNLOAD
-                   </button>
-                 )}
-                 <button 
-                  onClick={() => user ? setIsSupportOpen(true) : openAuth()}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-extrabold text-xs text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer"
-                 >
-                   <MessageCircle className="w-4 h-4" />
-                   SUPPORT
-                 </button>
-              </div>
-            )}
-
+            {/* Right: Admin/Agent account tab / Logout */}
             <div className="flex items-center gap-2 shrink-0">
-               {/* Quick Refer & Download App Pills for Mobile */}
-               <button
-                 type="button"
-                 onClick={() => window.dispatchEvent(new CustomEvent('OPEN_REFERRAL_MODAL'))}
-                 className="md:hidden flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 text-amber-300 font-extrabold text-xs transition-all cursor-pointer active:scale-95 shadow-sm"
-                 title="Share & Earn Free Data"
-               >
-                 <Gift className="w-3.5 h-3.5 text-amber-400" />
-                 <span>REFER</span>
-               </button>
-
-               <button
-                 type="button"
-                 onClick={() => window.dispatchEvent(new CustomEvent('OPEN_APP_DOWNLOAD_MODAL'))}
-                 className="md:hidden flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 text-amber-300 font-extrabold text-xs transition-all cursor-pointer active:scale-95 shadow-sm"
-                 title="Download King J Deals Android App"
-               >
-                 <Smartphone className="w-3.5 h-3.5 text-amber-400" />
-                 <span>APP</span>
-               </button>
-
-               {user && profile && (
+              {user && profile && (
                 <div className="hidden lg:flex items-center gap-2 bg-[#120A1E] px-4 py-2 rounded-xl border border-purple-500/20">
                   <User className="w-4 h-4 text-amber-400" />
                   <span className="text-xs font-bold text-slate-200 lowercase">{profile.fullName}</span>
@@ -377,11 +271,16 @@ export default function Navbar({
                   <span className="text-xs font-bold">Logout</span>
                 </Button>
               ) : isAuthLoading ? (
-                <div className="h-9 w-20 bg-slate-800 animate-pulse rounded-lg" />
+                <div className="h-9 w-24 bg-slate-800/60 animate-pulse rounded-lg" />
               ) : (
-                <Button size="sm" onClick={() => openAuth()} className="px-4 h-10 bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 font-black hover:brightness-110 flex items-center gap-1.5 shadow-[0_2px_12px_rgba(245,158,11,0.3)] border border-amber-300/40 cursor-pointer">
-                  <LogIn className="w-4 h-4" />
-                  <span className="text-xs font-black tracking-wide">LOGIN</span>
+                <Button 
+                  size="sm" 
+                  onClick={() => openAuth()} 
+                  className="px-3 sm:px-4 h-9 sm:h-10 bg-slate-900/90 hover:bg-slate-800 text-amber-300 hover:text-amber-200 border border-amber-500/40 hover:border-amber-400 font-extrabold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                  title="Admin & Agent Portal Login"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span className="text-xs font-black tracking-wide">ADMIN / AGENT</span>
                 </Button>
               )}
             </div>
@@ -389,75 +288,93 @@ export default function Navbar({
         </div>
       </nav>
 
-      {/* Mobile Bottom Navigation */}
-      {!agentContext && (
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#06040A]/95 backdrop-blur-lg border-t border-purple-500/20 pb-safe shadow-[0_-10px_30px_rgba(0,0,0,0.7)] h-20">
-          <div className={`grid ${isAdmin && downloadReady ? 'grid-cols-6' : (isAdmin || downloadReady ? 'grid-cols-5' : 'grid-cols-4')} h-full px-2`}>
-            <button 
-              className={`flex flex-col items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer ${!isAdminView && !isHistoryView && !isStreamView && !isDownloadView ? 'text-amber-400 font-bold' : 'text-slate-400'}`}
-              onClick={() => { 
-                onAdminView(false); 
-                onHistoryView(false); 
-                onStreamView(false);
-                onDownloadView(false);
-              }}
-            >
-              <Home className={`w-5 h-5 ${!isAdminView && !isHistoryView && !isStreamView && !isDownloadView ? 'stroke-[3px] text-amber-400' : 'stroke-2'}`} />
-              <span className="text-[9px] font-black uppercase tracking-tight">Home</span>
-            </button>
+      {/* Slide-out Drawer Navigation (Triggered by Hamburger Menu) */}
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)} />
+          <div className="relative w-4/5 max-w-xs bg-[#060A14] border-r border-amber-500/30 p-5 flex flex-col justify-between shadow-2xl z-10 overflow-y-auto">
+            <div className="space-y-6">
+              <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+                <div className="flex items-center gap-2">
+                  <BrandWordmark size="sm" />
+                </div>
+                <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 rounded-lg bg-slate-800 text-slate-300">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-            <button 
-              className={`flex flex-col items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer ${isStreamView ? 'text-amber-400 font-bold' : 'text-slate-400'}`}
-              onClick={() => { 
-                if (user) onStreamView(!isStreamView); else openAuth();
-              }}
-            >
-              <Crown className={`w-5 h-5 ${isStreamView ? 'stroke-[3px] text-amber-400' : 'stroke-2'}`} />
-              <span className="text-[9px] font-black uppercase tracking-tight">Agent</span>
-            </button>
+              <div className="space-y-2">
+                <button
+                  onClick={() => { onAdminView(false); onHistoryView(false); onStreamView(false); onDownloadView(false); setIsMobileMenuOpen(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-500/10 text-amber-300 font-bold text-sm"
+                >
+                  <span className="text-amber-400">🏠</span>
+                  <span>Home Dashboard</span>
+                </button>
 
-            <button 
-              className={`flex flex-col items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer ${isHistoryView ? 'text-amber-400 font-bold' : 'text-slate-400'}`}
-              onClick={() => { 
-                if (user) onHistoryView(!isHistoryView); else openAuth();
-              }}
-            >
-              <History className={`w-5 h-5 ${isHistoryView ? 'stroke-[3px] text-amber-400' : 'stroke-2'}`} />
-              <span className="text-[9px] font-black uppercase tracking-tight">History</span>
-            </button>
+                <button
+                  onClick={() => {
+                    onAdminView(false); onHistoryView(false); onStreamView(false); onDownloadView(false);
+                    setIsMobileMenuOpen(false);
+                    setTimeout(() => window.dispatchEvent(new CustomEvent('SELECT_BUNDLE_TAB', { detail: { tab: 'Booking Codes' } })), 50);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-200 font-semibold text-sm"
+                >
+                  <span className="text-amber-400">💵</span>
+                  <span>Booking Codes</span>
+                </button>
 
-            {downloadReady && (
-              <button 
-                className={`flex flex-col items-center justify-center gap-1 transition-all active:scale-95 animate-pulse cursor-pointer ${isDownloadView ? 'text-emerald-400 font-bold' : 'text-emerald-500/70'}`}
-                onClick={() => onDownloadView(!isDownloadView)}
-              >
-                <Download className={`w-5 h-5 ${isDownloadView ? 'stroke-[3px]' : 'stroke-2'}`} />
-                <span className="text-[9px] font-black uppercase tracking-tight">Download</span>
-              </button>
-            )}
+                <button
+                  onClick={() => {
+                    if (user) { onStreamView(true); onAdminView(false); onHistoryView(false); } else { openAuth(); }
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-200 font-semibold text-sm"
+                >
+                  <span className="text-amber-400">👑</span>
+                  <span>Agent Store & Portal</span>
+                </button>
 
-            {isAdmin && (
-              <button 
-                className={`flex flex-col items-center justify-center gap-1 transition-all active:scale-95 relative cursor-pointer ${isAdminView ? 'text-amber-400 font-bold' : 'text-slate-400'}`}
-                onClick={() => onAdminView(!isAdminView)}
-              >
-                <LayoutDashboard className={`w-5 h-5 ${isAdminView ? 'stroke-[3px] text-amber-400' : 'stroke-2'}`} />
-                <span className="text-[9px] font-black uppercase tracking-tight">Admin</span>
-                {unreadCount > 0 && (
-                  <span className="absolute top-1 right-2 h-4 w-4 bg-red-600 rounded-full border-2 border-white flex items-center justify-center text-[8px] text-white font-black shadow-lg">
-                    {unreadCount}
-                  </span>
-                )}
-              </button>
-            )}
+                <button
+                  onClick={() => {
+                    if (user) { onHistoryView(true); onAdminView(false); onStreamView(false); } else { openAuth(); }
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-200 font-semibold text-sm"
+                >
+                  <span className="text-amber-400">📜</span>
+                  <span>Order History</span>
+                </button>
 
-            <button 
-              className="flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-white transition-all active:scale-95 cursor-pointer"
-              onClick={() => user ? setIsSupportOpen(true) : openAuth()}
-            >
-              <MessageCircle className="w-5 h-5" />
-              <span className="text-[9px] font-black uppercase tracking-tight">Support</span>
-            </button>
+                <button
+                  onClick={() => { window.dispatchEvent(new CustomEvent('OPEN_REFERRAL_MODAL')); setIsMobileMenuOpen(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-200 font-semibold text-sm"
+                >
+                  <span className="text-amber-400">🎁</span>
+                  <span>Refer &amp; Earn Data</span>
+                </button>
+
+                <button
+                  onClick={() => { window.dispatchEvent(new CustomEvent('OPEN_APP_DOWNLOAD_MODAL')); setIsMobileMenuOpen(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-200 font-semibold text-sm"
+                >
+                  <span className="text-amber-400">📱</span>
+                  <span>Download Android App</span>
+                </button>
+
+                <button
+                  onClick={() => { user ? setIsSupportOpen(true) : openAuth(); setIsMobileMenuOpen(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-200 font-semibold text-sm"
+                >
+                  <span className="text-amber-400">💬</span>
+                  <span>Customer Support</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-800 text-xs text-slate-400 text-center">
+              DATAGHANAnow v3.0 • Premium Marketplace
+            </div>
           </div>
         </div>
       )}

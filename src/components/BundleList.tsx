@@ -388,8 +388,8 @@ export default function BundleList({
             })) as Bundle[];
 
             const filtered = firestoreBundles.filter((b) => {
-              if (!b.active) return false;
-              if (b.network === "Telecel") {
+              if (b.active === false) return false;
+              if (b.network === "Telecel" || b.category === "Telecel") {
                 const amountStr = String(b.dataAmount || b.name || "");
                 const gbMatch = amountStr.match(/(\d+(?:\.\d+)?)\s*GB/i);
                 if (gbMatch) {
@@ -401,7 +401,20 @@ export default function BundleList({
               }
               return true;
             });
-            setBundles(filtered);
+
+            // Clean deduplication by network + normalized dataAmount
+            const deduplicatedMap = new Map<string, Bundle>();
+            filtered.forEach((b) => {
+              const net = (b.network || b.category || "").trim();
+              let amt = (b.dataAmount || b.name || "").trim();
+              amt = amt.replace(/^Telecel\s+Data\s+/i, "").replace(/^MTN\s+Data\s+/i, "");
+              const key = `${net}__${amt.toUpperCase()}`;
+              if (!deduplicatedMap.has(key)) {
+                deduplicatedMap.set(key, b);
+              }
+            });
+
+            setBundles(Array.from(deduplicatedMap.values()));
             setLoading(false);
           },
         );

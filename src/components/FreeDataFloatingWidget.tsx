@@ -125,7 +125,7 @@ export default function FreeDataFloatingWidget(_props: FreeDataFloatingWidgetPro
       const activeUser = auth.currentUser;
       const userEmail = (activeUser?.email && activeUser.email.includes("@"))
         ? activeUser.email
-        : "customer@kingjdeals.com";
+        : "customer@dataghananow.com";
 
       let publicKey = "pk_live_1a324af248d2bb1e2f784e7c27981f58f7d66b2c";
       try {
@@ -224,7 +224,7 @@ export default function FreeDataFloatingWidget(_props: FreeDataFloatingWidgetPro
       const activeUser = auth.currentUser;
       const userEmail = (activeUser?.email && activeUser.email.includes("@"))
         ? activeUser.email
-        : `${cleanPhone}@customer.kingjdeals.com`;
+        : `${cleanPhone}@customer.dataghananow.com`;
       const userName = activeUser?.displayName || `Free Data Winner (${cleanPhone})`;
 
       await setDoc(doc(db, "orders", orderId), {

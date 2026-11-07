@@ -47,7 +47,7 @@ export default function HowItWorks() {
     {
       icon: HeadphonesIcon,
       title: "DIRECT SUPPORT",
-      desc: "The King's messengers are always on standby to assist with any order queries."
+      desc: "Our support agents are always on standby to assist with any order queries."
     }
   ];
 
@@ -165,7 +165,7 @@ export default function HowItWorks() {
                 </div>
                 <h4 className="text-3xl md:text-4xl font-black mb-4 text-white uppercase italic tracking-tight">PREMIUM DATA <span className="text-primary not-italic">FOR EVERY</span> CUSTOMER</h4>
                 <p className="text-slate-400 text-base md:text-lg leading-relaxed font-medium">
-                  We don't just sell data; we deliver the highest level of stability and trust. Whether you are a small user or a heavy streamer, our platform ensures your connection is never interrupted. Spend small, enjoy like a king!
+                  We don't just sell data; we deliver the highest level of stability and trust. Whether you are a small user or a heavy streamer, our platform ensures your connection is never interrupted. Spend small, enjoy royal service!
                 </p>
               </div>
             </div>

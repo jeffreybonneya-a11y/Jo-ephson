@@ -3,14 +3,15 @@ import { Button } from '@/components/ui/button';
 import { MessageSquare, Phone, Mail, MapPin, Facebook, Twitter, Instagram } from 'lucide-react';
 import { useBranding } from '@/src/hooks/useBranding';
 import PolicyModal, { PolicyType } from './PolicyModal';
+import BrandWordmark from './BrandWordmark';
 
 export default function Footer() {
   const { branding } = useBranding();
   const [policyModal, setPolicyModal] = useState<PolicyType>(null);
 
-  const nameParts = (branding.brandName || 'KING J DEALS').split(' ');
-  const firstWord = nameParts[0] || 'KING';
-  const restWords = nameParts.slice(1).join(' ') || 'J DEALS';
+  const nameParts = (branding.brandName || 'DATAGHANAnow').split(' ');
+  const firstWord = nameParts[0] || 'DATAGHANAnow';
+  const restWords = nameParts.slice(1).join(' ') || '';
 
   const handleLinkClick = (e: MouseEvent<HTMLAnchorElement>, path: string) => {
     if (path.startsWith('/')) {
@@ -27,31 +28,21 @@ export default function Footer() {
         <div className="container mx-auto px-4 max-w-7xl">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-8 mb-12">
             <div className="col-span-1 sm:col-span-2 lg:col-span-2">
-              <div className="flex items-center gap-3 font-black text-2xl tracking-tighter text-white mb-6">
-                {branding.logoUrl && (
+              <div className="flex items-center gap-3 mb-6">
+                {(!branding.logoUrl || branding.logoUrl === '/dataghananow-logo.png' || branding.logoUrl === '/dataghananow-logo.svg') ? (
+                  <BrandWordmark size="lg" />
+                ) : (
                   <img
                     src={branding.logoUrl}
-                    alt={branding.brandName || "Site Logo"}
-                    style={{ height: '36px' }}
-                    className={`${
-                      branding.logoShape === 'circle'
-                        ? 'rounded-full object-cover'
-                        : branding.logoShape === 'square' || branding.logoShape === 'original'
-                        ? 'rounded-none object-contain'
-                        : 'rounded-xl object-contain'
-                    } shrink-0`}
+                    alt={branding.brandName || "DataGhanaNow"}
+                    style={{ height: '48px', maxHeight: '56px', maxWidth: '240px' }}
+                    className="rounded-none object-contain shrink-0 filter drop-shadow-sm select-none"
                   />
                 )}
-                <div className="flex items-center gap-2">
-                  <span className="bg-primary text-secondary px-3 py-1 rounded-lg font-serif">{firstWord}</span>
-                  <span className="text-primary font-serif">
-                    {restWords} {branding.showCrown !== false && '👑'}
-                  </span>
-                </div>
               </div>
               <p className="max-w-md mb-6 text-slate-300 leading-relaxed text-sm">
                 {branding.tagline || (
-                  <>Experience the <span className="text-amber-300 font-bold">Royal Treatment</span> in data deals. Affordable, non-expiry data bundles in Ghana. 5-15 mins delivery under stable network. 👑</>
+                  <>Affordable, non-expiry mobile data bundles and verified digital services in Ghana. Instant delivery across MTN, Telecel, and AirtelTigo networks.</>
                 )}
               </p>
               <div className="flex gap-4">
@@ -111,8 +102,8 @@ export default function Footer() {
                   </a>
                 </li>
                 <li className="flex items-center gap-3">
-                  <a href="mailto:support@kingjdeals.site" className="flex items-center gap-3 hover:text-amber-300 text-slate-300 transition-colors">
-                    <Mail className="w-4 h-4 text-amber-400 shrink-0" /> support@kingjdeals.site
+                  <a href="mailto:support@dataghananow.com" className="flex items-center gap-3 hover:text-amber-300 text-slate-300 transition-colors">
+                    <Mail className="w-4 h-4 text-amber-400 shrink-0" /> support@dataghananow.com
                   </a>
                 </li>
                 <li className="flex items-center gap-3 text-slate-300"><MapPin className="w-4 h-4 text-amber-400 shrink-0" /> Accra, Ghana</li>
@@ -126,7 +117,7 @@ export default function Footer() {
           </div>
           
           <div className="pt-8 border-t border-purple-500/20 text-center text-xs flex flex-col md:flex-row items-center justify-between gap-4 text-slate-400">
-            <p>&copy; {new Date().getFullYear()} {branding.brandName || 'King J Deals'}. All rights reserved.</p>
+            <p>&copy; {new Date().getFullYear()} {branding.brandName || 'DATAGHANAnow'}. All rights reserved.</p>
             <div className="flex gap-4 text-slate-400">
               <button onClick={() => setPolicyModal('privacy')} className="hover:text-amber-300 transition-colors">Privacy</button>
               <span>•</span>

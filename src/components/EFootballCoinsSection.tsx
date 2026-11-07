@@ -185,7 +185,7 @@ export default function EFootballCoinsSection({
               </h1>
 
               <p className="text-xs sm:text-sm text-blue-100/90 leading-relaxed max-w-xl drop-shadow-sm font-medium">
-                Official manual eFootball™ Coin packages for your <strong>iOS</strong>, <strong>Android</strong>, or <strong>Steam</strong> account at unbeatable Ghanaian cedi rates. Guaranteed authentic delivery by King J Deals directly to your KONAMI ID.
+                Official manual eFootball™ Coin packages for your <strong>iOS</strong>, <strong>Android</strong>, or <strong>Steam</strong> account at unbeatable Ghanaian cedi rates. Guaranteed authentic delivery by DataGhanaNow directly to your KONAMI ID.
               </p>
 
               <div className="flex flex-wrap items-center gap-4 pt-1 text-[11px] sm:text-xs text-blue-200">
@@ -417,7 +417,7 @@ export default function EFootballCoinsSection({
       {/* Mandatory Disclaimer footer */}
       <div className="p-4 rounded-2xl bg-[#061026] border border-blue-500/20 text-[11px] text-blue-300/70 leading-relaxed text-center">
         <p>
-          <strong>Disclaimer:</strong> King J Deals is an independent digital game top-up retailer providing manual top-up and delivery services in Ghana. This service is not affiliated with, endorsed by, or sponsored by KONAMI Digital Entertainment. All trademarks, game names, and logos are property of their respective owners.
+          <strong>Disclaimer:</strong> DataGhanaNow is an independent digital game top-up retailer providing manual top-up and delivery services in Ghana. This service is not affiliated with, endorsed by, or sponsored by KONAMI Digital Entertainment. All trademarks, game names, and logos are property of their respective owners.
         </p>
       </div>
 

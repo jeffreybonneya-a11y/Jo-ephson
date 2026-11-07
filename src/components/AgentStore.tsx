@@ -233,7 +233,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
             ? profile.email 
             : ((auth.currentUser?.email && auth.currentUser.email.includes("@")) 
                 ? auth.currentUser.email 
-                : "customer@kingjdeals.com");
+                : "customer@dataghananow.com");
 
           // Dynamic Public Key retrieval
           let publicKey = "pk_live_1a324af248d2bb1e2f784e7c27981f58f7d66b2c";
@@ -253,7 +253,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
             toast.info("Launching secure checkout...");
             const redirectTarget = (typeof window !== 'undefined' && window.location.origin)
               ? window.location.origin
-              : 'https://kingjdeals.onrender.com';
+              : 'https://dataghananow.onrender.com';
 
             await openPaystackPopup({
               key: publicKey,
@@ -275,7 +275,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
             console.warn("Paystack Inline popup failed or blocked. Falling back to secure redirect mode:", popError);
             const redirectTarget = (typeof window !== 'undefined' && window.location.origin)
               ? window.location.origin
-              : 'https://kingjdeals.onrender.com';
+              : 'https://dataghananow.onrender.com';
 
             // Fallback to server-side redirect initialization
             const initResponse = await fetch(getApiUrl("/api/paystack-initialize"), {
@@ -494,7 +494,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
     }
   };
 
-  const handleRedirectToKingJWhatsApp = async (order: any) => {
+  const handleRedirectToAdminWhatsApp = async (order: any) => {
     try {
       const orderId = order.id;
       const refCode = order.referenceCode || order.reference || 'N/A';
@@ -521,14 +521,14 @@ Reference Code: ${refCode}
       // Update the order in firestore to set reportedToAdmin = true
       await updateDoc(doc(db, 'orders', orderId), {
         reportedToAdmin: true,
-        agentReportReason: 'Reported directly to King J via WhatsApp'
+        agentReportReason: 'Reported directly to DATAGHANAnow via WhatsApp'
       });
 
       const phone = '233535884851';
       const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(structuredMessage)}`;
       window.open(whatsappUrl, '_blank');
 
-      toast.success("Redirecting to King J's WhatsApp...");
+      toast.success("Redirecting to DATAGHANAnow's WhatsApp...");
     } catch (error: any) {
       console.error("Report error:", error);
       toast.error(`Reporting failed: ${error.message}`);
@@ -1361,7 +1361,7 @@ Reference Code: ${refCode}
                                     </span>
                                   </div>
                                   <a 
-                                    href={`https://wa.me/233${order.phone.replace(/^0/, '')}?text=${encodeURIComponent(`Hello, this is agent ${agent?.agent_name || 'storeholder'} from King J Deals. Regarding your order #${order.id.slice(-6).toUpperCase()} of ${order.bundle}...`)}`}
+                                    href={`https://wa.me/233${order.phone.replace(/^0/, '')}?text=${encodeURIComponent(`Hello, this is agent ${agent?.agent_name || 'storeholder'} from DATAGHANAnow. Regarding your order #${order.id.slice(-6).toUpperCase()} of ${order.bundle}...`)}`}
                                     target="_blank" 
                                     rel="noreferrer" 
                                     className="p-1.5 rounded-xl bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366] hover:text-white transition-all border border-[#25D366]/30 self-stretch flex items-center"
@@ -1407,7 +1407,7 @@ Reference Code: ${refCode}
                                   </div>
                                 ) : (
                                   <Button
-                                    onClick={() => handleRedirectToKingJWhatsApp(order)}
+                                    onClick={() => handleRedirectToAdminWhatsApp(order)}
                                     className="h-10 text-[10px] px-4 font-black rounded-xl border-4 bg-transparent hover:bg-red-500 hover:text-white border-red-500 text-red-500 transition-all uppercase gap-1"
                                   >
                                     <AlertTriangle className="w-3.5 h-3.5" />

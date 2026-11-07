@@ -1,14 +1,14 @@
 /**
- * Cloudinary Integration for King J Deals
+ * Cloudinary Integration for DATAGHANAnow
  * Cloud Name: hanx6mkn
- * Upload Preset: kingjdeals_uploads (unsigned)
+ * Upload Preset: dataghananow_uploads (unsigned)
  */
 
 export const CLOUDINARY_CLOUD_NAME =
   import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'hanx6mkn';
 
 export const CLOUDINARY_UPLOAD_PRESET =
-  import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'kingjdeals_uploads';
+  import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'dataghananow_uploads';
 
 export const CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
 

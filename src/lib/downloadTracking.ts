@@ -15,7 +15,7 @@ export async function logAppDownload(options?: LogDownloadOptions): Promise<stri
   try {
     // Avoid duplicate logging within the same session unless forced
     if (!options?.force && typeof sessionStorage !== 'undefined') {
-      const alreadyLogged = sessionStorage.getItem('kjd_apk_download_logged');
+      const alreadyLogged = sessionStorage.getItem('dgn_apk_download_logged') || sessionStorage.getItem('kjd_apk_download_logged');
       if (alreadyLogged) {
         return null;
       }
@@ -66,15 +66,15 @@ export async function logAppDownload(options?: LogDownloadOptions): Promise<stri
       platform: detectedPlatform,
       userAgent: ua,
       source: options?.source || 'website_modal',
-      downloadUrl: 'https://kingjdeals.site/downloads/King-J-Deals.apk',
-      apkName: 'King-J-Deals.apk',
+      downloadUrl: 'https://dataghananow.com/downloads/DATAGHANAnow.apk',
+      apkName: 'DATAGHANAnow.apk',
       downloadedAt: serverTimestamp(),
     };
 
     const docRef = await addDoc(collection(db, 'app_downloads'), downloadRecord);
 
     if (typeof sessionStorage !== 'undefined') {
-      sessionStorage.setItem('kjd_apk_download_logged', 'true');
+      sessionStorage.setItem('dgn_apk_download_logged', 'true');
     }
 
     return docRef.id;

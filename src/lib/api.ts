@@ -4,7 +4,7 @@ import { isNativeApp } from './platform';
  * Production API origin used as a safe fallback when running inside native Capacitor
  * where relative /api endpoints would otherwise hit the local device scheme.
  */
-const DEFAULT_PRODUCTION_API_ORIGIN = 'https://kingjdeals.site';
+const DEFAULT_PRODUCTION_API_ORIGIN = typeof window !== 'undefined' ? window.location.origin : 'https://kingjdeals.site';
 
 export const getApiUrl = (endpoint: string): string => {
   const envUrl = import.meta.env.VITE_API_URL;

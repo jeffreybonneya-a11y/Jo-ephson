@@ -28,17 +28,28 @@ import PriceDropNotifier from './components/PriceDropNotifier';
 import GetFreeDataWidget from './components/GetFreeDataWidget';
 import WhatsAppChannelButton from './components/WhatsAppChannelButton';
 import WelcomePage from './components/WelcomePage';
+import BrandWordmark from './components/BrandWordmark';
 import SeoPageLayout from './components/SeoPageLayout';
+import HomeSeoContent from './components/HomeSeoContent';
 import AppDownloadModal from './components/AppDownloadModal';
 import WhatsAppChannelAdModal from './components/WhatsAppChannelAdModal';
 import ReferralPromoModal from './components/ReferralPromoModal';
-import { getSeoPageData, SeoPageData } from './data/seoPages';
+import { getSeoPageData, SeoPageData, SEO_PAGES } from './data/seoPages';
 import { getApiUrl } from './lib/api';
 import { cleanupMonetagInPagePush } from './lib/monetag';
 
 export default function App() {
   const { branding } = useBranding();
-  const [currentSeoPage, setCurrentSeoPage] = useState<SeoPageData | null>(() => getSeoPageData(typeof window !== 'undefined' ? window.location.pathname : '/'));
+  const [currentSeoPage, setCurrentSeoPage] = useState<SeoPageData | null>(() => {
+    if (typeof window !== 'undefined') {
+      const p = window.location.pathname;
+      if (p === '/' || p === '' || p === '/index.html') {
+        return null;
+      }
+      return getSeoPageData(p);
+    }
+    return null;
+  });
   const [selectedBundle, setSelectedBundle] = useState<Bundle | null>(null);
   const [isAdminView, setIsAdminView] = useState(false);
   const [isHistoryView, setIsHistoryView] = useState(false);
@@ -70,7 +81,9 @@ export default function App() {
 
   useEffect(() => {
     const handleRouteCheck = () => {
-      const page = getSeoPageData(window.location.pathname);
+      const p = window.location.pathname;
+      const isRoot = p === '/' || p === '' || p === '/index.html';
+      const page = isRoot ? null : getSeoPageData(p);
       setCurrentSeoPage(page);
       if (page) {
         document.title = page.metaTitle;
@@ -79,11 +92,12 @@ export default function App() {
         const metaDesc = document.querySelector("meta[name='description']") as HTMLMetaElement;
         if (metaDesc) metaDesc.content = page.metaDescription;
       } else {
-        document.title = "King J Deals | Data Deals & Digital Services in Ghana";
+        const homeSeo = SEO_PAGES['home'];
+        document.title = homeSeo?.metaTitle || "#1 Cheapest Data Bundles in Ghana | MTN, Telecel & AT | DATAGHANAnow";
         const canonical = document.querySelector("link[rel='canonical']") as HTMLLinkElement;
-        if (canonical) canonical.href = "https://kingjdeals.site/";
+        if (canonical) canonical.href = homeSeo?.canonicalUrl || "https://kingjdeals.site/";
         const metaDesc = document.querySelector("meta[name='description']") as HTMLMetaElement;
-        if (metaDesc) metaDesc.content = "King J Deals provides affordable mobile data bundles and digital services in Ghana. Browse available data deals and digital products with convenient online ordering.";
+        if (metaDesc) metaDesc.content = homeSeo?.metaDescription || "Buy cheap MTN, Telecel and AT data bundles in Ghana at affordable prices. Enjoy competitive data deals, convenient Mobile Money payments and fast delivery with DATAGHANAnow.";
       }
     };
 
@@ -102,17 +116,18 @@ export default function App() {
   };
 
   useEffect(() => {
-    document.title = currentSeoPage ? currentSeoPage.metaTitle : "King J Deals | Data Deals & Digital Services in Ghana";
-    if (branding.logoUrl) {
+    document.title = currentSeoPage ? currentSeoPage.metaTitle : "DATAGHANAnow | Data Deals & Digital Services in Ghana";
+    const activeLogo = branding.logoUrl || '/dataghananow-logo.png';
+    if (activeLogo) {
       let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
       if (!link) {
         link = document.createElement('link');
         link.rel = 'icon';
         document.head.appendChild(link);
       }
-      link.href = branding.logoUrl;
+      link.href = activeLogo;
     }
-  }, [branding]);
+  }, [branding, currentSeoPage]);
 
   useEffect(() => {
     seedFC();
@@ -132,8 +147,8 @@ export default function App() {
     const refParam = params.get('ref') || params.get('referrer');
     if (refParam) {
       const cleanRef = refParam.trim().toUpperCase();
-      localStorage.setItem('kingj_referred_by', cleanRef);
-      sessionStorage.setItem('kingj_referred_by', cleanRef);
+      localStorage.setItem('dgn_referred_by', cleanRef);
+      sessionStorage.setItem('dgn_referred_by', cleanRef);
       console.log(`[Referral Promo] Captured referral code from URL: ${cleanRef}`);
     }
 
@@ -197,7 +212,7 @@ export default function App() {
 
                             // --- REAL REFERRAL ATTRIBUTION & QUALIFYING PURCHASE REWARD CREDIT ---
                             try {
-                                const referralCode = orderData.referredBy || (typeof window !== 'undefined' ? localStorage.getItem('kingj_referred_by') : null);
+                                const referralCode = orderData.referredBy || (typeof window !== 'undefined' ? (localStorage.getItem('dgn_referred_by') || localStorage.getItem('kingj_referred_by')) : null);
                                 const purchaserUid = orderData.userId;
                                 
                                 if (referralCode && purchaserUid) {
@@ -296,7 +311,7 @@ export default function App() {
                         setIsHistoryView(true); // Take user to view their orders for standard data/bundle orders
                     }
                     try {
-                      if (window.location.hostname !== 'kingjdeals.onrender.com' && window.location.hostname !== 'king-j-deals.onrender.com') {
+                      if (window.location.hostname !== 'kingjdeals.site' && window.location.hostname !== 'www.kingjdeals.site' && window.location.hostname !== 'dataghananow.com') {
                         window.history.replaceState({}, document.title, window.location.pathname);
                       } else {
                         window.history.replaceState({}, document.title, "/");
@@ -356,9 +371,9 @@ export default function App() {
           setUser(res.user);
           setIsAuthLoading(false);
           try {
-            localStorage.setItem('kingj_authenticated_user', 'true');
-            localStorage.setItem('kingj_auth_uid', res.user.uid);
-            if (res.user.email) localStorage.setItem('kingj_auth_email', res.user.email);
+            localStorage.setItem('dgn_authenticated_user', 'true');
+            localStorage.setItem('dgn_auth_uid', res.user.uid);
+            if (res.user.email) localStorage.setItem('dgn_auth_email', res.user.email);
           } catch {}
           syncUserCustomerRecord(res.user).catch(console.warn);
         }
@@ -381,9 +396,9 @@ export default function App() {
 
         // Record persistent session marker so iPhone/Safari reload never flashes unauthenticated screen
         try {
-          localStorage.setItem('kingj_authenticated_user', 'true');
-          localStorage.setItem('kingj_auth_uid', activeUser.uid);
-          if (activeUser.email) localStorage.setItem('kingj_auth_email', activeUser.email);
+          localStorage.setItem('dgn_authenticated_user', 'true');
+          localStorage.setItem('dgn_auth_uid', activeUser.uid);
+          if (activeUser.email) localStorage.setItem('dgn_auth_email', activeUser.email);
         } catch {}
 
         if (profileUnsubscribe) {
@@ -421,7 +436,7 @@ export default function App() {
         });
       } else {
         // If authUser is null, verify if the user explicitly clicked logout
-        const isPersisted = typeof window !== 'undefined' && localStorage.getItem('kingj_authenticated_user') === 'true';
+        const isPersisted = typeof window !== 'undefined' && (localStorage.getItem('dgn_authenticated_user') === 'true' || localStorage.getItem('kingj_authenticated_user') === 'true');
         
         // If not manually logged out, check if auth.currentUser is available or token is renewing
         if (auth.currentUser && !auth.currentUser.isAnonymous) {
@@ -525,15 +540,42 @@ export default function App() {
     };
   }, [user, isAdminView]);
 
-  // Separate effect for Agent Store check
+  // Navigation and Agent Store check effect
   useEffect(() => {
-    const handleAgentStoreNav = () => {
-      setIsStreamView(true);
+    const handleHomeNav = () => {
       setIsAdminView(false);
       setIsHistoryView(false);
-      // Scroll to top
+      setIsStreamView(false);
+      setIsDownloadView(false);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     };
+
+    const handleHistoryNav = () => {
+      if (user) {
+        setIsHistoryView(true);
+        setIsAdminView(false);
+        setIsStreamView(false);
+        setIsDownloadView(false);
+      } else {
+        window.dispatchEvent(new Event('OPEN_AUTH_MODAL'));
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleAgentStoreNav = () => {
+      if (user) {
+        setIsStreamView(true);
+        setIsAdminView(false);
+        setIsHistoryView(false);
+        setIsDownloadView(false);
+      } else {
+        window.dispatchEvent(new Event('OPEN_AUTH_MODAL'));
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    window.addEventListener('NAVIGATE_TO_HOME', handleHomeNav);
+    window.addEventListener('NAVIGATE_TO_HISTORY', handleHistoryNav);
     window.addEventListener('NAVIGATE_TO_AGENT_STORE', handleAgentStoreNav);
 
     const path = window.location.pathname;
@@ -543,37 +585,38 @@ export default function App() {
 
     if (slug) {
       setIsAgentStoreView(true);
-      const q = query(collection(db, 'agents'), where('agent_slug', '==', slug));
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        if (!snapshot.empty) {
-          const docSnap = snapshot.docs[0];
-          setAgentContext({ id: docSnap.id, ...docSnap.data() });
-        } else {
+      fetch(getApiUrl(`/api/agent-store/${encodeURIComponent(slug)}`))
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.agent) {
+            setAgentContext(data.agent);
+          } else {
+            setAgentContext(null);
+          }
+        })
+        .catch((err) => {
+          console.error("Agent store fetch notice:", err);
           setAgentContext(null);
-        }
-      });
+        });
+
       return () => {
-        unsubscribe();
+        window.removeEventListener('NAVIGATE_TO_HOME', handleHomeNav);
+        window.removeEventListener('NAVIGATE_TO_HISTORY', handleHistoryNav);
         window.removeEventListener('NAVIGATE_TO_AGENT_STORE', handleAgentStoreNav);
       };
     }
 
     return () => {
+      window.removeEventListener('NAVIGATE_TO_HOME', handleHomeNav);
+      window.removeEventListener('NAVIGATE_TO_HISTORY', handleHistoryNav);
       window.removeEventListener('NAVIGATE_TO_AGENT_STORE', handleAgentStoreNav);
     };
-  }, []);
+  }, [user]);
 
   const [activeService, setActiveService] = useState('data');
 
   const handleSelectBundle = (bundle: Bundle) => {
-    const activeUser = user || auth.currentUser;
-    if (!activeUser || activeUser.isAnonymous) {
-      toast.error("Please log in before you can purchase any service!", {
-        description: "You must be signed in to purchase data bundles, game coins, PC games, or results checkers.",
-      });
-      window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
-      return;
-    }
+    // Guest shoppers can select and purchase bundles directly without login
     setSelectedBundle(bundle);
   };
 
@@ -587,30 +630,6 @@ export default function App() {
           user={user} 
         />
         <WhatsAppChannelAdModal />
-      </>
-    );
-  }
-
-  if (isAuthLoading) {
-    return (
-      <div className="min-h-screen bg-[#070D1E] flex flex-col items-center justify-center text-white px-4 select-none">
-        <Toaster position="top-center" richColors />
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 rounded-full border-2 border-amber-400/20 border-t-amber-400 animate-spin" />
-          <div className="text-center">
-            <h2 className="font-serif text-lg font-bold text-amber-200">King J Deals</h2>
-            <p className="text-xs text-slate-400 mt-1">Securing your royal session...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <>
-        <Toaster position="top-center" richColors />
-        <WelcomePage />
       </>
     );
   }
@@ -696,11 +715,9 @@ export default function App() {
           <AgentStore profile={profile} onSelectBundle={handleSelectBundle} />
         ) : (
           <>
-            <div className="bg-[#06040A] pt-20 sm:pt-24 pb-2 relative z-20">
-              <TopPromosRow />
-            </div>
             <Hero />
             <BundleList onSelectBundle={handleSelectBundle} isAgentUser={hasRegisteredAgent || !!profile?.isAgent} profile={profile} />
+            <HomeSeoContent />
           </>
         )}
       </main>

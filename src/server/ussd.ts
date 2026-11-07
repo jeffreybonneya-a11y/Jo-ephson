@@ -173,7 +173,7 @@ export async function initiatePaystackMomoCharge(params: {
 
     const chargePayload = {
         amount: amountInPesewas,
-        email: `${params.paymentPhone}@ussd.kingjdeals.com`,
+        email: `${params.paymentPhone}@ussd.dataghananow.com`,
         currency: 'GHS',
         reference: params.reference,
         mobile_money: {
@@ -253,7 +253,7 @@ if (cleanupInterval && typeof cleanupInterval.unref === 'function') {
     cleanupInterval.unref();
 }
 
-// King J Deals Official Support Numbers
+// DATAGHANAnow Official Support Numbers
 export const SUPPORT_NUMBERS = "0535884851 / 0541557530";
 
 /**
@@ -443,8 +443,8 @@ export async function getActiveGameCoinsBundles(
 }
 
 /**
- * Generates an idempotent, human-readable King J Deals order reference
- * Example: KJD-USSD-7B3K9X2P
+ * Generates an idempotent, human-readable DATAGHANAnow order reference
+ * Example: DGN-USSD-7B3K9X2P
  */
 export function generateUssdOrderReference(): string {
     const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -452,7 +452,7 @@ export function generateUssdOrderReference(): string {
     for (let i = 0; i < 8; i++) {
         code += chars.charAt(Math.floor(Math.random() * chars.length));
     }
-    return `KJD-USSD-${code}`;
+    return `DGN-USSD-${code}`;
 }
 
 /**
@@ -470,7 +470,7 @@ export function normalizeNaloRequest(body: Record<string, any> = {}, query: Reco
     const payload = { ...query, ...body };
 
     const userId = String(
-        payload.USERID || payload.userId || payload.userid || process.env.NALO_USER_ID || 'kingjdeals'
+        payload.USERID || payload.userId || payload.userid || process.env.NALO_USER_ID || 'dataghananow'
     ).trim();
 
     const rawMsisdn = String(
@@ -605,21 +605,31 @@ function formatOrderSummary(data: any): string {
  */
 export async function lookupOrderByReferenceInFirestore(db: Firestore | null, searchInput: string): Promise<string> {
     if (!db) {
-        return `Order lookup is temporarily unavailable. Please contact King J Deals on ${SUPPORT_NUMBERS}.`;
+        return `Order lookup is temporarily unavailable. Please contact DATAGHANAnow on ${SUPPORT_NUMBERS}.`;
     }
 
     const rawTrimmed = searchInput.trim();
     if (!rawTrimmed) {
-        return `Please enter your King J Deals order reference.`;
+        return `Please enter your DATAGHANAnow order reference.`;
     }
 
     const upperInput = rawTrimmed.toUpperCase();
     const candidates = [rawTrimmed, upperInput];
-    if (!upperInput.startsWith('KJD-USSD-') && upperInput.length === 8) {
-        candidates.push(`KJD-USSD-${upperInput}`);
-    } else if (!upperInput.startsWith('KJD-')) {
+    if (!upperInput.startsWith('DGN-') && !upperInput.startsWith('KJD-')) {
+        if (upperInput.length === 8) {
+            candidates.push(`DGN-USSD-${upperInput}`);
+            candidates.push(`KJD-USSD-${upperInput}`);
+        }
+        candidates.push(`DGN-USSD-${upperInput}`);
+        candidates.push(`DGN-${upperInput}`);
         candidates.push(`KJD-USSD-${upperInput}`);
         candidates.push(`KJD-${upperInput}`);
+    } else if (upperInput.startsWith('DGN-USSD-')) {
+        const rawCode = upperInput.replace('DGN-USSD-', '');
+        candidates.push(`KJD-USSD-${rawCode}`);
+    } else if (upperInput.startsWith('KJD-USSD-')) {
+        const rawCode = upperInput.replace('KJD-USSD-', '');
+        candidates.push(`DGN-USSD-${rawCode}`);
     }
     const uniqueCandidates = Array.from(new Set(candidates));
 
@@ -655,7 +665,7 @@ export async function lookupOrderByReferenceInFirestore(db: Firestore | null, se
         return `Order not found for "${rawTrimmed}". Please confirm your order reference or contact support: ${SUPPORT_NUMBERS}.`;
     } catch (err: any) {
         console.error('[NALO USSD] Firestore order reference lookup error:', err.message || err);
-        return `Service temporarily unavailable. Please check online at https://kingjdeals.site or contact ${SUPPORT_NUMBERS}.`;
+        return `Service temporarily unavailable. Please check online at https://dataghananow.com or contact ${SUPPORT_NUMBERS}.`;
     }
 }
 
@@ -677,7 +687,7 @@ export async function lookupOrderByPhoneInFirestore(
     if (!db) {
         return {
             found: false,
-            message: `Order lookup is temporarily unavailable. Please contact King J Deals on ${SUPPORT_NUMBERS}.`
+            message: `Order lookup is temporarily unavailable. Please contact DATAGHANAnow on ${SUPPORT_NUMBERS}.`
         };
     }
 
@@ -742,7 +752,7 @@ export async function lookupOrderByPhoneInFirestore(
         console.error('[NALO USSD] Firestore order phone lookup error:', err.message || err);
         return {
             found: false,
-            message: `Service temporarily unavailable. Please check online at https://kingjdeals.site or contact ${SUPPORT_NUMBERS}.`
+            message: `Service temporarily unavailable. Please check online at https://dataghananow.com or contact ${SUPPORT_NUMBERS}.`
         };
     }
 }
@@ -832,7 +842,7 @@ export async function processUssdRequest(
     // Global cancellation or exit: user types '0' or 'exit' at main menu
     if (session.screen === 'MAIN_MENU' && (input === '0' || input.toLowerCase() === 'exit')) {
         sessionStore.delete(sessionId);
-        const exitMsg = `Thank you for visiting KING J DEALS!\nVisit https://kingjdeals.site anytime for instant data bundles.`;
+        const exitMsg = `Thank you for visiting DATAGHANAnow!\nVisit https://dataghananow.com anytime for instant data bundles.`;
         return {
             USERID: userId,
             MSISDN: msisdn,
@@ -848,7 +858,7 @@ export async function processUssdRequest(
         case 'MAIN_MENU': {
             // First time displaying main menu
             if (isNewSession || input === '' || (input.startsWith('*') && input.endsWith('#'))) {
-                responseMsg = `KING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
+                responseMsg = `DATAGHANAnow\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
                 shouldContinue = true;
                 break;
             }
@@ -862,7 +872,7 @@ export async function processUssdRequest(
                 const bundles = await getActiveBundlesForNetwork(db, network);
                 if (bundles.length === 0) {
                     sessionStore.delete(sessionId);
-                    responseMsg = `Service temporarily unavailable. Please try again or contact King J Deals on ${SUPPORT_NUMBERS}.`;
+                    responseMsg = `Service temporarily unavailable. Please try again or contact DATAGHANAnow on ${SUPPORT_NUMBERS}.`;
                     shouldContinue = false;
                 } else {
                     session.screen = 'BUNDLE_MENU';
@@ -879,14 +889,14 @@ export async function processUssdRequest(
                 shouldContinue = true;
             } else if (input === '6') {
                 session.screen = 'CONTACT_US';
-                responseMsg = `KING J DEALS Support:\nWhatsApp: ${SUPPORT_NUMBERS}\nCall: ${SUPPORT_NUMBERS}\nWebsite: kingjdeals.site\n\n0. Back`;
+                responseMsg = `DATAGHANAnow Support:\nWhatsApp: ${SUPPORT_NUMBERS}\nCall: ${SUPPORT_NUMBERS}\nWebsite: dataghananow.com\n\n0. Back`;
                 shouldContinue = true;
             } else if (input === '7') {
                 session.screen = 'WHATSAPP_CHANNEL';
-                responseMsg = `KING J DEALS WhatsApp Channel:\nJoin our WhatsApp Channel for\nupdates, offers and announcements.\n\nChannel:\nhttps://whatsapp.com/channel/0029Vb807HG6mYPM5A6jPL1j\n\n0. Back`;
+                responseMsg = `DATAGHANAnow WhatsApp Channel:\nJoin our WhatsApp Channel for\nupdates, offers and announcements.\n\nChannel:\nhttps://whatsapp.com/channel/0029Vb807HG6mYPM5A6jPL1j\n\n0. Back`;
                 shouldContinue = true;
             } else {
-                responseMsg = `Invalid choice.\n\nKING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
+                responseMsg = `Invalid choice.\n\nDATAGHANAnow\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
                 shouldContinue = true;
             }
             break;
@@ -897,7 +907,7 @@ export async function processUssdRequest(
             const bundles = await getActiveBundlesForNetwork(db, network);
             if (bundles.length === 0) {
                 sessionStore.delete(sessionId);
-                responseMsg = `Service temporarily unavailable. Please try again or contact King J Deals on ${SUPPORT_NUMBERS}.`;
+                responseMsg = `Service temporarily unavailable. Please try again or contact DATAGHANAnow on ${SUPPORT_NUMBERS}.`;
                 shouldContinue = false;
                 break;
             }
@@ -907,7 +917,7 @@ export async function processUssdRequest(
 
             if (input === '0') {
                 session.screen = 'MAIN_MENU';
-                responseMsg = `KING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
+                responseMsg = `DATAGHANAnow\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
                 shouldContinue = true;
                 break;
             }
@@ -955,7 +965,7 @@ export async function processUssdRequest(
         case 'ENTER_RECIPIENT_PHONE': {
             if (input === '0') {
                 session.screen = 'MAIN_MENU';
-                responseMsg = `KING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
+                responseMsg = `DATAGHANAnow\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
                 shouldContinue = true;
                 break;
             }
@@ -984,7 +994,7 @@ export async function processUssdRequest(
                 shouldContinue = true;
             } else if (input === '0') {
                 sessionStore.delete(sessionId);
-                responseMsg = `Order cancelled. Thank you for choosing KING J DEALS!\nVisit https://kingjdeals.site anytime.`;
+                responseMsg = `Order cancelled. Thank you for choosing DATAGHANAnow!\nVisit https://dataghananow.com anytime.`;
                 shouldContinue = false; // END session
             } else {
                 const isGame = Boolean(session.gameCategory || session.gameUserId);
@@ -1008,7 +1018,7 @@ export async function processUssdRequest(
         case 'SELECT_PAYMENT_NETWORK': {
             if (input === '0') {
                 sessionStore.delete(sessionId);
-                responseMsg = `Order cancelled. Thank you for choosing KING J DEALS!\nVisit https://kingjdeals.site anytime.`;
+                responseMsg = `Order cancelled. Thank you for choosing DATAGHANAnow!\nVisit https://dataghananow.com anytime.`;
                 shouldContinue = false; // END session
                 break;
             }
@@ -1041,7 +1051,7 @@ export async function processUssdRequest(
         case 'ENTER_PAYMENT_PHONE': {
             if (input === '0') {
                 sessionStore.delete(sessionId);
-                responseMsg = `Order cancelled. Thank you for choosing KING J DEALS!\nVisit https://kingjdeals.site anytime.`;
+                responseMsg = `Order cancelled. Thank you for choosing DATAGHANAnow!\nVisit https://dataghananow.com anytime.`;
                 shouldContinue = false; // END session
                 break;
             }
@@ -1073,7 +1083,7 @@ export async function processUssdRequest(
                     const bundleDoc = await getDoc(doc(db, 'bundles', session.selectedBundle.bundleId));
                     if (!bundleDoc.exists() || !bundleDoc.data().active) {
                         session.screen = 'MAIN_MENU';
-                        responseMsg = `Selected package is no longer available. Please choose another package:\n\nKING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n0. Exit`;
+                        responseMsg = `Selected package is no longer available. Please choose another package:\n\nDATAGHANAnow\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n0. Exit`;
                         shouldContinue = true;
                         break;
                     }
@@ -1097,13 +1107,13 @@ export async function processUssdRequest(
             const paymentNetwork = session.paymentNetwork || 'MTN';
             const paymentProvider = session.paymentProvider || 'mtn';
 
-            // Real Order Document adhering to King J Deals Direct Shop schema
+            // Real Order Document adhering to DATAGHANAnow Direct Shop schema
             // Strictly omitted: agent_id, agentId, isAgentOrder (preserves Direct Shop classification)
             const orderData: Record<string, any> = {
                 id: orderDocId,
                 userId: "guest-ussd",
                 customerName: isGameCoins ? `Game Customer (${paymentPhone})` : `USSD Customer (${paymentPhone})`,
-                email: `${paymentPhone}@ussd.kingjdeals.com`,
+                email: `${paymentPhone}@ussd.dataghananow.com`,
                 phone: recipientPhone,
                 recipientPhone: recipientPhone,
                 paymentPhone: paymentPhone,
@@ -1196,7 +1206,7 @@ export async function processUssdRequest(
         case 'GAME_COINS_MENU': {
             if (input === '0') {
                 session.screen = 'MAIN_MENU';
-                responseMsg = `KING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
+                responseMsg = `DATAGHANAnow\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
                 shouldContinue = true;
             } else if (input === '1' || input === '2' || input === '3') {
                 const category = input === '1' ? 'FC Mobile Points' : input === '2' ? 'FC Mobile Silver' : 'PUBG Mobile UC';
@@ -1334,7 +1344,7 @@ export async function processUssdRequest(
         case 'CHECK_ORDER_MENU': {
             if (input === '0') {
                 session.screen = 'MAIN_MENU';
-                responseMsg = `KING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
+                responseMsg = `DATAGHANAnow\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
                 shouldContinue = true;
                 break;
             } else if (input === '1') {
@@ -1344,7 +1354,7 @@ export async function processUssdRequest(
                 break;
             } else if (input === '2') {
                 session.screen = 'CHECK_ORDER_BY_REF';
-                responseMsg = `Check Order Status:\nEnter your King J Deals order reference:\n0. Back`;
+                responseMsg = `Check Order Status:\nEnter your DATAGHANAnow order reference:\n0. Back`;
                 shouldContinue = true;
                 break;
             } else {
@@ -1393,12 +1403,12 @@ export async function processUssdRequest(
         case 'CONTACT_US': {
             if (input === '0') {
                 session.screen = 'MAIN_MENU';
-                responseMsg = `KING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
+                responseMsg = `DATAGHANAnow\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
                 shouldContinue = true;
                 break;
             }
 
-            responseMsg = `KING J DEALS Support:\nWhatsApp: ${SUPPORT_NUMBERS}\nCall: ${SUPPORT_NUMBERS}\nWebsite: kingjdeals.site\n\n0. Back`;
+            responseMsg = `DATAGHANAnow Support:\nWhatsApp: ${SUPPORT_NUMBERS}\nCall: ${SUPPORT_NUMBERS}\nWebsite: dataghananow.com\n\n0. Back`;
             shouldContinue = true;
             break;
         }
@@ -1406,19 +1416,19 @@ export async function processUssdRequest(
         case 'WHATSAPP_CHANNEL': {
             if (input === '0') {
                 session.screen = 'MAIN_MENU';
-                responseMsg = `KING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
+                responseMsg = `DATAGHANAnow\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
                 shouldContinue = true;
                 break;
             }
 
-            responseMsg = `KING J DEALS WhatsApp Channel:\nJoin our WhatsApp Channel for\nupdates, offers and announcements.\n\nChannel:\nhttps://whatsapp.com/channel/0029Vb807HG6mYPM5A6jPL1j\n\n0. Back`;
+            responseMsg = `DATAGHANAnow WhatsApp Channel:\nJoin our WhatsApp Channel for\nupdates, offers and announcements.\n\nChannel:\nhttps://whatsapp.com/channel/0029Vb807HG6mYPM5A6jPL1j\n\n0. Back`;
             shouldContinue = true;
             break;
         }
 
         default: {
             session.screen = 'MAIN_MENU';
-            responseMsg = `KING J DEALS\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
+            responseMsg = `DATAGHANAnow\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
             shouldContinue = true;
             break;
         }

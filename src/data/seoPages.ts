@@ -19,7 +19,7 @@ export interface SeoPageData {
   badge: string;
   category: string;
   categoryPath: string;
-  targetCategory: string; // DATA_BUNDLES, BOOKING_CODES, RESULT_CHECKER, GAME_COINS, PC_GAMES, PREMIUM_APPS
+  targetCategory: string; // DATA_BUNDLES, BOOKING_CODES, RESULT_CHECKER, GAME_COINS, PC_GAMES, PREMIUM_APPS, STATIC
   targetTab?: string; // MTN, Telecel, AirtelTigo, FC_MOBILE, PUBG_MOBILE, FC_26, etc.
   leadText: string;
   overviewHeading: string;
@@ -36,49 +36,108 @@ export interface SeoPageData {
 
 export const SEO_PAGES: Record<string, SeoPageData> = {
   // ==========================================
-  // 1. DATA BUNDLES (CATEGORY)
+  // 0. HOMEPAGE (PRIMARY STOREFRONT)
+  // ==========================================
+  "home": {
+    slug: "",
+    path: "/",
+    metaTitle: "#1 Cheapest Data Bundles in Ghana | MTN, Telecel & AT | DATAGHANAnow",
+    metaDescription: "Buy cheap MTN, Telecel and AT data bundles in Ghana at affordable prices. Enjoy competitive data deals, convenient Mobile Money payments and fast delivery with DATAGHANAnow.",
+    canonicalUrl: "https://kingjdeals.site/",
+    h1: "#1 Cheapest Data Bundles in Ghana | MTN, Telecel & AT",
+    badge: "GHANA'S #1 DATA MARKETPLACE",
+    category: "Home",
+    categoryPath: "/",
+    targetCategory: "DATA_BUNDLES",
+    targetTab: "MTN",
+    leadText: "Buy cheap MTN, Telecel, and AT (AirtelTigo) data bundles online in Ghana with fast digital delivery and easy Mobile Money payments.",
+    overviewHeading: "Ghana's Premier Marketplace for Cheap Mobile Data",
+    overviewParagraphs: [
+      "DATAGHANAnow is Ghana's leading online marketplace for purchasing affordable mobile data bundles across MTN, Telecel (formerly Vodafone), and AirtelTigo (AT).",
+      "Whether you are looking for non-expiry internet packages, daily data deals, wholesale data prices, or instant Mobile Money top-ups, DATAGHANAnow delivers fast, reliable service straight to your mobile phone number."
+    ],
+    featuresHeading: "Why Ghanaians Choose DATAGHANAnow",
+    features: [
+      { title: "Cheapest Market Prices", desc: "Access the most competitive rates for MTN, Telecel, and AT data packages in Ghana." },
+      { title: "Instant Mobile Money Top-Up", desc: "Pay seamlessly using MTN MoMo, Telecel Cash, or AT Money with encrypted payment security." },
+      { title: "Non-Expiry Data Packages", desc: "Enjoy data bundles that stay active until fully consumed, with no daily or monthly expiration." },
+      { title: "Multi-Network Digital Convenience", desc: "Order data for any SIM card in Ghana in one easy-to-use digital marketplace." }
+    ],
+    howItWorksHeading: "How to Buy Cheap Data Online in Ghana",
+    howItWorksSteps: [
+      { step: 1, title: "Choose Network", desc: "Select MTN, Telecel, or AirtelTigo (AT) in the store tab." },
+      { step: 2, title: "Select Data Volume", desc: "Pick your preferred gigabyte package and enter the recipient phone number." },
+      { step: 3, title: "Pay via MoMo", desc: "Authorize payment using your Mobile Money wallet or bank card." },
+      { step: 4, title: "Instant Crediting", desc: "Your data is dispatched straight to your phone line with SMS confirmation." }
+    ],
+    guidelinesHeading: "Ordering Best Practices",
+    guidelines: [
+      "Verify the recipient phone number before approving your Mobile Money prompt.",
+      "Ensure your SIM line is active under Ghana National Communications Authority guidelines.",
+      "Most orders process within 5 to 15 minutes under normal network operations."
+    ],
+    faqs: [
+      { question: "Where can I buy the cheapest data bundles in Ghana?", answer: "DATAGHANAnow offers the cheapest mobile data bundles in Ghana across MTN, Telecel, and AirtelTigo (AT) with instant online ordering." },
+      { question: "How much does 1GB of MTN data cost?", answer: "1GB of MTN data on DATAGHANAnow costs GH₵5.00 with instant Mobile Money delivery." },
+      { question: "What is the price of 10GB MTN data?", answer: "10GB of MTN data on DATAGHANAnow costs GH₵50.00." },
+      { question: "What is the smallest Telecel bundle available?", answer: "The smallest Telecel data bundle available on DATAGHANAnow is 10GB for GH₵40.00 (which is only GH₵4.00 per GB)." },
+      { question: "How much does 10GB Telecel data cost?", answer: "10GB of Telecel data costs GH₵40.00 on DATAGHANAnow." },
+      { question: "How much does AirtelTigo data cost?", answer: "AirtelTigo (AT) data bundles start at GH₵5.00 for 1GB up to GH₵40.00 for 8GB." },
+      { question: "How do I pay for data on DATAGHANAnow?", answer: "You can pay using any Ghana Mobile Money wallet (MTN MoMo, Telecel Cash, AT Money) or debit card." },
+      { question: "Do the data packages expire?", answer: "Most packages available on DATAGHANAnow are non-expiry bundles, allowing you to use your data at your own pace." }
+    ],
+    relatedLinks: [
+      { label: "Cheap MTN Data Bundles", href: "/mtn-data-bundles", description: "Buy cheap MTN data bundles in Ghana." },
+      { label: "Cheap Telecel Data Bundles", href: "/telecel-data-bundles", description: "Order Telecel mobile internet packages." },
+      { label: "Cheap AT Data Bundles", href: "/airteltigo-data-bundles", description: "Get AirtelTigo data deals." },
+      { label: "WAEC Results Checkers", href: "/results-checker", description: "Buy WASSCE, BECE, and NOVDEC checker cards." }
+    ]
+  },
+
+  // ==========================================
+  // 1. ALL DATA BUNDLES (CATEGORY)
   // ==========================================
   "data-bundles": {
     slug: "data-bundles",
     path: "/data-bundles",
-    metaTitle: "Data Bundles Ghana | MTN, Telecel & AT Deals | KING J DEALS",
-    metaDescription: "Get affordable mobile data bundles in Ghana across MTN, Telecel and AirtelTigo. Fast digital delivery, non-expiry packages, and easy online ordering on KING J DEALS.",
+    metaTitle: "Cheapest Data Bundles in Ghana | Compare MTN, Telecel & AT Prices - DATAGHANAnow",
+    metaDescription: "Compare and buy the cheapest data bundles in Ghana across MTN, Telecel, and AirtelTigo. Enjoy non-expiry packages, wholesale rates, and fast Mobile Money delivery.",
     canonicalUrl: "https://kingjdeals.site/data-bundles",
-    h1: "Mobile Data Bundles in Ghana",
-    badge: "MOBILE DATA DEALS",
+    h1: "Compare & Buy Cheap Data Bundles in Ghana",
+    badge: "ALL NETWORKS DATA DEALS",
     category: "Data Bundles",
     categoryPath: "/data-bundles",
     targetCategory: "DATA_BUNDLES",
     targetTab: "MTN",
-    leadText: "Browse and order affordable mobile internet data bundles across Ghana's leading telecom networks with fast digital delivery.",
-    overviewHeading: "Reliable Mobile Internet for Ghana",
+    leadText: "Compare and order cheap mobile internet data packages across all Ghanaian networks with instant digital delivery.",
+    overviewHeading: "Complete Data Bundle Comparison & Online Ordering",
     overviewParagraphs: [
-      "King J Deals provides Ghanaian internet users, students, remote workers, and businesses with a streamlined way to order mobile data bundles online without leaving their desks or homes.",
-      "Whether you are browsing on the MTN Ghana network, streaming on Telecel, or working on AirtelTigo (AT), our platform enables fast order placement and verified digital processing."
+      "DATAGHANAnow provides Ghanaian internet users, students, remote workers, and business owners with a centralized platform to compare and buy cheap data bundles online.",
+      "Whether you are browsing on MTN, streaming on Telecel, or working on AirtelTigo (AT), our system enables fast, affordable top-ups."
     ],
-    featuresHeading: "Why Order Data Bundles on King J Deals?",
+    featuresHeading: "Why Order Data Bundles on DATAGHANAnow?",
     features: [
-      { title: "All Major Networks", desc: "Access data deals for MTN, Telecel (formerly Vodafone), and AirtelTigo (AT) in one place." },
-      { title: "Fast Online Processing", desc: "Orders are processed through our automated and expedited queue for prompt delivery directly to your phone." },
-      { title: "Mobile Money Convenience", desc: "Pay securely with Ghanaian Mobile Money (MTN MoMo, Telecel Cash, AT Money) or debit card." },
-      { title: "Non-Expiry Options", desc: "Many data packages feature non-expiry validity, allowing you to use your volume at your own pace." }
+      { title: "All Major Networks", desc: "Access cheap data deals for MTN Ghana, Telecel Ghana, and AirtelTigo (AT) in one portal." },
+      { title: "Wholesale & Retail Rates", desc: "Get maximum value for your money with low price points per gigabyte." },
+      { title: "Mobile Money Convenience", desc: "Pay securely with MTN MoMo, Telecel Cash, or AT Money." },
+      { title: "Non-Expiry Flexibility", desc: "Many data packages feature non-expiry validity so your data never goes to waste." }
     ],
-    howItWorksHeading: "How to Order Data Bundles Online",
+    howItWorksHeading: "How to Order Mobile Data Online",
     howItWorksSteps: [
-      { step: 1, title: "Choose Your Network", desc: "Select MTN, Telecel, or AirtelTigo depending on your current SIM card." },
-      { step: 2, title: "Select Package & Enter Number", desc: "Pick your preferred data volume and enter the correct recipient phone number." },
-      { step: 3, title: "Pay Securely", desc: "Complete payment via Mobile Money or card using our verified payment gateways." },
-      { step: 4, title: "Receive Your Data", desc: "Your data is dispatched straight to your phone line with SMS confirmation from your network." }
+      { step: 1, title: "Select Network", desc: "Choose MTN, Telecel, or AirtelTigo depending on your SIM card." },
+      { step: 2, title: "Select Package & Enter Number", desc: "Pick your preferred data volume and enter the 10-digit recipient phone number." },
+      { step: 3, title: "Pay Securely", desc: "Complete payment via Mobile Money or debit card." },
+      { step: 4, title: "Receive Your Data", desc: "Your data is dispatched straight to your phone line with network SMS confirmation." }
     ],
     guidelinesHeading: "Important Ordering Information",
     guidelines: [
-      "Always double-check your recipient phone number before completing checkout; data sent to an incorrect number cannot be reversed.",
-      "Ensure your SIM card is actively registered under Ghana NCA guidelines to receive network top-ups.",
+      "Double-check your recipient phone number before completing checkout; data sent to an incorrect number cannot be reversed.",
+      "Ensure your SIM card is active under Ghana NCA guidelines to receive network top-ups.",
       "Delivery typically takes between 5 to 15 minutes under standard network operating conditions."
     ],
     faqs: [
-      { question: "Which mobile networks are supported in Ghana?", answer: "King J Deals supports all three licensed mobile network operators in Ghana: MTN Ghana, Telecel Ghana, and AirtelTigo (AT)." },
-      { question: "Do the mobile data bundles have an expiry date?", answer: "Most packages offered on King J Deals are non-expiry packages, meaning the data remains valid until fully consumed." },
+      { question: "Which mobile networks are supported in Ghana?", answer: "DATAGHANAnow supports all three licensed mobile network operators in Ghana: MTN Ghana, Telecel Ghana, and AirtelTigo (AT)." },
+      { question: "Do the mobile data bundles have an expiry date?", answer: "Most packages offered on DATAGHANAnow are non-expiry packages, meaning the data remains valid until fully consumed." },
       { question: "How will I know when my data has been delivered?", answer: "You will receive an official notification SMS from your telecom operator confirming the data crediting to your account." },
       { question: "What payment methods can I use?", answer: "Payments are processed securely via Paystack and Korapay, supporting MTN MoMo, Telecel Cash, AT Money, and bank cards." }
     ],
@@ -96,32 +155,32 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
   "mtn-data-bundles": {
     slug: "mtn-data-bundles",
     path: "/mtn-data-bundles",
-    metaTitle: "MTN Data Bundles Ghana | Fast Online Delivery | KING J DEALS",
-    metaDescription: "Buy affordable MTN data bundles in Ghana. Simple online ordering with fast delivery straight to your MTN Ghana mobile number. Safe, reliable, and convenient.",
+    metaTitle: "Cheapest MTN Data Bundles in Ghana | Best MTN Data Prices - DATAGHANAnow",
+    metaDescription: "Buy cheap MTN data bundles in Ghana at the best prices. Fast online top-up directly to your MTN Ghana line with Mobile Money payment on DATAGHANAnow.",
     canonicalUrl: "https://kingjdeals.site/mtn-data-bundles",
-    h1: "MTN Data Bundles in Ghana",
-    badge: "MTN GHANA DEALS",
+    h1: "Cheapest MTN Data Bundles in Ghana",
+    badge: "CHEAP MTN DATA GHANA",
     category: "Data Bundles",
     categoryPath: "/data-bundles",
     targetCategory: "DATA_BUNDLES",
     targetTab: "MTN",
-    leadText: "Order affordable MTN Ghana internet data packages with fast online delivery straight to your mobile phone number.",
-    overviewHeading: "Affordable MTN Data for Everyday Internet",
+    leadText: "Order cheap MTN Ghana internet data packages with fast online delivery straight to your mobile phone number.",
+    overviewHeading: "Cheapest MTN Data for Everyday Internet in Ghana",
     overviewParagraphs: [
-      "MTN is Ghana's widest-reaching telecommunications network. Staying connected on MTN should be straightforward and budget-friendly.",
-      "King J Deals offers convenient online ordering for MTN data bundles. Whether you need data for video streaming, social media, work-from-home tasks, or university research, our platform makes purchasing simple and rapid."
+      "MTN is Ghana's largest and widest telecommunications network. Finding the cheapest MTN data top-ups should be quick and hassle-free.",
+      "DATAGHANAnow offers affordable MTN data bundles online. Whether you need data for streaming, social media, remote work, or school, our platform makes buying MTN data simple and rapid."
     ],
-    featuresHeading: "Key Benefits of MTN Bundles on King J Deals",
+    featuresHeading: "Key Benefits of Buying MTN Bundles on DATAGHANAnow",
     features: [
-      { title: "Direct Number Crediting", desc: "No scratch cards needed; data is credited directly to the phone number you specify." },
-      { title: "Non-Expiry Flexibility", desc: "Enjoy bundles that do not expire at the end of the day or month, giving you full control over usage." },
+      { title: "Direct Number Crediting", desc: "No scratch cards needed; data is credited directly to the MTN number you specify." },
+      { title: "Non-Expiry Flexibility", desc: "Enjoy MTN data bundles that do not expire, giving you full control over usage." },
       { title: "Instant MoMo Checkout", desc: "Quickly checkout with your MTN Mobile Money wallet with encrypted payment safety." },
       { title: "Round-the-Clock Ordering", desc: "Place orders 24/7 with automated dispatch queues ensuring prompt delivery." }
     ],
-    howItWorksHeading: "How to Buy MTN Data Bundles",
+    howItWorksHeading: "How to Buy Cheap MTN Data Bundles",
     howItWorksSteps: [
-      { step: 1, title: "Select MTN Package", desc: "Navigate to the store and choose your desired MTN gigabyte tier." },
-      { step: 2, title: "Enter Your MTN Number", desc: "Carefully type your 10-digit MTN phone number (e.g., 024XXXXXXX or 059XXXXXXX)." },
+      { step: 1, title: "Select MTN Package", desc: "Navigate to the store and choose your desired MTN gigabyte package." },
+      { step: 2, title: "Enter Your MTN Number", desc: "Type your 10-digit MTN phone number (e.g., 024XXXXXXX or 059XXXXXXX)." },
       { step: 3, title: "Approve MoMo Prompt", desc: "Confirm the payment prompt on your MTN Mobile Money handset." },
       { step: 4, title: "Receive Confirmation", desc: "You will receive an official SMS from MTN confirming your newly added data balance." }
     ],
@@ -132,16 +191,20 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
       "Check your MTN balance anytime using the official USSD code *124# or *138#."
     ],
     faqs: [
-      { question: "How long does MTN data take to reflect?", answer: "Delivery typically completes within 5 to 15 minutes after payment confirmation during operating hours." },
-      { question: "Do these MTN bundles expire?", answer: "Most MTN packages available on King J Deals are non-expiry packages, allowing you to use them until the balance finishes." },
+      { question: "Where can I buy cheap MTN data in Ghana?", answer: "You can order the cheapest MTN data bundles online at DATAGHANAnow with instant MoMo top-up." },
+      { question: "How much does 1GB of MTN data cost?", answer: "1GB of MTN data on DATAGHANAnow costs GH₵5.00." },
+      { question: "What is the price of 10GB MTN data?", answer: "10GB of MTN data on DATAGHANAnow costs GH₵50.00." },
+      { question: "What is the price of 30GB MTN data?", answer: "30GB of MTN data on DATAGHANAnow costs GH₵130.00 (which works out to only GH₵4.33 per GB)." },
+      { question: "What is the cheapest MTN data bundle?", answer: "The cheapest MTN data bundle is 1GB for GH₵5.00. For larger capacities, 15GB costs GH₵70.00, 30GB costs GH₵130.00, and 100GB costs GH₵500.00." },
+      { question: "Do these MTN bundles expire?", answer: "Most MTN packages available on DATAGHANAnow are non-expiry packages, allowing you to use them until the balance finishes." },
       { question: "Can I buy MTN data for someone else?", answer: "Yes. Simply input the recipient's MTN mobile number during checkout, and the data will be sent directly to their line." },
-      { question: "What if I enter the wrong phone number?", answer: "Because data crediting is executed via telecom systems, top-ups sent to an incorrect number cannot be reversed. Please verify your number carefully." }
+      { question: "How long does MTN data delivery take?", answer: "Delivery typically completes within 5 to 15 minutes after payment confirmation during operating hours." }
     ],
     relatedLinks: [
       { label: "All Data Bundles", href: "/data-bundles", description: "Compare MTN, Telecel, and AT options." },
       { label: "Telecel Data Bundles", href: "/telecel-data-bundles", description: "Check out Telecel mobile data packages." },
       { label: "AirtelTigo Data Bundles", href: "/airteltigo-data-bundles", description: "Browse AirtelTigo data options." },
-      { label: "King J Deals Storefront", href: "/", description: "Return to the main store dashboard." }
+      { label: "DATAGHANAnow Storefront", href: "/", description: "Return to the main store dashboard." }
     ]
   },
 
@@ -151,33 +214,33 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
   "telecel-data-bundles": {
     slug: "telecel-data-bundles",
     path: "/telecel-data-bundles",
-    metaTitle: "Telecel Data Bundles Ghana | Order Online | KING J DEALS",
-    metaDescription: "Purchase affordable Telecel Ghana (formerly Vodafone) mobile data bundles online. Fast crediting directly to your Telecel line with secure payment options.",
+    metaTitle: "Cheapest Telecel Data Bundles in Ghana | Best Prices - DATAGHANAnow",
+    metaDescription: "Order cheap Telecel data bundles in Ghana at unbeatable rates. Fast digital delivery to your Telecel (Vodafone) number via Telecel Cash & MTN MoMo.",
     canonicalUrl: "https://kingjdeals.site/telecel-data-bundles",
-    h1: "Telecel Data Bundles in Ghana",
-    badge: "TELECEL GHANA DEALS",
+    h1: "Cheapest Telecel Data Bundles in Ghana",
+    badge: "CHEAP TELECEL DATA GHANA",
     category: "Data Bundles",
     categoryPath: "/data-bundles",
     targetCategory: "DATA_BUNDLES",
     targetTab: "Telecel",
-    leadText: "Get fast, reliable Telecel Ghana mobile data packages delivered straight to your Telecel line.",
-    overviewHeading: "Connect Seamlessly with Telecel Ghana",
+    leadText: "Get fast, cheap Telecel Ghana mobile data packages delivered straight to your Telecel line.",
+    overviewHeading: "Connect Seamlessly with Cheap Telecel Data in Ghana",
     overviewParagraphs: [
-      "Telecel Ghana (formerly Vodafone Ghana) is renowned for solid high-speed broadband and 4G connectivity across Ghanaian cities and towns.",
-      "King J Deals allows Telecel subscribers to conveniently order mobile data packages online without standing in long vendor queues or dealing with paper voucher scratch codes."
+      "Telecel Ghana (formerly Vodafone Ghana) is renowned for solid high-speed 4G connectivity across Ghanaian towns and cities.",
+      "DATAGHANAnow allows Telecel subscribers to conveniently order cheap mobile data packages online without dealing with voucher scratch codes."
     ],
-    featuresHeading: "Why Get Telecel Bundles via King J Deals?",
+    featuresHeading: "Why Get Telecel Bundles via DATAGHANAnow?",
     features: [
       { title: "Direct Line Crediting", desc: "Data is delivered electronically to your Telecel phone number." },
-      { title: "Budget-Friendly Rates", desc: "Access high-volume data packages at competitive everyday pricing." },
+      { title: "Unbeatable Everyday Rates", desc: "Access high-volume Telecel data packages at low wholesale pricing." },
       { title: "Telecel Cash & MoMo Support", desc: "Pay using Telecel Cash, MTN MoMo, or standard debit cards." },
       { title: "Convenient Online Queue", desc: "Order anytime, anywhere from your phone or computer." }
     ],
-    howItWorksHeading: "How to Order Telecel Data",
+    howItWorksHeading: "How to Order Telecel Data Online",
     howItWorksSteps: [
-      { step: 1, title: "Select Telecel", desc: "Choose the Telecel tab in the King J Deals catalog." },
+      { step: 1, title: "Select Telecel", desc: "Choose the Telecel tab in the DATAGHANAnow catalog." },
       { step: 2, title: "Enter Telecel Phone Number", desc: "Input your 10-digit number with standard Telecel prefixes (e.g., 020, 050)." },
-      { step: 3, title: "Complete Payment", desc: "Authorize payment via your preferred Mobile Money account or card." },
+      { step: 3, title: "Complete Payment", desc: "Authorize payment via Telecel Cash or your preferred Mobile Money wallet." },
       { step: 4, title: "Confirmation SMS", desc: "Telecel will dispatch an official network SMS confirming your updated data volume." }
     ],
     guidelinesHeading: "Telecel Guidelines",
@@ -187,9 +250,13 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
       "Verify the recipient phone number accurately before proceeding to payment."
     ],
     faqs: [
-      { question: "Is this for former Vodafone Ghana users?", answer: "Yes, Vodafone Ghana was rebranded to Telecel Ghana. All 020 and 050 numbers operate on Telecel." },
-      { question: "How long does Telecel delivery take?", answer: "Most orders are delivered within 5 to 15 minutes during regular operating hours." },
-      { question: "Can I pay using Telecel Cash?", answer: "Yes, our checkout supports Telecel Cash, MTN MoMo, and card payments." }
+      { question: "Where can I buy cheap Telecel data in Ghana?", answer: "DATAGHANAnow provides affordable Telecel mobile data top-ups with instant digital delivery." },
+      { question: "What is the smallest Telecel bundle available?", answer: "The smallest active Telecel data bundle available on DATAGHANAnow is 10GB for GH₵40.00 (which is an exceptional rate of GH₵4.00 per GB)." },
+      { question: "How much does 10GB Telecel data cost?", answer: "10GB of Telecel data costs GH₵40.00 on DATAGHANAnow." },
+      { question: "What is the price of 30GB Telecel data?", answer: "30GB of Telecel data costs GH₵115.00 on DATAGHANAnow (GH₵3.83 per GB)." },
+      { question: "What is the price of 100GB Telecel data?", answer: "100GB of Telecel data costs GH₵355.00 on DATAGHANAnow (GH₵3.55 per GB)." },
+      { question: "Is Telecel formerly Vodafone Ghana?", answer: "Yes, Vodafone Ghana was rebranded to Telecel Ghana. All 020 and 050 numbers operate on Telecel." },
+      { question: "How long does Telecel delivery take?", answer: "Most orders are delivered within 5 to 15 minutes during regular operating hours." }
     ],
     relatedLinks: [
       { label: "Data Bundles Overview", href: "/data-bundles", description: "View all mobile network options." },
@@ -204,25 +271,25 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
   "airteltigo-data-bundles": {
     slug: "airteltigo-data-bundles",
     path: "/airteltigo-data-bundles",
-    metaTitle: "AirtelTigo Data Bundles Ghana | AT Mobile Deals | KING J DEALS",
-    metaDescription: "Order cheap AirtelTigo (AT) mobile data packages in Ghana. Convenient online ordering, instant processing, and reliable delivery to your AT number.",
+    metaTitle: "Cheapest AT Data Bundles in Ghana | Best AirtelTigo Prices - DATAGHANAnow",
+    metaDescription: "Buy cheap AirtelTigo (AT) data bundles online in Ghana. Get high-value non-expiry AT data packages with fast Mobile Money delivery on DATAGHANAnow.",
     canonicalUrl: "https://kingjdeals.site/airteltigo-data-bundles",
-    h1: "AirtelTigo (AT) Data Bundles in Ghana",
-    badge: "AIRTELTIGO / AT DEALS",
+    h1: "Cheapest AirtelTigo (AT) Data Bundles in Ghana",
+    badge: "CHEAP AIRTELTIGO / AT DATA",
     category: "Data Bundles",
     categoryPath: "/data-bundles",
     targetCategory: "DATA_BUNDLES",
     targetTab: "AirtelTigo",
     leadText: "Enjoy value-packed mobile internet data on AirtelTigo (AT) Ghana with instant online order processing.",
-    overviewHeading: "Great Value Internet on the AT Network",
+    overviewHeading: "Great Value & Non-Expiry Internet on the AT Network",
     overviewParagraphs: [
-      "AirtelTigo (AT) offers some of the most generous data allocations in Ghana, making it a favorite among heavy downloaders, streamers, and mobile entrepreneurs.",
-      "On King J Deals, buying AT data is quick, secure, and delivered directly to your AirtelTigo number."
+      "AirtelTigo (AT) offers some of the most generous data allocations in Ghana, making it a favorite for heavy downloaders, streamers, and mobile entrepreneurs.",
+      "On DATAGHANAnow, buying AT data is cheap, secure, and delivered directly to your AirtelTigo number."
     ],
-    featuresHeading: "Why Choose AT Data on King J Deals?",
+    featuresHeading: "Why Choose AT Data on DATAGHANAnow?",
     features: [
-      { title: "High Value Allocation", desc: "Maximize your internet browsing with substantial data volumes." },
-      { title: "Non-Expiry Freedom", desc: "Selected AT packages offer non-expiry flexibility for prolonged usage." },
+      { title: "High Value Allocation", desc: "Maximize your internet browsing with substantial data volumes per cedi." },
+      { title: "Non-Expiry Freedom", desc: "AT packages offer non-expiry flexibility for prolonged usage." },
       { title: "Fast Digital Delivery", desc: "Credited straight to your phone line without extra hassle." },
       { title: "Universal Payment", desc: "Pay with AT Money, MTN MoMo, Telecel Cash, or debit cards." }
     ],
@@ -240,6 +307,10 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
     ],
     faqs: [
       { question: "Is AirtelTigo now known as AT?", answer: "Yes, AirtelTigo officially rebranded to 'AT' in Ghana. Both names refer to the same network." },
+      { question: "Where can I buy cheap AT data bundles in Ghana?", answer: "DATAGHANAnow offers cheap AirtelTigo (AT) data bundles with instant delivery via Mobile Money." },
+      { question: "How much does 1GB AirtelTigo data cost?", answer: "1GB of AirtelTigo (AT) data costs GH₵5.00 on DATAGHANAnow." },
+      { question: "How much does 5GB AirtelTigo data cost?", answer: "5GB of AirtelTigo data costs GH₵25.00 on DATAGHANAnow." },
+      { question: "How much does 8GB AirtelTigo data cost?", answer: "8GB of AirtelTigo data costs GH₵40.00 on DATAGHANAnow." },
       { question: "How fast is delivery?", answer: "Delivery usually completes within 5 to 15 minutes." }
     ],
     relatedLinks: [
@@ -255,10 +326,10 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
   "results-checker": {
     slug: "results-checker",
     path: "/results-checker",
-    metaTitle: "WAEC Results Checker Ghana | WASSCE, BECE & NOVDEC | KING J DEALS",
-    metaDescription: "Purchase authentic WAEC Ghana exam result checker serials and PINs for WASSCE, BECE, and NOVDEC. Instant online delivery and straightforward verification.",
+    metaTitle: "Buy WAEC Results Checker Online in Ghana | WASSCE, BECE & NOVDEC - DATAGHANAnow",
+    metaDescription: "Buy authentic WAEC Ghana result checker PINs and Serials for WASSCE, BECE, and NOVDEC. Instant online delivery for WAEC Direct result verification.",
     canonicalUrl: "https://kingjdeals.site/results-checker",
-    h1: "WAEC Results Checkers in Ghana",
+    h1: "Buy WAEC Results Checkers Online in Ghana",
     badge: "EXAM RESULTS CHECKERS",
     category: "Result Checker",
     categoryPath: "/results-checker",
@@ -268,9 +339,9 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
     overviewHeading: "Instant Access to Official WAEC Examination Results",
     overviewParagraphs: [
       "Every year, thousands of Ghanaian students, parents, and guardians eagerly anticipate the release of national examination results from the West African Examinations Council (WAEC).",
-      "King J Deals provides a fast, reliable, and secure online platform to purchase official WAEC Result Checker PINs and Serials for WASSCE (School and Private), BECE, and NOVDEC without having to hunt for physical cards at internet cafés."
+      "DATAGHANAnow provides a fast, reliable, and secure online platform to purchase official WAEC Result Checker PINs and Serials for WASSCE (School and Private), BECE, and NOVDEC without having to hunt for physical cards at internet cafés."
     ],
-    featuresHeading: "Why Purchase Results Checkers on King J Deals?",
+    featuresHeading: "Why Purchase Results Checkers on DATAGHANAnow?",
     features: [
       { title: "Instant Delivery", desc: "Receive your Serial number and PIN on-screen and in your account immediately after payment." },
       { title: "Authentic WAEC Serials", desc: "100% valid PINs compatible with the official WAEC Ghana Direct portal (ghana.waecdirect.org)." },
@@ -309,10 +380,10 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
   "wassce-results-checker": {
     slug: "wassce-results-checker",
     path: "/wassce-results-checker",
-    metaTitle: "WASSCE Results Checker Ghana | Buy PIN Online | KING J DEALS",
-    metaDescription: "Buy WASSCE results checker PIN and Serial online in Ghana. Check your West African Senior School Certificate Examination results instantly on the official WAEC portal.",
+    metaTitle: "Buy WASSCE Results Checker PIN Online Ghana | Official WAEC - DATAGHANAnow",
+    metaDescription: "Purchase official WASSCE results checker PIN and Serial number online in Ghana. Instant delivery to check your Senior High School WAEC scores on ghana.waecdirect.org.",
     canonicalUrl: "https://kingjdeals.site/wassce-results-checker",
-    h1: "WASSCE Results Checker in Ghana",
+    h1: "Buy WASSCE Results Checker Card Online",
     badge: "WASSCE WAEC CHECKER",
     category: "Result Checker",
     categoryPath: "/results-checker",
@@ -322,7 +393,7 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
     overviewHeading: "Check Your WASSCE Results Without Stress",
     overviewParagraphs: [
       "The West African Senior School Certificate Examination (WASSCE) is the decisive academic milestone for senior high school candidates across Ghana.",
-      "When WAEC announces the provisional release of WASSCE results, traffic surges and physical scratch cards become scarce. King J Deals lets you buy your genuine WASSCE checker card online in seconds from your smartphone."
+      "When WAEC announces the provisional release of WASSCE results, traffic surges and physical scratch cards become scarce. DATAGHANAnow lets you buy your genuine WASSCE checker card online in seconds from your smartphone."
     ],
     featuresHeading: "WASSCE Checker Highlights",
     features: [
@@ -333,7 +404,7 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
     ],
     howItWorksHeading: "How to Check Your WASSCE Results",
     howItWorksSteps: [
-      { step: 1, title: "Purchase Checker PIN", desc: "Order your WASSCE checker on King J Deals." },
+      { step: 1, title: "Purchase Checker PIN", desc: "Order your WASSCE checker on DATAGHANAnow." },
       { step: 2, title: "Copy Serial & PIN", desc: "Copy the delivered Serial and PIN displayed on your order screen." },
       { step: 3, title: "Visit ghana.waecdirect.org", desc: "Enter your 10-digit Index Number, select 'WASSCE (School)' or 'WASSCE (Private)', and select your Exam Year." },
       { step: 4, title: "Submit & Print", desc: "Paste your Serial and PIN, then click Submit to view and print your result slip." }
@@ -362,10 +433,10 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
   "bece-results-checker": {
     slug: "bece-results-checker",
     path: "/bece-results-checker",
-    metaTitle: "BECE Results Checker Ghana | Check School Placement | KING J DEALS",
-    metaDescription: "Order your BECE Results Checker PIN and serial securely in Ghana. Check your Basic Education Certificate Examination results and school placement with ease.",
+    metaTitle: "Buy BECE Results Checker PIN Ghana | CSSPS School Placement - DATAGHANAnow",
+    metaDescription: "Buy genuine BECE results checker cards online in Ghana. Check Junior High School WAEC scores and CSSPS Senior High placement instantly with Mobile Money.",
     canonicalUrl: "https://kingjdeals.site/bece-results-checker",
-    h1: "BECE Results Checker in Ghana",
+    h1: "Buy BECE Results Checker & Placement PIN",
     badge: "BECE WAEC CHECKER",
     category: "Result Checker",
     categoryPath: "/results-checker",
@@ -375,9 +446,9 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
     overviewHeading: "Check BECE Scores and School Placement",
     overviewParagraphs: [
       "The Basic Education Certificate Examination (BECE) is the bridge to Senior High School and Technical Institutions across Ghana.",
-      "King J Deals allows parents, teachers, and students to quickly buy genuine BECE Results Checker cards online, saving time and avoiding queues."
+      "DATAGHANAnow allows parents, teachers, and students to quickly buy genuine BECE Results Checker cards online, saving time and avoiding queues."
     ],
-    featuresHeading: "Why Choose King J Deals for BECE Checkers?",
+    featuresHeading: "Why Choose DATAGHANAnow for BECE Checkers?",
     features: [
       { title: "Immediate Voucher Access", desc: "Instant on-screen delivery of Serial and PIN." },
       { title: "CSSPS Compatible", desc: "Use the card details to check both scores and senior high placement." },
@@ -385,7 +456,7 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
     ],
     howItWorksHeading: "How to Check BECE Results",
     howItWorksSteps: [
-      { step: 1, title: "Buy Checker", desc: "Purchase a BECE checker on King J Deals." },
+      { step: 1, title: "Buy Checker", desc: "Purchase a BECE checker on DATAGHANAnow." },
       { step: 2, title: "Go to WAEC Portal", desc: "Navigate to ghana.waecdirect.org." },
       { step: 3, title: "Enter Details", desc: "Input Index Number, select BECE (School or Private), and enter the Serial & PIN." },
       { step: 4, title: "View Results", desc: "Submit to access your grades and grade aggregate." }
@@ -412,10 +483,10 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
   "novdec-results-checker": {
     slug: "novdec-results-checker",
     path: "/novdec-results-checker",
-    metaTitle: "NOVDEC Results Checker Ghana | WAEC Private Candidates | KING J DEALS",
-    metaDescription: "Get authentic WAEC NOVDEC (Private BECE/WASSCE) results checker PINs in Ghana. Fast online order delivery to check your private candidate scores.",
+    metaTitle: "Buy NOVDEC Results Checker PIN Online Ghana | WAEC Private - DATAGHANAnow",
+    metaDescription: "Buy official NOVDEC (WAEC Private Candidates) result checker PINs online in Ghana. Instant digital delivery for checking private WASSCE results.",
     canonicalUrl: "https://kingjdeals.site/novdec-results-checker",
-    h1: "NOVDEC Results Checker in Ghana",
+    h1: "Buy NOVDEC Results Checker Card Online",
     badge: "WAEC PRIVATE CANDIDATES",
     category: "Result Checker",
     categoryPath: "/results-checker",
@@ -425,7 +496,7 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
     overviewHeading: "Fast Results Checking for Private Candidates",
     overviewParagraphs: [
       "The November/December (NOVDEC) examinations cater to private candidates re-sitting or supplementing their senior high school subjects.",
-      "With King J Deals, private candidates can conveniently order their official results checker cards online at any hour of the day."
+      "With DATAGHANAnow, private candidates can conveniently order their official results checker cards online at any hour of the day."
     ],
     featuresHeading: "NOVDEC Checker Benefits",
     features: [
@@ -435,7 +506,7 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
     ],
     howItWorksHeading: "How to Access NOVDEC Results",
     howItWorksSteps: [
-      { step: 1, title: "Purchase PIN", desc: "Order your NOVDEC voucher on King J Deals." },
+      { step: 1, title: "Purchase PIN", desc: "Order your NOVDEC voucher on DATAGHANAnow." },
       { step: 2, title: "Open WAEC Direct", desc: "Visit ghana.waecdirect.org on your browser." },
       { step: 3, title: "Select Private Exam", desc: "Select 'WASSCE (Private)' and enter your candidate Index Number." },
       { step: 4, title: "Submit Credentials", desc: "Enter your Serial and PIN to view your grades." }
@@ -462,10 +533,10 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
   "booking-codes": {
     slug: "booking-codes",
     path: "/booking-codes",
-    metaTitle: "Sports Betting Booking Codes Ghana | Daily Accumulators | KING J DEALS",
-    metaDescription: "Access curated sports betting booking codes in Ghana for top platforms like SportyBet, 1xBet, and Betway. Instant code delivery upon verification.",
+    metaTitle: "Sports Betting Booking Codes Ghana | SportyBet & Betway Accumulators - DATAGHANAnow",
+    metaDescription: "Access daily sports betting booking codes for SportyBet, 1xBet, and Betway in Ghana. Curated football accumulator slips with instant code reveal.",
     canonicalUrl: "https://kingjdeals.site/booking-codes",
-    h1: "Sports Betting Booking Codes in Ghana",
+    h1: "Daily Sports Betting Booking Codes in Ghana",
     badge: "VIP & DAILY ACCUMULATORS",
     category: "Booking Codes",
     categoryPath: "/booking-codes",
@@ -475,7 +546,7 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
     overviewHeading: "Curated Sports Bets & Match Selections",
     overviewParagraphs: [
       "Sports enthusiasts in Ghana frequently look for curated game selections, accumulator combinations, and daily analysis for football leagues across Europe and the globe.",
-      "King J Deals features a booking codes service where users can unlock verified betting codes formatted for leading sportsbooks including SportyBet, 1xBet, Betway, MozzartBet, 22Bet, and Bet9ja."
+      "DATAGHANAnow features a booking codes service where users can unlock verified betting codes formatted for leading sportsbooks including SportyBet, 1xBet, Betway, MozzartBet, 22Bet, and Bet9ja."
     ],
     featuresHeading: "Booking Code Service Highlights",
     features: [
@@ -484,7 +555,7 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
       { title: "Daily Curated Selections", desc: "Selections analyzed for major European football leagues, tournaments, and cups." },
       { title: "One-Click Copy", desc: "Easily copy the code and paste it directly into your betting app or site." }
     ],
-    howItWorksHeading: "How to Use King J Deals Booking Codes",
+    howItWorksHeading: "How to Use DATAGHANAnow Booking Codes",
     howItWorksSteps: [
       { step: 1, title: "Browse Available Codes", desc: "Select the booking code category in our store and review currently available slips." },
       { step: 2, title: "Unlock Code", desc: "Complete payment to unlock your chosen booking slip." },
@@ -498,9 +569,9 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
       "Some booking codes may be subject to availability depending on active match schedules. Check the store for current active slips."
     ],
     faqs: [
-      { question: "How do I load a booking code in SportyBet?", answer: "Open SportyBet, navigate to the Betslip, tap 'Load Bet Code', paste the code from King J Deals, and tap 'Load'." },
+      { question: "How do I load a booking code in SportyBet?", answer: "Open SportyBet, navigate to the Betslip, tap 'Load Bet Code', paste the code from DATAGHANAnow, and tap 'Load'." },
       { question: "Do booking codes expire?", answer: "Yes, booking codes expire as soon as the earliest match on the ticket kicks off." },
-      { question: "Are winnings guaranteed?", answer: "No. Sports betting involves financial risk. King J Deals provides analytical selections but does not guarantee outcomes." }
+      { question: "Are winnings guaranteed?", answer: "No. Sports betting involves financial risk. DATAGHANAnow provides analytical selections but does not guarantee outcomes." }
     ],
     relatedLinks: [
       { label: "Mobile Data Bundles", href: "/data-bundles", description: "Get data to stream live sports matches." },
@@ -515,10 +586,10 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
   "game-coins": {
     slug: "game-coins",
     path: "/game-coins",
-    metaTitle: "Game Coins & In-Game Top-Ups Ghana | FC & PUBG Mobile | KING J DEALS",
-    metaDescription: "Buy in-game gaming currencies and top-ups in Ghana including FC Mobile Points/Silver and PUBG Mobile UC. Fast digital crediting via player ID.",
+    metaTitle: "Buy Game Coins & Gaming Top-Ups Ghana | FC & PUBG Mobile - DATAGHANAnow",
+    metaDescription: "Buy mobile game currencies in Ghana with Mobile Money. Instant top-ups for FC Mobile Points & Silver and PUBG Mobile UC delivered via Player ID.",
     canonicalUrl: "https://kingjdeals.site/game-coins",
-    h1: "Game Coins & Digital Gaming Currencies in Ghana",
+    h1: "Buy Game Coins & Mobile Gaming Top-Ups in Ghana",
     badge: "MOBILE GAMING TOP-UPS",
     category: "Game Coins",
     categoryPath: "/game-coins",
@@ -528,7 +599,7 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
     overviewHeading: "Level Up Your Mobile Gaming Experience",
     overviewParagraphs: [
       "Mobile esports and multiplayer gaming have exploded in popularity in Ghana, led by competitive titles like EA SPORTS FC Mobile and PUBG Mobile.",
-      "However, purchasing in-game items through standard app store cards can be challenging due to foreign card restrictions. King J Deals simplifies top-ups by allowing Ghanaian gamers to pay with local Mobile Money."
+      "However, purchasing in-game items through standard app store cards can be challenging due to foreign card restrictions. DATAGHANAnow simplifies top-ups by allowing Ghanaian gamers to pay with local Mobile Money."
     ],
     featuresHeading: "Gaming Top-Up Highlights",
     features: [
@@ -548,7 +619,7 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
     guidelines: [
       "Always copy your Player ID directly from your game profile to prevent typographical errors.",
       "Ensure your game application is updated to the latest version.",
-      "King J Deals will never ask for your game password or login credentials."
+      "DATAGHANAnow will never ask for your game password or login credentials."
     ],
     faqs: [
       { question: "Do you need my game account password?", answer: "No. Top-ups only require your public Player ID / UID. Never share your game password." },
@@ -567,10 +638,10 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
   "fc-mobile-points": {
     slug: "fc-mobile-points",
     path: "/fc-mobile-points",
-    metaTitle: "FC Mobile Points & Silver Ghana | EA SPORTS Top-Up | KING J DEALS",
-    metaDescription: "Top up EA SPORTS FC Mobile Points and Silver in Ghana. Direct digital crediting with your UID or account details. Safe, fast, and competitive rates.",
+    metaTitle: "Buy FC Mobile Points & Silver Ghana | EA SPORTS Top-Up - DATAGHANAnow",
+    metaDescription: "Top up EA SPORTS FC Mobile Points and Silver in Ghana. Direct Player ID crediting with MTN MoMo, Telecel Cash, and AT Money on DATAGHANAnow.",
     canonicalUrl: "https://kingjdeals.site/fc-mobile-points",
-    h1: "FC Mobile Points & Silver in Ghana",
+    h1: "Buy EA SPORTS FC Mobile Points & Silver in Ghana",
     badge: "EA SPORTS FC MOBILE",
     category: "Game Coins",
     categoryPath: "/game-coins",
@@ -580,7 +651,7 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
     overviewHeading: "Build Your Dream Squad on FC Mobile",
     overviewParagraphs: [
       "EA SPORTS FC Mobile lets football fans assemble their dream team with global superstars, participate in live events, and compete in Division Rivals.",
-      "To open player packs, purchase event passes, and acquire Silver for upgrades, FC Points are essential. King J Deals provides Ghanaian players with a convenient way to top up using local payment options."
+      "To open player packs, purchase event passes, and acquire Silver for upgrades, FC Points are essential. DATAGHANAnow provides Ghanaian players with a convenient way to top up using local payment options."
     ],
     featuresHeading: "FC Mobile Top-Up Perks",
     features: [
@@ -618,10 +689,10 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
   "pubg-mobile-uc": {
     slug: "pubg-mobile-uc",
     path: "/pubg-mobile-uc",
-    metaTitle: "PUBG Mobile UC Ghana | Unknown Cash Top-Up | KING J DEALS",
-    metaDescription: "Buy PUBG Mobile UC (Unknown Cash) in Ghana. Upgrade Royale Pass and unlock weapon skins with fast direct ID delivery on KING J DEALS.",
+    metaTitle: "Buy PUBG Mobile UC Ghana | Instant Unknown Cash Top-Up - DATAGHANAnow",
+    metaDescription: "Buy PUBG Mobile UC (Unknown Cash) in Ghana at affordable rates. Instant Royale Pass and skin top-ups credited straight to your Player ID.",
     canonicalUrl: "https://kingjdeals.site/pubg-mobile-uc",
-    h1: "PUBG Mobile UC in Ghana",
+    h1: "Buy PUBG Mobile Unknown Cash (UC) in Ghana",
     badge: "PUBG MOBILE TOP-UP",
     category: "Game Coins",
     categoryPath: "/game-coins",
@@ -631,7 +702,7 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
     overviewHeading: "Gear Up for the Battlegrounds",
     overviewParagraphs: [
       "PUBG Mobile is one of the premier battle royale titles enjoyed by gamers across Ghana. From high-stakes squad battles in Erangel to quick deathmatches, UC (Unknown Cash) is the currency needed to unlock premium crates, upgrade weapon skins, and activate the Royale Pass.",
-      "King J Deals lets Ghanaian players buy PUBG Mobile UC directly using Mobile Money without needing an international bank card."
+      "DATAGHANAnow lets Ghanaian players buy PUBG Mobile UC directly using Mobile Money without needing an international bank card."
     ],
     featuresHeading: "PUBG Mobile UC Features",
     features: [
@@ -669,10 +740,10 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
   "pc-games": {
     slug: "pc-games",
     path: "/pc-games",
-    metaTitle: "PC Games Ghana | Digital Downloads & Offline Setups | KING J DEALS",
-    metaDescription: "Browse PC games available in Ghana with direct cloud download links and offline setup files, including EA SPORTS FC 26 on KING J DEALS.",
+    metaTitle: "PC Games Download Ghana | Direct Cloud Setup Files - DATAGHANAnow",
+    metaDescription: "Download full PC games and offline setup packages in Ghana. Fast high-speed cloud repository access with step-by-step installation guides on DATAGHANAnow.",
     canonicalUrl: "https://kingjdeals.site/pc-games",
-    h1: "PC Games & Offline Setups in Ghana",
+    h1: "PC Games Digital Downloads & Offline Setups in Ghana",
     badge: "PC GAMING INSTALLATIONS",
     category: "PC Games",
     categoryPath: "/pc-games",
@@ -682,13 +753,13 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
     overviewHeading: "PC Gaming Made Accessible in Ghana",
     overviewParagraphs: [
       "Downloading massive multi-gigabyte modern PC games in Ghana can be challenging due to unstable connections or limited international payment methods.",
-      "King J Deals features PC game digital packages with high-speed cloud links (including dedicated Mega.nz repositories) and clear offline installation guidance."
+      "DATAGHANAnow features PC game digital packages with high-speed cloud links (including dedicated Mega.nz repositories) and clear offline installation guidance."
     ],
-    featuresHeading: "Why Get PC Games on King J Deals?",
+    featuresHeading: "Why Get PC Games on DATAGHANAnow?",
     features: [
       { title: "High-Speed Direct Links", desc: "Access full game files hosted on resilient cloud servers with resume support." },
       { title: "Complete Setup Files", desc: "Includes installation files, patches, and step-by-step setup notes." },
-      { title: "Dedicated Download Hub", desc: "Delivered directly into your King J Deals customer account upon verification." },
+      { title: "Dedicated Download Hub", desc: "Delivered directly into your DATAGHANAnow customer account upon verification." },
       { title: "Local Mobile Money", desc: "Pay with MTN MoMo, Telecel Cash, or AT Money." }
     ],
     howItWorksHeading: "How to Access PC Games",
@@ -704,7 +775,7 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
       "Ensure you have sufficient free hard drive space (SSD recommended) for extracting and installing large game files."
     ],
     faqs: [
-      { question: "How do I download the game after purchasing?", answer: "Once your order is verified, your King J Deals account unlocks a dedicated cloud repository link with all setup parts." },
+      { question: "How do I download the game after purchasing?", answer: "Once your order is verified, your DATAGHANAnow account unlocks a dedicated cloud repository link with all setup parts." },
       { question: "Do I need a strong internet connection?", answer: "Yes, modern PC games are several gigabytes in size. We recommend an unlimited or high-volume data bundle." }
     ],
     relatedLinks: [
@@ -720,10 +791,10 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
   "fc-26": {
     slug: "fc-26",
     path: "/fc-26",
-    metaTitle: "FC 26 PC Game Download Ghana | Complete Setup | KING J DEALS",
-    metaDescription: "Get EA SPORTS FC 26 PC game in Ghana. Download full installation packages and setup files with direct cloud access and straightforward installation guides.",
+    metaTitle: "EA SPORTS FC 26 PC Download Ghana | Full Setup Files - DATAGHANAnow",
+    metaDescription: "Download EA SPORTS FC 26 PC game in Ghana with direct cloud links, complete installation files, updated rosters, and setup instructions.",
     canonicalUrl: "https://kingjdeals.site/fc-26",
-    h1: "EA SPORTS FC 26 for PC in Ghana",
+    h1: "Download EA SPORTS FC 26 PC Game in Ghana",
     badge: "FC 26 PC EDITION",
     category: "PC Games",
     categoryPath: "/pc-games",
@@ -733,7 +804,7 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
     overviewHeading: "The World's Game on Your PC",
     overviewParagraphs: [
       "EA SPORTS FC 26 represents the pinnacle of football simulation gaming, featuring hyper-realistic player motion, authentic club kits, updated squads, and deep Career Mode gameplay.",
-      "King J Deals provides PC football gamers in Ghana with direct cloud repository access to the complete installation files, making it easy to download and install on compatible Windows PCs."
+      "DATAGHANAnow provides PC football gamers in Ghana with direct cloud repository access to the complete installation files, making it easy to download and install on compatible Windows PCs."
     ],
     featuresHeading: "FC 26 PC Package Features",
     features: [
@@ -744,7 +815,7 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
     ],
     howItWorksHeading: "How to Get FC 26 on PC",
     howItWorksSteps: [
-      { step: 1, title: "Order FC 26", desc: "Select FC 26 in the King J Deals PC Games section." },
+      { step: 1, title: "Order FC 26", desc: "Select FC 26 in the DATAGHANAnow PC Games section." },
       { step: 2, title: "Complete Payment", desc: "Pay with your Mobile Money wallet or card." },
       { step: 3, title: "Access Download Portal", desc: "Your account immediately reveals the cloud download link." },
       { step: 4, title: "Install on PC", desc: "Download the setup archive, extract, and launch the installer." }
@@ -774,10 +845,10 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
   "premium-apps": {
     slug: "premium-apps",
     path: "/premium-apps",
-    metaTitle: "Premium Digital Apps & Subscriptions Ghana | KING J DEALS",
-    metaDescription: "Discover digital entertainment subscriptions and premium application services in Ghana. Learn about upcoming options and digital account services on KING J DEALS.",
+    metaTitle: "Premium Digital Subscriptions & App Upgrades Ghana | DATAGHANAnow",
+    metaDescription: "Explore digital subscriptions and app upgrades in Ghana with local Mobile Money payments. Streamlined account services on DATAGHANAnow.",
     canonicalUrl: "https://kingjdeals.site/premium-apps",
-    h1: "Premium Apps & Digital Subscriptions in Ghana",
+    h1: "Premium Digital Subscriptions & App Services",
     badge: "DIGITAL LIFESTYLE & APPS",
     category: "Premium Apps",
     categoryPath: "/premium-apps",
@@ -787,14 +858,14 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
     overviewHeading: "Convenient Access to Digital Entertainment",
     overviewParagraphs: [
       "Modern digital life revolves around streaming music, binge-watching series, and using premium social features. However, many global subscription platforms require foreign credit cards that are difficult to obtain in Ghana.",
-      "King J Deals is expanding its catalog to bridge this gap. Our upcoming Premium Apps section is designed to introduce convenient, local Mobile Money payment solutions for popular digital lifestyle services."
+      "DATAGHANAnow is expanding its catalog to bridge this gap. Our upcoming Premium Apps section is designed to introduce convenient, local Mobile Money payment solutions for popular digital lifestyle services."
     ],
     featuresHeading: "Upcoming Digital Services Focus",
     features: [
       { title: "Music & Streaming", desc: "Potential subscription options for music streaming platforms like Audiomack and video platforms." },
       { title: "Social Upgrades", desc: "Informative support for services such as Snapchat+ and related lifestyle upgrades." },
       { title: "MoMo Powered", desc: "Designed around Ghanaian Mobile Money wallets for straightforward, local payment." },
-      { title: "Strict Verification", desc: "Every service offered on King J Deals undergoes strict operational checks prior to listing." }
+      { title: "Strict Verification", desc: "Every service offered on DATAGHANAnow undergoes strict operational checks prior to listing." }
     ],
     howItWorksHeading: "How Digital Services Will Work",
     howItWorksSteps: [
@@ -806,22 +877,242 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
     guidelinesHeading: "Availability Notice",
     guidelines: [
       "Digital app subscriptions are being added progressively. Services will only show as purchasable when fully tested and operationally ready.",
-      "King J Deals does not claim official representation or partnership with third-party app developers unless explicitly verified.",
+      "DATAGHANAnow does not claim official representation or partnership with third-party app developers unless explicitly verified.",
       "Please refer to the active storefront tabs to see currently purchasable items."
     ],
     faqs: [
-      { question: "Which premium apps are coming to King J Deals?", answer: "We are actively exploring options for music streaming, social media upgrades (like Snapchat+), and popular digital lifestyle subscriptions." },
-      { question: "Can I currently purchase premium apps?", answer: "Please check the 'Premium Apps' tab inside the King J Deals store to view any active listings. Products will only be enabled when operational." }
+      { question: "Which premium apps are coming to DATAGHANAnow?", answer: "We are actively exploring options for music streaming, social media upgrades (like Snapchat+), and popular digital lifestyle subscriptions." },
+      { question: "Can I currently purchase premium apps?", answer: "Please check the 'Premium Apps' tab inside the DATAGHANAnow store to view any active listings. Products will only be enabled when operational." }
     ],
     relatedLinks: [
       { label: "Mobile Data Bundles", href: "/data-bundles", description: "Stream your favorite apps with affordable data." },
       { label: "Game Coins", href: "/game-coins", description: "Check in-game currencies for mobile games." },
-      { label: "King J Deals Store", href: "/", description: "Return to the main store dashboard." }
+      { label: "DATAGHANAnow Store", href: "/", description: "Return to the main store dashboard." }
+    ]
+  },
+
+  // ==========================================
+  // 16. ABOUT PAGE (STATIC)
+  // ==========================================
+  "about": {
+    slug: "about",
+    path: "/about",
+    metaTitle: "About DATAGHANAnow | Ghana's Affordable Digital Data Marketplace",
+    metaDescription: "Learn about DATAGHANAnow, Ghana's premier online marketplace for affordable mobile data bundles, WAEC result checkers, game coins, and digital services.",
+    canonicalUrl: "https://kingjdeals.site/about",
+    h1: "About DATAGHANAnow",
+    badge: "COMPANY & IDENTITY",
+    category: "About",
+    categoryPath: "/about",
+    targetCategory: "STATIC",
+    leadText: "DATAGHANAnow is Ghana's trusted digital vendor for cheap mobile internet data, WAEC checkers, game top-ups, and digital lifestyle products.",
+    overviewHeading: "Empowering Ghanaians with Affordable Digital Access",
+    overviewParagraphs: [
+      "Founded to solve the hassle of purchasing mobile data and digital vouchers, DATAGHANAnow connects customers across Ghana to reliable, budget-friendly digital services.",
+      "We support all major Ghanaian telecommunications operators (MTN Ghana, Telecel Ghana, AirtelTigo/AT) and offer fast Mobile Money checkout."
+    ],
+    featuresHeading: "Core Values of DATAGHANAnow",
+    features: [
+      { title: "Affordability First", desc: "Providing low prices and high value across all mobile data and digital products." },
+      { title: "Customer Security", desc: "Encrypted transactions processed via Ghana's leading licensed payment gateways." },
+      { title: "Fast Digital Delivery", desc: "Automated fulfillment queues to deliver top-ups promptly." }
+    ],
+    howItWorksHeading: "How We Support Our Customers",
+    howItWorksSteps: [
+      { step: 1, title: "24/7 Digital Platform", desc: "Our store is accessible anytime from desktop or mobile." },
+      { step: 2, title: "Dedicated Support", desc: "Reach our customer service team via WhatsApp or phone for order assistance." }
+    ],
+    guidelinesHeading: "Operational Standards",
+    guidelines: [
+      "DATAGHANAnow operates as an independent digital reseller.",
+      "All trademarks belong to their respective telecommunications and examination body owners."
+    ],
+    faqs: [
+      { question: "What is DATAGHANAnow?", answer: "DATAGHANAnow is an online marketplace in Ghana providing cheap mobile data bundles, WAEC checkers, and gaming currencies." }
+    ],
+    relatedLinks: [
+      { label: "Mobile Data Bundles", href: "/data-bundles", description: "Buy cheap MTN, Telecel, and AT data." },
+      { label: "Contact Us", href: "/contact", description: "Get in touch with customer support." }
+    ]
+  },
+
+  // ==========================================
+  // 17. CONTACT PAGE (STATIC)
+  // ==========================================
+  "contact": {
+    slug: "contact",
+    path: "/contact",
+    metaTitle: "Contact Customer Support | DATAGHANAnow Ghana",
+    metaDescription: "Get fast customer support for DATAGHANAnow data bundles, order tracking, and digital top-ups via WhatsApp and phone.",
+    canonicalUrl: "https://kingjdeals.site/contact",
+    h1: "Contact DATAGHANAnow Customer Support",
+    badge: "CUSTOMER HELPDESK",
+    category: "Contact",
+    categoryPath: "/contact",
+    targetCategory: "STATIC",
+    leadText: "Need assistance with an order or product inquiry? Contact the DATAGHANAnow support team via WhatsApp or phone call.",
+    overviewHeading: "We Are Here to Help",
+    overviewParagraphs: [
+      "Whether you have a question about an MTN, Telecel, or AT data top-up, need help checking a WAEC result voucher, or want to track an active order, our dedicated customer service team is ready to assist.",
+      "Reach out through our official WhatsApp lines or call support directly."
+    ],
+    featuresHeading: "Support Channels",
+    features: [
+      { title: "WhatsApp Customer Care", desc: "Direct message support on 0535884851 or 0541557530 for fast resolution." },
+      { title: "Phone Support Call", desc: "Call 0535884851 / 0541557530 during standard business hours." },
+      { title: "Online Order Tracker", desc: "Track your order status live anytime on our website or USSD channel." }
+    ],
+    howItWorksHeading: "How to Request Order Assistance",
+    howItWorksSteps: [
+      { step: 1, title: "Locate Reference", desc: "Copy your Order Reference number (e.g. DGN-AIRTIME-...) from your order screen." },
+      { step: 2, title: "Message Support", desc: "Send your reference number and recipient phone number to our WhatsApp support." }
+    ],
+    guidelinesHeading: "Support Operating Hours",
+    guidelines: [
+      "WhatsApp & Phone Support: 7:00 AM – 10:00 PM daily.",
+      "Online store and automated USSD ordering remains active 24/7."
+    ],
+    faqs: [
+      { question: "What is the official DATAGHANAnow WhatsApp number?", answer: "Our customer support WhatsApp numbers are 0535884851 and 0541557530." }
+    ],
+    relatedLinks: [
+      { label: "Home Storefront", href: "/", description: "Return to main shop." },
+      { label: "Data Bundles", href: "/data-bundles", description: "Explore mobile data deals." }
+    ]
+  },
+
+  // ==========================================
+  // 18. PRIVACY POLICY (STATIC)
+  // ==========================================
+  "privacy": {
+    slug: "privacy",
+    path: "/privacy",
+    metaTitle: "Privacy Policy | DATAGHANAnow Data Protection & Safety",
+    metaDescription: "Read the official DATAGHANAnow Privacy Policy. Learn how we securely handle customer numbers, payment references, and account information.",
+    canonicalUrl: "https://kingjdeals.site/privacy",
+    h1: "DATAGHANAnow Privacy Policy",
+    badge: "DATA PRIVACY & PROTECTION",
+    category: "Privacy Policy",
+    categoryPath: "/privacy",
+    targetCategory: "STATIC",
+    leadText: "Your privacy and data security are paramount at DATAGHANAnow. Read our policy on data handling and user protection.",
+    overviewHeading: "How DATAGHANAnow Handles Customer Information",
+    overviewParagraphs: [
+      "DATAGHANAnow collects only essential information required to process mobile data top-ups, deliver digital vouchers, and verify Mobile Money payments.",
+      "We never store sensitive banking PINs or sell customer contact information to third-party marketers."
+    ],
+    featuresHeading: "Key Privacy Standards",
+    features: [
+      { title: "Encrypted Transactions", desc: "All payment transactions are encrypted using HTTPS and verified via licensed gateways." },
+      { title: "Minimal Data Retention", desc: "We store only recipient phone numbers, order references, and transaction logs necessary for customer support." }
+    ],
+    howItWorksHeading: "Information Use",
+    howItWorksSteps: [
+      { step: 1, title: "Order Dispatch", desc: "Phone numbers are transmitted securely to telecom operators for data crediting." },
+      { step: 2, title: "Verification", desc: "Payment references are verified against Paystack/Korapay gateway callbacks." }
+    ],
+    guidelinesHeading: "Customer Rights",
+    guidelines: [
+      "Customers may request account deletion or data inquiry through customer support."
+    ],
+    faqs: [
+      { question: "Is my personal data safe on DATAGHANAnow?", answer: "Yes. We strictly adhere to industry privacy standards and encrypted data storage." }
+    ],
+    relatedLinks: [
+      { label: "Terms of Service", href: "/terms", description: "Review terms and conditions." },
+      { label: "Home Storefront", href: "/", description: "Return to home page." }
+    ]
+  },
+
+  // ==========================================
+  // 19. TERMS OF SERVICE (STATIC)
+  // ==========================================
+  "terms": {
+    slug: "terms",
+    path: "/terms",
+    metaTitle: "Terms of Service | DATAGHANAnow Ordering & Usage Rules",
+    metaDescription: "Review the official Terms of Service for DATAGHANAnow mobile data purchases, delivery timelines, and customer account usage.",
+    canonicalUrl: "https://kingjdeals.site/terms",
+    h1: "DATAGHANAnow Terms of Service",
+    badge: "TERMS & CONDITIONS",
+    category: "Terms of Service",
+    categoryPath: "/terms",
+    targetCategory: "STATIC",
+    leadText: "Official terms and conditions governing purchases and usage on the DATAGHANAnow online platform.",
+    overviewHeading: "Agreement Between Customer and DATAGHANAnow",
+    overviewParagraphs: [
+      "By placing an order on DATAGHANAnow, customers agree to comply with our purchasing policies, phone number accuracy requirements, and network operating terms.",
+      "Customers must ensure recipient numbers are typed correctly prior to authorizing Mobile Money checkout."
+    ],
+    featuresHeading: "Terms Summary",
+    features: [
+      { title: "Recipient Accuracy", desc: "Customers bear responsibility for providing correct 10-digit Ghana mobile numbers." },
+      { title: "Delivery Timelines", desc: "Digital top-ups process rapidly but are subject to temporary telecom network delays." }
+    ],
+    howItWorksHeading: "Customer Responsibilities",
+    howItWorksSteps: [
+      { step: 1, title: "Verify Order", desc: "Confirm data volume and mobile number before submitting." }
+    ],
+    guidelinesHeading: "Legal Compliance",
+    guidelines: [
+      "All services operate under Ghanaian commerce laws and telecommunications regulations."
+    ],
+    faqs: [
+      { question: "What happens if I enter the wrong phone number?", answer: "Data credited to an incorrect phone number cannot be recalled by telecom providers." }
+    ],
+    relatedLinks: [
+      { label: "Refund Policy", href: "/refund-policy", description: "Read our refund guidelines." },
+      { label: "Home Storefront", href: "/", description: "Return to store." }
+    ]
+  },
+
+  // ==========================================
+  // 20. REFUND POLICY (STATIC)
+  // ==========================================
+  "refund-policy": {
+    slug: "refund-policy",
+    path: "/refund-policy",
+    metaTitle: "Refund & Order Cancellation Policy | DATAGHANAnow",
+    metaDescription: "Understand the DATAGHANAnow refund, order verification, and failed top-up credit resolution policies for mobile data purchases in Ghana.",
+    canonicalUrl: "https://kingjdeals.site/refund-policy",
+    h1: "DATAGHANAnow Refund & Cancellation Policy",
+    badge: "REFUND & CREDIT POLICY",
+    category: "Refund Policy",
+    categoryPath: "/refund-policy",
+    targetCategory: "STATIC",
+    leadText: "Transparent policies regarding failed transactions, order verification, and refund resolutions on DATAGHANAnow.",
+    overviewHeading: "Clear & Fair Resolution for Every Transaction",
+    overviewParagraphs: [
+      "At DATAGHANAnow, we strive for 100% order satisfaction. If a transaction fails or a top-up cannot be fulfilled due to a network error, our system ensures your funds are protected.",
+      "Read below for details on how failed payments and order cancellations are handled."
+    ],
+    featuresHeading: "Refund Policy Highlights",
+    features: [
+      { title: "Failed Top-Up Resolution", desc: "If payment is deducted but data cannot be delivered due to network outage, customer care will re-attempt or issue a credit." },
+      { title: "Non-Refundable Delivered Orders", desc: "Orders successfully dispatched to a valid recipient number provided by the customer cannot be refunded once credited by the operator." }
+    ],
+    howItWorksHeading: "How to Request Refund Assistance",
+    howItWorksSteps: [
+      { step: 1, title: "Provide Reference", desc: "Contact WhatsApp support with your transaction reference number and proof of MoMo debit." }
+    ],
+    guidelinesHeading: "Resolution Timelines",
+    guidelines: [
+      "Unfulfilled order inquiries are investigated within 24 hours of report."
+    ],
+    faqs: [
+      { question: "What happens if Mobile Money was debited but my order shows pending?", answer: "Contact support with your transaction reference. Verified failed orders are immediately re-processed or credited." }
+    ],
+    relatedLinks: [
+      { label: "Contact Support", href: "/contact", description: "Reach customer support." },
+      { label: "Home Storefront", href: "/", description: "Return to home page." }
     ]
   }
 };
 
 export function getSeoPageData(pathOrSlug: string): SeoPageData | null {
   const clean = pathOrSlug.replace(/^\/+/, '').replace(/\/+$/, '');
+  if (!clean || clean === 'index' || clean === 'index.html') {
+    return SEO_PAGES['home'];
+  }
   return SEO_PAGES[clean] || null;
 }

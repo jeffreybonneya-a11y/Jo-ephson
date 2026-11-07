@@ -213,7 +213,7 @@ export const GetFreeDataWidget: React.FC = () => {
 
     const userEmail = activeUser?.email && activeUser.email.includes("@")
       ? activeUser.email
-      : "customer@kingjdeals.com";
+      : "customer@dataghananow.com";
 
     try {
       toast.info("Launching secure Paystack payment... 💳");
@@ -239,7 +239,7 @@ export const GetFreeDataWidget: React.FC = () => {
       try {
         const redirectTarget = (typeof window !== 'undefined' && window.location.origin)
           ? window.location.origin
-          : 'https://king-j-deals.onrender.com';
+          : 'https://dataghananow.com';
         
         const initResponse = await fetch(getApiUrl("/api/paystack-initialize"), {
           method: "POST",
@@ -340,7 +340,7 @@ export const GetFreeDataWidget: React.FC = () => {
     setIsSubmitting(true);
     try {
       const orderData = {
-        email: activeUser?.email || `${phoneClean}@customer.kingjdeals.com`,
+        email: activeUser?.email || `${phoneClean}@customer.dataghananow.com`,
         serviceType: "Free Data Win",
         orderType: "Free Data Win",
         isFreeDataWin: true,
@@ -609,7 +609,7 @@ export const GetFreeDataWidget: React.FC = () => {
 
                       {/* Center Hub */}
                       <div className="absolute inset-0 m-auto w-14 h-14 rounded-full bg-[#0B132B] border-2 border-amber-400 text-amber-300 flex items-center justify-center font-black text-xs shadow-lg z-10">
-                        KING-J
+                        DGN-NOW
                       </div>
                     </div>
                   </div>

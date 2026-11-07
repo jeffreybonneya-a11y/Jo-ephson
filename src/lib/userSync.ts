@@ -4,7 +4,7 @@ import { db } from './firebase';
 import { UserProfile } from '../types';
 
 export const ADMIN_EMAILS = [
-  'kingjdeals@gmail.com',
+  'dataghananow@gmail.com',
   'jeffreybonneya@gmail.com',
   'emmagyapong62@gmail.com'
 ];
@@ -69,7 +69,7 @@ export async function syncUserCustomerRecord(user: User): Promise<void> {
         createdAt: creationTime,
         lastLoginAt: lastSignIn,
         lastSignInTime: lastSignIn,
-        topupReference: 'KJ-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
+        topupReference: 'DGN-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
       };
 
       if (user.phoneNumber) {

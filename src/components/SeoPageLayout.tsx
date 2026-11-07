@@ -15,6 +15,8 @@ import {
   Info
 } from 'lucide-react';
 import Footer from './Footer';
+import BrandWordmark from './BrandWordmark';
+import NetworkPriceTable from './NetworkPriceTable';
 
 interface SeoPageLayoutProps {
   data: SeoPageData;
@@ -88,9 +90,9 @@ export default function SeoPageLayout({ data, onNavigateToStore, user }: SeoPage
     "description": data.metaDescription,
     "provider": {
       "@type": "Organization",
-      "name": "King J Deals",
+      "name": "DataGhanaNow",
       "url": "https://kingjdeals.site/",
-      "logo": "https://kingjdeals.site/icon-512.png"
+      "logo": "https://kingjdeals.site/dataghananow-logo.png"
     },
     "areaServed": {
       "@type": "Country",
@@ -126,12 +128,9 @@ export default function SeoPageLayout({ data, onNavigateToStore, user }: SeoPage
               e.preventDefault();
               onNavigateToStore();
             }}
-            className="flex items-center gap-2 text-lg sm:text-xl font-black text-white hover:text-amber-400 transition-colors"
+            className="flex items-center gap-2 group transition-opacity hover:opacity-95"
           >
-            <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/40 flex items-center justify-center">
-              <Crown className="w-5 h-5 text-amber-400" />
-            </div>
-            <span>KING J DEALS</span>
+            <BrandWordmark size="md" />
           </a>
 
           <nav className="hidden md:flex items-center gap-6 text-sm font-semibold text-slate-300">
@@ -210,7 +209,7 @@ export default function SeoPageLayout({ data, onNavigateToStore, user }: SeoPage
               onClick={handleCtaClick}
               className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 text-slate-950 font-black text-base flex items-center justify-center gap-3 shadow-[0_10px_30px_rgba(245,158,11,0.3)] hover:brightness-105 active:scale-[0.98] transition-all"
             >
-              <span>Order on King J Deals</span>
+              <span>Order on DataGhanaNow</span>
               <ArrowRight className="w-5 h-5" />
             </button>
 
@@ -239,6 +238,32 @@ export default function SeoPageLayout({ data, onNavigateToStore, user }: SeoPage
             ))}
           </div>
         </section>
+
+        {/* Live Active Data Bundle Price Comparison Table */}
+        {data.slug === "mtn-data-bundles" && (
+          <NetworkPriceTable
+            network="MTN"
+            onSelectNetworkAndOrder={(net) => onNavigateToStore("DATA_BUNDLES", net)}
+          />
+        )}
+        {data.slug === "telecel-data-bundles" && (
+          <NetworkPriceTable
+            network="Telecel"
+            onSelectNetworkAndOrder={(net) => onNavigateToStore("DATA_BUNDLES", net)}
+          />
+        )}
+        {data.slug === "airteltigo-data-bundles" && (
+          <NetworkPriceTable
+            network="AirtelTigo"
+            onSelectNetworkAndOrder={(net) => onNavigateToStore("DATA_BUNDLES", net)}
+          />
+        )}
+        {data.slug === "data-bundles" && (
+          <NetworkPriceTable
+            network="ALL"
+            onSelectNetworkAndOrder={(net) => onNavigateToStore("DATA_BUNDLES", net)}
+          />
+        )}
 
         {/* Features Grid */}
         <section className="space-y-6">
@@ -379,7 +404,7 @@ export default function SeoPageLayout({ data, onNavigateToStore, user }: SeoPage
               <Crown className="w-6 h-6" />
             </div>
             <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              Ready to Order on King J Deals?
+              Ready to Order on DataGhanaNow?
             </h3>
             <p className="text-sm text-slate-300 max-w-lg mx-auto leading-relaxed">
               Order your packages securely with fast digital delivery and Ghanaian Mobile Money payment.
@@ -412,7 +437,7 @@ export default function SeoPageLayout({ data, onNavigateToStore, user }: SeoPage
         {/* Independent Vendor Legal Disclaimer */}
         <section className="text-center pt-4 border-t border-slate-900">
           <p className="text-xs text-slate-500 max-w-2xl mx-auto leading-relaxed">
-            <strong className="text-slate-400">Notice:</strong> King J Deals is an independent online digital service provider in Ghana. All third-party trademarks, service marks, and logos (including MTN, Telecel, AirtelTigo, WAEC, EA Sports, PUBG, and respective betting bookmakers) remain the property of their respective owners and are referenced solely for descriptive identification of digital services.
+            <strong className="text-slate-400">Notice:</strong> DataGhanaNow is an independent online digital service provider in Ghana. All third-party trademarks, service marks, and logos (including MTN, Telecel, AirtelTigo, WAEC, EA Sports, PUBG, and respective betting bookmakers) remain the property of their respective owners and are referenced solely for descriptive identification of digital services.
           </p>
         </section>
       </main>

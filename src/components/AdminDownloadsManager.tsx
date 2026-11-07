@@ -68,8 +68,8 @@ export default function AdminDownloadsManager() {
             platform: data.platform || "Unknown",
             userAgent: data.userAgent || "",
             source: data.source || "website_modal",
-            downloadUrl: data.downloadUrl || "https://kingjdeals.site/downloads/King-J-Deals.apk",
-            apkName: data.apkName || "King-J-Deals.apk",
+            downloadUrl: data.downloadUrl || "https://dataghananow.com/downloads/DATAGHANAnow.apk",
+            apkName: data.apkName || "DATAGHANAnow.apk",
             downloadedAt: data.downloadedAt,
           };
         });
@@ -172,7 +172,7 @@ export default function AdminDownloadsManager() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `King-J-Deals-App-Downloads-${new Date().toISOString().split("T")[0]}.csv`);
+    link.setAttribute("download", `DATAGHANAnow-App-Downloads-${new Date().toISOString().split("T")[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -262,7 +262,7 @@ export default function AdminDownloadsManager() {
                 </Badge>
               </h2>
               <p className="text-xs sm:text-sm text-slate-300">
-                Track every customer and visitor who downloads the King J Deals Android APK through the website.
+                Track every customer and visitor who downloads the DataGhanaNow Android APK through the website.
               </p>
             </div>
           </div>
@@ -472,7 +472,7 @@ export default function AdminDownloadsManager() {
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                   {searchQuery
                     ? `No customer matches "${searchQuery}". Try a different name, email, or phone number.`
-                    : "Whenever visitors or registered customers click 'Download App' or download King-J-Deals.apk on the site, their name, phone, email, and device will appear here instantly."}
+                    : "Whenever visitors or registered customers click 'Download App' or download DATAGHANAnow.apk on the site, their name, phone, email, and device will appear here instantly."}
                 </p>
               </div>
             </div>
