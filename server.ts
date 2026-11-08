@@ -212,6 +212,11 @@ app.use((req, res, next) => {
     const rawHost = (hostHeader || forwardedHost).split(':')[0].toLowerCase();
 
     if (rawHost === 'www.kingjdeals.site') {
+        // Serve authoritative robots.txt directly with HTTP 200 on www hostname so crawlers avoid multi-hop redirect chains
+        if (req.path === '/robots.txt') {
+            return next();
+        }
+
         const redirectUrl = `https://kingjdeals.site${req.originalUrl || req.url}`;
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         return res.redirect(301, redirectUrl);
