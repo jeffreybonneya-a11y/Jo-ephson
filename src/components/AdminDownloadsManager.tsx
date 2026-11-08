@@ -68,7 +68,7 @@ export default function AdminDownloadsManager() {
             platform: data.platform || "Unknown",
             userAgent: data.userAgent || "",
             source: data.source || "website_modal",
-            downloadUrl: data.downloadUrl || "https://dataghananow.com/downloads/DATAGHANAnow.apk",
+            downloadUrl: data.downloadUrl || "/downloads/DATAGHANAnow.apk",
             apkName: data.apkName || "DATAGHANAnow.apk",
             downloadedAt: data.downloadedAt,
           };

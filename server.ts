@@ -2499,12 +2499,19 @@ app.get(['/sitemap.xml', '/sitemap.xml/'], (req, res) => {
 </urlset>`);
 });
 
-function getValidApkPath(): { path: string; size: number; mtime: Date } | null {
+function getValidApkPath(): { path: string; size: number; mtime: Date; filename: string } | null {
   const candidatePaths = [
+    // Preferred current DataGhanaNow release APK
+    path.join(process.cwd(), 'public', 'downloads', 'DATAGHANAnow.apk'),
+    path.join(process.cwd(), 'dist', 'downloads', 'DATAGHANAnow.apk'),
+    path.join(process.cwd(), 'downloads', 'DATAGHANAnow.apk'),
+    path.join(process.cwd(), 'android', 'app', 'build', 'outputs', 'apk', 'release', 'DATAGHANAnow.apk'),
+    // Legacy King-J-Deals release APK for backward compatibility
     path.join(process.cwd(), 'public', 'downloads', 'King-J-Deals.apk'),
     path.join(process.cwd(), 'dist', 'downloads', 'King-J-Deals.apk'),
     path.join(process.cwd(), 'downloads', 'King-J-Deals.apk'),
     path.join(process.cwd(), 'android', 'app', 'build', 'outputs', 'apk', 'release', 'King-J-Deals.apk'),
+    path.join(process.cwd(), 'android', 'app', 'src', 'main', 'assets', 'public', 'downloads', 'King-J-Deals.apk'),
     path.join(process.cwd(), 'android', 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk'),
   ];
 
@@ -2520,7 +2527,7 @@ function getValidApkPath(): { path: string; size: number; mtime: Date } | null {
           fs.readSync(fd, buffer, 0, 4, 0);
           fs.closeSync(fd);
           if (buffer[0] === 0x50 && buffer[1] === 0x4b && buffer[2] === 0x03 && buffer[3] === 0x04) {
-            return { path: apkPath, size: stat.size, mtime: stat.mtime };
+            return { path: apkPath, size: stat.size, mtime: stat.mtime, filename: path.basename(apkPath) };
           }
         }
       }
@@ -2531,8 +2538,17 @@ function getValidApkPath(): { path: string; size: number; mtime: Date } | null {
   return null;
 }
 
-// Direct APK Download Endpoint for King-J-Deals.apk
-app.get(['/downloads/King-J-Deals.apk', '/download/King-J-Deals.apk'], (req, res) => {
+// Direct APK Download Endpoint for DATAGHANAnow.apk and legacy King-J-Deals.apk
+app.get([
+  '/downloads/DATAGHANAnow.apk', 
+  '/download/DATAGHANAnow.apk', 
+  '/downloads/King-J-Deals.apk', 
+  '/download/King-J-Deals.apk'
+], (req, res) => {
+  const reqUrl = req.path || '';
+  const isLegacy = reqUrl.toLowerCase().includes('king-j-deals');
+  const targetFilename = isLegacy ? 'King-J-Deals.apk' : 'DATAGHANAnow.apk';
+
   // Non-blocking log direct URL download
   try {
     const userAgent = req.get('user-agent') || '';
@@ -2546,8 +2562,8 @@ app.get(['/downloads/King-J-Deals.apk', '/download/King-J-Deals.apk'], (req, res
       platform: isAndroid ? 'Android Mobile' : 'Desktop / Web Browser',
       userAgent: userAgent,
       source: 'direct_url_request',
-      downloadUrl: 'https://kingjdeals.site/downloads/King-J-Deals.apk',
-      apkName: 'King-J-Deals.apk',
+      downloadUrl: `https://kingjdeals.site/downloads/${targetFilename}`,
+      apkName: targetFilename,
       downloadedAt: clientServerTimestamp()
     }).catch(() => {});
   } catch (e) {
@@ -2558,7 +2574,7 @@ app.get(['/downloads/King-J-Deals.apk', '/download/King-J-Deals.apk'], (req, res
 
   if (apkInfo) {
     res.setHeader('Content-Type', 'application/vnd.android.package-archive');
-    res.setHeader('Content-Disposition', 'attachment; filename="King-J-Deals.apk"');
+    res.setHeader('Content-Disposition', `attachment; filename="${apkInfo.filename}"`);
     res.setHeader('Content-Length', apkInfo.size.toString());
     res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('Cache-Control', 'public, max-age=3600, must-revalidate');
@@ -2572,11 +2588,11 @@ app.get(['/downloads/King-J-Deals.apk', '/download/King-J-Deals.apk'], (req, res
   // Fallback response preventing delivery of corrupt/empty stubs that cause package parse errors
   res.status(404).json({
     success: false,
-    error: "King-J-Deals.apk release build is not yet deployed or is incomplete.",
-    expectedLocation: "public/downloads/King-J-Deals.apk",
-    expectedFilename: "King-J-Deals.apk",
-    downloadUrl: "/downloads/King-J-Deals.apk",
-    instructions: "Please place your signed release APK in public/downloads/King-J-Deals.apk."
+    error: `${targetFilename} release build is not yet deployed or is incomplete.`,
+    expectedLocation: `public/downloads/${targetFilename}`,
+    expectedFilename: targetFilename,
+    downloadUrl: `/downloads/${targetFilename}`,
+    instructions: `Please place your signed release APK in public/downloads/${targetFilename}.`
   });
 });
 
@@ -2587,8 +2603,9 @@ app.get('/api/apk-status', (req, res) => {
     const sizeMb = (apkInfo.size / (1024 * 1024)).toFixed(1);
     return res.json({
       available: true,
-      filename: 'King-J-Deals.apk',
-      downloadUrl: '/downloads/King-J-Deals.apk',
+      filename: apkInfo.filename,
+      downloadUrl: `/downloads/${apkInfo.filename}`,
+      filePresent: true,
       sizeBytes: apkInfo.size,
       sizeFormatted: `${sizeMb} MB`,
       lastModified: apkInfo.mtime.toISOString(),
@@ -2596,20 +2613,22 @@ app.get('/api/apk-status', (req, res) => {
     });
   }
 
-  const publicPath = path.join(process.cwd(), 'public', 'downloads', 'King-J-Deals.apk');
-  const fileExists = fs.existsSync(publicPath);
-  const size = fileExists ? fs.statSync(publicPath).size : 0;
+  const primaryPath = path.join(process.cwd(), 'public', 'downloads', 'DATAGHANAnow.apk');
+  const legacyPath = path.join(process.cwd(), 'public', 'downloads', 'King-J-Deals.apk');
+  const fileExists = fs.existsSync(primaryPath) || fs.existsSync(legacyPath);
+  const size = fileExists ? (fs.existsSync(primaryPath) ? fs.statSync(primaryPath).size : fs.statSync(legacyPath).size) : 0;
+  const activeName = fs.existsSync(primaryPath) ? 'DATAGHANAnow.apk' : 'King-J-Deals.apk';
 
   return res.json({
     available: false,
-    filename: 'King-J-Deals.apk',
-    downloadUrl: '/downloads/King-J-Deals.apk',
+    filename: activeName,
+    downloadUrl: `/downloads/${activeName}`,
     filePresent: fileExists,
     sizeBytes: size,
     warning: fileExists && size < 100 * 1024
       ? `Detected file is only ${size} bytes (invalid/incomplete stub). An authentic Android APK is typically 5MB - 35MB.`
       : 'No release APK file detected.',
-    expectedLocation: 'public/downloads/King-J-Deals.apk'
+    expectedLocation: `public/downloads/${activeName}`
   });
 });
 

@@ -66,7 +66,7 @@ export async function logAppDownload(options?: LogDownloadOptions): Promise<stri
       platform: detectedPlatform,
       userAgent: ua,
       source: options?.source || 'website_modal',
-      downloadUrl: 'https://dataghananow.com/downloads/DATAGHANAnow.apk',
+      downloadUrl: '/downloads/DATAGHANAnow.apk',
       apkName: 'DATAGHANAnow.apk',
       downloadedAt: serverTimestamp(),
     };

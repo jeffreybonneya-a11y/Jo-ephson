@@ -21,7 +21,7 @@ interface AppDownloadModalProps {
   onClose: () => void;
 }
 
-export const PRODUCTION_APK_URL = 'https://dataghananow.com/downloads/DATAGHANAnow.apk';
+export const PRODUCTION_APK_URL = '/downloads/DATAGHANAnow.apk';
 export const APK_FILENAME = 'DATAGHANAnow.apk';
 export const APK_SIZE_LABEL = '9.97 MB';
 
@@ -265,7 +265,7 @@ export default function AppDownloadModal({ isOpen, onClose }: AppDownloadModalPr
                   <span>Android Mobile App</span>
                 </div>
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  The DataGhanaNow app is designed for Android mobile devices. Open <strong>dataghananow.com</strong> on your Android phone to download directly, or download the APK below to transfer it to your phone.
+                  The DataGhanaNow app is designed for Android mobile devices. Open <strong>kingjdeals.site</strong> on your Android phone to download directly, or download the APK below to transfer it to your phone.
                 </p>
               </div>
 
