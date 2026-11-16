@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { db, auth } from "@/src/lib/firebase";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot, setDoc, serverTimestamp } from "firebase/firestore";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,7 @@ import {
   RefreshCw,
   Zap,
 } from "lucide-react";
-import { getApiUrl, getOptionalAuthHeaders, getRequiredAuthHeaders } from "@/src/lib/api";
+import { getApiUrl } from "@/src/lib/api";
 import { openPaystackPopup } from "@/src/lib/paystack";
 
 interface AirtimeSectionProps {
@@ -151,38 +151,49 @@ export default function AirtimeSection({ profile, agentContext }: AirtimeSection
     setIsSubmitting(true);
     localStorage.setItem("last_recipient_phone", cleanPhone);
 
+    const generatedRef = `DGN-AIRTIME-${Date.now()}-${Math.floor(Math.random() * 8999 + 1000)}`;
+    const userEmail =
+      currentUser.email ||
+      profile?.email ||
+      `${cleanPhone}@customer.dataghananow.site`;
+    const customerDisplayName =
+      profile?.fullName || currentUser.displayName || `Customer (${cleanPhone})`;
+
     try {
-      // 1. Pre-save pending order authoritatively on backend
-      const requiredHeaders = await getRequiredAuthHeaders();
-      const createRes = await fetch(getApiUrl("/api/airtime/orders"), {
-        method: "POST",
-        headers: requiredHeaders,
-        body: JSON.stringify({
-          recipientPhone: cleanPhone,
-          airtimeAmount,
-        }),
-      });
-      const createData = await createRes.json().catch(() => ({}));
-      if (!createRes.ok || !createData.success || !createData.orderId) {
-        throw new Error(createData.error || "Could not initiate airtime order. Please try again.");
-      }
+      // 1. Pre-save pending order in Firestore
+      const orderPayload = {
+        id: generatedRef,
+        reference: generatedRef,
+        referenceCode: generatedRef,
+        paystackReference: generatedRef,
+        userId: currentUser.uid,
+        customerName: customerDisplayName,
+        email: userEmail,
+        customerEmail: userEmail,
+        phone: cleanPhone,
+        customerPhone: cleanPhone,
+        recipientPhone: cleanPhone,
+        network: "MTN",
+        recipientNetwork: "MTN",
+        bundle: `MTN Airtime - GH₵${airtimeAmount.toFixed(2)}`,
+        bundleName: `MTN Airtime - GH₵${airtimeAmount.toFixed(2)}`,
+        category: "Airtime",
+        serviceType: "airtime",
+        airtimeAmount: airtimeAmount,
+        serviceFee: serviceFee,
+        amount: totalAmountToPay,
+        amountSent: totalAmountToPay,
+        currency: "GHS",
+        status: "pending",
+        paymentStatus: "pending",
+        paymentMethod: "Paystack",
+        payment_provider: "paystack",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
 
-      const generatedRef = createData.orderId;
-      const authoritativeTotalGHS = Number(createData.amount ?? totalAmountToPay);
-      const authoritativeAirtimeAmount = Number(createData.airtimeAmount ?? airtimeAmount);
-      const authoritativeServiceFee = Number(createData.serviceFee ?? serviceFee);
-      const userEmail =
-        createData.customerEmail ||
-        currentUser.email ||
-        profile?.email ||
-        `${cleanPhone}@customer.dataghananow.site`;
-      const customerDisplayName =
-        createData.customerName ||
-        profile?.fullName ||
-        currentUser.displayName ||
-        `Customer (${cleanPhone})`;
-
-      console.log("[Airtime] Pre-saved authoritative pending order:", generatedRef);
+      await setDoc(doc(db, "orders", generatedRef), orderPayload);
+      console.log("[Airtime] Pre-saved pending order:", generatedRef);
 
       // 2. Fetch Paystack Public Key
       let publicKey = "pk_live_1a324af248d2bb1e2f784e7c27981f58f7d66b2c";
@@ -200,22 +211,22 @@ export default function AirtimeSection({ profile, agentContext }: AirtimeSection
       const redirectTarget =
         typeof window !== "undefined" && window.location.origin
           ? window.location.origin
-          : "https://kingjdeals.site";
+          : "https://dataghananow.com";
 
       try {
         toast.info("Opening secure payment window...");
         await openPaystackPopup({
           key: publicKey,
           email: userEmail,
-          amount: Math.round(authoritativeTotalGHS * 100),
+          amount: Math.round(totalAmountToPay * 100),
           currency: "GHS",
           ref: generatedRef,
           metadata: {
             service: "airtime",
             serviceType: "airtime",
             recipientPhone: cleanPhone,
-            airtimeAmount: authoritativeAirtimeAmount,
-            serviceFee: authoritativeServiceFee,
+            airtimeAmount: airtimeAmount,
+            serviceFee: serviceFee,
             network: "MTN",
           },
           onSuccess: (verifiedRef) => {
@@ -223,19 +234,18 @@ export default function AirtimeSection({ profile, agentContext }: AirtimeSection
             setCompletedOrder({
               id: verifiedRef || generatedRef,
               recipientPhone: cleanPhone,
-              airtimeAmount: authoritativeAirtimeAmount,
-              serviceFee: authoritativeServiceFee,
-              totalAmount: authoritativeTotalGHS,
+              airtimeAmount,
+              serviceFee,
+              totalAmount: totalAmountToPay,
             });
             setIsSubmitting(false);
 
             // Trigger background verification with retry for pending/transient gateway responses
             const verifyAirtimePayment = async (attempt = 1): Promise<void> => {
               try {
-                const verifyHeaders = await getOptionalAuthHeaders();
                 const vRes = await fetch(getApiUrl("/api/verify-payment"), {
                   method: "POST",
-                  headers: verifyHeaders,
+                  headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ reference: verifiedRef || generatedRef }),
                 });
                 const vData = await vRes.json().catch(() => ({}));
@@ -263,27 +273,26 @@ export default function AirtimeSection({ profile, agentContext }: AirtimeSection
           popupErr
         );
 
-        const initHeaders = await getOptionalAuthHeaders();
         const initRes = await fetch(getApiUrl("/api/paystack-initialize"), {
           method: "POST",
-          headers: initHeaders,
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             email: userEmail,
-            amount: Math.round(authoritativeTotalGHS * 100),
+            amount: Math.round(totalAmountToPay * 100),
             reference: generatedRef,
             callback_url: `${redirectTarget}/?reference=${generatedRef}&method=paystack`,
             currency: "GHS",
             serviceType: "airtime",
             recipientPhone: cleanPhone,
-            airtimeAmount: authoritativeAirtimeAmount,
+            airtimeAmount: airtimeAmount,
             customerPhone: cleanPhone,
             customerName: customerDisplayName,
             metadata: {
               service: "airtime",
               serviceType: "airtime",
               recipientPhone: cleanPhone,
-              airtimeAmount: authoritativeAirtimeAmount,
-              serviceFee: authoritativeServiceFee,
+              airtimeAmount: airtimeAmount,
+              serviceFee: serviceFee,
               network: "MTN",
             },
           }),

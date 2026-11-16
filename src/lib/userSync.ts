@@ -4,7 +4,7 @@ import { db } from './firebase';
 import { UserProfile } from '../types';
 
 export const ADMIN_EMAILS = [
-  'kingjdeals@gmail.com',
+  'dataghananow@gmail.com',
   'jeffreybonneya@gmail.com',
   'emmagyapong62@gmail.com'
 ];
@@ -34,7 +34,7 @@ export async function syncUserCustomerRecord(user: User): Promise<void> {
       : 'customer';
 
     const cleanEmail = (user.email || '').trim();
-    const isEmailAdmin = Boolean(user.emailVerified) && ADMIN_EMAILS.includes(cleanEmail.toLowerCase());
+    const isEmailAdmin = ADMIN_EMAILS.includes(cleanEmail.toLowerCase());
 
     const rawProvider = user.providerData?.[0]?.providerId || '';
     const authProvider =

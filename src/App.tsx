@@ -12,7 +12,7 @@ import { Toaster, toast } from 'sonner';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, getRedirectResult } from 'firebase/auth';
 import { syncUserCustomerRecord, ADMIN_EMAILS } from '@/src/lib/userSync';
-import { doc, onSnapshot, query, collection, where } from 'firebase/firestore';
+import { doc, onSnapshot, query, collection, where, updateDoc, setDoc, getDoc, getDocs, increment, serverTimestamp } from 'firebase/firestore';
 import { MessageSquare, Zap, Loader2, Crown } from 'lucide-react';
 import { motion } from 'motion/react';
 import MyOrders from './components/MyOrders';
@@ -35,7 +35,7 @@ import AppDownloadModal from './components/AppDownloadModal';
 import WhatsAppChannelAdModal from './components/WhatsAppChannelAdModal';
 import ReferralPromoModal from './components/ReferralPromoModal';
 import { getSeoPageData, SeoPageData, SEO_PAGES } from './data/seoPages';
-import { getApiUrl, getOptionalAuthHeaders } from './lib/api';
+import { getApiUrl } from './lib/api';
 import { cleanupMonetagInPagePush } from './lib/monetag';
 
 export default function App() {
@@ -183,19 +183,10 @@ export default function App() {
                     const apiUrl = getApiUrl(verifyEndpoint);
                     console.log(`[Payment Verification] Attempt ${attempt}/${maxAttempts} sending verification request to: ${apiUrl} for reference: ${reference}`);
 
-                const headers = await getOptionalAuthHeaders();
-                const storedRefCode = typeof window !== 'undefined'
-                    ? (localStorage.getItem('dgn_referred_by') || sessionStorage.getItem('dgn_referred_by') || '')
-                    : '';
-
                 const response = await fetch(apiUrl, {
                     method: 'POST',
-                    headers,
-                    body: JSON.stringify({
-                        reference,
-                        orderId: reference,
-                        ...(storedRefCode ? { referredBy: storedRefCode } : {})
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reference, orderId: reference })
                 });
 
                 const resData = await response.json().catch((jsonErr) => {
@@ -211,9 +202,134 @@ export default function App() {
                     return verifyPayment(attempt + 1);
                 }
 
+                const provider = 'paystack';
+                const method = 'Paystack';
+                const orderDocRef = doc(db, 'orders', reference);
+
                 if (response.ok && resData.success && resData.verified !== false) {
-                    if (resData.unlockedAgent) {
-                        toast.success("Agent Access Unlocked! Welcome");
+                    try {
+                        const orderSnap = await getDoc(orderDocRef);
+                        const agentOrderDocRef = doc(db, 'agent_orders', reference);
+                        const agentOrderSnap = await getDoc(agentOrderDocRef);
+                        const agentData = agentOrderSnap.exists() ? agentOrderSnap.data() : null;
+
+                        if (orderSnap.exists()) {
+                            const orderData = orderSnap.data();
+                            const existingStatusLower = String(orderData.status || '').toLowerCase().trim();
+                            const activeFulfillment = ['processing', 'accepted', 'delivered', 'completed'].includes(existingStatusLower);
+                            await updateDoc(orderDocRef, {
+                                paymentStatus: "success",
+                                status: activeFulfillment ? orderData.status : "paid",
+                                paymentMethod: orderData.paymentMethod || method,
+                                payment_provider: orderData.payment_provider || provider,
+                                ...(agentData ? {
+                                    agentId: agentData.agent_id || orderData.agentId || orderData.agent_id,
+                                    agent_id: agentData.agent_id || orderData.agent_id || orderData.agentId,
+                                    wholesalePrice: agentData.wholesale_price || orderData.wholesalePrice,
+                                    wholesale_price: agentData.wholesale_price || orderData.wholesale_price,
+                                    agentPrice: agentData.agent_price || orderData.agentPrice,
+                                    agent_price: agentData.agent_price || orderData.agent_price,
+                                    profit: agentData.profit || orderData.profit,
+                                    agent_profit: agentData.profit || orderData.agent_profit,
+                                    isAgentOrder: true,
+                                } : {})
+                            });
+                            if (orderData.bundle === "AGENT ACCESS UNLOCK" && orderData.userId) {
+                                await updateDoc(doc(db, "users", orderData.userId), { isAgent: true });
+                                toast.success("Agent Access Unlocked! Welcome");
+                            }
+
+                            // --- REAL REFERRAL ATTRIBUTION & QUALIFYING PURCHASE REWARD CREDIT ---
+                            try {
+                                const referralCode = orderData.referredBy || (typeof window !== 'undefined' ? (localStorage.getItem('dgn_referred_by') || localStorage.getItem('kingj_referred_by')) : null);
+                                const purchaserUid = orderData.userId;
+                                
+                                if (referralCode && purchaserUid) {
+                                    // 1. Verify referrer exists and is NOT a self-referral
+                                    const cleanRefCode = referralCode.trim().toUpperCase();
+                                    const refQuery = query(collection(db, 'users'), where('referralCode', '==', cleanRefCode));
+                                    const refQuerySnap = await getDocs(refQuery);
+                                    
+                                    if (!refQuerySnap.empty) {
+                                        const referrerDoc = refQuerySnap.docs[0];
+                                        const referrerUid = referrerDoc.id;
+                                        
+                                        // Anti-fraud: prevent self-referral
+                                        if (referrerUid !== purchaserUid) {
+                                            // 2. Check if this referral already recorded to prevent duplicates
+                                            const referralRecordId = `ref_${referrerUid}_${purchaserUid}`;
+                                            const refRecordDocRef = doc(db, 'referrals', referralRecordId);
+                                            const refRecordSnap = await getDoc(refRecordDocRef);
+                                            
+                                            if (!refRecordSnap.exists()) {
+                                                // Create new verified referral record
+                                                await setDoc(refRecordDocRef, {
+                                                    id: referralRecordId,
+                                                    referrerUid,
+                                                    referrerCode: cleanRefCode,
+                                                    purchaserUid,
+                                                    purchaserEmail: orderData.email || 'Customer',
+                                                    purchaserName: orderData.customerName || 'Customer',
+                                                    orderId: reference,
+                                                    orderAmount: orderData.amount || 0,
+                                                    bundle: orderData.bundle || 'Data Bundle',
+                                                    status: 'successful',
+                                                    rewardEarned: true,
+                                                    rewardDelivered: false,
+                                                    rewardStatus: 'pending_delivery',
+                                                    createdAt: serverTimestamp(),
+                                                });
+                                                
+                                                // Increment referrer's successful referral count
+                                                await updateDoc(doc(db, 'users', referrerUid), {
+                                                    referralCount: increment(1)
+                                                });
+
+                                                console.log(`[Referral System] Successfully credited referrer ${referrerUid} for referral of ${purchaserUid}`);
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch (referralTrackErr) {
+                                console.warn('[Referral Tracking] Error crediting referral:', referralTrackErr);
+                            }
+                        } else {
+                            await setDoc(orderDocRef, {
+                                id: reference,
+                                paymentStatus: "success",
+                                status: "paid",
+                                paymentMethod: method,
+                                payment_provider: provider,
+                                createdAt: new Date(),
+                                reference,
+                                ...(agentData ? {
+                                    agentId: agentData.agent_id,
+                                    agent_id: agentData.agent_id,
+                                    customerName: agentData.customer_details?.name || "Agent Customer",
+                                    phone: agentData.customer_details?.phone || "",
+                                    email: agentData.customer_details?.email || "",
+                                    network: agentData.customer_details?.network || "Data Bundle",
+                                    bundle: agentData.bundle || "Agent Store Bundle",
+                                    amount: agentData.agent_price || 0,
+                                    wholesalePrice: agentData.wholesale_price || 0,
+                                    wholesale_price: agentData.wholesale_price || 0,
+                                    agentPrice: agentData.agent_price || 0,
+                                    agent_price: agentData.agent_price || 0,
+                                    profit: agentData.profit || 0,
+                                    agent_profit: agentData.profit || 0,
+                                    isAgentOrder: true,
+                                } : {})
+                            }, { merge: true });
+                        }
+
+                        if (agentOrderSnap.exists()) {
+                            await updateDoc(agentOrderDocRef, {
+                                paymentStatus: "success",
+                                status: "success"
+                            });
+                        }
+                    } catch (fsErr) {
+                        console.warn("[Payment Verification] Firestore client update:", fsErr);
                     }
 
                     toast.success("Payment Successful ✅");
@@ -291,11 +407,7 @@ export default function App() {
       if (activeUser && !activeUser.isAnonymous) {
         setUser(activeUser);
         setIsAuthLoading(false);
-        const userIsAdmin = Boolean(
-          activeUser.emailVerified &&
-          activeUser.email &&
-          ADMIN_EMAILS.includes(activeUser.email.trim().toLowerCase())
-        );
+        const userIsAdmin = activeUser.email ? ADMIN_EMAILS.includes(activeUser.email.toLowerCase()) : false;
         setIsAdmin(userIsAdmin);
 
         // Record persistent session marker so iPhone/Safari reload never flashes unauthenticated screen
@@ -324,10 +436,10 @@ export default function App() {
           if (docSnapshot.exists()) {
             const data = docSnapshot.data() as UserProfile;
             setProfile(data);
-            const isEmailAdmin = Boolean(
-              activeUser.emailVerified &&
-              ADMIN_EMAILS.includes((activeUser.email || '').trim().toLowerCase())
-            );
+            const isEmailAdmin = ADMIN_EMAILS.includes(activeUser.email?.trim().toLowerCase() || '') || 
+                                 ADMIN_EMAILS.includes(data.email?.trim().toLowerCase() || '') || 
+                                 ADMIN_EMAILS.includes(data.gmail?.trim().toLowerCase() || '') || 
+                                 data.role === 'admin';
             setIsAdmin(isEmailAdmin);
           }
         });
