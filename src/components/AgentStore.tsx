@@ -5,12 +5,12 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { auth, db } from '../lib/firebase';
-import { doc, getDoc, setDoc, updateDoc, collection, query, where, or, getDocs, onSnapshot, serverTimestamp, addDoc, deleteDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, or, getDocs, onSnapshot, serverTimestamp, addDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { Crown, Key, Loader2, Store, Activity, Settings, DollarSign, Wallet, Copy, Save, User, UserCheck, AlertTriangle, Check, ArrowRight, FileText, Send, Search, MessageSquare, GraduationCap } from 'lucide-react';
 import MyOrders from './MyOrders';
 import { Bundle } from '../types';
-import { getApiUrl } from '../lib/api';
+import { getApiUrl, getOptionalAuthHeaders, getRequiredAuthHeaders } from '../lib/api';
 import { openPaystackPopup } from '../lib/paystack';
 import { isOrderSuccessfullyPaid } from '../lib/orderDeduplication';
 
@@ -193,48 +193,36 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
     setIsPaying(true);
 
     try {
-      const priceToPay = typeof agentStorePrice === 'number' && !isNaN(agentStorePrice) ? agentStorePrice : 50;
+      const headers = await getRequiredAuthHeaders();
+      const unlockRes = await fetch(getApiUrl('/api/agent/unlock-order'), {
+        method: 'POST',
+        headers,
+      });
+      const unlockData = await unlockRes.json().catch(() => ({}));
+      if (!unlockRes.ok || !unlockData.success) {
+        throw new Error(unlockData.error || "Could not initiate Agent Access unlock.");
+      }
 
-      if (priceToPay <= 0) {
-        await updateDoc(doc(db, 'users', auth.currentUser.uid), { isAgent: true });
+      if (unlockData.freeUnlocked) {
         toast.success("Agent Access Unlocked! Welcome");
         setIsPaying(false);
         return;
       }
 
-      // 1. Generate ID synchronously client-side
-      const finalOrderId = doc(collection(db, 'orders')).id;
-
-      // 2. Save order details properly in Firestore for admin to accept instantly
-      await setDoc(doc(db, 'orders', finalOrderId), {
-        email: profile?.email || auth.currentUser?.email || '',
-        phone: profile?.phoneNumber || "0000000000",
-        network: "SYSTEM",
-        bundle: "AGENT ACCESS UNLOCK",
-        amount: priceToPay,
-        status: "pending",
-        createdAt: serverTimestamp(),
-        userId: auth.currentUser?.uid,
-        customerName: profile?.fullName || auth.currentUser?.displayName || 'Aspiring Agent',
-        reference: finalOrderId,
-        paymentStatus: "pending",
-        isAgentOrder: true,
-        agentId: auth.currentUser?.uid,
-        agent_id: auth.currentUser?.uid,
-        agentName: profile?.fullName || auth.currentUser?.displayName || 'Aspiring Agent',
-        agent_name: profile?.fullName || auth.currentUser?.displayName || 'Aspiring Agent',
-      });
+      const finalOrderId = unlockData.orderId;
+      const priceToPay = Number(unlockData.amount ?? agentStorePrice ?? 50);
+      const paystackEmail = unlockData.customerEmail || (
+        (profile?.email && profile.email.includes("@"))
+          ? profile.email
+          : ((auth.currentUser?.email && auth.currentUser.email.includes("@"))
+              ? auth.currentUser.email
+              : "customer@dataghananow.com")
+      );
 
       // Show immediate feedback to user that the order has reached the admin
       toast.success("Request registered on Dashboard! Opening Paystack...");
 
       try {
-          const paystackEmail = (profile?.email && profile.email.includes("@")) 
-            ? profile.email 
-            : ((auth.currentUser?.email && auth.currentUser.email.includes("@")) 
-                ? auth.currentUser.email 
-                : "customer@dataghananow.com");
-
           // Dynamic Public Key retrieval
           let publicKey = "pk_live_1a324af248d2bb1e2f784e7c27981f58f7d66b2c";
           try {
@@ -253,7 +241,7 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
             toast.info("Launching secure checkout...");
             const redirectTarget = (typeof window !== 'undefined' && window.location.origin)
               ? window.location.origin
-              : 'https://dataghananow.onrender.com';
+              : 'https://kingjdeals.site';
 
             await openPaystackPopup({
               key: publicKey,
@@ -275,12 +263,13 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
             console.warn("Paystack Inline popup failed or blocked. Falling back to secure redirect mode:", popError);
             const redirectTarget = (typeof window !== 'undefined' && window.location.origin)
               ? window.location.origin
-              : 'https://dataghananow.onrender.com';
+              : 'https://kingjdeals.site';
 
             // Fallback to server-side redirect initialization
+            const initHeaders = await getOptionalAuthHeaders();
             const initResponse = await fetch(getApiUrl("/api/paystack-initialize"), {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: initHeaders,
               body: JSON.stringify({
                 email: paystackEmail,
                 amount: Math.round(priceToPay * 100),
@@ -315,9 +304,9 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
           console.error("Paystack initialization error:", paystackError);
           throw paystackError;
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("Agent pre-order error:", err);
-        // Quietly handle error without displaying any error toasts!
+        toast.error(err?.message || "Failed to start agent unlock payment. Please try again.");
       } finally {
         setIsPaying(false);
       }
@@ -340,43 +329,25 @@ export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps)
     setIsRegistering(true);
 
     try {
-      // 1. Generate unique slug
-      let baseSlug = regName.toLowerCase().trim()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '');
-      
-      if (!baseSlug) {
-        baseSlug = "agent-" + auth.currentUser.uid.slice(0, 5);
-      }
-
-      // Check uniqueness of slug
-      const q = query(collection(db, 'agents'), where('agent_slug', '==', baseSlug));
-      const querySnap = await getDocs(q);
-      let finalSlug = baseSlug;
-      if (!querySnap.empty) {
-        // Append random suffix
-        finalSlug = `${baseSlug}-${Math.floor(100 + Math.random() * 900)}`;
-      }
-
-      // Create Agent Record
-      await setDoc(doc(db, 'agents', auth.currentUser.uid), {
-        id: auth.currentUser.uid,
-        agent_name: regName.trim(),
-        agent_slug: finalSlug,
-        momo_name: regMomoName.trim(),
-        momo_number: regMomoNumber.trim(),
-        profit_balance: 0,
-        created_at: serverTimestamp(),
-        prices: {}
+      const headers = await getRequiredAuthHeaders();
+      const regRes = await fetch(getApiUrl('/api/agent/register'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          agentName: regName.trim(),
+          momoName: regMomoName.trim(),
+          momoNumber: regMomoNumber.trim(),
+        }),
       });
-
-      // Also ensure the user document reflects isAgent: true
-      await updateDoc(doc(db, 'users', auth.currentUser.uid), { isAgent: true });
+      const regData = await regRes.json().catch(() => ({}));
+      if (!regRes.ok || !regData.success) {
+        throw new Error(regData.error || "Registration failed. Please try again.");
+      }
 
       toast.success(`Welcome Agent ${regName.trim()} ! Your store is now active.`);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Agent registration error:", err);
-      toast.error("Registration failed. Please try again.");
+      toast.error(err?.message || "Registration failed. Please try again.");
     } finally {
       setIsRegistering(false);
     }
@@ -518,11 +489,17 @@ Reference Code: ${refCode}
 *Reason customer has not received bundle:* 
 [Please type your reason here...]`;
 
-      // Update the order in firestore to set reportedToAdmin = true
-      await updateDoc(doc(db, 'orders', orderId), {
-        reportedToAdmin: true,
-        agentReportReason: 'Reported directly to DATAGHANAnow via WhatsApp'
+      // Mark order reported via authenticated Admin SDK endpoint
+      const headers = await getRequiredAuthHeaders();
+      const reportRes = await fetch(getApiUrl('/api/agent/report-order'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ orderId }),
       });
+      const reportData = await reportRes.json().catch(() => ({}));
+      if (!reportRes.ok || !reportData.success) {
+        throw new Error(reportData.error || 'Could not report order.');
+      }
 
       const phone = '233535884851';
       const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(structuredMessage)}`;

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { db } from "@/src/lib/firebase";
+import { db, auth } from "@/src/lib/firebase";
+import { getApiUrl } from "@/src/lib/api";
 import { seedFC } from "@/src/lib/seed";
 import {
   collection,
@@ -238,6 +239,8 @@ export default function AdminDashboard() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [complaintFilter, setComplaintFilter] = useState<"all" | "open" | "in_progress" | "resolved">("all");
+  const [isRefreshingComplaints, setIsRefreshingComplaints] = useState(false);
   const [loading, setLoading] = useState(true);
   const [editingBundle, setEditingBundle] = useState<Bundle | null>(null);
 
@@ -1779,14 +1782,69 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleResolveComplaint = async (complaintId: string) => {
+  const handleUpdateComplaintStatus = async (
+    complaintId: string,
+    newStatus: "open" | "in_progress" | "resolved",
+  ) => {
     try {
-      await updateDoc(doc(db, "complaints", complaintId), {
-        status: "resolved",
-      });
-      toast.success("Complaint resolved! 👑");
+      let updatedViaBackend = false;
+      if (auth.currentUser) {
+        try {
+          const token = await auth.currentUser.getIdToken();
+          const res = await fetch(getApiUrl(`/api/admin/support/tickets/${encodeURIComponent(complaintId)}`), {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ status: newStatus }),
+          });
+          if (res.ok) updatedViaBackend = true;
+        } catch {}
+      }
+      if (!updatedViaBackend) {
+        await updateDoc(doc(db, "complaints", complaintId), {
+          status: newStatus,
+          updatedAt: serverTimestamp(),
+          ...(newStatus === "resolved" ? { resolvedAt: serverTimestamp() } : {}),
+        });
+      }
+      setComplaints((prev) =>
+        prev.map((c) => (c.id === complaintId ? { ...c, status: newStatus } : c))
+      );
+      toast.success(
+        newStatus === "resolved"
+          ? "Support ticket marked as RESOLVED! 👑"
+          : newStatus === "in_progress"
+            ? "Support ticket marked as IN PROGRESS"
+            : "Support ticket reopened"
+      );
     } catch (error: any) {
-      toast.error(`Resolution failed: ${error.message}`);
+      toast.error(`Update failed: ${error.message}`);
+    }
+  };
+
+  const handleResolveComplaint = async (complaintId: string) => {
+    return handleUpdateComplaintStatus(complaintId, "resolved");
+  };
+
+  const handleRefreshComplaints = async () => {
+    if (!auth.currentUser) return;
+    setIsRefreshingComplaints(true);
+    try {
+      const token = await auth.currentUser.getIdToken();
+      const res = await fetch(getApiUrl("/api/admin/support/tickets"), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success && Array.isArray(data.tickets)) {
+        setComplaints(data.tickets);
+        toast.success("Support tickets refreshed");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to refresh tickets");
+    } finally {
+      setIsRefreshingComplaints(false);
     }
   };
 
@@ -2297,9 +2355,9 @@ export default function AdminDashboard() {
               className="h-9 px-4 rounded-lg font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-red-600 data-[state=active]:text-white data-[state=active]:shadow-md relative transition-all focus-visible:ring-0"
             >
               ISSUES
-              {complaints.filter((c) => c.status === "open").length > 0 && (
+              {complaints.filter((c) => c.status === "open" || c.status === "in_progress").length > 0 && (
                 <span className="absolute -top-1 -right-1 bg-white text-red-600 text-[8px] w-4 h-4 flex items-center justify-center rounded-full font-black border border-red-600">
-                  {complaints.filter((c) => c.status === "open").length}
+                  {complaints.filter((c) => c.status === "open" || c.status === "in_progress").length}
                 </span>
               )}
             </TabsTrigger>
@@ -6187,21 +6245,56 @@ export default function AdminDashboard() {
 
         <TabsContent value="complaints" className="mt-0 outline-none">
           <Card className="rounded-3xl border-2 bg-white dark:bg-slate-950 dark:border-slate-800 shadow-sm overflow-hidden">
-            <CardHeader className="p-8 bg-slate-50 dark:bg-slate-900/50 border-b dark:border-slate-800">
-              <CardTitle className="text-xl font-black text-red-600 flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-red-600" />
-                Royal Complaints 👑
-              </CardTitle>
+            <CardHeader className="p-6 sm:p-8 bg-slate-50 dark:bg-slate-900/50 border-b dark:border-slate-800">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <CardTitle className="text-xl font-black text-red-600 flex items-center gap-2">
+                    <MessageSquare className="w-5 h-5 text-red-600" />
+                    Customer Support &amp; Complaints 👑
+                  </CardTitle>
+                  <CardDescription className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
+                    {complaints.filter((c) => c.status === "open").length} Open • {complaints.filter((c) => c.status === "in_progress").length} In Progress • {complaints.filter((c) => c.status === "resolved").length} Resolved
+                  </CardDescription>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {(["all", "open", "in_progress", "resolved"] as const).map((statusTab) => (
+                    <Button
+                      key={statusTab}
+                      type="button"
+                      size="sm"
+                      variant={complaintFilter === statusTab ? "default" : "outline"}
+                      onClick={() => setComplaintFilter(statusTab)}
+                      className="h-8 px-3 text-[10px] font-black uppercase rounded-lg cursor-pointer"
+                    >
+                      {statusTab === "in_progress" ? "In Progress" : statusTab}
+                    </Button>
+                  ))}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={handleRefreshComplaints}
+                    disabled={isRefreshingComplaints}
+                    className="h-8 px-3 text-[10px] font-black uppercase rounded-lg gap-1 cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isRefreshingComplaints ? "animate-spin" : ""}`} />
+                    Refresh
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="p-0 overflow-x-auto">
               <Table>
                 <TableHeader className="bg-slate-50 dark:bg-slate-900">
                   <TableRow className="border-b dark:border-slate-800">
                     <TableHead className="p-6 font-black text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-200">
-                      Customer Info
+                      Ticket &amp; Customer Contact
                     </TableHead>
                     <TableHead className="font-black text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-200">
-                      Issue Description
+                      Category &amp; Order Ref
+                    </TableHead>
+                    <TableHead className="font-black text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-200">
+                      Full Issue Description
                     </TableHead>
                     <TableHead className="font-black text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-200">
                       Status
@@ -6212,91 +6305,171 @@ export default function AdminDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {complaints.length === 0 ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={4}
-                        className="h-48 text-center text-slate-400 font-bold dark:bg-slate-950"
-                      >
-                        <div className="flex flex-col items-center gap-2">
-                          <CheckCircle className="w-8 h-8 text-green-500 opacity-20" />
-                          No complaints. The system is flawless! 👑
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    complaints.map((c) => (
-                      <TableRow
-                        key={c.id}
-                        className="hover:bg-red-50/10 transition-colors dark:border-slate-800"
-                      >
-                        <TableCell className="p-6 min-w-[150px]">
-                          <div className="flex flex-col">
-                            <span className="font-bold text-slate-900 dark:text-slate-100">
-                              {c.userEmail}
-                            </span>
-                            {c.subject &&
-                              (c.subject.includes("[Agent Report]") ||
-                                c.subject.includes("--- AGENT REPORT ---")) && (
-                                <Badge className="w-fit bg-red-650 text-white text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md flex items-center gap-1 mt-1">
-                                  <AlertTriangle className="w-3 h-3 text-white" />
-                                  AGENT DISPUTE 👑
-                                </Badge>
+                  {(() => {
+                    const filteredComplaints = complaints.filter((c) => {
+                      if (complaintFilter === "all") return true;
+                      return (c.status || "open") === complaintFilter;
+                    });
+                    if (filteredComplaints.length === 0) {
+                      return (
+                        <TableRow>
+                          <TableCell
+                            colSpan={5}
+                            className="h-48 text-center text-slate-400 font-bold dark:bg-slate-950"
+                          >
+                            <div className="flex flex-col items-center gap-2">
+                              <CheckCircle className="w-8 h-8 text-green-500 opacity-20" />
+                              No support tickets in this view.
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    }
+                    return filteredComplaints.map((c: any) => {
+                      const phoneVal = (c.phone || c.userPhone || "").trim();
+                      const emailVal = (c.email || c.userEmail || "").trim();
+                      const ticketRef = c.ticketRef || `TKT-${String(c.id).slice(-6).toUpperCase()}`;
+                      const orderRefVal = (c.orderRef || c.orderId || "").trim();
+                      const createdMs = c.createdAtIso
+                        ? Date.parse(c.createdAtIso)
+                        : getCustomerTimestampMillis(c.createdAt);
+                      const createdLabel = createdMs > 0
+                        ? new Date(createdMs).toLocaleString("en-GB", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "Recent";
+
+                      return (
+                        <TableRow
+                          key={c.id}
+                          className="hover:bg-red-50/10 transition-colors dark:border-slate-800 align-top"
+                        >
+                          <TableCell className="p-6 min-w-[210px]">
+                            <div className="flex flex-col gap-1.5">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono font-black text-xs px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                                  {ticketRef}
+                                </span>
+                                {c.isGuest && (
+                                  <Badge variant="outline" className="text-[9px] font-bold uppercase px-1.5 py-0">
+                                    Guest
+                                  </Badge>
+                                )}
+                              </div>
+
+                              <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                                {c.userName || "Customer"}
+                              </span>
+
+                              {/* Phone Number (Strictly separate from Email) */}
+                              <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-emerald-700 dark:text-emerald-400">
+                                <PhoneCall className="w-3.5 h-3.5 shrink-0" />
+                                <span>{phoneVal || "No phone"}</span>
+                              </div>
+
+                              {/* Email Address (Strictly separate from Phone) */}
+                              {emailVal && (
+                                <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-600 dark:text-slate-300 break-all">
+                                  <MailIcon className="w-3 h-3 shrink-0" />
+                                  <span>{emailVal}</span>
+                                </div>
                               )}
-                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono tracking-tighter">
-                              {c.subject
-                                ? `Subject: ${c.subject}`
-                                : `Order: ${c.orderId ? c.orderId.slice(-8).toUpperCase() : "N/A"}`}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="py-4 min-w-[200px]">
-                          {c.subject &&
-                          (c.subject.includes("[Agent Report]") ||
-                            c.message.includes("--- AGENT REPORT ---")) ? (
-                            <div className="text-[10px] max-w-md max-h-48 overflow-y-auto whitespace-pre-line bg-red-50/40 dark:bg-red-950/20 border border-red-200/50 dark:border-red-900/50 p-3.5 rounded-2xl font-mono leading-normal text-slate-705 dark:text-slate-350 select-all shadow-xs">
+
+                              <span className="text-[10px] text-slate-400 font-medium flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {createdLabel}
+                              </span>
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="py-5 min-w-[160px]">
+                            <div className="flex flex-col gap-1.5">
+                              <Badge variant="outline" className="w-fit text-[10px] font-black uppercase bg-slate-100 dark:bg-slate-900">
+                                {c.category || c.subject || "General Support"}
+                              </Badge>
+                              {c.subject &&
+                                (c.subject.includes("[Agent Report]") ||
+                                  c.subject.includes("--- AGENT REPORT ---")) && (
+                                  <Badge className="w-fit bg-red-600 text-white text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md flex items-center gap-1">
+                                    <AlertTriangle className="w-3 h-3 text-white" />
+                                    AGENT DISPUTE 👑
+                                  </Badge>
+                                )}
+                              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                                Order Ref: <strong>{orderRefVal || "N/A"}</strong>
+                              </span>
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="py-5 min-w-[260px] max-w-md">
+                            <div className="text-xs max-h-48 overflow-y-auto whitespace-pre-line bg-slate-50 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 p-3 rounded-xl leading-relaxed text-slate-700 dark:text-slate-300">
                               {c.message}
                             </div>
-                          ) : (
-                            <p
-                              className="text-xs font-medium max-w-sm line-clamp-2 text-slate-600 dark:text-slate-400"
-                              title={c.message}
+                          </TableCell>
+
+                          <TableCell className="py-5">
+                            <Badge
+                              className={`font-black text-[9px] uppercase px-2.5 py-1 rounded-md ${
+                                c.status === "open"
+                                  ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                  : c.status === "in_progress"
+                                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                                    : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                              }`}
                             >
-                              {c.message}
-                            </p>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={`font-black text-[9px] uppercase px-2 py-0.5 rounded-md ${c.status === "open" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"}`}
-                          >
-                            {c.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right p-6">
-                          <div className="flex justify-end gap-2">
-                            {c.status === "open" && (
+                              {c.status === "in_progress" ? "IN PROGRESS" : (c.status || "open")}
+                            </Badge>
+                          </TableCell>
+
+                          <TableCell className="text-right p-6">
+                            <div className="flex flex-wrap justify-end gap-2">
+                              {c.status === "open" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 font-black uppercase text-[10px] rounded-lg border-amber-400 text-amber-600 hover:bg-amber-50 cursor-pointer"
+                                  onClick={() => handleUpdateComplaintStatus(c.id, "in_progress")}
+                                >
+                                  In Progress
+                                </Button>
+                              )}
+                              {c.status !== "resolved" && (
+                                <Button
+                                  size="sm"
+                                  className="h-8 bg-green-600 hover:bg-green-700 font-black uppercase text-[10px] rounded-lg shadow-sm cursor-pointer"
+                                  onClick={() => handleResolveComplaint(c.id)}
+                                >
+                                  <CheckCircle className="w-3 h-3 mr-1" /> Resolve
+                                </Button>
+                              )}
+                              {c.status === "resolved" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 font-black uppercase text-[10px] rounded-lg cursor-pointer"
+                                  onClick={() => handleUpdateComplaintStatus(c.id, "open")}
+                                >
+                                  Reopen
+                                </Button>
+                              )}
                               <Button
                                 size="sm"
-                                className="h-8 bg-green-600 hover:bg-green-700 font-black uppercase text-[10px] rounded-lg shadow-sm"
-                                onClick={() => handleResolveComplaint(c.id)}
+                                variant="destructive"
+                                className="h-8 font-black uppercase text-[10px] rounded-lg shadow-sm cursor-pointer"
+                                onClick={() => handleDeleteComplaint(c.id)}
                               >
-                                <CheckCircle className="w-3 h-3 mr-1" /> Resolve
+                                <Trash2 className="w-3 h-3 mr-1" /> Clear
                               </Button>
-                            )}
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              className="h-8 font-black uppercase text-[10px] rounded-lg shadow-sm"
-                              onClick={() => handleDeleteComplaint(c.id)}
-                            >
-                              <Trash2 className="w-3 h-3 mr-1" /> Clear
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    });
+                  })()}
                 </TableBody>
               </Table>
             </CardContent>

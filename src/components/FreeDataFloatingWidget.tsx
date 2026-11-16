@@ -2,10 +2,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Gift, Sparkles, X, Trophy, RefreshCw, CheckCircle2, Loader2, Crown, Zap, Clock } from 'lucide-react';
 import { toast } from 'sonner';
-import { db, auth } from '../lib/firebase';
-import { doc, setDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { auth } from '../lib/firebase';
 import { openPaystackPopup } from '../lib/paystack';
-import { getApiUrl } from '../lib/api';
+import { getApiUrl, getOptionalAuthHeaders } from '../lib/api';
 
 const getTodayKey = () => {
   const d = new Date();
@@ -219,38 +218,27 @@ export default function FreeDataFloatingWidget(_props: FreeDataFloatingWidgetPro
 
     setIsSubmittingClaim(true);
     try {
-      const orderId = doc(collection(db, "orders")).id;
       const cleanPhone = phone.trim();
-      const activeUser = auth.currentUser;
-      const userEmail = (activeUser?.email && activeUser.email.includes("@"))
-        ? activeUser.email
-        : `${cleanPhone}@customer.dataghananow.com`;
-      const userName = activeUser?.displayName || `Free Data Winner (${cleanPhone})`;
-
-      await setDoc(doc(db, "orders", orderId), {
-        id: orderId,
-        bundle: "Free Data Win",
-        serviceType: "Free Data Win",
-        network: network,
-        phone: cleanPhone,
-        amount: 1,
-        price: 1,
-        quantity: 1,
-        status: "paid",
-        paymentStatus: "success",
-        paymentMethod: "paystack",
-        reference: paymentRef || `FREE_DATA_${orderId}`,
-        customerName: userName,
-        email: userEmail,
-        createdAt: serverTimestamp(),
-        userId: activeUser?.uid || "guest_free_data"
+      const headers = await getOptionalAuthHeaders();
+      const claimRes = await fetch(getApiUrl('/api/free-data/claim'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          phone: cleanPhone,
+          network,
+          paymentRef,
+        }),
       });
+      const claimData = await claimRes.json().catch(() => ({}));
+      if (!claimRes.ok || !claimData.success) {
+        throw new Error(claimData.error || 'Failed to submit claim. Please try again.');
+      }
 
       setClaimSubmitted(true);
       toast.success("Free Data Order submitted to Admin!");
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error submitting claim:", err);
-      toast.error("Failed to submit claim. Please try again.");
+      toast.error(err.message || "Failed to submit claim. Please try again.");
     } finally {
       setIsSubmittingClaim(false);
     }

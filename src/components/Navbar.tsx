@@ -48,13 +48,25 @@ export default function Navbar({
   const { branding } = useBranding();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
+  const [supportPrefill, setSupportPrefill] = useState<{ orderRef?: string; phone?: string }>({});
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     const handleTriggerAuth = () => setIsAuthModalOpen(true);
+    const handleOpenSupportModal = (e: any) => {
+      setSupportPrefill({
+        orderRef: e?.detail?.orderRef || '',
+        phone: e?.detail?.phone || '',
+      });
+      setIsSupportOpen(true);
+    };
     window.addEventListener('TRIGGER_AUTH_MODAL', handleTriggerAuth);
-    return () => window.removeEventListener('TRIGGER_AUTH_MODAL', handleTriggerAuth);
+    window.addEventListener('OPEN_SUPPORT_MODAL', handleOpenSupportModal);
+    return () => {
+      window.removeEventListener('TRIGGER_AUTH_MODAL', handleTriggerAuth);
+      window.removeEventListener('OPEN_SUPPORT_MODAL', handleOpenSupportModal);
+    };
   }, []);
 
   useEffect(() => {
@@ -337,7 +349,10 @@ export default function Navbar({
 
                 <button
                   onClick={() => {
-                    if (user) { onHistoryView(true); onAdminView(false); onStreamView(false); } else { openAuth(); }
+                    onHistoryView(true);
+                    onAdminView(false);
+                    onStreamView(false);
+                    onDownloadView(false);
                     setIsMobileMenuOpen(false);
                   }}
                   className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-200 font-semibold text-sm"
@@ -363,7 +378,11 @@ export default function Navbar({
                 </button>
 
                 <button
-                  onClick={() => { user ? setIsSupportOpen(true) : openAuth(); setIsMobileMenuOpen(false); }}
+                  onClick={() => {
+                    setSupportPrefill({});
+                    setIsSupportOpen(true);
+                    setIsMobileMenuOpen(false);
+                  }}
                   className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-200 font-semibold text-sm"
                 >
                   <span className="text-amber-400">💬</span>
@@ -380,7 +399,15 @@ export default function Navbar({
       )}
 
       <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
-      <SupportModal isOpen={isSupportOpen} onClose={() => setIsSupportOpen(false)} profile={profile} agentContext={agentContext} />
+      <SupportModal
+        isOpen={isSupportOpen}
+        onClose={() => { setIsSupportOpen(false); setSupportPrefill({}); }}
+        user={user}
+        profile={profile}
+        agentContext={agentContext}
+        initialOrderRef={supportPrefill.orderRef}
+        initialPhone={supportPrefill.phone}
+      />
     </>
   );
 }

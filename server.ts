@@ -9,145 +9,274 @@ import { createServer as createViteServer } from 'vite';
 import { getSeoPageData } from './src/data/seoPages';
 import { renderSeoHtml } from './src/lib/serverSeoHtml';
 import { processUssdRequest } from './src/server/ussd';
+import { normalizeGhanaPhone, getGhanaPhoneVariants, phonesMatch } from './src/lib/phoneUtils';
 import admin from 'firebase-admin';
-import { initializeApp as initClientApp } from 'firebase/app';
-import { 
-    getFirestore as getClientFirestore,
-    addDoc as clientAddDoc,
-    doc as clientDoc,
-    getDoc as clientGetDoc,
-    setDoc as clientSetDoc,
-    updateDoc as clientUpdateDoc,
-    collection as clientCollection,
-    getDocs as clientGetDocs,
-    query as clientQuery,
-    where as clientWhere,
-    limit as clientLimit,
-    serverTimestamp as clientServerTimestamp,
-    increment as clientIncrement
-} from 'firebase/firestore';
+import { getFirestore as getAdminFirestore, FieldValue as AdminFieldValue, Timestamp as AdminTimestamp, Firestore as AdminFirestore } from 'firebase-admin/firestore';
 
 dotenv.config();
 
-// Dynamically resolve Firebase Client configuration
-let fbClientConfig: any = {
-    projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || "gen-lang-client-0995971216",
-    apiKey: process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || "AIzaSyBHfISRlyZRKgSaEQ6ZmAOL1MMtWYI-uLw",
-    authDomain: "gen-lang-client-0995971216.firebaseapp.com",
-    firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || process.env.VITE_FIREBASE_DATABASE_ID || "ai-studio-a987bde9-8b24-4701-9f29-ec4c734ab001",
-    appId: "1:768663077481:web:ccc3591bdc77f375b758f8"
+export class FirebaseAdminUnavailableError extends Error {
+    public statusCode = 503;
+    constructor(message = 'Firebase Admin Firestore is not configured on the server.') {
+        super(message);
+        this.name = 'FirebaseAdminUnavailableError';
+    }
+}
+
+// Resolve target Firebase Project ID & named Firestore Database ID
+let fbProjectConfig: { projectId: string; firestoreDatabaseId: string } = {
+    projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || 'gen-lang-client-0995971216',
+    firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || process.env.VITE_FIREBASE_DATABASE_ID || 'ai-studio-a987bde9-8b24-4701-9f29-ec4c734ab001',
 };
 
 try {
     const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
     if (fs.existsSync(configPath)) {
         const fileContent = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-        fbClientConfig = { ...fbClientConfig, ...fileContent };
+        fbProjectConfig = {
+            projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || fileContent.projectId || fbProjectConfig.projectId,
+            firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || process.env.VITE_FIREBASE_DATABASE_ID || fileContent.firestoreDatabaseId || fbProjectConfig.firestoreDatabaseId,
+        };
     }
-} catch (e) {
-    console.warn("[Server Firestore] Using fallback config");
+} catch {
+    console.warn('[Firebase Admin] Using environment/fallback project configuration');
 }
 
-const serverClientApp = initClientApp(fbClientConfig, "server-firestore-app");
-const serverClientDb = getClientFirestore(serverClientApp, fbClientConfig.firestoreDatabaseId);
-console.log(`[Server Firestore] Successfully initialized Firestore database: ${fbClientConfig.firestoreDatabaseId}`);
-
-// Optional Firebase Admin initialization if service account exists
-try {
-    if (admin.apps.length === 0) {
-        const adminConfig: admin.AppOptions = { projectId: fbClientConfig.projectId };
-        if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-            try {
-                const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-                adminConfig.credential = admin.credential.cert(serviceAccount);
-            } catch (saErr: any) {
-                console.log("[Firebase Admin] Service Account notice:", saErr.message);
+function parseServiceAccountFromEnv(): admin.ServiceAccount | null {
+    const rawJson = getSanitizedKey(process.env.FIREBASE_SERVICE_ACCOUNT || process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+    if (rawJson) {
+        try {
+            let decoded = rawJson;
+            if (!decoded.startsWith('{')) {
+                decoded = Buffer.from(decoded, 'base64').toString('utf8').trim();
             }
+            const parsed = JSON.parse(decoded);
+            if (!parsed || typeof parsed !== 'object' || !parsed.client_email || !parsed.private_key) {
+                throw new Error('Service account JSON missing required client_email or private_key');
+            }
+            if (typeof parsed.private_key === 'string') {
+                parsed.private_key = parsed.private_key.replace(/\\n/g, '\n');
+            }
+            if (parsed.project_id && fbProjectConfig.projectId && parsed.project_id !== fbProjectConfig.projectId) {
+                console.warn(`[Firebase Admin] Warning: Service account project_id (${parsed.project_id}) differs from configured projectId (${fbProjectConfig.projectId}).`);
+            }
+            return parsed as admin.ServiceAccount;
+        } catch (err: any) {
+            console.error('[Firebase Admin] Invalid FIREBASE_SERVICE_ACCOUNT configuration:', err?.message || 'parse error');
+            return null;
         }
-        admin.initializeApp(adminConfig);
     }
-} catch (e) {
-    console.warn("[Firebase Admin] Init notice:", e);
+
+    const clientEmail = getSanitizedKey(process.env.FIREBASE_CLIENT_EMAIL);
+    const rawPrivateKey = process.env.FIREBASE_PRIVATE_KEY;
+    if (clientEmail && rawPrivateKey) {
+        const privateKey = rawPrivateKey.trim().replace(/^["']|["']$/g, '').replace(/\\n/g, '\n');
+        return {
+            projectId: fbProjectConfig.projectId,
+            clientEmail,
+            privateKey,
+        } as admin.ServiceAccount;
+    }
+
+    return null;
 }
 
-// Test/runtime extensible Firestore adapter (defaults to live Firebase Client SDK)
+let adminDb: AdminFirestore | null = null;
+let firebaseCredentialSource: 'service_account_env' | 'adc' | 'missing_credentials' = 'missing_credentials';
+
+function initializeFirebaseAdminServices() {
+    if (!fbProjectConfig.projectId) {
+        console.error('[Firebase Admin] Missing FIREBASE_PROJECT_ID.');
+        return;
+    }
+
+    const serviceAccount = parseServiceAccountFromEnv();
+    const gacPath = getSanitizedKey(process.env.GOOGLE_APPLICATION_CREDENTIALS);
+    const hasGacFile = Boolean(gacPath && fs.existsSync(gacPath));
+    const useAdc = hasGacFile || String(process.env.FIREBASE_USE_ADC || '').toLowerCase() === 'true';
+
+    try {
+        if (admin.apps.length === 0) {
+            const adminOptions: admin.AppOptions = {
+                projectId: fbProjectConfig.projectId,
+            };
+
+            if (serviceAccount) {
+                adminOptions.credential = admin.credential.cert(serviceAccount);
+                firebaseCredentialSource = 'service_account_env';
+            } else if (useAdc) {
+                adminOptions.credential = admin.credential.applicationDefault();
+                firebaseCredentialSource = 'adc';
+            } else {
+                firebaseCredentialSource = 'missing_credentials';
+            }
+
+            admin.initializeApp(adminOptions);
+        }
+
+        if (firebaseCredentialSource !== 'missing_credentials') {
+            const appInstance = admin.app();
+            adminDb = fbProjectConfig.firestoreDatabaseId && fbProjectConfig.firestoreDatabaseId !== '(default)'
+                ? getAdminFirestore(appInstance, fbProjectConfig.firestoreDatabaseId)
+                : getAdminFirestore(appInstance);
+            adminDb.settings({ ignoreUndefinedProperties: true });
+            console.log(
+                `[Firebase Admin] Initialized Admin Firestore (project=${fbProjectConfig.projectId}, database=${fbProjectConfig.firestoreDatabaseId || '(default)'}, source=${firebaseCredentialSource})`
+            );
+        } else {
+            console.warn(
+                `[Firebase Admin] Service-account credentials not configured (FIREBASE_SERVICE_ACCOUNT). Protected server Firestore routes will fail safely with HTTP 503 until configured.`
+            );
+        }
+    } catch (err: any) {
+        adminDb = null;
+        firebaseCredentialSource = 'missing_credentials';
+        console.error('[Firebase Admin] Initialization failed:', err?.message || err);
+    }
+}
+
+initializeFirebaseAdminServices();
+
+function requireAdminDb(): AdminFirestore {
+    if (!adminDb) {
+        throw new FirebaseAdminUnavailableError();
+    }
+    return adminDb;
+}
+
+function normalizeServerDataForAdmin(data: Record<string, any>): Record<string, any> {
+    const cleanData: Record<string, any> = { ...data };
+    Object.keys(cleanData).forEach((key) => {
+        const val = cleanData[key];
+        if (val === undefined) {
+            delete cleanData[key];
+        } else if (val && typeof val === 'object' && val.__fieldValue === 'serverTimestamp') {
+            cleanData[key] = AdminFieldValue.serverTimestamp();
+        }
+    });
+    return cleanData;
+}
+
+function isFirebaseCredentialError(err: any): boolean {
+    if (!err) return false;
+    if (err instanceof FirebaseAdminUnavailableError) return true;
+    const msg = String(err?.message || '').toLowerCase();
+    return (
+        msg.includes('could not load the default credentials') ||
+        msg.includes('permission_denied') ||
+        msg.includes('unauthenticated') ||
+        err?.code === 7 ||
+        err?.code === 16
+    );
+}
+
+function respondWithServerError(res: express.Response, err: any, fallbackMessage: string) {
+    if (isFirebaseCredentialError(err)) {
+        return res.status(503).json({
+            success: false,
+            error: 'Server database service is temporarily unavailable. Please try again shortly.'
+        });
+    }
+    return res.status(500).json({
+        success: false,
+        error: fallbackMessage
+    });
+}
+
+// Test/runtime extensible Firestore adapter backed exclusively by Firebase Admin SDK
 const serverFirestoreOps = {
     getDoc: async (collectionName: string, docId: string): Promise<{ exists: boolean; data: () => any; id: string; ref?: any } | null> => {
+        const db = requireAdminDb();
         try {
-            const dRef = clientDoc(serverClientDb, collectionName, docId);
-            const snap = await clientGetDoc(dRef);
+            const dRef = db.collection(collectionName).doc(docId);
+            const snap = await dRef.get();
             return {
-                exists: snap.exists(),
+                exists: snap.exists,
                 data: () => snap.data() || {},
                 id: snap.id,
                 ref: dRef
             };
         } catch (err: any) {
-            console.warn(`[Server Firestore] getDoc notice (${collectionName}/${docId}):`, err.message || err);
-            return null;
+            console.error(`[Admin Firestore] getDoc error (${collectionName}/${docId}):`, err?.message || err);
+            throw err;
         }
     },
     setDoc: async (collectionName: string, docId: string, data: any, merge = true): Promise<boolean> => {
+        const db = requireAdminDb();
         try {
-            const cleanData = { ...data };
-            Object.keys(cleanData).forEach(key => {
-                if (cleanData[key] && typeof cleanData[key] === 'object' && cleanData[key].constructor && cleanData[key].constructor.name === 'FieldValue') {
-                    cleanData[key] = clientServerTimestamp();
-                }
-            });
-            const dRef = clientDoc(serverClientDb, collectionName, docId);
-            await clientSetDoc(dRef, cleanData, { merge });
+            const cleanData = normalizeServerDataForAdmin(data);
+            await db.collection(collectionName).doc(docId).set(cleanData, { merge });
             return true;
         } catch (err: any) {
-            console.warn(`[Server Firestore] setDoc notice (${collectionName}/${docId}):`, err.message || err);
-            return false;
+            console.error(`[Admin Firestore] setDoc error (${collectionName}/${docId}):`, err?.message || err);
+            throw err;
         }
     },
     updateDoc: async (collectionName: string, docId: string, data: any): Promise<boolean> => {
+        const db = requireAdminDb();
         try {
-            const cleanData = { ...data };
-            Object.keys(cleanData).forEach(key => {
-                if (cleanData[key] && typeof cleanData[key] === 'object' && cleanData[key].constructor && cleanData[key].constructor.name === 'FieldValue') {
-                    cleanData[key] = clientServerTimestamp();
-                }
-            });
-            const dRef = clientDoc(serverClientDb, collectionName, docId);
-            await clientUpdateDoc(dRef, cleanData);
+            const cleanData = normalizeServerDataForAdmin(data);
+            await db.collection(collectionName).doc(docId).update(cleanData);
             return true;
         } catch (err: any) {
-            console.warn(`[Server Firestore] updateDoc notice (${collectionName}/${docId}):`, err.message || err);
-            return serverFirestoreOps.setDoc(collectionName, docId, data, true);
+            console.error(`[Admin Firestore] updateDoc error (${collectionName}/${docId}):`, err?.message || err);
+            throw err;
         }
     },
     queryByField: async (collectionName: string, fieldName: string, value: string): Promise<{ exists: boolean; data: () => any; id: string } | null> => {
+        const db = requireAdminDb();
         try {
-            const cRef = clientCollection(serverClientDb, collectionName);
-            const q = clientQuery(cRef, clientWhere(fieldName, '==', value), clientLimit(1));
-            const snap = await clientGetDocs(q);
+            const snap = await db.collection(collectionName).where(fieldName, '==', value).limit(1).get();
             if (!snap.empty) {
                 const d = snap.docs[0];
                 return { exists: true, data: () => d.data() || {}, id: d.id };
             }
             return null;
         } catch (err: any) {
-            console.warn(`[Server Firestore] queryByField notice (${collectionName}.${fieldName}=${value}):`, err.message || err);
-            return null;
+            console.error(`[Admin Firestore] queryByField error (${collectionName}.${fieldName}):`, err?.message || err);
+            throw err;
         }
     },
-    incrementField: async (collectionName: string, docId: string, fieldName: string, amount = 1): Promise<void> => {
+    queryAllByField: async (collectionName: string, fieldName: string, value: string, maxResults = 150): Promise<Array<{ exists: boolean; data: () => any; id: string }>> => {
+        const db = requireAdminDb();
         try {
-            const dRef = clientDoc(serverClientDb, collectionName, docId);
-            await clientUpdateDoc(dRef, {
-                [fieldName]: clientIncrement(amount),
-                updatedAt: clientServerTimestamp()
+            const snap = await db.collection(collectionName).where(fieldName, '==', value).limit(maxResults).get();
+            return snap.docs.map(d => ({ exists: true, data: () => d.data() || {}, id: d.id }));
+        } catch (err: any) {
+            console.error(`[Admin Firestore] queryAllByField error (${collectionName}.${fieldName}):`, err?.message || err);
+            throw err;
+        }
+    },
+    listCollection: async (collectionName: string, maxResults = 300): Promise<Array<{ exists: boolean; data: () => any; id: string }>> => {
+        const db = requireAdminDb();
+        try {
+            const snap = await db.collection(collectionName).limit(maxResults).get();
+            return snap.docs.map(d => ({ exists: true, data: () => d.data() || {}, id: d.id }));
+        } catch (err: any) {
+            console.error(`[Admin Firestore] listCollection error (${collectionName}):`, err?.message || err);
+            throw err;
+        }
+    },
+    generateDocId: (collectionName: string): string => {
+        if (adminDb) {
+            return adminDb.collection(collectionName).doc().id;
+        }
+        return `${collectionName.slice(0, 3)}_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
+    },
+    incrementField: async (collectionName: string, docId: string, fieldName: string, amount = 1): Promise<void> => {
+        const db = requireAdminDb();
+        try {
+            await db.collection(collectionName).doc(docId).update({
+                [fieldName]: AdminFieldValue.increment(amount),
+                updatedAt: AdminFieldValue.serverTimestamp()
             });
         } catch (err: any) {
-            console.warn(`[Server Firestore] incrementField notice (${collectionName}/${docId}.${fieldName}):`, err.message || err);
+            console.error(`[Admin Firestore] incrementField error (${collectionName}/${docId}.${fieldName}):`, err?.message || err);
+            throw err;
         }
     }
 };
 
-// Unified, robust Firestore helper methods that never throw permission errors due to missing service accounts
 async function getFirestoreDoc(collectionName: string, docId: string): Promise<{ exists: boolean; data: () => any; id: string; ref?: any } | null> {
     return serverFirestoreOps.getDoc(collectionName, docId);
 }
@@ -233,7 +362,7 @@ async function creditReferralIfEligible(orderId: string, orderData: any): Promis
             rewardEarned: true,
             rewardDelivered: false,
             rewardStatus: 'pending_delivery',
-            createdAt: clientServerTimestamp(),
+            createdAt: AdminFieldValue.serverTimestamp(),
         }, false);
 
         await serverFirestoreOps.incrementField('users', referrerUid, 'referralCount', 1);
@@ -253,32 +382,19 @@ function timingSafeCompareStrings(a: string, b: string): boolean {
 }
 
 async function queryActiveBookingCodes(limitCount = 5): Promise<any[]> {
+    const db = requireAdminDb();
     try {
-        const cRef = clientCollection(serverClientDb, 'booking_codes');
-        const q = clientQuery(cRef, clientWhere('active', '==', true), clientLimit(limitCount));
-        const snap = await clientGetDocs(q);
+        const snap = await db.collection('booking_codes').where('active', '==', true).limit(limitCount).get();
         return snap.docs.map(d => ({ id: d.id, data: () => d.data() || {}, exists: true }));
     } catch (err: any) {
-        console.warn('[Server Firestore] queryActiveBookingCodes notice:', err.message || err);
-        try {
-            const snap = await clientGetDocs(clientCollection(serverClientDb, 'booking_codes'));
-            return snap.docs.map(d => ({ id: d.id, data: () => d.data() || {}, exists: true }));
-        } catch (e) {
-            return [];
-        }
+        console.warn('[Admin Firestore] queryActiveBookingCodes notice:', err.message || err);
+        const snap = await db.collection('booking_codes').limit(limitCount).get();
+        return snap.docs.map(d => ({ id: d.id, data: () => d.data() || {}, exists: true }));
     }
 }
 
 async function incrementBookingCodePurchases(docId: string): Promise<void> {
-    try {
-        const dRef = clientDoc(serverClientDb, 'booking_codes', docId);
-        await clientUpdateDoc(dRef, {
-            totalPurchases: clientIncrement(1),
-            updatedAt: clientServerTimestamp()
-        });
-    } catch (err: any) {
-        console.warn(`[Server Firestore] incrementBookingCodePurchases notice (${docId}):`, err.message || err);
-    }
+    await serverFirestoreOps.incrementField('booking_codes', docId, 'totalPurchases', 1);
 }
 
 // Helper to clean and sanitize API keys loaded from environment variables
@@ -372,8 +488,8 @@ app.use(cors({
         return callback(null, true);
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-paystack-signature', 'Accept']
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-paystack-signature', 'x-order-token', 'Accept']
 }));
 
 app.use(express.json({
@@ -429,7 +545,7 @@ app.post('/api/ussd', async (req, res) => {
         }
 
         const payload = { ...req.query, ...req.body };
-        const response = await processUssdRequest(payload, serverClientDb, getPaystackSecretKey());
+        const response = await processUssdRequest(payload, adminDb, getPaystackSecretKey());
 
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         return res.status(200).json(response);
@@ -451,6 +567,9 @@ app.get('/api/health', (req, res) => {
     res.json({ 
         status: "ok", 
         service: "King J Deals Gateway", 
+        FIREBASE_ADMIN_CONFIGURED: adminDb ? "YES" : "NO",
+        FIREBASE_PROJECT_ID: fbProjectConfig.projectId,
+        FIREBASE_DATABASE_ID: fbProjectConfig.firestoreDatabaseId || "(default)",
         PAYSTACK_SECRET_KEY_CONFIGURED: hasPaystackSecret ? "YES" : "NO",
         PAYSTACK_PUBLIC_KEY_CONFIGURED: hasPaystackPublic ? "YES" : "NO",
         timestamp: new Date().toISOString()
@@ -524,6 +643,7 @@ async function verifyFastDeliverySettings(params: {
             }
         }
     } catch (err: any) {
+        if (isFirebaseCredentialError(err)) throw err;
         console.warn("[Fast Delivery Verification] settings check warning:", err.message);
     }
 
@@ -552,24 +672,40 @@ async function verifyFastDeliverySettings(params: {
 
 const ADMIN_EMAILS_LIST = ['kingjdeals@gmail.com', 'jeffreybonneya@gmail.com', 'emmagyapong62@gmail.com'];
 
-async function verifyAdminAuth(req: express.Request): Promise<boolean> {
+const serverAuthOps = {
+    verifyIdToken: async (token: string): Promise<any> => {
+        if (admin.apps.length > 0) {
+            return admin.auth().verifyIdToken(token);
+        }
+        return null;
+    }
+};
+
+async function verifyRequestUser(req: express.Request): Promise<{ uid: string; email: string; emailVerified: boolean; phoneNumber: string } | null> {
     const authHeader = req.headers['authorization'];
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return false;
+        return null;
     }
     const token = authHeader.slice(7).trim();
+    if (!token) return null;
     try {
-        if (admin.apps.length > 0) {
-            const decoded = await admin.auth().verifyIdToken(token);
-            const email = (decoded.email || '').toLowerCase().trim();
-            if (ADMIN_EMAILS_LIST.includes(email)) {
-                return true;
-            }
-        }
-    } catch (e) {
-        // Token verification exception
+        const decoded = await serverAuthOps.verifyIdToken(token);
+        if (!decoded || !decoded.uid) return null;
+        return {
+            uid: String(decoded.uid),
+            email: String(decoded.email || '').trim(),
+            emailVerified: decoded.email_verified === true,
+            phoneNumber: String(decoded.phone_number || '').trim()
+        };
+    } catch {
+        return null;
     }
-    return false;
+}
+
+async function verifyAdminAuth(req: express.Request): Promise<boolean> {
+    const user = await verifyRequestUser(req);
+    if (!user || !user.emailVerified) return false;
+    return ADMIN_EMAILS_LIST.includes(user.email.toLowerCase().trim());
 }
 
 async function calculateAuthoritativePrice(params: {
@@ -595,15 +731,11 @@ async function calculateAuthoritativePrice(params: {
     }
 
     if (!bundleDoc) {
-        try {
-            const cRef = clientCollection(serverClientDb, 'bundles');
-            const q = clientQuery(cRef, clientWhere('network', '==', params.recipientNetwork), clientLimit(50));
-            const snap = await clientGetDocs(q);
-            const found = snap.docs.find(d => d.id === params.bundleId || (d.data().name && params.bundleId && d.data().name.includes(params.bundleId)));
-            if (found) {
-                bundleDoc = found.data();
-            }
-        } catch (e) {}
+        const networkBundles = await serverFirestoreOps.queryAllByField('bundles', 'network', params.recipientNetwork, 50);
+        const found = networkBundles.find(d => d.id === params.bundleId || (d.data().name && params.bundleId && d.data().name.includes(params.bundleId)));
+        if (found) {
+            bundleDoc = found.data();
+        }
     }
 
     if (bundleDoc) {
@@ -643,7 +775,9 @@ async function calculateAuthoritativePrice(params: {
                 hiddenFee += Number(hc.agentStoreCharge) || 0;
             }
         }
-    } catch (e) {}
+    } catch (e: any) {
+        if (isFirebaseCredentialError(e)) throw e;
+    }
 
     // Agent Custom Price check if applicable
     let agentDetails: any = null;
@@ -659,7 +793,9 @@ async function calculateAuthoritativePrice(params: {
                     }
                 }
             }
-        } catch (e) {}
+        } catch (e: any) {
+            if (isFirebaseCredentialError(e)) throw e;
+        }
         agentPrice = basePrice;
         agentProfit = Math.max(0, agentPrice - wholesalePrice);
     }
@@ -696,6 +832,7 @@ async function calculateAuthoritativePrice(params: {
 // REST Endpoint: Secure Backend Order Creation with Authoritative Pricing
 app.post('/api/orders/create', async (req, res) => {
     try {
+        const authUser = await verifyRequestUser(req);
         const {
             bundleId,
             recipientPhone,
@@ -733,13 +870,18 @@ app.post('/api/orders/create', async (req, res) => {
 
         const generatedRef = 'DGN_' + Date.now() + '_' + crypto.randomBytes(4).toString('hex').toUpperCase();
         const orderAccessToken = crypto.randomBytes(32).toString('hex');
-        const orderId = clientDoc(clientCollection(serverClientDb, 'orders')).id;
+        const orderId = serverFirestoreOps.generateDocId('orders');
 
         const customerEmail = (providedEmail && providedEmail.includes('@')) 
             ? providedEmail 
-            : (cleanPhone ? `${cleanPhone}@gmail.com` : "customer@gmail.com");
+            : (authUser?.email || (cleanPhone ? `${cleanPhone}@gmail.com` : "customer@gmail.com"));
         const customerName = providedName || (cleanPhone ? `Customer (${cleanPhone})` : "Customer");
-        const customerUid = cleanPhone ? `guest_${cleanPhone}` : `guest_${Date.now()}`;
+        const customerUid = authUser
+            ? authUser.uid
+            : (cleanPhone ? `guest_${cleanPhone}` : `guest_${Date.now()}`);
+
+        const normalizedPaymentMethod = String(paymentMethod || 'paystack').trim();
+        const initialStatus = normalizedPaymentMethod === 'momo_direct' ? 'pending_verification' : 'pending';
 
         const orderData: any = {
             id: orderId,
@@ -758,13 +900,13 @@ app.post('/api/orders/create', async (req, res) => {
             fastDelivery: pricing.fastDelivery,
             fastDeliveryFee: pricing.fastDeliveryFee,
             ...(pricing.fastDelivery ? { fastDeliveryType: pricing.fastDeliveryType } : {}),
-            status: "pending",
-            paymentStatus: "pending",
-            paymentMethod: paymentMethod,
+            status: initialStatus,
+            paymentStatus: initialStatus,
+            paymentMethod: normalizedPaymentMethod,
             userId: customerUid,
             customerName: customerName,
-            createdAt: clientServerTimestamp(),
-            updatedAt: clientServerTimestamp(),
+            createdAt: AdminFieldValue.serverTimestamp(),
+            updatedAt: AdminFieldValue.serverTimestamp(),
             ...(referredBy ? { referredBy: String(referredBy).trim().toUpperCase() } : {}),
             ...(fcUserId ? { fcUserId } : {}),
             ...(fcUsername ? { fcUsername } : {}),
@@ -806,9 +948,9 @@ app.post('/api/orders/create', async (req, res) => {
                 ...(pricing.fastDelivery ? { fastDeliveryType: pricing.fastDeliveryType } : {}),
                 basePrice: pricing.basePrice,
                 finalPrice: pricing.finalAmount,
-                status: "pending",
-                paymentStatus: "pending",
-                created_at: clientServerTimestamp(),
+                status: initialStatus,
+                paymentStatus: initialStatus,
+                created_at: AdminFieldValue.serverTimestamp(),
                 paymentReference: orderId
             };
             await setFirestoreDoc('agent_orders', orderId, agentOrderData, false);
@@ -828,6 +970,9 @@ app.post('/api/orders/create', async (req, res) => {
         });
     } catch (err: any) {
         console.error('[Create Order Error]:', err.message || err);
+        if (isFirebaseCredentialError(err)) {
+            return respondWithServerError(res, err, 'Failed to create order');
+        }
         return res.status(400).json({ success: false, error: err.message || 'Failed to create order' });
     }
 });
@@ -849,11 +994,20 @@ app.get('/api/orders/status/:orderId', async (req, res) => {
 
         const data = orderSnap.data();
 
-        // Validate token or admin authentication
+        // Validate token, authenticated owner, or verified admin
         const isAuthorizedByToken = Boolean(token && data.orderAccessToken && token === data.orderAccessToken);
-        const isAuthorizedAdmin = !isAuthorizedByToken && (await verifyAdminAuth(req));
+        const authUser = !isAuthorizedByToken ? await verifyRequestUser(req) : null;
+        const isAuthorizedOwner = Boolean(
+            authUser && (
+                data.userId === authUser.uid ||
+                (authUser.email && data.email && String(data.email).toLowerCase().trim() === authUser.email.toLowerCase().trim())
+            )
+        );
+        const isAuthorizedAdmin = Boolean(
+            authUser && authUser.emailVerified && ADMIN_EMAILS_LIST.includes(authUser.email.toLowerCase().trim())
+        );
 
-        if (!isAuthorizedByToken && !isAuthorizedAdmin) {
+        if (!isAuthorizedByToken && !isAuthorizedOwner && !isAuthorizedAdmin) {
             return res.status(403).json({ success: false, error: 'Unauthorized to view this order status' });
         }
 
@@ -870,7 +1024,640 @@ app.get('/api/orders/status/:orderId', async (req, res) => {
         });
     } catch (err: any) {
         console.error('[Order Status Error]:', err.message || err);
-        return res.status(500).json({ success: false, error: 'Failed to retrieve order status' });
+        return respondWithServerError(res, err, 'Failed to retrieve order status');
+    }
+});
+
+// ============================================================================
+// HISTORY & SUPPORT INFRASTRUCTURE (Rate Limiting, Sanitization, Validation)
+// ============================================================================
+
+const rateLimitBuckets = new Map<string, number[]>();
+
+function checkRateLimit(bucketKey: string, maxRequests: number, windowMs: number): { allowed: boolean; retryAfterSec: number } {
+    const now = Date.now();
+    const existing = rateLimitBuckets.get(bucketKey) || [];
+    const recent = existing.filter((ts) => now - ts < windowMs);
+    if (recent.length >= maxRequests) {
+        const oldest = recent[0] || now;
+        const retryAfterSec = Math.max(1, Math.ceil((oldest + windowMs - now) / 1000));
+        rateLimitBuckets.set(bucketKey, recent);
+        return { allowed: false, retryAfterSec };
+    }
+    recent.push(now);
+    rateLimitBuckets.set(bucketKey, recent);
+    // Keep map bounded
+    if (rateLimitBuckets.size > 5000) {
+        for (const [k, list] of rateLimitBuckets.entries()) {
+            const active = list.filter((ts) => now - ts < windowMs);
+            if (active.length === 0) rateLimitBuckets.delete(k);
+        }
+    }
+    return { allowed: true, retryAfterSec: 0 };
+}
+
+function resetRateLimits() {
+    rateLimitBuckets.clear();
+}
+
+function getClientIpKey(req: express.Request): string {
+    const xff = req.headers['x-forwarded-for'];
+    if (typeof xff === 'string' && xff.trim()) {
+        return xff.split(',')[0].trim();
+    }
+    return req.ip || req.socket?.remoteAddress || 'unknown';
+}
+
+function extractTimestampMs(ts: any): number {
+    if (!ts) return 0;
+    if (typeof ts === 'number') return ts;
+    if (ts instanceof Date) return ts.getTime();
+    if (typeof ts?.toMillis === 'function') return ts.toMillis();
+    if (typeof ts?.seconds === 'number') return ts.seconds * 1000 + Math.floor((ts.nanoseconds || 0) / 1e6);
+    if (typeof ts === 'string') {
+        const parsed = Date.parse(ts);
+        return isNaN(parsed) ? 0 : parsed;
+    }
+    return 0;
+}
+
+function deriveSeparatedOrderStatuses(data: any): {
+    paymentStatus: string;
+    paymentStatusLabel: string;
+    fulfillmentStatus: string;
+    fulfillmentStatusLabel: string;
+} {
+    const rawPay = String(data.paymentStatus || '').toLowerCase().trim();
+    const rawStatus = String(data.status || '').toLowerCase().trim();
+    const rawFulfill = String(data.fulfillmentStatus || data.adminStatus || '').toLowerCase().trim();
+
+    // 1. Payment Status (never conflates paid with delivered)
+    let paymentStatus = 'pending';
+    let paymentStatusLabel = 'Pending';
+
+    if (rawPay === 'success' || rawPay === 'paid' || rawPay === 'successful' || rawStatus === 'paid' || rawStatus === 'success') {
+        paymentStatus = 'success';
+        paymentStatusLabel = 'Paid / Successful';
+    } else if (rawPay === 'failed' || rawPay === 'abandoned' || (rawStatus === 'failed' && !rawPay)) {
+        paymentStatus = 'failed';
+        paymentStatusLabel = 'Failed';
+    } else if (rawPay === 'declined' || (rawStatus === 'declined' && !rawPay)) {
+        paymentStatus = 'declined';
+        paymentStatusLabel = 'Declined';
+    } else if (rawPay === 'cancelled' || (rawStatus === 'cancelled' && (!rawPay || rawPay === 'payment_pending' || rawPay === 'pending'))) {
+        paymentStatus = 'cancelled';
+        paymentStatusLabel = 'Cancelled';
+    } else if (rawStatus === 'pending_verification' || rawPay === 'pending_verification') {
+        paymentStatus = 'pending_verification';
+        paymentStatusLabel = 'Pending Verification';
+    } else if (rawStatus === 'unpaid' || rawPay === 'unpaid') {
+        paymentStatus = 'unpaid';
+        paymentStatusLabel = 'Unpaid';
+    }
+
+    // 2. Fulfillment Status (separate from payment; paid alone stays Pending until processed/delivered)
+    let fulfillmentStatus = 'pending';
+    let fulfillmentStatusLabel = 'Pending';
+
+    if (rawFulfill === 'delivered' || rawFulfill === 'completed' || rawStatus === 'delivered' || rawStatus === 'completed') {
+        fulfillmentStatus = 'delivered';
+        fulfillmentStatusLabel = 'Delivered';
+    } else if (rawFulfill === 'processing' || rawFulfill === 'accepted' || rawStatus === 'processing' || rawStatus === 'accepted') {
+        fulfillmentStatus = 'processing';
+        fulfillmentStatusLabel = 'Processing';
+    } else if (rawFulfill === 'declined' || rawStatus === 'declined') {
+        fulfillmentStatus = 'declined';
+        fulfillmentStatusLabel = 'Declined';
+    } else if (rawFulfill === 'cancelled' || rawFulfill === 'refunded' || rawStatus === 'cancelled') {
+        fulfillmentStatus = 'cancelled';
+        fulfillmentStatusLabel = rawFulfill === 'refunded' ? 'Refunded' : 'Cancelled';
+    } else if (rawFulfill === 'failed' || rawStatus === 'failed') {
+        fulfillmentStatus = 'failed';
+        fulfillmentStatusLabel = 'Failed';
+    } else {
+        fulfillmentStatus = 'pending';
+        fulfillmentStatusLabel = 'Pending';
+    }
+
+    return {
+        paymentStatus,
+        paymentStatusLabel,
+        fulfillmentStatus,
+        fulfillmentStatusLabel,
+    };
+}
+
+function sanitizeOrderForCustomerHistory(id: string, data: any) {
+    const createdAtMs = extractTimestampMs(data.createdAt);
+    const updatedAtMs = extractTimestampMs(data.updatedAt) || createdAtMs;
+    const statuses = deriveSeparatedOrderStatuses(data);
+    const phone = String(data.phone || data.recipientPhone || data.customerPhone || '').trim();
+    const paymentMethodRaw = String(data.paymentMethod || data.payment_provider || '').trim();
+
+    return {
+        id,
+        reference: String(data.referenceCode || data.orderId || data.reference || id),
+        paymentReference: String(data.paymentReference || data.paystackReference || data.momoRefCode || ''),
+        productName: String(data.bundle || data.bundleName || data.productName || data.title || data.network || 'Order'),
+        network: String(data.network || data.recipientNetwork || data.category || ''),
+        serviceType: String(data.serviceType || data.category || data.type || ''),
+        amount: Number(data.amount ?? data.finalPrice ?? data.amountSent ?? data.price ?? 0),
+        basePrice: data.basePrice != null ? Number(data.basePrice) : undefined,
+        fastDelivery: Boolean(data.fastDelivery),
+        fastDeliveryFee: data.fastDeliveryFee != null ? Number(data.fastDeliveryFee) : undefined,
+        fastDeliveryType: data.fastDeliveryType || undefined,
+        phone,
+        status: String(data.status || 'pending'),
+        paymentStatus: statuses.paymentStatus,
+        paymentStatusLabel: statuses.paymentStatusLabel,
+        fulfillmentStatus: statuses.fulfillmentStatus,
+        fulfillmentStatusLabel: statuses.fulfillmentStatusLabel,
+        paymentMethod: paymentMethodRaw,
+        ...(data.fcUserId ? { fcUserId: String(data.fcUserId) } : {}),
+        ...(data.fcUsername ? { fcUsername: String(data.fcUsername) } : {}),
+        ...(data.accountIdentifier ? { accountIdentifier: String(data.accountIdentifier) } : {}),
+        ...(data.accountIdentifierType ? { accountIdentifierType: String(data.accountIdentifierType) } : {}),
+        ...(data.konamiId ? { konamiId: String(data.konamiId) } : {}),
+        ...(data.platform ? { platform: String(data.platform) } : {}),
+        ...(data.coinAmount != null ? { coinAmount: Number(data.coinAmount) } : {}),
+        ...(data.voucherCode ? { voucherCode: String(data.voucherCode) } : {}),
+        ...(data.pin ? { pin: String(data.pin) } : {}),
+        ...(data.serialNumber || data.serial ? { serialNumber: String(data.serialNumber || data.serial) } : {}),
+        ...(data.deliveryNote || data.deliveryNotes ? { deliveryNote: String(data.deliveryNote || data.deliveryNotes) } : {}),
+        ...(data.cancellationReason ? { cancellationReason: String(data.cancellationReason) } : {}),
+        createdAtMs,
+        createdAtIso: createdAtMs > 0 ? new Date(createdAtMs).toISOString() : null,
+        updatedAtIso: updatedAtMs > 0 ? new Date(updatedAtMs).toISOString() : null,
+    };
+}
+
+function rankSanitizedOrder(o: any): number {
+    let score = 0;
+    if (o.fulfillmentStatus === 'delivered') score += 1000;
+    else if (o.fulfillmentStatus === 'processing') score += 700;
+    else if (o.paymentStatus === 'success') score += 500;
+    else if (o.fulfillmentStatus === 'declined' || o.fulfillmentStatus === 'cancelled' || o.fulfillmentStatus === 'failed') score += 200;
+    else score += 100;
+    if (o.deliveryNote) score += 20;
+    if (o.voucherCode || o.pin) score += 20;
+    return score;
+}
+
+function dedupeAndSortHistoryOrders(items: any[]) {
+    const byId = new Map<string, any>();
+    for (const item of items) {
+        if (!item?.id) continue;
+        const existing = byId.get(item.id);
+        if (!existing || rankSanitizedOrder(item) > rankSanitizedOrder(existing)) {
+            byId.set(item.id, item);
+        }
+    }
+
+    const byPaymentRef = new Map<string, any>();
+    const results: any[] = [];
+    for (const item of byId.values()) {
+        const payRef = String(item.paymentReference || '').trim();
+        const isUniqueRef = payRef.length >= 12 && !/^\d{9,13}$/.test(payRef);
+        if (isUniqueRef) {
+            const existing = byPaymentRef.get(payRef);
+            if (!existing) {
+                byPaymentRef.set(payRef, item);
+                results.push(item);
+            } else if (rankSanitizedOrder(item) > rankSanitizedOrder(existing)) {
+                const idx = results.indexOf(existing);
+                if (idx !== -1) results[idx] = item;
+                byPaymentRef.set(payRef, item);
+            }
+        } else {
+            results.push(item);
+        }
+    }
+
+    results.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
+    return results;
+}
+
+async function queryOrdersByPhoneVariants(canonicalPhone: string): Promise<Array<{ id: string; data: any }>> {
+    const variants = getGhanaPhoneVariants(canonicalPhone);
+    const collections = ['orders', 'efootballOrders'];
+    const phoneFields = ['phone', 'customerPhone', 'recipientPhone'];
+    const docs: Array<{ id: string; data: any }> = [];
+
+    for (const col of collections) {
+        for (const variant of variants) {
+            for (const field of phoneFields) {
+                const matched = await serverFirestoreOps.queryAllByField(col, field, variant, 150);
+                for (const d of matched) {
+                    docs.push({ id: d.id, data: d.data() });
+                }
+            }
+        }
+        const guestMatched = await serverFirestoreOps.queryAllByField(col, 'userId', `guest_${canonicalPhone}`, 150);
+        for (const d of guestMatched) {
+            docs.push({ id: d.id, data: d.data() });
+        }
+    }
+
+    // Strict ownership verification: only keep docs whose phone strictly matches canonicalPhone
+    return docs.filter(({ data }) => {
+        const candidatePhones = [data.phone, data.customerPhone, data.recipientPhone];
+        return candidatePhones.some((p) => phonesMatch(p, canonicalPhone));
+    });
+}
+
+// REST Endpoint: Guest Order Tracking by Validated Ghanaian Phone Number
+app.post('/api/orders/track-guest', async (req, res) => {
+    try {
+        const clientIp = getClientIpKey(req);
+        const ipLimit = checkRateLimit(`track_guest_ip:${clientIp}`, 25, 5 * 60 * 1000);
+        if (!ipLimit.allowed) {
+            res.setHeader('Retry-After', String(ipLimit.retryAfterSec));
+            return res.status(429).json({
+                success: false,
+                error: 'Too many order lookup requests. Please wait a few minutes and try again.'
+            });
+        }
+
+        const rawPhone = req.body?.phone;
+        const canonicalPhone = normalizeGhanaPhone(rawPhone);
+        if (!canonicalPhone) {
+            return res.status(400).json({
+                success: false,
+                error: 'Please enter a valid Ghanaian phone number (e.g. 0241234567 or +233241234567).'
+            });
+        }
+
+        const phoneLimit = checkRateLimit(`track_guest_phone:${canonicalPhone}`, 15, 5 * 60 * 1000);
+        if (!phoneLimit.allowed) {
+            res.setHeader('Retry-After', String(phoneLimit.retryAfterSec));
+            return res.status(429).json({
+                success: false,
+                error: 'Too many lookups for this phone number. Please wait a few minutes before trying again.'
+            });
+        }
+
+        const matchedDocs = await queryOrdersByPhoneVariants(canonicalPhone);
+        const sanitized = matchedDocs.map(({ id, data }) => sanitizeOrderForCustomerHistory(id, data));
+        const orders = dedupeAndSortHistoryOrders(sanitized);
+
+        return res.status(200).json({
+            success: true,
+            phone: canonicalPhone,
+            orders
+        });
+    } catch (err: any) {
+        console.error('[Track Guest Orders Error]:', err.message || err);
+        return respondWithServerError(res, err, 'Unable to retrieve order history right now. Please try again shortly.');
+    }
+});
+
+// REST Endpoint: Authenticated Customer Synchronized Order History
+app.get('/api/orders/my-history', async (req, res) => {
+    try {
+        const authUser = await verifyRequestUser(req);
+        if (!authUser) {
+            return res.status(401).json({
+                success: false,
+                error: 'Authentication required to synchronize account orders.'
+            });
+        }
+
+        const { uid, email: rawEmail, phoneNumber: tokenPhoneRaw } = authUser;
+        const verifiedEmailLower = rawEmail.toLowerCase().trim();
+
+        const userSnap = await serverFirestoreOps.getDoc('users', uid);
+        const userData = userSnap && userSnap.exists ? userSnap.data() : {};
+        const verifiedAccountPhone =
+            normalizeGhanaPhone(tokenPhoneRaw) ||
+            normalizeGhanaPhone(userData?.phoneNumber) ||
+            normalizeGhanaPhone(userData?.phone);
+
+        const rawDocs: Array<{ id: string; data: any }> = [];
+
+        // 1. Query by authenticated uid across orders & efootballOrders
+        for (const col of ['orders', 'efootballOrders']) {
+            const byUid = await serverFirestoreOps.queryAllByField(col, 'userId', uid, 200);
+            byUid.forEach((d) => rawDocs.push({ id: d.id, data: d.data() }));
+            if (col === 'efootballOrders') {
+                const byCustId = await serverFirestoreOps.queryAllByField(col, 'customerId', uid, 200);
+                byCustId.forEach((d) => rawDocs.push({ id: d.id, data: d.data() }));
+            }
+        }
+
+        // 2. Query by verified email across email / customerEmail / userEmail (covering guest orders placed with same email)
+        if (verifiedEmailLower) {
+            const emailVariants = Array.from(new Set([rawEmail.trim(), verifiedEmailLower].filter(Boolean)));
+            for (const col of ['orders', 'efootballOrders']) {
+                for (const emailVal of emailVariants) {
+                    for (const field of ['email', 'customerEmail', 'userEmail']) {
+                        const matched = await serverFirestoreOps.queryAllByField(col, field, emailVal, 150);
+                        matched.forEach((d) => rawDocs.push({ id: d.id, data: d.data() }));
+                    }
+                }
+            }
+        }
+
+        // 3. Query by verified phone linked to this user's own account (syncs pre-login guest orders for same phone)
+        if (verifiedAccountPhone) {
+            const phoneMatched = await queryOrdersByPhoneVariants(verifiedAccountPhone);
+            rawDocs.push(...phoneMatched);
+        }
+
+        // Strict ownership check on every returned document
+        const authorizedDocs = rawDocs.filter(({ data }) => {
+            if (data.userId === uid || data.customerId === uid) return true;
+            if (verifiedEmailLower) {
+                const docEmails = [data.email, data.customerEmail, data.userEmail, data.customerDetails?.email]
+                    .map((v) => String(v || '').toLowerCase().trim())
+                    .filter(Boolean);
+                if (docEmails.includes(verifiedEmailLower)) return true;
+            }
+            if (verifiedAccountPhone) {
+                const docPhones = [data.phone, data.customerPhone, data.recipientPhone];
+                if (docPhones.some((p) => phonesMatch(p, verifiedAccountPhone))) return true;
+            }
+            return false;
+        });
+
+        const sanitized = authorizedDocs.map(({ id, data }) => sanitizeOrderForCustomerHistory(id, data));
+        const orders = dedupeAndSortHistoryOrders(sanitized);
+
+        return res.status(200).json({
+            success: true,
+            orders,
+            profilePhone: verifiedAccountPhone || ''
+        });
+    } catch (err: any) {
+        console.error('[My History Sync Error]:', err.message || err);
+        return respondWithServerError(res, err, 'Failed to synchronize account order history.');
+    }
+});
+
+const SUPPORT_CATEGORY_MAP = new Map<string, string>([
+    ['payment problem', 'Payment problem'],
+    ['order not received', 'Order not received'],
+    ['delayed delivery', 'Delayed delivery'],
+    ['wrong data bundle or service', 'Wrong data bundle or service'],
+    ['incorrect order', 'Incorrect order'],
+    ['account problem', 'Account problem'],
+    ['other enquiry', 'Other enquiry'],
+]);
+
+// REST Endpoint: Submit Support Ticket (Guest & Authenticated Customers)
+app.post('/api/support/tickets', async (req, res) => {
+    try {
+        const clientIp = getClientIpKey(req);
+        const ipLimit = checkRateLimit(`support_ticket_ip:${clientIp}`, 12, 10 * 60 * 1000);
+        if (!ipLimit.allowed) {
+            res.setHeader('Retry-After', String(ipLimit.retryAfterSec));
+            return res.status(429).json({
+                success: false,
+                error: 'Too many support requests submitted recently. Please wait a few minutes and try again.'
+            });
+        }
+
+        const authUser = await verifyRequestUser(req);
+        let profileData: any = {};
+        if (authUser) {
+            const userSnap = await serverFirestoreOps.getDoc('users', authUser.uid);
+            if (userSnap && userSnap.exists) {
+                profileData = userSnap.data() || {};
+            }
+        }
+
+        const rawCategory = String(req.body?.category || '').trim().toLowerCase();
+        const canonicalCategory = SUPPORT_CATEGORY_MAP.get(rawCategory);
+        if (!canonicalCategory) {
+            return res.status(400).json({
+                success: false,
+                field: 'category',
+                error: 'Please select a valid complaint category.'
+            });
+        }
+
+        // Compulsory Ghanaian Phone Number (from submission or verified account phone)
+        const submittedPhone = typeof req.body?.phone === 'string' ? req.body.phone.trim() : '';
+        const accountPhone = authUser
+            ? (normalizeGhanaPhone(authUser.phoneNumber) || normalizeGhanaPhone(profileData.phoneNumber) || normalizeGhanaPhone(profileData.phone) || '')
+            : '';
+        const candidatePhone = submittedPhone || accountPhone;
+        const canonicalPhone = normalizeGhanaPhone(candidatePhone);
+
+        if (!canonicalPhone) {
+            return res.status(400).json({
+                success: false,
+                field: 'phone',
+                error: 'A valid Ghanaian phone number (matching your purchase number) is required.'
+            });
+        }
+
+        // Email stored separately in its own field (NEVER merged or defaulted with phone)
+        const submittedEmail = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
+        const cleanEmail = submittedEmail || (authUser?.email ? authUser.email.trim() : '');
+        if (cleanEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+            return res.status(400).json({
+                success: false,
+                field: 'email',
+                error: 'Please enter a valid email address or leave it blank.'
+            });
+        }
+
+        const cleanMessage = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
+        if (cleanMessage.length < 10) {
+            return res.status(400).json({
+                success: false,
+                field: 'message',
+                error: 'Please describe your issue in at least 10 characters.'
+            });
+        }
+        if (cleanMessage.length > 2000) {
+            return res.status(400).json({
+                success: false,
+                field: 'message',
+                error: 'Message is too long (maximum 2000 characters).'
+            });
+        }
+
+        const cleanOrderRef = typeof req.body?.orderRef === 'string' ? req.body.orderRef.trim().slice(0, 80) : '';
+        const cleanCustomerName = typeof req.body?.customerName === 'string'
+            ? req.body.customerName.trim().slice(0, 80)
+            : (profileData.fullName || profileData.displayName || (authUser ? 'Registered Customer' : `Guest (${canonicalPhone})`));
+
+        const rawIdempKey = typeof req.body?.idempotencyKey === 'string' ? req.body.idempotencyKey.trim().slice(0, 100) : '';
+        const deterministicId = rawIdempKey
+            ? `tkt_${crypto.createHash('sha256').update(rawIdempKey).digest('hex').slice(0, 20)}`
+            : serverFirestoreOps.generateDocId('complaints');
+
+        if (rawIdempKey) {
+            const existingById = await serverFirestoreOps.getDoc('complaints', deterministicId);
+            const existingByField = existingById && existingById.exists
+                ? existingById
+                : await serverFirestoreOps.queryByField('complaints', 'idempotencyKey', rawIdempKey);
+            if (existingByField && existingByField.exists) {
+                const exData = existingByField.data();
+                return res.status(200).json({
+                    success: true,
+                    deduplicated: true,
+                    ticketId: existingByField.id,
+                    ticketRef: exData.ticketRef || existingByField.id,
+                    ticket: {
+                        id: existingByField.id,
+                        ticketRef: exData.ticketRef || existingByField.id,
+                        category: exData.category,
+                        phone: exData.phone,
+                        email: exData.email || '',
+                        orderRef: exData.orderRef || '',
+                        status: exData.status || 'open',
+                    }
+                });
+            }
+        }
+
+        const ticketRef = rawIdempKey
+            ? `TKT-${crypto.createHash('sha256').update(rawIdempKey).digest('hex').slice(0, 6).toUpperCase()}`
+            : `TKT-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+
+        const subjectLine = `[${canonicalCategory}]${cleanOrderRef ? ` (${cleanOrderRef})` : ''}`;
+
+        const complaintDoc: any = {
+            id: deterministicId,
+            ticketRef,
+            userId: authUser ? authUser.uid : `guest_${canonicalPhone}`,
+            isGuest: !authUser,
+            userName: cleanCustomerName,
+            phone: canonicalPhone,
+            userPhone: canonicalPhone,
+            email: cleanEmail,
+            userEmail: cleanEmail,
+            category: canonicalCategory,
+            subject: subjectLine,
+            orderRef: cleanOrderRef,
+            orderId: cleanOrderRef,
+            message: cleanMessage,
+            status: 'open',
+            ...(rawIdempKey ? { idempotencyKey: rawIdempKey } : {}),
+            createdAt: AdminFieldValue.serverTimestamp(),
+            updatedAt: AdminFieldValue.serverTimestamp(),
+        };
+
+        const saved = await serverFirestoreOps.setDoc('complaints', deterministicId, complaintDoc, false);
+        if (!saved) {
+            return res.status(500).json({
+                success: false,
+                error: 'Could not save your support ticket right now. Please try again.'
+            });
+        }
+
+        return res.status(201).json({
+            success: true,
+            ticketId: deterministicId,
+            ticketRef,
+            ticket: {
+                id: deterministicId,
+                ticketRef,
+                category: canonicalCategory,
+                phone: canonicalPhone,
+                email: cleanEmail,
+                orderRef: cleanOrderRef,
+                message: cleanMessage,
+                status: 'open',
+                isGuest: !authUser,
+                createdAtIso: new Date().toISOString()
+            }
+        });
+    } catch (err: any) {
+        console.error('[Support Ticket Error]:', err.message || err);
+        return respondWithServerError(res, err, 'An unexpected error occurred while submitting your support ticket.');
+    }
+});
+
+// REST Endpoint: Admin Support Tickets List (Strict Admin Authorization)
+app.get('/api/admin/support/tickets', async (req, res) => {
+    try {
+        const authUser = await verifyRequestUser(req);
+        if (!authUser) {
+            return res.status(401).json({ success: false, error: 'Authentication required' });
+        }
+        if (!authUser.emailVerified || !ADMIN_EMAILS_LIST.includes(authUser.email.toLowerCase().trim())) {
+            return res.status(403).json({ success: false, error: 'Admin authorization required' });
+        }
+
+        const docs = await serverFirestoreOps.listCollection('complaints', 300);
+        const tickets = docs
+            .map((d) => {
+                const data = d.data();
+                const createdAtMs = extractTimestampMs(data.createdAt);
+                return {
+                    id: d.id,
+                    ticketRef: data.ticketRef || `TKT-${d.id.slice(-6).toUpperCase()}`,
+                    phone: data.phone || data.userPhone || '',
+                    email: data.email || data.userEmail || '',
+                    userName: data.userName || 'Customer',
+                    userId: data.userId || '',
+                    isGuest: Boolean(data.isGuest),
+                    category: data.category || 'General Support',
+                    subject: data.subject || '',
+                    orderRef: data.orderRef || data.orderId || '',
+                    message: data.message || '',
+                    status: data.status || 'open',
+                    adminReply: data.adminReply || '',
+                    createdAtMs,
+                    createdAtIso: createdAtMs > 0 ? new Date(createdAtMs).toISOString() : null
+                };
+            })
+            .sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
+
+        return res.status(200).json({ success: true, tickets });
+    } catch (err: any) {
+        console.error('[Admin Support List Error]:', err.message || err);
+        return respondWithServerError(res, err, 'Failed to retrieve support tickets');
+    }
+});
+
+// REST Endpoint: Admin Update Support Ticket Status (Strict Admin Authorization)
+app.patch('/api/admin/support/tickets/:ticketId', async (req, res) => {
+    try {
+        const authUser = await verifyRequestUser(req);
+        if (!authUser) {
+            return res.status(401).json({ success: false, error: 'Authentication required' });
+        }
+        if (!authUser.emailVerified || !ADMIN_EMAILS_LIST.includes(authUser.email.toLowerCase().trim())) {
+            return res.status(403).json({ success: false, error: 'Admin authorization required' });
+        }
+
+        const { ticketId } = req.params;
+        const status = String(req.body?.status || '').toLowerCase().trim();
+        if (!['open', 'in_progress', 'resolved'].includes(status)) {
+            return res.status(400).json({ success: false, error: 'Invalid ticket status' });
+        }
+
+        const existing = await serverFirestoreOps.getDoc('complaints', ticketId);
+        if (!existing || !existing.exists) {
+            return res.status(404).json({ success: false, error: 'Support ticket not found' });
+        }
+
+        const updates: any = {
+            status,
+            updatedAt: AdminFieldValue.serverTimestamp(),
+            ...(status === 'resolved' ? { resolvedAt: AdminFieldValue.serverTimestamp(), resolvedBy: authUser.email } : {})
+        };
+        if (typeof req.body?.adminReply === 'string') {
+            updates.adminReply = req.body.adminReply.trim().slice(0, 1000);
+        }
+
+        const ok = await serverFirestoreOps.updateDoc('complaints', ticketId, updates);
+        if (!ok) {
+            return res.status(500).json({ success: false, error: 'Failed to update support ticket' });
+        }
+
+        return res.status(200).json({
+            success: true,
+            id: ticketId,
+            status
+        });
+    } catch (err: any) {
+        console.error('[Admin Support Update Error]:', err.message || err);
+        return respondWithServerError(res, err, 'Failed to update support ticket');
     }
 });
 
@@ -882,25 +1669,21 @@ app.get('/api/agent-store/:slug', async (req, res) => {
             return res.status(400).json({ success: false, error: 'slug is required' });
         }
 
-        const cRef = clientCollection(serverClientDb, 'agents');
-        const q = clientQuery(cRef, clientWhere('agent_slug', '==', slug.toLowerCase().trim()), clientLimit(1));
-        let snap = await clientGetDocs(q);
-
-        if (snap.empty) {
-            const qExact = clientQuery(cRef, clientWhere('agent_slug', '==', slug.trim()), clientLimit(1));
-            snap = await clientGetDocs(qExact);
+        let matched = await serverFirestoreOps.queryByField('agents', 'agent_slug', slug.toLowerCase().trim());
+        if (!matched || !matched.exists) {
+            matched = await serverFirestoreOps.queryByField('agents', 'agent_slug', slug.trim());
         }
 
-        if (snap.empty) {
+        if (!matched || !matched.exists) {
             return res.status(404).json({ success: false, error: 'Agent storefront not found' });
         }
 
-        const docData = snap.docs[0].data();
+        const docData = matched.data();
         // Strict data sanitization: strictly NO momo_number, momo_name, or profit_balance returned
         return res.json({
             success: true,
             agent: {
-                id: snap.docs[0].id,
+                id: matched.id,
                 agent_name: docData.agent_name,
                 agent_slug: docData.agent_slug,
                 prices: docData.prices || {}
@@ -908,7 +1691,7 @@ app.get('/api/agent-store/:slug', async (req, res) => {
         });
     } catch (err: any) {
         console.error('[Agent Store Error]:', err.message || err);
-        return res.status(500).json({ success: false, error: 'Failed to fetch agent store' });
+        return respondWithServerError(res, err, 'Failed to fetch agent store');
     }
 });
 
@@ -922,6 +1705,9 @@ async function handlePaystackInitialize(req: express.Request, res: express.Respo
 
         let finalAmountPesewas = amount ? Math.round(Number(amount)) : 0;
         let bookingCodeDoc: any = null;
+
+        const authUser = await verifyRequestUser(req);
+        const effectiveUserId = authUser?.uid || userId || "";
 
         // If this is a booking code purchase, verify booking code from Firestore securely
         if (bookingCodeId) {
@@ -953,7 +1739,7 @@ async function handlePaystackInitialize(req: express.Request, res: express.Respo
                 await setFirestoreDoc('orders', reference, {
                     id: reference,
                     reference,
-                    userId: userId || "",
+                    ...(effectiveUserId ? { userId: effectiveUserId } : {}),
                     customerName: customerName || "Royal Customer",
                     email: email,
                     phone: customerPhone || "",
@@ -968,10 +1754,13 @@ async function handlePaystackInitialize(req: express.Request, res: express.Respo
                     status: "pending",
                     paymentStatus: "pending",
                     paymentMethod: "Paystack",
-                    createdAt: clientServerTimestamp(),
-                    updatedAt: clientServerTimestamp(),
+                    createdAt: AdminFieldValue.serverTimestamp(),
+                    updatedAt: AdminFieldValue.serverTimestamp(),
                 }, true);
             } catch (fsErr: any) {
+                if (isFirebaseCredentialError(fsErr)) {
+                    return respondWithServerError(res, fsErr, 'Payment initialization temporarily unavailable');
+                }
                 console.warn("[Paystack Init] Firestore booking code check notice:", fsErr.message);
             }
         }
@@ -1006,13 +1795,12 @@ async function handlePaystackInitialize(req: express.Request, res: express.Respo
                 const efCoinAmount = efootballProductDoc?.coinAmount || metadata?.coinAmount || 0;
                 const efProductName = efootballProductDoc?.name || metadata?.productName || "eFootball Coins";
 
-                const efPayload = {
+                const efPayload: any = {
                     id: reference,
                     orderId: efOrderId,
                     reference: reference,
                     paystackReference: reference,
-                    userId: userId || "",
-                    customerId: userId || "",
+                    ...(effectiveUserId ? { userId: effectiveUserId, customerId: effectiveUserId } : {}),
                     customerName: customerName || metadata?.customerName || "Customer",
                     customerEmail: email,
                     email: email,
@@ -1038,14 +1826,17 @@ async function handlePaystackInitialize(req: express.Request, res: express.Respo
                     adminStatus: "AWAITING_FULFILLMENT",
                     paymentMethod: "Paystack",
                     payment_provider: "paystack",
-                    createdAt: clientServerTimestamp(),
-                    updatedAt: clientServerTimestamp(),
+                    createdAt: AdminFieldValue.serverTimestamp(),
+                    updatedAt: AdminFieldValue.serverTimestamp(),
                 };
 
                 await setFirestoreDoc('efootballOrders', reference, efPayload, true);
                 await setFirestoreDoc('orders', reference, efPayload, true);
                 console.log(`[Paystack Init] Registered eFootball Order ${efOrderId} (${reference}) for ${email}, amount: GH¢${orderAmount}`);
             } catch (efFsErr: any) {
+                if (isFirebaseCredentialError(efFsErr)) {
+                    return respondWithServerError(res, efFsErr, 'Payment initialization temporarily unavailable');
+                }
                 console.warn("[Paystack Init] Firestore efootball order check notice:", efFsErr.message);
             }
         }
@@ -1085,14 +1876,13 @@ async function handlePaystackInitialize(req: express.Request, res: express.Respo
                 const recipientPhone = req.body.recipientPhone || metadata?.recipientPhone || customerPhone || "";
                 const airtimeNetwork = "MTN";
 
-                const airtimePayload = {
+                const airtimePayload: any = {
                     id: reference,
                     orderId: reference,
                     reference: reference,
                     referenceCode: reference,
                     paystackReference: reference,
-                    userId: userId || "",
-                    customerId: userId || "",
+                    ...(effectiveUserId ? { userId: effectiveUserId, customerId: effectiveUserId } : {}),
                     customerName: customerName || metadata?.customerName || "Customer",
                     customerEmail: email,
                     email: email,
@@ -1114,13 +1904,16 @@ async function handlePaystackInitialize(req: express.Request, res: express.Respo
                     paymentStatus: "pending",
                     paymentMethod: "Paystack",
                     payment_provider: "paystack",
-                    createdAt: clientServerTimestamp(),
-                    updatedAt: clientServerTimestamp(),
+                    createdAt: AdminFieldValue.serverTimestamp(),
+                    updatedAt: AdminFieldValue.serverTimestamp(),
                 };
 
                 await setFirestoreDoc('orders', reference, airtimePayload, true);
                 console.log(`[Paystack Init] Registered Airtime Order ${reference} for ${recipientPhone}, airtime: GH¢${rawAirtimeAmount}, fee: GH¢${serviceCharge}, total: GH¢${authoritativeTotalGHS}`);
             } catch (airtimeFsErr: any) {
+                if (isFirebaseCredentialError(airtimeFsErr)) {
+                    return respondWithServerError(res, airtimeFsErr, 'Payment initialization temporarily unavailable');
+                }
                 console.warn("[Paystack Init] Firestore airtime check notice:", airtimeFsErr.message);
             }
         }
@@ -1202,7 +1995,7 @@ async function handlePaystackInitialize(req: express.Request, res: express.Respo
                             hiddenFee: existingHiddenFee,
                             finalPrice: updatedFinalAmount,
                             amount: updatedFinalAmount,
-                            updatedAt: clientServerTimestamp(),
+                            updatedAt: AdminFieldValue.serverTimestamp(),
                         });
                         console.log(`[Paystack Init] Verified Fast Delivery ⚡ (${verifiedResult.fastDeliveryType}) for order ${reference}, fee: GH¢${verifiedResult.fastDeliveryFee}`);
                     } else if (existingOrder.fastDelivery && rawBasePrice > 0) {
@@ -1215,7 +2008,7 @@ async function handlePaystackInitialize(req: express.Request, res: express.Respo
                             hiddenFee: existingHiddenFee,
                             finalPrice: updatedFinalAmount,
                             amount: updatedFinalAmount,
-                            updatedAt: clientServerTimestamp(),
+                            updatedAt: AdminFieldValue.serverTimestamp(),
                         });
                     }
                 }
@@ -1236,7 +2029,7 @@ async function handlePaystackInitialize(req: express.Request, res: express.Respo
                             fastDeliveryFee: verifiedAgentResult.fastDeliveryFee,
                             basePrice: verifiedAgentResult.basePrice,
                             finalPrice: verifiedAgentResult.finalPrice,
-                            updatedAt: clientServerTimestamp(),
+                            updatedAt: AdminFieldValue.serverTimestamp(),
                         });
                         console.log(`[Paystack Init] Verified Fast Delivery ⚡ (agent) for agent_order ${reference}, fee: GH¢${verifiedAgentResult.fastDeliveryFee}`);
                     } else if (existingAgentOrder.fastDelivery) {
@@ -1246,12 +2039,15 @@ async function handlePaystackInitialize(req: express.Request, res: express.Respo
                             fastDeliveryFee: 0,
                             basePrice: verifiedAgentResult.basePrice,
                             finalPrice: verifiedAgentResult.basePrice,
-                            updatedAt: clientServerTimestamp(),
+                            updatedAt: AdminFieldValue.serverTimestamp(),
                         });
                     }
                 }
             }
         } catch (fdErr: any) {
+            if (isFirebaseCredentialError(fdErr)) {
+                return respondWithServerError(res, fdErr, 'Payment initialization temporarily unavailable');
+            }
             console.warn("[Paystack Init] Fast delivery verification notice:", fdErr.message);
         }
         
@@ -1386,13 +2182,13 @@ async function updateFirestoreOrderPaymentStatus(
                     isAgentOrder: true
                 } : {}),
                 ...(extraMeta || {}),
-                updatedAt: clientServerTimestamp()
+                updatedAt: AdminFieldValue.serverTimestamp()
             });
             console.log(`[Server Firestore] Updated order ${targetId} to status: ${newStatus}`);
 
             // Instantly grant Agent Access if this was an Agent Unlock order and payment is successful
             if (paymentStatus === "success" && orderData?.bundle === "AGENT ACCESS UNLOCK" && orderData?.userId) {
-                await updateFirestoreDoc('users', orderData.userId, { isAgent: true });
+                await updateFirestoreDoc('users', orderData.userId, { isAgent: true, updatedAt: AdminFieldValue.serverTimestamp() });
                 console.log(`[Server Firestore] Successfully unlocked Agent Access for user: ${orderData.userId}`);
             }
         } else if (agentData && paymentStatus === "success") {
@@ -1425,8 +2221,8 @@ async function updateFirestoreOrderPaymentStatus(
                     finalPrice: Number(agentData.finalPrice || agentData.amount || agentData.agent_price || 0),
                 } : {}),
                 ...(extraMeta || {}),
-                createdAt: agentData.created_at || clientServerTimestamp(),
-                updatedAt: clientServerTimestamp()
+                createdAt: agentData.created_at || AdminFieldValue.serverTimestamp(),
+                updatedAt: AdminFieldValue.serverTimestamp()
             }, true);
             console.log(`[Server Firestore] Reconstructed order ${targetId} from agent_orders doc`);
         } else {
@@ -1477,16 +2273,18 @@ async function updateFirestoreOrderPaymentStatus(
                         status: newEfStatus,
                         fulfillmentStatus: newFulfillmentStatus,
                         adminStatus: newFulfillmentStatus,
-                        ...(paymentStatus === "success" && !efData?.paidAt ? { paidAt: clientServerTimestamp() } : {}),
-                        updatedAt: clientServerTimestamp()
+                        ...(paymentStatus === "success" && !efData?.paidAt ? { paidAt: AdminFieldValue.serverTimestamp() } : {}),
+                        updatedAt: AdminFieldValue.serverTimestamp()
                     });
                     console.log(`[Server Firestore] Successfully updated efootballOrders document ${targetId} to paymentStatus: ${newEfPaymentStatus}`);
                 }
             }
         } catch (efErr: any) {
+            if (isFirebaseCredentialError(efErr)) throw efErr;
             console.warn('[Server Firestore] efootballOrders update notice:', efErr?.message);
         }
     } catch (err: any) {
+        if (isFirebaseCredentialError(err)) throw err;
         console.log('[Server Firestore] Notice: Update of Firestore status was not completed:', err.message || err);
     }
 }
@@ -1751,7 +2549,7 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
                     status: "failed",
                     amountPaid: amountInMainCurrency,
                     failureReason: `Underpayment: paid ${amountInMainCurrency} GHS, expected ${existingData.amount} GHS`,
-                    updatedAt: clientServerTimestamp()
+                    updatedAt: AdminFieldValue.serverTimestamp()
                 });
                 return res.status(400).json({
                     success: false,
@@ -1790,18 +2588,28 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
                 }
             }
             if (existingData) {
-                await creditReferralIfEligible(resolvedId, existingData);
+                const reqRefBy = req.body?.referredBy ? String(req.body.referredBy).trim().toUpperCase() : '';
+                await creditReferralIfEligible(resolvedId, {
+                    ...existingData,
+                    referredBy: existingData.referredBy || reqRefBy
+                });
             }
+            const alreadyUnlockedAgent = Boolean(existingData?.bundle === "AGENT ACCESS UNLOCK" && existingData?.userId);
             return res.json({
                 success: true,
                 message: "Order already verified and processed ✅",
                 verified: true,
+                ...(alreadyUnlockedAgent ? { unlockedAgent: true } : {}),
                 ...(revealedBookingCode ? { serviceType: "booking_code", bookingCode: revealedBookingCode } : {}),
                 data: paystackData
             });
         }
 
         console.log(`[Paystack Backend Success] Reference ${reference} verified! Customer: ${customerEmail || 'Guest'}`);
+
+        const reqUser = await verifyRequestUser(req);
+        const reqReferredBy = req.body?.referredBy ? String(req.body.referredBy).trim().toUpperCase() : '';
+        let unlockedAgent = false;
 
         // Update/Save verified order details in Firestore
         try {
@@ -1840,7 +2648,7 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
                     await setFirestoreDoc('booking_code_purchases', resolvedId, {
                         id: resolvedId,
                         bookingCodeId: bcSnap.id,
-                        userId: existingData?.userId || req.body?.userId || "",
+                        userId: existingData?.userId || reqUser?.uid || req.body?.userId || "",
                         customerName: customerName || existingData?.customerName || "Royal Customer",
                         customerEmail: customerEmail || existingData?.email || "",
                         customerPhone: customerPhone || existingData?.phone || "",
@@ -1853,8 +2661,8 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
                         paymentReference: reference,
                         status: "paid",
                         verifiedByBackend: true,
-                        createdAt: clientServerTimestamp(),
-                        verifiedAt: clientServerTimestamp()
+                        createdAt: AdminFieldValue.serverTimestamp(),
+                        verifiedAt: AdminFieldValue.serverTimestamp()
                     }, true);
 
                     await incrementBookingCodePurchases(bcSnap.id);
@@ -1873,6 +2681,7 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
                 paymentReference: reference,
                 currency,
                 ...(amountInMainCurrency > 0 ? { amountPaid: amountInMainCurrency } : {}),
+                ...(!existingData?.referredBy && reqReferredBy ? { referredBy: reqReferredBy } : {}),
                 customerDetails: {
                     email: customerEmail,
                     name: customerName,
@@ -1888,7 +2697,7 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
                 } : {}),
                 paymentTimestamp,
                 verifiedByBackend: true,
-                updatedAt: clientServerTimestamp()
+                updatedAt: AdminFieldValue.serverTimestamp()
             };
 
             if (resolvedOrder.snap && resolvedOrder.snap.exists) {
@@ -1896,15 +2705,24 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
                 console.log(`[Server Firestore] Order ${resolvedId} updated to paymentStatus: success (status: ${preservedStatus})`);
 
                 if (existingData?.bundle === "AGENT ACCESS UNLOCK" && existingData?.userId) {
-                    await updateFirestoreDoc('users', existingData.userId, { isAgent: true });
+                    await updateFirestoreDoc('users', existingData.userId, { isAgent: true, updatedAt: AdminFieldValue.serverTimestamp() });
+                    unlockedAgent = true;
                     console.log(`[Server Firestore] Unlocked Agent Access for user: ${existingData.userId}`);
                 }
-                await creditReferralIfEligible(resolvedId, existingData);
+                await creditReferralIfEligible(resolvedId, {
+                    ...existingData,
+                    referredBy: existingData?.referredBy || reqReferredBy
+                });
             } else {
+                const newUserId = reqUser?.uid || '';
                 await setFirestoreDoc('orders', resolvedId, {
                     id: resolvedId,
                     reference: resolvedId,
-                    createdAt: clientServerTimestamp(),
+                    ...(newUserId ? { userId: newUserId } : {}),
+                    email: customerEmail,
+                    phone: customerPhone,
+                    customerName: customerName || "Customer",
+                    createdAt: AdminFieldValue.serverTimestamp(),
                     ...orderPayload
                 }, true);
                 console.log(`[Server Firestore] Created new verified order ${resolvedId} in Firestore`);
@@ -1951,10 +2769,11 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
                         status: "delivered",
                         paymentStatus: "success",
                         ...(revealedBookingCode ? { bookingCode: revealedBookingCode.code } : {}),
-                        updatedAt: clientServerTimestamp()
+                        updatedAt: AdminFieldValue.serverTimestamp()
                     }, true);
                 }
             } catch (bcoErr: any) {
+                if (isFirebaseCredentialError(bcoErr)) throw bcoErr;
                 console.warn(`[Server Firestore] booking_code_orders update notice for ${resolvedId}:`, bcoErr?.message);
             }
 
@@ -1968,17 +2787,19 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
                         status: ACTIVE_FULFILLMENT_STATUSES.has(String(efData?.status || '').toLowerCase()) ? efData.status : "paid",
                         fulfillmentStatus: efData?.fulfillmentStatus === "DELIVERED" ? "DELIVERED" : "AWAITING_FULFILLMENT",
                         adminStatus: efData?.fulfillmentStatus === "DELIVERED" ? "DELIVERED" : "AWAITING_FULFILLMENT",
-                        paidAt: efData?.paidAt || clientServerTimestamp(),
+                        paidAt: efData?.paidAt || AdminFieldValue.serverTimestamp(),
                         payment_provider: "paystack",
                         paymentMethod: "Paystack",
-                        updatedAt: clientServerTimestamp()
+                        updatedAt: AdminFieldValue.serverTimestamp()
                     });
                     console.log(`[Server Firestore] efootballOrders document ${resolvedId} verified as PAID`);
                 }
             } catch (efVerifyErr: any) {
+                if (isFirebaseCredentialError(efVerifyErr)) throw efVerifyErr;
                 console.warn(`[Server Firestore] efootballOrders verify update notice for ${resolvedId}:`, efVerifyErr?.message);
             }
         } catch (fsErr: any) {
+            if (isFirebaseCredentialError(fsErr)) throw fsErr;
             console.error(`[Server Firestore] Update notice for reference ${reference}:`, fsErr.message);
         }
 
@@ -1986,6 +2807,7 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
             success: true,
             message: "Payment Verified Successfully ✅",
             verified: true,
+            ...(unlockedAgent ? { unlockedAgent: true } : {}),
             ...(revealedBookingCode ? {
                 serviceType: "booking_code",
                 bookingCode: revealedBookingCode
@@ -2032,7 +2854,7 @@ app.post('/api/booking-codes/reveal', async (req, res) => {
         const purchaseSnap = await getFirestoreDoc('booking_code_purchases', reference);
         if (purchaseSnap && purchaseSnap.exists) {
             const purchaseData = purchaseSnap.data();
-            if (purchaseData?.status === 'paid' && purchaseData?.code) {
+            if ((purchaseData?.status === 'paid' || purchaseData?.status === 'completed') && purchaseData?.code) {
                 return res.json({
                     success: true,
                     verified: true,
@@ -2052,6 +2874,9 @@ app.post('/api/booking-codes/reveal', async (req, res) => {
         // Otherwise verify directly with Paystack
         return handlePaystackVerificationRequest(req, res);
     } catch (err: any) {
+        if (isFirebaseCredentialError(err)) {
+            return respondWithServerError(res, err, 'Unable to reveal booking code right now');
+        }
         return res.status(400).json({ success: false, error: 'Unable to reveal code.' });
     }
 });
@@ -2128,7 +2953,7 @@ app.post('/api/paystack-webhook', async (req, res) => {
                             status: 'failed',
                             amountPaid: amountInGHS,
                             failureReason: `Underpayment: paid ${amountInGHS} GHS, expected ${expectedAmount} GHS`,
-                            updatedAt: clientServerTimestamp()
+                            updatedAt: AdminFieldValue.serverTimestamp()
                         });
                         return res.status(400).json({ status: false, message: 'Underpayment rejected' });
                     }
@@ -2140,7 +2965,7 @@ app.post('/api/paystack-webhook', async (req, res) => {
                     paymentMethod: resolvedPaymentMethod,
                     paymentReference: String(reference),
                     amountPaid: amountInGHS,
-                    paidAt: existingOrder?.paidAt || clientServerTimestamp(),
+                    paidAt: existingOrder?.paidAt || AdminFieldValue.serverTimestamp(),
                     verifiedByWebhook: true,
                 });
 
@@ -2181,25 +3006,1102 @@ app.post('/api/paystack-webhook', async (req, res) => {
         return res.status(200).json({ status: true, message: 'Webhook processed' });
     } catch (err: any) {
         console.error('[Paystack Webhook Exception]:', err.message || err);
-        return res.status(500).json({ status: false, error: err.message || 'Internal webhook error' });
+        return respondWithServerError(res, err, 'Internal webhook error');
     }
 });
 
-// Firebase ID Token Verification Helper
-async function verifyFirebaseIdToken(authHeader?: string) {
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return null;
-    }
-    const token = authHeader.split('Bearer ')[1]?.trim();
-    if (!token) return null;
+// ============================================================================
+// MIGRATED SECURE STOREFRONT & ACCOUNT ENDPOINTS (Firebase Admin SDK)
+// ============================================================================
+
+// 1. Confirm Manual MoMo Payment (Token OR Authenticated Owner)
+app.post('/api/orders/:orderId/momo-confirm', async (req, res) => {
     try {
-        const decodedToken = await admin.auth().verifyIdToken(token);
-        return decodedToken;
+        const { orderId } = req.params;
+        if (!orderId) {
+            return res.status(400).json({ success: false, error: 'orderId is required' });
+        }
+
+        const orderSnap = await getFirestoreDoc('orders', orderId);
+        if (!orderSnap || !orderSnap.exists) {
+            return res.status(404).json({ success: false, error: 'Order not found' });
+        }
+
+        const data = orderSnap.data();
+        const token = String(req.body?.orderAccessToken || req.headers['x-order-token'] || req.query?.token || '').trim();
+        const isAuthorizedByToken = Boolean(token && data.orderAccessToken && token === data.orderAccessToken);
+        const authUser = !isAuthorizedByToken ? await verifyRequestUser(req) : null;
+        const isAuthorizedOwner = Boolean(
+            authUser && (
+                data.userId === authUser.uid ||
+                (authUser.email && data.email && String(data.email).toLowerCase().trim() === authUser.email.toLowerCase().trim())
+            )
+        );
+
+        if (!isAuthorizedByToken && !isAuthorizedOwner) {
+            return res.status(403).json({ success: false, error: 'Unauthorized to confirm this order' });
+        }
+
+        const currentStatus = String(data.status || '').toLowerCase().trim();
+        if (!['pending', 'pending_verification'].includes(currentStatus)) {
+            return res.status(409).json({
+                success: false,
+                error: 'Order is no longer awaiting payment confirmation'
+            });
+        }
+
+        const momoTransactionId = typeof req.body?.momoTransactionId === 'string'
+            ? req.body.momoTransactionId.trim().slice(0, 64)
+            : '';
+
+        await updateFirestoreDoc('orders', orderId, {
+            momoSentClicked: true,
+            userConfirmedAt: AdminFieldValue.serverTimestamp(),
+            ...(momoTransactionId ? { momoTransactionId } : {}),
+            updatedAt: AdminFieldValue.serverTimestamp(),
+        });
+
+        return res.status(200).json({ success: true, orderId });
     } catch (err: any) {
-        console.log('[Firebase Auth] Token verification notice:', err.message);
-        return null;
+        console.error('[MoMo Confirm Error]:', err.message || err);
+        return respondWithServerError(res, err, 'Failed to confirm MoMo payment');
     }
+});
+
+// 2. MTN Airtime Order Creation (Authenticated, Authoritative Pricing)
+const MTN_AIRTIME_PREFIXES = new Set(['024', '025', '053', '054', '055', '059']);
+app.post('/api/airtime/orders', async (req, res) => {
+    try {
+        const authUser = await verifyRequestUser(req);
+        if (!authUser) {
+            return res.status(401).json({ success: false, error: 'Authentication required to purchase airtime.' });
+        }
+
+        const canonicalPhone = normalizeGhanaPhone(req.body?.recipientPhone);
+        if (!canonicalPhone || !MTN_AIRTIME_PREFIXES.has(canonicalPhone.slice(0, 3))) {
+            return res.status(400).json({
+                success: false,
+                error: 'Airtime is available exclusively for valid 10-digit MTN numbers (024, 025, 053, 054, 055, 059).'
+            });
+        }
+
+        const airtimeAmount = Number(req.body?.airtimeAmount);
+        if (!Number.isFinite(airtimeAmount) || airtimeAmount < 1) {
+            return res.status(400).json({
+                success: false,
+                error: 'Please enter a valid airtime amount of at least GH₵1.00.'
+            });
+        }
+
+        let airtimeSettings: any = { enabled: true, serviceCharge: 1.00 };
+        const airtimeSettingsSnap = await getFirestoreDoc('settings', 'airtime');
+        if (airtimeSettingsSnap && airtimeSettingsSnap.exists) {
+            airtimeSettings = { ...airtimeSettings, ...airtimeSettingsSnap.data() };
+        }
+        if (airtimeSettings.enabled === false) {
+            return res.status(400).json({
+                success: false,
+                error: 'Airtime service is currently unavailable. Please check back shortly.'
+            });
+        }
+
+        const serviceCharge = typeof airtimeSettings.serviceCharge === 'number' && airtimeSettings.serviceCharge >= 0
+            ? Number(airtimeSettings.serviceCharge)
+            : 1.00;
+        const authoritativeTotalGHS = Number((airtimeAmount + serviceCharge).toFixed(2));
+
+        const userSnap = await getFirestoreDoc('users', authUser.uid);
+        const userData = userSnap && userSnap.exists ? userSnap.data() : {};
+        const customerEmail = authUser.email || userData?.email || `${canonicalPhone}@customer.dataghananow.site`;
+        const customerName = userData?.fullName || userData?.displayName || `Customer (${canonicalPhone})`;
+
+        const orderId = `DGN-AIRTIME-${Date.now()}-${crypto.randomInt(1000, 9999)}`;
+        const orderAccessToken = crypto.randomBytes(32).toString('hex');
+
+        const orderPayload = {
+            id: orderId,
+            orderId,
+            reference: orderId,
+            referenceCode: orderId,
+            paystackReference: orderId,
+            orderAccessToken,
+            userId: authUser.uid,
+            customerId: authUser.uid,
+            customerName,
+            email: customerEmail,
+            customerEmail,
+            phone: canonicalPhone,
+            customerPhone: canonicalPhone,
+            recipientPhone: canonicalPhone,
+            network: 'MTN',
+            recipientNetwork: 'MTN',
+            bundle: `MTN Airtime - GH₵${airtimeAmount.toFixed(2)}`,
+            bundleName: `MTN Airtime - GH₵${airtimeAmount.toFixed(2)}`,
+            category: 'Airtime',
+            serviceType: 'airtime',
+            airtimeAmount,
+            serviceFee: serviceCharge,
+            amount: authoritativeTotalGHS,
+            amountSent: authoritativeTotalGHS,
+            currency: 'GHS',
+            status: 'pending',
+            paymentStatus: 'pending',
+            paymentMethod: 'Paystack',
+            payment_provider: 'paystack',
+            createdAt: AdminFieldValue.serverTimestamp(),
+            updatedAt: AdminFieldValue.serverTimestamp(),
+        };
+
+        await setFirestoreDoc('orders', orderId, orderPayload, false);
+
+        return res.status(200).json({
+            success: true,
+            orderId,
+            reference: orderId,
+            orderAccessToken,
+            amount: authoritativeTotalGHS,
+            airtimeAmount,
+            serviceFee: serviceCharge,
+            customerEmail,
+            customerName,
+            recipientPhone: canonicalPhone,
+        });
+    } catch (err: any) {
+        console.error('[Airtime Order Create Error]:', err.message || err);
+        return respondWithServerError(res, err, 'Failed to create airtime order');
+    }
+});
+
+// 3. Results Checker Order Creation (Authenticated, Authoritative Pricing + Hidden Charges + Agent Context)
+app.post('/api/result-checker/orders', async (req, res) => {
+    try {
+        const authUser = await verifyRequestUser(req);
+        if (!authUser) {
+            return res.status(401).json({ success: false, error: 'Authentication required to purchase Results Checker.' });
+        }
+
+        const examType = String(req.body?.examType || '').trim().toUpperCase();
+        if (!['WASSCE', 'BECE', 'NOVDEC'].includes(examType)) {
+            return res.status(400).json({ success: false, error: 'Invalid exam type.' });
+        }
+
+        const quantity = Math.floor(Number(req.body?.quantity));
+        if (!Number.isFinite(quantity) || quantity < 1 || quantity > 100) {
+            return res.status(400).json({ success: false, error: 'Please select a valid quantity (1 - 100).' });
+        }
+
+        const phoneClean = String(req.body?.phone || '').replace(/\s+/g, '').replace(/[^0-9]/g, '');
+        if (!/^\d{10,15}$/.test(phoneClean)) {
+            return res.status(400).json({ success: false, error: 'Please enter a valid mobile number (10 - 15 digits).' });
+        }
+
+        const paymentMethod = req.body?.paymentMethod === 'momo_direct' ? 'momo_direct' : 'paystack';
+        const agentContextId = req.body?.agentContextId ? String(req.body.agentContextId).trim() : '';
+
+        // Read authoritative settings/results_checker
+        const rcSnap = await getFirestoreDoc('settings', 'results_checker');
+        const rcData = rcSnap && rcSnap.exists ? rcSnap.data() : {};
+        const isOutOfStock = rcData.inStock === false || rcData.isOutOfStock === true || rcData.outOfStock === true;
+        if (isOutOfStock) {
+            return res.status(400).json({ success: false, error: 'WAEC Results Checker is currently out of stock.' });
+        }
+
+        const rcWholesalePrice = typeof rcData.wholesalePrice === 'number' ? Number(rcData.wholesalePrice) : 19;
+        const retailUnitPrice = typeof rcData.pricePerChecker === 'number' ? Number(rcData.pricePerChecker) : 25;
+
+        // Hidden charges
+        const hcSnap = await getFirestoreDoc('settings', 'hidden_charges');
+        const hcData = hcSnap && hcSnap.exists ? hcSnap.data() : {};
+        const agentStoreCharge = typeof hcData.agentStoreCharge === 'number' ? Number(hcData.agentStoreCharge) : 0;
+        const retailRCCharge = typeof hcData.retailResultsCheckerCharge === 'number'
+            ? Number(hcData.retailResultsCheckerCharge)
+            : (typeof hcData.resultsCheckerCharge === 'number' ? Number(hcData.resultsCheckerCharge) : 0);
+        const wholesaleRCCharge = typeof hcData.wholesaleResultsCheckerCharge === 'number'
+            ? Number(hcData.wholesaleResultsCheckerCharge)
+            : 0;
+
+        // Check agent context or user's own agent status
+        const userSnap = await getFirestoreDoc('users', authUser.uid);
+        const userData = userSnap && userSnap.exists ? userSnap.data() : {};
+        const isAgentUser = Boolean(userData?.isAgent);
+
+        let agentDoc: any = null;
+        if (agentContextId) {
+            const agentSnap = await getFirestoreDoc('agents', agentContextId);
+            if (agentSnap && agentSnap.exists) {
+                agentDoc = { id: agentSnap.id, ...agentSnap.data() };
+            }
+        }
+
+        let unitPrice = retailUnitPrice;
+        if (agentDoc) {
+            const customAgentRcPrice = agentDoc.prices?.results_checker;
+            unitPrice = (typeof customAgentRcPrice === 'number' && customAgentRcPrice >= rcWholesalePrice)
+                ? Number(customAgentRcPrice)
+                : rcWholesalePrice;
+        } else if (isAgentUser) {
+            unitPrice = rcWholesalePrice;
+        }
+
+        const isWholesaleRC = Boolean(agentDoc || isAgentUser);
+        const unitSurcharge = isWholesaleRC ? wholesaleRCCharge : retailRCCharge;
+        const baseTotal = Number((quantity * unitPrice).toFixed(2));
+        const rcSurcharge = Number((unitSurcharge * quantity).toFixed(2));
+        const agentStoreSurcharge = agentDoc ? agentStoreCharge : 0;
+        const finalAmountToCharge = Number((baseTotal + rcSurcharge + agentStoreSurcharge).toFixed(2));
+
+        const customerEmail = authUser.email || userData?.email || (phoneClean ? `${phoneClean}@customer.dataghananow.com` : 'customer@dataghananow.com');
+        const customerName = userData?.fullName || userData?.displayName || (phoneClean ? `Customer (${phoneClean})` : 'Royal Customer');
+        const momoNumber = agentDoc?.momo_number ? String(agentDoc.momo_number).trim() : '0535884851';
+
+        const orderId = serverFirestoreOps.generateDocId('orders');
+        const orderAccessToken = crypto.randomBytes(32).toString('hex');
+        const isMoMo = paymentMethod === 'momo_direct';
+
+        const profitOwnerId = agentDoc ? agentDoc.id : (isAgentUser ? authUser.uid : null);
+        const profitOwnerName = agentDoc ? (agentDoc.agent_name || 'Agent') : (isAgentUser ? customerName : null);
+
+        const orderData: any = {
+            id: orderId,
+            orderAccessToken,
+            email: customerEmail,
+            serviceType: 'Results Checker',
+            examType,
+            quantity,
+            amount: isMoMo ? baseTotal : finalAmountToCharge,
+            basePrice: baseTotal,
+            hiddenFee: isMoMo ? 0 : Number((rcSurcharge + agentStoreSurcharge).toFixed(2)),
+            customerPhone: phoneClean,
+            phone: phoneClean,
+            network: 'Result Checker',
+            bundle: `Results Checker (${examType}) x${quantity}`,
+            status: isMoMo ? 'pending_verification' : 'pending',
+            paymentStatus: isMoMo ? 'pending_verification' : 'pending',
+            paymentMethod,
+            createdAt: AdminFieldValue.serverTimestamp(),
+            updatedAt: AdminFieldValue.serverTimestamp(),
+            userId: authUser.uid,
+            customerName,
+            reference: isMoMo ? phoneClean : orderId,
+            ...(isMoMo ? { momoRefCode: phoneClean, momoNumber } : {}),
+            ...(isAgentUser ? { isAgentOrder: true } : {}),
+            ...(profitOwnerId ? {
+                agentId: profitOwnerId,
+                agent_id: profitOwnerId,
+                agentName: profitOwnerName,
+                agent_name: profitOwnerName,
+                wholesalePrice: Number((rcWholesalePrice * quantity).toFixed(2)),
+                wholesale_price: Number((rcWholesalePrice * quantity).toFixed(2)),
+                agentPrice: baseTotal,
+                agent_price: baseTotal,
+                profit: Math.max(0, Number(((unitPrice - rcWholesalePrice) * quantity).toFixed(2))),
+                agent_profit: Math.max(0, Number(((unitPrice - rcWholesalePrice) * quantity).toFixed(2))),
+                profit_credited: false,
+                profitAwarded: false,
+            } : {})
+        };
+
+        await setFirestoreDoc('orders', orderId, orderData, false);
+
+        if (agentDoc) {
+            await setFirestoreDoc('agent_orders', orderId, {
+                id: orderId,
+                agent_id: agentDoc.id,
+                customer_details: {
+                    name: customerName,
+                    email: customerEmail,
+                    phone: phoneClean,
+                    network: 'Result Checker',
+                },
+                wholesale_price: Number((rcWholesalePrice * quantity).toFixed(2)),
+                agent_price: baseTotal,
+                profit: Math.max(0, Number(((unitPrice - rcWholesalePrice) * quantity).toFixed(2))),
+                status: isMoMo ? 'pending_verification' : 'pending',
+                created_at: AdminFieldValue.serverTimestamp(),
+                paymentReference: isMoMo ? phoneClean : orderId,
+            }, false);
+        }
+
+        return res.status(200).json({
+            success: true,
+            orderId,
+            reference: isMoMo ? phoneClean : orderId,
+            orderAccessToken,
+            amount: isMoMo ? baseTotal : finalAmountToCharge,
+            baseTotal,
+            customerEmail,
+            customerName,
+            momoNumber,
+        });
+    } catch (err: any) {
+        console.error('[Result Checker Order Error]:', err.message || err);
+        return respondWithServerError(res, err, 'Failed to create Results Checker order');
+    }
+});
+
+// 4. eFootball Coins Order Creation (Authenticated, Authoritative Product Pricing)
+app.post('/api/efootball/orders', async (req, res) => {
+    try {
+        const authUser = await verifyRequestUser(req);
+        if (!authUser) {
+            return res.status(401).json({ success: false, error: 'Authentication required to order eFootball Coins.' });
+        }
+
+        const productId = String(req.body?.productId || '').trim();
+        const accountIdentifier = String(req.body?.accountIdentifier || '').trim();
+        if (!productId || accountIdentifier.length < 3) {
+            return res.status(400).json({
+                success: false,
+                error: 'Valid productId and accountIdentifier are required.'
+            });
+        }
+
+        const productSnap = await getFirestoreDoc('efootballProducts', productId);
+        if (!productSnap || !productSnap.exists) {
+            return res.status(404).json({ success: false, error: 'eFootball package not found.' });
+        }
+
+        const product = productSnap.data();
+        if (product.active === false) {
+            return res.status(400).json({ success: false, error: 'This eFootball package is currently unavailable.' });
+        }
+
+        const authoritativeAmount = Number(product.price);
+        if (!Number.isFinite(authoritativeAmount) || authoritativeAmount <= 0) {
+            return res.status(400).json({ success: false, error: 'Invalid package price configuration.' });
+        }
+
+        const userSnap = await getFirestoreDoc('users', authUser.uid);
+        const userData = userSnap && userSnap.exists ? userSnap.data() : {};
+        const userEmail = authUser.email || userData?.email || userData?.gmail || '';
+        if (!userEmail) {
+            return res.status(400).json({ success: false, error: 'Account email is required.' });
+        }
+
+        const userName = userData?.fullName || userData?.username || 'Customer';
+        const customerPhone = String(req.body?.customerPhone || userData?.phone || userData?.phoneNumber || '').trim();
+
+        const rawPlatform = String(req.body?.platform || product.platformLabel || product.platform || 'Android');
+        const normalizedPlatform = /ios/i.test(rawPlatform) ? 'iOS' : (/steam/i.test(rawPlatform) ? 'Steam' : 'Android');
+        const isEmailType = accountIdentifier.includes('@') && accountIdentifier.includes('.');
+        const accountIdentifierType = isEmailType ? 'email' : 'konami_id';
+
+        const orderId = `EF-${crypto.randomInt(10000, 99999)}`;
+        const reference = `EF_${Date.now()}_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+
+        const orderPayload = {
+            id: reference,
+            orderId,
+            customerId: authUser.uid,
+            userId: authUser.uid,
+            customerName: userName,
+            customerEmail: userEmail,
+            email: userEmail,
+            customerPhone,
+            phone: customerPhone,
+            productId: productSnap.id,
+            productName: product.name || 'eFootball Coins',
+            bundle: `${product.name || 'eFootball Coins'} (${normalizedPlatform})`,
+            bundleName: product.name || 'eFootball Coins',
+            coinAmount: Number(product.coinAmount || 0),
+            platform: normalizedPlatform,
+            accountIdentifier,
+            accountIdentifierType,
+            konamiId: accountIdentifier,
+            amount: authoritativeAmount,
+            currency: product.currency || 'GHS',
+            paymentStatus: 'PAYMENT_PENDING',
+            fulfillmentStatus: 'AWAITING_FULFILLMENT',
+            adminStatus: 'AWAITING_FULFILLMENT',
+            status: 'pending',
+            serviceType: 'efootball',
+            network: 'Game Coins',
+            category: 'eFootball Coins',
+            paystackReference: reference,
+            reference,
+            paymentMethod: 'Paystack',
+            payment_provider: 'paystack',
+            createdAt: AdminFieldValue.serverTimestamp(),
+            updatedAt: AdminFieldValue.serverTimestamp(),
+            paidAt: null,
+            acceptedAt: null,
+            acceptedBy: null,
+            deliveredAt: null,
+            deliveredBy: null,
+            deliveryNote: null,
+        };
+
+        await Promise.all([
+            setFirestoreDoc('efootballOrders', reference, orderPayload, false),
+            setFirestoreDoc('orders', reference, orderPayload, false),
+        ]);
+
+        return res.status(200).json({
+            success: true,
+            orderId,
+            reference,
+            amount: authoritativeAmount,
+            currency: product.currency || 'GHS',
+            productName: product.name || 'eFootball Coins',
+            coinAmount: Number(product.coinAmount || 0),
+            platform: normalizedPlatform,
+            accountIdentifier,
+            accountIdentifierType,
+            customerEmail: userEmail,
+            customerName: userName,
+            customerPhone,
+        });
+    } catch (err: any) {
+        console.error('[eFootball Order Create Error]:', err.message || err);
+        return respondWithServerError(res, err, 'Failed to create eFootball order');
+    }
+});
+
+// 5. Mark eFootball Order Initialization Failed (Owner Only + Paid Guard)
+app.post('/api/efootball/orders/:orderId/init-failed', async (req, res) => {
+    try {
+        const authUser = await verifyRequestUser(req);
+        if (!authUser) {
+            return res.status(401).json({ success: false, error: 'Authentication required' });
+        }
+
+        const { orderId } = req.params;
+        if (!orderId) {
+            return res.status(400).json({ success: false, error: 'orderId is required' });
+        }
+
+        const efSnap = await getFirestoreDoc('efootballOrders', orderId);
+        const ordSnap = await getFirestoreDoc('orders', orderId);
+        const targetData = (efSnap && efSnap.exists ? efSnap.data() : null) || (ordSnap && ordSnap.exists ? ordSnap.data() : null);
+
+        if (!targetData) {
+            return res.status(404).json({ success: false, error: 'Order not found' });
+        }
+        if (targetData.userId !== authUser.uid && targetData.customerId !== authUser.uid) {
+            return res.status(403).json({ success: false, error: 'Unauthorized' });
+        }
+        if (isProtectedPaidOrFulfilledState(targetData)) {
+            return res.status(409).json({ success: false, error: 'Cannot mark a paid or fulfilled order as failed' });
+        }
+
+        const failUpdate = {
+            paymentStatus: 'PAYMENT_INITIALIZATION_FAILED',
+            status: 'failed',
+            updatedAt: AdminFieldValue.serverTimestamp(),
+        };
+
+        if (efSnap && efSnap.exists) {
+            await updateFirestoreDoc('efootballOrders', orderId, failUpdate);
+        }
+        if (ordSnap && ordSnap.exists) {
+            await updateFirestoreDoc('orders', orderId, failUpdate);
+        }
+
+        return res.status(200).json({ success: true, orderId });
+    } catch (err: any) {
+        console.error('[eFootball Init Failed Error]:', err.message || err);
+        return respondWithServerError(res, err, 'Failed to update initialization status');
+    }
+});
+
+// Helper to parse expiry timestamps for booking codes
+function isBookingCodeExpired(expiresAt: any): boolean {
+    if (!expiresAt) return false;
+    let expiryMs = 0;
+    if (typeof expiresAt === 'number') expiryMs = expiresAt;
+    else if (typeof expiresAt?.toMillis === 'function') expiryMs = expiresAt.toMillis();
+    else if (typeof expiresAt?.seconds === 'number') expiryMs = expiresAt.seconds * 1000;
+    else if (typeof expiresAt === 'string') {
+        const parsed = Date.parse(expiresAt);
+        if (!isNaN(parsed)) expiryMs = parsed;
+    } else if (expiresAt instanceof Date) {
+        expiryMs = expiresAt.getTime();
+    }
+    return expiryMs > 0 && expiryMs <= Date.now();
 }
+
+// 6. Paid Booking Code Order Creation (Authenticated, Never Reveals Code Before Payment)
+app.post('/api/booking-codes/create-order', async (req, res) => {
+    try {
+        const authUser = await verifyRequestUser(req);
+        if (!authUser) {
+            return res.status(401).json({ success: false, error: 'Authentication required to purchase booking codes.' });
+        }
+
+        const bookingCodeId = String(req.body?.bookingCodeId || '').trim();
+        if (!bookingCodeId) {
+            return res.status(400).json({ success: false, error: 'bookingCodeId is required.' });
+        }
+
+        const bcSnap = await getFirestoreDoc('booking_codes', bookingCodeId);
+        if (!bcSnap || !bcSnap.exists) {
+            return res.status(404).json({ success: false, error: 'Booking code not found.' });
+        }
+
+        const bc = bcSnap.data();
+        if (bc.active === false) {
+            return res.status(400).json({ success: false, error: 'This booking code is no longer active.' });
+        }
+        if (isBookingCodeExpired(bc.expiresAt)) {
+            return res.status(400).json({ success: false, error: 'This booking code has expired.' });
+        }
+
+        const authoritativePrice = Number(bc.price);
+        if (!Number.isFinite(authoritativePrice) || authoritativePrice <= 0) {
+            return res.status(400).json({ success: false, error: 'Free booking codes should use the free claim endpoint.' });
+        }
+
+        const userSnap = await getFirestoreDoc('users', authUser.uid);
+        const userData = userSnap && userSnap.exists ? userSnap.data() : {};
+        const providedEmail = String(req.body?.email || '').trim();
+        const emailToUse = (providedEmail && providedEmail.includes('@')) ? providedEmail : (authUser.email || userData?.email || '');
+        if (!emailToUse) {
+            return res.status(400).json({ success: false, error: 'A valid email address is required.' });
+        }
+        const phoneToUse = String(req.body?.phone || userData?.phoneNumber || userData?.phone || '').trim();
+        const customerName = userData?.fullName || (phoneToUse ? `Customer (${phoneToUse})` : 'Royal Customer');
+
+        const orderRefId = `BC_${Date.now()}_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+
+        const bookingOrderPayload = {
+            id: orderRefId,
+            orderId: orderRefId,
+            reference: orderRefId,
+            userId: authUser.uid,
+            customerName,
+            customerEmail: emailToUse,
+            email: emailToUse,
+            customerPhone: phoneToUse,
+            phone: phoneToUse,
+            bundle: `VIP BOOKING CODE: ${bc.title || bc.bookmaker} (${bc.bookmaker} ${Number(bc.odds || 1).toFixed(2)}x)`,
+            bundleName: bc.title || `${bc.bookmaker || 'SportyBet'} VIP Code`,
+            serviceType: 'Booking Codes',
+            network: 'Booking Codes',
+            bookmaker: bc.bookmaker || 'SportyBet',
+            odds: Number(bc.odds) || 1.0,
+            amount: authoritativePrice,
+            price: authoritativePrice,
+            bookingCodeId: bcSnap.id,
+            bookingCodeTitle: bc.title || 'VIP Booking Code',
+            status: 'pending',
+            paymentStatus: 'pending',
+            paymentMethod: 'Paystack',
+            createdAt: AdminFieldValue.serverTimestamp(),
+            updatedAt: AdminFieldValue.serverTimestamp(),
+        };
+
+        await Promise.all([
+            setFirestoreDoc('orders', orderRefId, bookingOrderPayload, false),
+            setFirestoreDoc('booking_code_purchases', orderRefId, {
+                id: orderRefId,
+                bookingCodeId: bcSnap.id,
+                userId: authUser.uid,
+                customerName,
+                customerEmail: emailToUse,
+                customerPhone: phoneToUse,
+                title: bc.title || 'VIP Booking Code',
+                bookmaker: bc.bookmaker || 'SportyBet',
+                code: 'Pending Payment ⏳',
+                odds: Number(bc.odds) || 1.0,
+                price: authoritativePrice,
+                paymentMethod: 'Paystack',
+                paymentReference: orderRefId,
+                status: 'pending',
+                createdAt: AdminFieldValue.serverTimestamp(),
+                updatedAt: AdminFieldValue.serverTimestamp(),
+            }, false),
+            setFirestoreDoc('booking_code_orders', orderRefId, bookingOrderPayload, false),
+        ]);
+
+        return res.status(200).json({
+            success: true,
+            reference: orderRefId,
+            orderId: orderRefId,
+            amount: authoritativePrice,
+            title: bc.title || 'VIP Booking Code',
+            bookmaker: bc.bookmaker || 'SportyBet',
+            odds: Number(bc.odds) || 1.0,
+            customerEmail: emailToUse,
+        });
+    } catch (err: any) {
+        console.error('[Booking Code Create Order Error]:', err.message || err);
+        return respondWithServerError(res, err, 'Failed to create booking code order');
+    }
+});
+
+// 7. Free Booking Code Claim (Authenticated, Strictly Verifies price <= 0)
+app.post('/api/booking-codes/free-claim', async (req, res) => {
+    try {
+        const authUser = await verifyRequestUser(req);
+        if (!authUser) {
+            return res.status(401).json({ success: false, error: 'Authentication required to claim free booking codes.' });
+        }
+
+        const bookingCodeId = String(req.body?.bookingCodeId || '').trim();
+        if (!bookingCodeId) {
+            return res.status(400).json({ success: false, error: 'bookingCodeId is required.' });
+        }
+
+        const bcSnap = await getFirestoreDoc('booking_codes', bookingCodeId);
+        if (!bcSnap || !bcSnap.exists) {
+            return res.status(404).json({ success: false, error: 'Booking code not found.' });
+        }
+
+        const bc = bcSnap.data();
+        if (bc.active === false) {
+            return res.status(400).json({ success: false, error: 'This booking code is no longer active.' });
+        }
+        if (isBookingCodeExpired(bc.expiresAt)) {
+            return res.status(400).json({ success: false, error: 'This booking code has expired.' });
+        }
+        if (Number(bc.price) > 0) {
+            return res.status(400).json({ success: false, error: 'This booking code requires payment.' });
+        }
+
+        const userSnap = await getFirestoreDoc('users', authUser.uid);
+        const userData = userSnap && userSnap.exists ? userSnap.data() : {};
+        const providedEmail = String(req.body?.email || '').trim();
+        const emailToUse = (providedEmail && providedEmail.includes('@')) ? providedEmail : (authUser.email || userData?.email || '');
+        const phoneToUse = String(req.body?.phone || userData?.phoneNumber || userData?.phone || '').trim();
+        const customerName = userData?.fullName || (phoneToUse ? `Customer (${phoneToUse})` : 'Royal Customer');
+
+        const orderRefId = `BC_${Date.now()}_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+
+        const freeOrderPayload = {
+            id: orderRefId,
+            orderId: orderRefId,
+            reference: orderRefId,
+            userId: authUser.uid,
+            customerName,
+            customerEmail: emailToUse,
+            email: emailToUse,
+            customerPhone: phoneToUse,
+            phone: phoneToUse,
+            bundle: `FREE VIP BOOKING CODE: ${bc.title || bc.bookmaker} (${bc.bookmaker} ${Number(bc.odds || 1).toFixed(2)}x)`,
+            bundleName: bc.title || `${bc.bookmaker || 'SportyBet'} VIP Code`,
+            serviceType: 'Booking Codes',
+            network: 'Booking Codes',
+            bookmaker: bc.bookmaker || 'SportyBet',
+            odds: Number(bc.odds) || 1.0,
+            amount: 0,
+            price: 0,
+            bookingCodeId: bcSnap.id,
+            bookingCodeTitle: bc.title || 'VIP Booking Code',
+            code: bc.code || '',
+            status: 'completed',
+            paymentStatus: 'success',
+            paymentMethod: 'Free Claim',
+            createdAt: AdminFieldValue.serverTimestamp(),
+            updatedAt: AdminFieldValue.serverTimestamp(),
+        };
+
+        await Promise.all([
+            setFirestoreDoc('orders', orderRefId, freeOrderPayload, false),
+            setFirestoreDoc('booking_code_purchases', orderRefId, {
+                id: orderRefId,
+                bookingCodeId: bcSnap.id,
+                userId: authUser.uid,
+                customerName,
+                customerEmail: emailToUse,
+                customerPhone: phoneToUse,
+                title: bc.title || 'VIP Booking Code',
+                bookmaker: bc.bookmaker || 'SportyBet',
+                code: bc.code || '',
+                odds: Number(bc.odds) || 1.0,
+                price: 0,
+                paymentMethod: 'Free Claim',
+                paymentReference: orderRefId,
+                status: 'completed',
+                createdAt: AdminFieldValue.serverTimestamp(),
+                updatedAt: AdminFieldValue.serverTimestamp(),
+            }, false),
+            setFirestoreDoc('booking_code_orders', orderRefId, freeOrderPayload, false),
+        ]);
+
+        await incrementBookingCodePurchases(bcSnap.id).catch(() => {});
+
+        return res.status(200).json({
+            success: true,
+            reference: orderRefId,
+            bookingCode: {
+                id: bcSnap.id,
+                code: bc.code || '',
+                title: bc.title || 'VIP Booking Code',
+                bookmaker: bc.bookmaker || 'SportyBet',
+                odds: Number(bc.odds) || 1.0,
+                price: 0,
+                description: bc.description || '',
+            }
+        });
+    } catch (err: any) {
+        console.error('[Free Booking Code Claim Error]:', err.message || err);
+        return respondWithServerError(res, err, 'Failed to claim free booking code');
+    }
+});
+
+// 8. Agent Access Unlock Order / Free Unlock (Authenticated, Authoritative settings/agent_store)
+app.post('/api/agent/unlock-order', async (req, res) => {
+    try {
+        const authUser = await verifyRequestUser(req);
+        if (!authUser) {
+            return res.status(401).json({ success: false, error: 'Authentication required to unlock agent access.' });
+        }
+
+        const settingSnap = await getFirestoreDoc('settings', 'agent_store');
+        const settingData = settingSnap && settingSnap.exists ? settingSnap.data() : {};
+        const priceToPay = typeof settingData.price === 'number' && !isNaN(settingData.price) ? Number(settingData.price) : 50;
+
+        const userSnap = await getFirestoreDoc('users', authUser.uid);
+        const userData = userSnap && userSnap.exists ? userSnap.data() : {};
+        const customerEmail = authUser.email || userData?.email || 'customer@dataghananow.com';
+        const customerName = userData?.fullName || 'Aspiring Agent';
+
+        if (priceToPay <= 0) {
+            await setFirestoreDoc('users', authUser.uid, {
+                isAgent: true,
+                updatedAt: AdminFieldValue.serverTimestamp(),
+            }, true);
+            return res.status(200).json({
+                success: true,
+                freeUnlocked: true,
+                price: 0,
+            });
+        }
+
+        const orderId = serverFirestoreOps.generateDocId('orders');
+        const orderAccessToken = crypto.randomBytes(32).toString('hex');
+
+        await setFirestoreDoc('orders', orderId, {
+            id: orderId,
+            orderAccessToken,
+            email: customerEmail,
+            phone: userData?.phoneNumber || userData?.phone || '0000000000',
+            network: 'SYSTEM',
+            bundle: 'AGENT ACCESS UNLOCK',
+            amount: priceToPay,
+            status: 'pending',
+            paymentStatus: 'pending',
+            paymentMethod: 'paystack',
+            createdAt: AdminFieldValue.serverTimestamp(),
+            updatedAt: AdminFieldValue.serverTimestamp(),
+            userId: authUser.uid,
+            customerName,
+            reference: orderId,
+            isAgentOrder: true,
+            agentId: authUser.uid,
+            agent_id: authUser.uid,
+            agentName: customerName,
+            agent_name: customerName,
+        }, false);
+
+        return res.status(200).json({
+            success: true,
+            freeUnlocked: false,
+            orderId,
+            reference: orderId,
+            orderAccessToken,
+            amount: priceToPay,
+            customerEmail,
+            customerName,
+        });
+    } catch (err: any) {
+        console.error('[Agent Unlock Order Error]:', err.message || err);
+        return respondWithServerError(res, err, 'Failed to initiate agent access unlock');
+    }
+});
+
+// 9. Agent Registration (Authenticated, Requires Paid Unlock or Free Agent Store)
+app.post('/api/agent/register', async (req, res) => {
+    try {
+        const authUser = await verifyRequestUser(req);
+        if (!authUser) {
+            return res.status(401).json({ success: false, error: 'Authentication required for agent registration.' });
+        }
+
+        const agentName = String(req.body?.agentName || '').trim();
+        const momoName = String(req.body?.momoName || '').trim();
+        const momoNumber = String(req.body?.momoNumber || '').trim();
+
+        if (!agentName || !momoName || !momoNumber) {
+            return res.status(400).json({ success: false, error: 'All registration fields are required.' });
+        }
+        if (!/^0\d{9}$/.test(momoNumber)) {
+            return res.status(400).json({ success: false, error: 'Mobile Money Number must be 10 digits starting with 0.' });
+        }
+
+        const userSnap = await getFirestoreDoc('users', authUser.uid);
+        const userData = userSnap && userSnap.exists ? userSnap.data() : {};
+        const settingSnap = await getFirestoreDoc('settings', 'agent_store');
+        const settingData = settingSnap && settingSnap.exists ? settingSnap.data() : {};
+        const storePrice = typeof settingData.price === 'number' && !isNaN(settingData.price) ? Number(settingData.price) : 50;
+
+        if (!userData?.isAgent && storePrice > 0) {
+            return res.status(403).json({
+                success: false,
+                error: 'Agent access must be unlocked before registering your store.'
+            });
+        }
+
+        const existingAgent = await getFirestoreDoc('agents', authUser.uid);
+        if (existingAgent && existingAgent.exists) {
+            return res.status(200).json({
+                success: true,
+                alreadyRegistered: true,
+                agent: existingAgent.data(),
+            });
+        }
+
+        let baseSlug = agentName.toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/(^-|-$)/g, '');
+        if (!baseSlug) {
+            baseSlug = `agent-${authUser.uid.slice(0, 5).toLowerCase()}`;
+        }
+
+        let finalSlug = baseSlug;
+        const slugTaken = await serverFirestoreOps.queryByField('agents', 'agent_slug', finalSlug);
+        if (slugTaken && slugTaken.exists) {
+            finalSlug = `${baseSlug}-${crypto.randomInt(100, 999)}`;
+        }
+
+        const agentRecord = {
+            id: authUser.uid,
+            agent_name: agentName,
+            agent_slug: finalSlug,
+            momo_name: momoName,
+            momo_number: momoNumber,
+            profit_balance: 0,
+            created_at: AdminFieldValue.serverTimestamp(),
+            prices: {},
+        };
+
+        await Promise.all([
+            setFirestoreDoc('agents', authUser.uid, agentRecord, false),
+            setFirestoreDoc('users', authUser.uid, {
+                isAgent: true,
+                updatedAt: AdminFieldValue.serverTimestamp(),
+            }, true),
+        ]);
+
+        return res.status(201).json({
+            success: true,
+            agent: {
+                id: authUser.uid,
+                agent_name: agentName,
+                agent_slug: finalSlug,
+                momo_name: momoName,
+                momo_number: momoNumber,
+                profit_balance: 0,
+            }
+        });
+    } catch (err: any) {
+        console.error('[Agent Register Error]:', err.message || err);
+        return respondWithServerError(res, err, 'Failed to complete agent registration');
+    }
+});
+
+// 10. Agent Order Report to Admin (Authenticated + Order Owner Verification)
+app.post('/api/agent/report-order', async (req, res) => {
+    try {
+        const authUser = await verifyRequestUser(req);
+        if (!authUser) {
+            return res.status(401).json({ success: false, error: 'Authentication required to report an order.' });
+        }
+
+        const orderId = String(req.body?.orderId || '').trim();
+        if (!orderId) {
+            return res.status(400).json({ success: false, error: 'orderId is required.' });
+        }
+
+        const orderSnap = await getFirestoreDoc('orders', orderId);
+        if (!orderSnap || !orderSnap.exists) {
+            return res.status(404).json({ success: false, error: 'Order not found.' });
+        }
+
+        const orderData = orderSnap.data();
+        const isOrderAgentOwner = orderData.agentId === authUser.uid || orderData.agent_id === authUser.uid;
+        if (!isOrderAgentOwner) {
+            return res.status(403).json({ success: false, error: 'Unauthorized to report this order.' });
+        }
+
+        await updateFirestoreDoc('orders', orderId, {
+            reportedToAdmin: true,
+            agentReportReason: 'Reported directly to DATAGHANAnow via WhatsApp',
+            reportedAt: AdminFieldValue.serverTimestamp(),
+            updatedAt: AdminFieldValue.serverTimestamp(),
+        });
+
+        return res.status(200).json({ success: true, orderId });
+    } catch (err: any) {
+        console.error('[Agent Report Order Error]:', err.message || err);
+        return respondWithServerError(res, err, 'Failed to report order');
+    }
+});
+
+// 11. Free Data Lucky Spin Winner Claim (Verifies Paystack when settings/free_data price > 0)
+app.post('/api/free-data/claim', async (req, res) => {
+    try {
+        const clientIp = getClientIpKey(req);
+        const ipLimit = checkRateLimit(`free_data_claim:${clientIp}`, 10, 10 * 60 * 1000);
+        if (!ipLimit.allowed) {
+            res.setHeader('Retry-After', String(ipLimit.retryAfterSec));
+            return res.status(429).json({
+                success: false,
+                error: 'Too many claim requests. Please wait a few minutes and try again.'
+            });
+        }
+
+        const authUser = await verifyRequestUser(req);
+        const canonicalPhone = normalizeGhanaPhone(req.body?.phone);
+        if (!canonicalPhone) {
+            return res.status(400).json({
+                success: false,
+                error: 'Please enter a valid Ghanaian phone number (e.g. 0241234567).'
+            });
+        }
+
+        const rawNet = String(req.body?.network || 'MTN').trim();
+        const normalizedNet = /telecel/i.test(rawNet)
+            ? 'Telecel'
+            : (/at|airteltigo/i.test(rawNet) ? (rawNet === 'AT' ? 'AT' : 'AirtelTigo') : 'MTN');
+
+        const settingSnap = await getFirestoreDoc('settings', 'free_data');
+        const settingData = settingSnap && settingSnap.exists ? settingSnap.data() : {};
+        if (settingData.disabled === true) {
+            return res.status(400).json({ success: false, error: 'Free Data promo is currently disabled.' });
+        }
+
+        const authoritativePrice = (settingData.price !== undefined && settingData.price !== null)
+            ? Number(settingData.price)
+            : 1;
+        const rawPaymentRef = String(req.body?.paymentRef || '').trim();
+
+        let claimDocId = '';
+        let verifiedPaid = false;
+
+        if (authoritativePrice > 0) {
+            if (!rawPaymentRef) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Verified Paystack payment reference is required for this spin entry.'
+                });
+            }
+
+            // Prevent replay using same payment reference
+            const existingClaim = await getFirestoreDoc('orders', rawPaymentRef);
+            if (existingClaim && existingClaim.exists) {
+                return res.status(409).json({
+                    success: false,
+                    error: 'This payment reference has already been claimed.'
+                });
+            }
+
+            const verifyResult = await verifyPaystackReference(rawPaymentRef);
+            if (verifyResult.transientError) {
+                return res.status(503).json({
+                    success: false,
+                    retryable: true,
+                    error: 'Payment verification temporarily delayed. Please retry shortly.'
+                });
+            }
+
+            const psData = verifyResult.data || {};
+            const psStatus = String(psData.status || '').toLowerCase().trim();
+            const psCurrency = String(psData.currency || 'GHS').toUpperCase();
+            const psAmountGHS = psData.amount ? Number(psData.amount) / 100 : 0;
+
+            if (!verifyResult.status || !['success', 'paid'].includes(psStatus) || psCurrency !== 'GHS' || psAmountGHS < authoritativePrice - 0.01) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Payment reference could not be verified for Free Data entry.'
+                });
+            }
+
+            claimDocId = rawPaymentRef;
+            verifiedPaid = true;
+        } else {
+            claimDocId = `FD_${Date.now()}_${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+        }
+
+        const userSnap = authUser ? await getFirestoreDoc('users', authUser.uid) : null;
+        const userData = userSnap && userSnap.exists ? userSnap.data() : {};
+        const customerEmail = authUser?.email || userData?.email || `${canonicalPhone}@customer.dataghananow.com`;
+        const customerName = userData?.fullName || `Customer (${canonicalPhone})`;
+
+        await setFirestoreDoc('orders', claimDocId, {
+            id: claimDocId,
+            reference: claimDocId,
+            email: customerEmail,
+            serviceType: 'Free Data Win',
+            orderType: 'Free Data Win',
+            isFreeDataWin: true,
+            network: normalizedNet,
+            bundle: `1GB ${normalizedNet} Free Data Win`,
+            bundleName: `1GB ${normalizedNet} Free Data Win`,
+            phone: canonicalPhone,
+            amount: authoritativePrice > 0 ? authoritativePrice : 0,
+            quantity: 1,
+            status: verifiedPaid ? 'paid' : 'pending',
+            paymentStatus: verifiedPaid ? 'success' : 'free_promo',
+            paymentMethod: verifiedPaid ? 'paystack' : 'free_promo',
+            ...(verifiedPaid ? { verifiedByBackend: true } : {}),
+            customerName,
+            userId: authUser ? authUser.uid : `guest_${canonicalPhone}`,
+            createdAt: AdminFieldValue.serverTimestamp(),
+            updatedAt: AdminFieldValue.serverTimestamp(),
+        }, false);
+
+        return res.status(201).json({
+            success: true,
+            orderId: claimDocId,
+            reference: claimDocId,
+            verifiedPaid,
+        });
+    } catch (err: any) {
+        console.error('[Free Data Claim Error]:', err.message || err);
+        return respondWithServerError(res, err, 'Failed to submit Free Data claim');
+    }
+});
+
+// 12. Ensure Personal Referral Code on Signed-In Profile (Authenticated)
+app.post('/api/referrals/ensure-code', async (req, res) => {
+    try {
+        const authUser = await verifyRequestUser(req);
+        if (!authUser) {
+            return res.status(401).json({ success: false, error: 'Authentication required' });
+        }
+
+        const uidSuffix = authUser.uid.replace(/[^a-zA-Z0-9]/g, '').slice(0, 5).toUpperCase() || 'VIP';
+        const fallbackCode = `DGN-${uidSuffix}`;
+
+        if (!adminDb) {
+            return res.status(200).json({ success: true, referralCode: fallbackCode });
+        }
+
+        const userSnap = await getFirestoreDoc('users', authUser.uid);
+        const userData = userSnap && userSnap.exists ? userSnap.data() : {};
+        if (userData?.referralCode) {
+            return res.status(200).json({ success: true, referralCode: String(userData.referralCode) });
+        }
+
+        let candidate = fallbackCode;
+        const existingOwner = await serverFirestoreOps.queryByField('users', 'referralCode', candidate);
+        if (existingOwner && existingOwner.exists && existingOwner.id !== authUser.uid) {
+            candidate = `DGN-${uidSuffix}${crypto.randomBytes(1).toString('hex').toUpperCase()}`;
+        }
+
+        await setFirestoreDoc('users', authUser.uid, {
+            referralCode: candidate,
+            updatedAt: AdminFieldValue.serverTimestamp(),
+        }, true);
+
+        return res.status(200).json({ success: true, referralCode: candidate });
+    } catch (err: any) {
+        console.warn('[Ensure Referral Code Notice]:', err.message || err);
+        const uidSuffix = 'VIP';
+        return res.status(200).json({ success: true, referralCode: `DGN-${uidSuffix}` });
+    }
+});
 
 
 
@@ -2500,19 +4402,21 @@ app.get([
   try {
     const userAgent = req.get('user-agent') || '';
     const isAndroid = /android/i.test(userAgent);
-    clientAddDoc(clientCollection(serverClientDb, 'app_downloads'), {
-      customerName: 'Direct Download / Browser Link',
-      customerEmail: '',
-      customerPhone: '',
-      isRegisteredUser: false,
-      deviceType: isAndroid ? 'android' : 'desktop',
-      platform: isAndroid ? 'Android Mobile' : 'Desktop / Web Browser',
-      userAgent: userAgent,
-      source: 'direct_url_request',
-      downloadUrl: `https://kingjdeals.site/downloads/${targetFilename}`,
-      apkName: targetFilename,
-      downloadedAt: clientServerTimestamp()
-    }).catch(() => {});
+    if (adminDb) {
+      adminDb.collection('app_downloads').add({
+        customerName: 'Direct Download / Browser Link',
+        customerEmail: '',
+        customerPhone: '',
+        isRegisteredUser: false,
+        deviceType: isAndroid ? 'android' : 'desktop',
+        platform: isAndroid ? 'Android Mobile' : 'Desktop / Web Browser',
+        userAgent: userAgent,
+        source: 'direct_url_request',
+        downloadUrl: `https://kingjdeals.site/downloads/${targetFilename}`,
+        apkName: targetFilename,
+        downloadedAt: AdminFieldValue.serverTimestamp()
+      }).catch(() => {});
+    }
   } catch (e) {
     // Non-blocking
   }
@@ -2588,7 +4492,8 @@ async function getLiveBundlesForSeo() {
     return cachedSeoBundles;
   }
   try {
-    const snap = await clientGetDocs(clientCollection(serverClientDb, "bundles"));
+    if (!adminDb) return cachedSeoBundles;
+    const snap = await adminDb.collection("bundles").get();
     cachedSeoBundles = snap.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
     lastSeoBundleFetch = now;
   } catch (err: any) {
@@ -2685,6 +4590,10 @@ if (process.env.DATAGHANA_DISABLE_AUTOSTART !== '1') {
 export {
   app,
   serverFirestoreOps,
+  serverAuthOps,
   gatewayHttpClient,
-  isProtectedPaidOrFulfilledState
+  isProtectedPaidOrFulfilledState,
+  resetRateLimits,
+  sanitizeOrderForCustomerHistory,
+  deriveSeparatedOrderStatuses
 };

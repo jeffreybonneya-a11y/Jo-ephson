@@ -149,14 +149,24 @@ export interface UserProfile {
 
 export interface Complaint {
   id: string;
+  ticketRef?: string;
   orderId?: string;
+  orderRef?: string;
   userId: string;
   userEmail: string;
+  email?: string;
+  phone?: string;
+  userPhone?: string;
+  userName?: string;
+  category?: string;
   subject?: string;
   message: string;
-  status: "open" | "resolved";
+  status: "open" | "in_progress" | "resolved";
+  isGuest?: boolean;
   adminReply?: string;
   createdAt: any;
+  updatedAt?: any;
+  resolvedAt?: any;
 }
 
 export interface WalletTransaction {

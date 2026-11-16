@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../lib/firebase';
-import { doc, onSnapshot, collection, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -24,7 +24,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import waecBannerBg from '../assets/images/waec_banner_bg_1782934507804.jpg';
-import { getApiUrl } from '../lib/api';
+import { getApiUrl, getOptionalAuthHeaders, getRequiredAuthHeaders } from '../lib/api';
 import { openPaystackPopup } from "../lib/paystack";
 
 interface ResultCheckerSectionProps {
@@ -222,93 +222,30 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
     const phoneClean = mobileNumber.trim().replace(/\s/g, '');
     setIsSubmitting(true);
 
-    const userEmail = activeUser.email || (phoneClean ? `${phoneClean}@customer.dataghananow.com` : "customer@dataghananow.com");
-    const userName = activeUser.displayName || (phoneClean ? `Customer (${phoneClean})` : "Royal Customer");
-    const userUid = activeUser.uid;
-
     try {
-      const finalOrderId = doc(collection(db, "orders")).id;
-      setOrderId(finalOrderId);
-
-      // Use recipient phone number as the transfer reference code
-      const generatedRef = phoneClean;
-
-      const momoOrderData = {
-        email: userEmail,
-        serviceType: "Results Checker",
-        examType: activeCheckerTab,
-        quantity: quantity,
-        amount: totalAmount,
-        customerPhone: phoneClean,
-        phone: phoneClean,
-        network: "Result Checker",
-        bundle: `Results Checker (${activeCheckerTab}) x${quantity}`,
-        status: "pending_verification",
-        paymentStatus: "pending_verification",
-        paymentMethod: "momo_direct",
-        createdAt: serverTimestamp(),
-        userId: userUid,
-        customerName: userName,
-        reference: generatedRef,
-        momoRefCode: generatedRef,
-        momoNumber: MOMO_NUMBER,
-        ...(isAgentUser ? { isAgentOrder: true } : {}),
-        ...(agentContext ? {
-          agentId: agentContext.id,
-          agent_id: agentContext.id,
-          agentName: agentContext.agent_name,
-          agent_name: agentContext.agent_name,
-          wholesalePrice: rcWholesalePrice * quantity,
-          wholesale_price: rcWholesalePrice * quantity,
-          agentPrice: pricePerChecker * quantity,
-          agent_price: pricePerChecker * quantity,
-          profit: (pricePerChecker - rcWholesalePrice) * quantity,
-          agent_profit: (pricePerChecker - rcWholesalePrice) * quantity,
-          profit_credited: false,
-          profitAwarded: false,
-        } : (isAgentUser && userUid ? {
-          agentId: userUid,
-          agent_id: userUid,
-          agentName: userName,
-          agent_name: userName,
-          wholesalePrice: rcWholesalePrice * quantity,
-          wholesale_price: rcWholesalePrice * quantity,
-          agentPrice: pricePerChecker * quantity,
-          agent_price: pricePerChecker * quantity,
-          profit: (pricePerChecker - rcWholesalePrice) * quantity,
-          agent_profit: (pricePerChecker - rcWholesalePrice) * quantity,
-          profit_credited: false,
-          profitAwarded: false,
-        } : {}))
-      };
-
-      await setDoc(doc(db, "orders", finalOrderId), momoOrderData);
-
-      if (agentContext) {
-        const momoAgentOrderData = {
-          id: finalOrderId,
-          agent_id: agentContext.id,
-          customer_details: {
-            name: userName,
-            email: userEmail,
-            phone: phoneClean,
-            network: "Result Checker",
-          },
-          wholesale_price: rcWholesalePrice * quantity,
-          agent_price: pricePerChecker * quantity,
-          profit: (pricePerChecker - rcWholesalePrice) * quantity,
-          status: "pending_verification",
-          created_at: serverTimestamp(),
-          paymentReference: generatedRef,
-        };
-        await setDoc(doc(db, "agent_orders", finalOrderId), momoAgentOrderData);
+      const headers = await getRequiredAuthHeaders();
+      const createRes = await fetch(getApiUrl('/api/result-checker/orders'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          examType: activeCheckerTab,
+          quantity,
+          phone: phoneClean,
+          paymentMethod: 'momo_direct',
+          agentContextId: agentContext?.id || undefined,
+        }),
+      });
+      const createData = await createRes.json().catch(() => ({}));
+      if (!createRes.ok || !createData.success || !createData.orderId) {
+        throw new Error(createData.error || "Could not generate MoMo details. Please try again.");
       }
 
+      setOrderId(createData.orderId);
       setIsSubmitting(false);
       setCheckoutStep("momo_pay");
     } catch (err: any) {
       console.error("Result Checker MoMo Error:", err);
-      toast.error("Could not generate MoMo details. Please try again.");
+      toast.error(err.message || "Could not generate MoMo details. Please try again.");
       setIsSubmitting(false);
     }
   };
@@ -324,84 +261,28 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
     const phoneClean = mobileNumber.trim().replace(/\s/g, '');
     setIsSubmitting(true);
 
-    const userEmail = activeUser.email || (phoneClean ? `${phoneClean}@customer.dataghananow.com` : "customer@dataghananow.com");
-    const userName = activeUser.displayName || (phoneClean ? `Customer (${phoneClean})` : "Royal Customer");
-    const userUid = activeUser.uid;
-
     try {
-      const finalOrderId = doc(collection(db, "orders")).id;
-      setOrderId(finalOrderId);
-
-      const initialOrderData = {
-        email: userEmail,
-        serviceType: "Results Checker",
-        examType: activeCheckerTab,
-        quantity: quantity,
-        amount: finalAmountToCharge,
-        basePrice: totalAmount,
-        hiddenFee: rcSurcharge + agentStoreSurcharge,
-        customerPhone: phoneClean,
-        phone: phoneClean,
-        network: "Result Checker",
-        bundle: `Results Checker (${activeCheckerTab}) x${quantity}`,
-        status: "pending",
-        paymentStatus: "pending",
-        paymentMethod: "paystack",
-        createdAt: serverTimestamp(),
-        userId: userUid,
-        customerName: userName,
-        reference: finalOrderId,
-        ...(isAgentUser ? { isAgentOrder: true } : {}),
-        ...(agentContext ? {
-          agentId: agentContext.id,
-          agent_id: agentContext.id,
-          agentName: agentContext.agent_name,
-          agent_name: agentContext.agent_name,
-          wholesalePrice: rcWholesalePrice * quantity,
-          wholesale_price: rcWholesalePrice * quantity,
-          agentPrice: pricePerChecker * quantity,
-          agent_price: pricePerChecker * quantity,
-          profit: (pricePerChecker - rcWholesalePrice) * quantity,
-          agent_profit: (pricePerChecker - rcWholesalePrice) * quantity,
-          profit_credited: false,
-          profitAwarded: false,
-        } : (isAgentUser && userUid ? {
-          agentId: userUid,
-          agent_id: userUid,
-          agentName: userName,
-          agent_name: userName,
-          wholesalePrice: rcWholesalePrice * quantity,
-          wholesale_price: rcWholesalePrice * quantity,
-          agentPrice: pricePerChecker * quantity,
-          agent_price: pricePerChecker * quantity,
-          profit: (pricePerChecker - rcWholesalePrice) * quantity,
-          agent_profit: (pricePerChecker - rcWholesalePrice) * quantity,
-          profit_credited: false,
-          profitAwarded: false,
-        } : {}))
-      };
-
-      await setDoc(doc(db, "orders", finalOrderId), initialOrderData);
-
-      if (agentContext) {
-        const initialAgentOrderData = {
-          id: finalOrderId,
-          agent_id: agentContext.id,
-          customer_details: {
-            name: userName,
-            email: userEmail,
-            phone: phoneClean,
-            network: "Result Checker",
-          },
-          wholesale_price: rcWholesalePrice * quantity,
-          agent_price: pricePerChecker * quantity,
-          profit: (pricePerChecker - rcWholesalePrice) * quantity,
-          status: "pending",
-          created_at: serverTimestamp(),
-          paymentReference: finalOrderId,
-        };
-        await setDoc(doc(db, "agent_orders", finalOrderId), initialAgentOrderData);
+      const headers = await getRequiredAuthHeaders();
+      const createRes = await fetch(getApiUrl('/api/result-checker/orders'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          examType: activeCheckerTab,
+          quantity,
+          phone: phoneClean,
+          paymentMethod: 'paystack',
+          agentContextId: agentContext?.id || undefined,
+        }),
+      });
+      const createData = await createRes.json().catch(() => ({}));
+      if (!createRes.ok || !createData.success || !createData.orderId) {
+        throw new Error(createData.error || "Could not create Results Checker order.");
       }
+
+      const finalOrderId = createData.orderId;
+      const authoritativeAmount = Number(createData.amount ?? finalAmountToCharge);
+      const userEmail = createData.customerEmail || activeUser.email || (phoneClean ? `${phoneClean}@customer.dataghananow.com` : "customer@dataghananow.com");
+      setOrderId(finalOrderId);
 
       let publicKey = "pk_live_1a324af248d2bb1e2f784e7c27981f58f7d66b2c";
       try {
@@ -425,7 +306,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
         await openPaystackPopup({
           key: publicKey,
           email: userEmail,
-          amount: Math.round(finalAmountToCharge * 100),
+          amount: Math.round(authoritativeAmount * 100),
           currency: "GHS",
           ref: finalOrderId,
           onSuccess: (ref) => {
@@ -443,12 +324,13 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
           ? window.location.origin
           : 'https://kingjdeals.site';
 
+        const initHeaders = await getOptionalAuthHeaders();
         const initResponse = await fetch(getApiUrl("/api/paystack-initialize"), {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: initHeaders,
           body: JSON.stringify({
             email: userEmail,
-            amount: Math.round(finalAmountToCharge * 100),
+            amount: Math.round(authoritativeAmount * 100),
             reference: finalOrderId,
             callback_url: redirectTarget + "/?reference=" + finalOrderId,
             currency: "GHS",

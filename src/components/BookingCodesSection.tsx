@@ -4,12 +4,7 @@ import {
   onSnapshot,
   query,
   orderBy,
-  doc,
-  setDoc,
-  updateDoc,
-  increment,
-  serverTimestamp,
-  getDoc,
+  where,
 } from "firebase/firestore";
 import { db, auth } from "@/src/lib/firebase";
 import { BookingCode, BookingCodePurchase, UserProfile } from "@/src/types";
@@ -46,7 +41,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
-import { getApiUrl } from "@/src/lib/api";
+import { getApiUrl, getOptionalAuthHeaders, getRequiredAuthHeaders } from "@/src/lib/api";
 import { openPaystackPopup } from "@/src/lib/paystack";
 import {
   PlatformLogo,
@@ -127,9 +122,10 @@ export default function BookingCodesSection({
         setIsVerifyingPayment(true);
         const toastId = toast.loading("Verifying your Paystack payment directly with backend...");
         try {
+          const verifyHeaders = await getOptionalAuthHeaders();
           const res = await fetch(getApiUrl("/api/verify-payment"), {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: verifyHeaders,
             body: JSON.stringify({ reference: ref, orderId: ref }),
           });
           const data = await res.json();
@@ -228,49 +224,45 @@ export default function BookingCodesSection({
 
   // Listen to current user's purchased booking codes
   useEffect(() => {
-    const userEmail = (profile?.email || auth.currentUser?.email || "").toLowerCase().trim();
     const uid = auth.currentUser?.uid || profile?.uid || "";
 
-    if (!userEmail && !uid) {
+    if (!uid) {
       setPurchasedCodes([]);
       return;
     }
 
     const qPurchases = query(
       collection(db, "booking_code_purchases"),
-      orderBy("createdAt", "desc")
+      where("userId", "==", uid)
     );
 
     const unsubscribe = onSnapshot(
       qPurchases,
       (snapshot) => {
-        const userPurchases: BookingCodePurchase[] = [];
-        snapshot.docs.forEach((docSnap) => {
+        const userPurchases: BookingCodePurchase[] = snapshot.docs.map((docSnap) => {
           const p = docSnap.data();
-          const pEmail = (p.customerEmail || p.email || "").toLowerCase().trim();
-          const pUid = p.userId || p.uid || "";
-          if (
-            (userEmail && pEmail === userEmail) ||
-            (uid && pUid === uid)
-          ) {
-            userPurchases.push({
-              id: docSnap.id,
-              bookingCodeId: p.bookingCodeId || "",
-              userId: p.userId || "",
-              customerName: p.customerName || "",
-              customerEmail: p.customerEmail || p.email || "",
-              customerPhone: p.customerPhone || p.phone || "",
-              title: p.title || "Purchased Booking Code",
-              bookmaker: p.bookmaker || "SportyBet",
-              code: p.code || "",
-              odds: Number(p.odds) || 1.0,
-              price: Number(p.price) || 0,
-              paymentMethod: p.paymentMethod || "Paystack",
-              paymentReference: p.paymentReference || p.reference || docSnap.id,
-              status: "paid",
-              createdAt: p.createdAt,
-            });
-          }
+          return {
+            id: docSnap.id,
+            bookingCodeId: p.bookingCodeId || "",
+            userId: p.userId || "",
+            customerName: p.customerName || "",
+            customerEmail: p.customerEmail || p.email || "",
+            customerPhone: p.customerPhone || p.phone || "",
+            title: p.title || "Purchased Booking Code",
+            bookmaker: p.bookmaker || "SportyBet",
+            code: p.code || "",
+            odds: Number(p.odds) || 1.0,
+            price: Number(p.price) || 0,
+            paymentMethod: p.paymentMethod || "Paystack",
+            paymentReference: p.paymentReference || p.reference || docSnap.id,
+            status: "paid",
+            createdAt: p.createdAt,
+          };
+        });
+        userPurchases.sort((a: any, b: any) => {
+          const timeA = a.createdAt?.toMillis?.() || (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+          const timeB = b.createdAt?.toMillis?.() || (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
+          return timeB - timeA;
         });
         setPurchasedCodes(userPurchases);
       },
@@ -410,89 +402,37 @@ export default function BookingCodesSection({
 
     setIsProcessingPayment(true);
     setPaystackAuthUrl(null);
-    const orderRefId = `BC_${Date.now()}_${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
 
-    const customerFullName = profile?.fullName || auth.currentUser?.displayName || (phoneToUse ? `Customer (${phoneToUse})` : "Royal Customer");
-    const currentUserId = auth.currentUser?.uid || profile?.uid || "";
-
-    // 🎁 CHECK IF FREE BOOKING CODE (price === 0) -> UNLOCK IMMEDIATELY WITHOUT PAYSTACK
+    // CHECK IF FREE BOOKING CODE (price === 0) -> UNLOCK VIA AUTHENTICATED BACKEND ENDPOINT
     if (Number(checkoutCode.price) <= 0) {
       const loadingToast = toast.loading("Unlocking your free booking code...");
       try {
-        const pCfg = getPlatformConfig(checkoutCode.bookmaker || "SportyBet");
+        const headers = await getRequiredAuthHeaders();
+        const claimRes = await fetch(getApiUrl("/api/booking-codes/free-claim"), {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            bookingCodeId: checkoutCode.id,
+            email: emailToUse,
+            phone: phoneToUse,
+          }),
+        });
+        const claimData = await claimRes.json().catch(() => ({}));
+        if (!claimRes.ok || !claimData.success || !claimData.bookingCode) {
+          throw new Error(claimData.error || "Could not claim free booking code.");
+        }
 
-        const freeOrderPayload = {
-          id: orderRefId,
-          orderId: orderRefId,
-          reference: orderRefId,
-          userId: currentUserId,
-          customerName: customerFullName,
-          customerEmail: emailToUse,
-          email: emailToUse,
-          customerPhone: phoneToUse || "",
-          phone: phoneToUse || "",
-          bundle: `FREE VIP BOOKING CODE: ${checkoutCode.title || checkoutCode.bookmaker} (${checkoutCode.bookmaker} ${Number(checkoutCode.odds).toFixed(2)}x)`,
-          bundleName: checkoutCode.title || `${checkoutCode.bookmaker} VIP Code`,
-          serviceType: "Booking Codes",
-          network: "Booking Codes",
-          bookmaker: checkoutCode.bookmaker || "SportyBet",
-          odds: Number(checkoutCode.odds) || 1.0,
-          amount: 0,
-          price: 0,
-          bookingCodeId: checkoutCode.id,
-          bookingCodeTitle: checkoutCode.title || "VIP Booking Code",
-          code: checkoutCode.code,
-          status: "completed",
-          paymentStatus: "success",
-          paymentMethod: "Free Claim",
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        };
-
-        await Promise.all([
-          // 1. Primary orders collection
-          setDoc(doc(db, "orders", orderRefId), freeOrderPayload, { merge: true }),
-          // 2. booking_code_purchases collection (with secret code unlocked)
-          setDoc(
-            doc(db, "booking_code_purchases", orderRefId),
-            {
-              id: orderRefId,
-              bookingCodeId: checkoutCode.id,
-              userId: currentUserId,
-              customerName: customerFullName,
-              customerEmail: emailToUse,
-              customerPhone: phoneToUse || "",
-              title: checkoutCode.title || "VIP Booking Code",
-              bookmaker: checkoutCode.bookmaker || "SportyBet",
-              code: checkoutCode.code,
-              odds: Number(checkoutCode.odds) || 1.0,
-              price: 0,
-              paymentMethod: "Free Claim",
-              paymentReference: orderRefId,
-              status: "completed",
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-            },
-            { merge: true }
-          ),
-          // 3. Dedicated booking_code_orders collection
-          setDoc(doc(db, "booking_code_orders", orderRefId), freeOrderPayload, { merge: true }),
-          // 4. Increment total claims counter
-          updateDoc(doc(db, "booking_codes", checkoutCode.id), {
-            totalPurchases: increment(1),
-            updatedAt: serverTimestamp(),
-          }).catch((err) => console.warn("Count increment warning:", err)),
-        ]);
+        const pCfg = getPlatformConfig(claimData.bookingCode.bookmaker || checkoutCode.bookmaker || "SportyBet");
 
         toast.dismiss(loadingToast);
         toast.success("Free VIP Booking Code Unlocked! ");
 
         setRevealedCodeData({
-          code: checkoutCode.code,
-          title: checkoutCode.title,
-          bookmaker: checkoutCode.bookmaker,
-          odds: Number(checkoutCode.odds) || 1.0,
-          reference: orderRefId,
+          code: claimData.bookingCode.code,
+          title: claimData.bookingCode.title || checkoutCode.title,
+          bookmaker: claimData.bookingCode.bookmaker || checkoutCode.bookmaker,
+          odds: Number(claimData.bookingCode.odds) || Number(checkoutCode.odds) || 1.0,
+          reference: claimData.reference || "",
           price: 0,
           officialUrl: pCfg?.officialUrl,
         });
@@ -508,65 +448,36 @@ export default function BookingCodesSection({
       return;
     }
 
-    const amountInPesewas = Math.round(Number(checkoutCode.price) * 100);
-
-    const bookingOrderPayload = {
-      id: orderRefId,
-      orderId: orderRefId,
-      reference: orderRefId,
-      userId: currentUserId,
-      customerName: customerFullName,
-      customerEmail: emailToUse,
-      email: emailToUse,
-      customerPhone: phoneToUse || "",
-      phone: phoneToUse || "",
-      bundle: `VIP BOOKING CODE: ${checkoutCode.title || checkoutCode.bookmaker} (${checkoutCode.bookmaker} ${Number(checkoutCode.odds).toFixed(2)}x)`,
-      bundleName: checkoutCode.title || `${checkoutCode.bookmaker} VIP Code`,
-      serviceType: "Booking Codes",
-      network: "Booking Codes",
-      bookmaker: checkoutCode.bookmaker || "SportyBet",
-      odds: Number(checkoutCode.odds) || 1.0,
-      amount: Number(checkoutCode.price),
-      price: Number(checkoutCode.price),
-      bookingCodeId: checkoutCode.id,
-      bookingCodeTitle: checkoutCode.title || "VIP Booking Code",
-      status: "pending",
-      paymentStatus: "pending",
-      paymentMethod: "Paystack",
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    };
-
-    // Save pending order immediately to Firestore so it appears instantly across all Admin & Customer dashboards
+    // Create authoritative pending booking code order on backend (never reveals secret code pre-payment)
+    let orderRefId = "";
+    let authoritativeAmount = Number(checkoutCode.price);
+    let authoritativeEmail = emailToUse;
     try {
-      await Promise.all([
-        // 1. Primary `orders` collection: shows in Admin Dashboard live orders & customer's My Orders
-        setDoc(doc(db, "orders", orderRefId), bookingOrderPayload, { merge: true }),
-        // 2. `booking_code_purchases` collection: shows in Admin Booking Codes Manager Sales log
-        setDoc(doc(db, "booking_code_purchases", orderRefId), {
-          id: orderRefId,
+      const headers = await getRequiredAuthHeaders();
+      const createRes = await fetch(getApiUrl("/api/booking-codes/create-order"), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
           bookingCodeId: checkoutCode.id,
-          userId: currentUserId,
-          customerName: customerFullName,
-          customerEmail: emailToUse,
-          customerPhone: phoneToUse || "",
-          title: checkoutCode.title || "VIP Booking Code",
-          bookmaker: checkoutCode.bookmaker || "SportyBet",
-          code: "Pending Payment ⏳",
-          odds: Number(checkoutCode.odds) || 1.0,
-          price: Number(checkoutCode.price) || 0,
-          paymentMethod: "Paystack",
-          paymentReference: orderRefId,
-          status: "pending",
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        }, { merge: true }),
-        // 3. Dedicated `booking_code_orders` collection
-        setDoc(doc(db, "booking_code_orders", orderRefId), bookingOrderPayload, { merge: true }),
-      ]);
-    } catch (dbErr) {
-      console.warn("Could not pre-save booking code order to Firestore:", dbErr);
+          email: emailToUse,
+          phone: phoneToUse,
+        }),
+      });
+      const createData = await createRes.json().catch(() => ({}));
+      if (!createRes.ok || !createData.success || !createData.reference) {
+        throw new Error(createData.error || "Could not initialize booking code order.");
+      }
+      orderRefId = createData.reference;
+      authoritativeAmount = Number(createData.amount ?? checkoutCode.price);
+      authoritativeEmail = createData.customerEmail || emailToUse;
+    } catch (dbErr: any) {
+      console.error("Could not create booking code order:", dbErr);
+      toast.error(dbErr.message || "Could not create booking code order. Please try again.");
+      setIsProcessingPayment(false);
+      return;
     }
+
+    const amountInPesewas = Math.round(authoritativeAmount * 100);
 
     // Retrieve public key
     let publicKey = "pk_live_1a324af248d2bb1e2f784e7c27981f58f7d66b2c";
@@ -587,7 +498,7 @@ export default function BookingCodesSection({
       toast.info("Opening Paystack Checkout...");
       await openPaystackPopup({
         key: publicKey,
-        email: emailToUse,
+        email: authoritativeEmail,
         amount: amountInPesewas,
         currency: "GHS",
         ref: orderRefId,
@@ -598,9 +509,10 @@ export default function BookingCodesSection({
 
           // Attempt direct verification & immediate modal reveal
           try {
+            const verifyHeaders = await getOptionalAuthHeaders();
             const res = await fetch(getApiUrl("/api/verify-payment"), {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: verifyHeaders,
               body: JSON.stringify({ reference: finalRef, orderId: finalRef }),
             });
             const data = await res.json();
@@ -638,11 +550,12 @@ export default function BookingCodesSection({
 
     // Attempt 2: Fallback to Server-Side Paystack Hosted URL
     try {
+      const initHeaders = await getOptionalAuthHeaders();
       const initRes = await fetch(getApiUrl("/api/paystack-initialize"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: initHeaders,
         body: JSON.stringify({
-          email: emailToUse,
+          email: authoritativeEmail,
           amount: amountInPesewas,
           reference: orderRefId,
           callback_url: `${window.location.origin}/?reference=${orderRefId}&service=booking_codes`,
