@@ -343,12 +343,6 @@ export default function CheckoutForm({
   const finalAmountToCharge = applicableBasePrice + effectiveFastDeliveryFee + totalHiddenCharges;
 
   useEffect(() => {
-    if (finalAmountToCharge < 10 && selectedPaymentMethod === "korapay") {
-      setSelectedPaymentMethod("paystack");
-    }
-  }, [finalAmountToCharge, selectedPaymentMethod]);
-
-  useEffect(() => {
     if (
       bundle &&
       [
@@ -449,8 +443,6 @@ export default function CheckoutForm({
     setSavedFormData(data);
     if (selectedPaymentMethod === "paystack") {
       processPaystackPayment(data);
-    } else if (selectedPaymentMethod === "korapay") {
-      processKorapayPayment(data);
     } else {
       processMoMoDirectPayment(data);
     }
@@ -744,141 +736,6 @@ export default function CheckoutForm({
     } catch (err: any) {
       console.error("Checkout Error:", err);
       toast.error(err.message || "Failed to start checkout. Please try again.");
-      setIsSubmitting(false);
-    }
-  };
-
-  const processKorapayPayment = async (data: z.infer<typeof formSchema>) => {
-    if (!bundle) return;
-    setIsSubmitting(true);
-
-    try {
-      const activeUser = await ensureUser();
-      const cleanPhone = (data.recipientPhone || "").replace(/[^0-9]/g, '').trim();
-      const guestEmail = cleanPhone ? `${cleanPhone}@gmail.com` : "customer@gmail.com";
-      const currentEmail = (profile?.email && profile.email.includes("@"))
-        ? profile.email
-        : (activeUser?.email || guestEmail);
-      const currentName = profile?.fullName || activeUser?.displayName || (cleanPhone ? `Customer (${cleanPhone})` : "Customer");
-
-      // Referral attribution tracking
-      const capturedKoraRef = typeof window !== 'undefined'
-        ? (localStorage.getItem('dgn_referred_by') || sessionStorage.getItem('dgn_referred_by') || profile?.referredBy || '')
-        : (profile?.referredBy || '');
-      const validKoraRef = capturedKoraRef ? capturedKoraRef.trim().toUpperCase() : '';
-
-      const productDetails = bundle.network === "PC Games" ? bundle.name : `${data.recipientNetwork} ${bundle.dataAmount}`;
-      const isFastDeliveryActive = Boolean(isFastDeliveryPermitted && isFastDelivery);
-
-      // Create authoritative order on backend with resilient fallback
-      let finalOrderId = "";
-      let token = "";
-      let authoritativeAmount = finalAmountToCharge;
-
-      try {
-        const createRes = await fetch(getApiUrl('/api/orders/create'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            bundleId: bundle.id,
-            recipientPhone: cleanPhone,
-            recipientNetwork: data.recipientNetwork,
-            paymentMethod: 'korapay',
-            fastDelivery: isFastDeliveryActive,
-            fcUserId: data.fcUserId,
-            fcUsername: data.fcUsername,
-            referredBy: validKoraRef,
-            agentId: agentContext?.id || (isAgentUser ? profile?.uid : undefined),
-            customerEmail: currentEmail,
-            customerName: currentName
-          })
-        });
-
-        if (createRes.ok) {
-          const orderResult = await createRes.json();
-          if (orderResult.success) {
-            finalOrderId = orderResult.orderId;
-            token = orderResult.orderAccessToken || "";
-            authoritativeAmount = Number(orderResult.amount) || finalAmountToCharge;
-          }
-        }
-      } catch (netErr) {
-        console.warn("[Checkout] Backend create notice, using direct fallback:", netErr);
-      }
-
-      if (!finalOrderId) {
-        finalOrderId = doc(collection(db, "orders")).id;
-        token = 'fallback_' + Math.random().toString(36).substring(2);
-        const currentUid = activeUser ? activeUser.uid : (cleanPhone ? `guest_${cleanPhone}` : `guest_${Date.now()}`);
-        await setDoc(doc(db, "orders", finalOrderId), {
-          id: finalOrderId,
-          reference: finalOrderId,
-          orderAccessToken: token,
-          email: currentEmail,
-          phone: cleanPhone,
-          network: data.recipientNetwork,
-          bundle: productDetails,
-          amount: finalAmountToCharge,
-          status: "pending",
-          paymentStatus: "pending",
-          paymentMethod: "Korapay",
-          payment_provider: "korapay",
-          userId: currentUid,
-          customerName: currentName,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        }, { merge: true });
-      }
-
-      setOrderId(finalOrderId);
-      setOrderAccessToken(token);
-
-      const customerEmail = currentEmail;
-      const customerName = currentName;
-
-      const redirectTarget = (typeof window !== 'undefined' && window.location.origin)
-        ? window.location.origin
-        : 'https://kingjdeals.site';
-
-      toast.info("Connecting to Korapay Checkout... 💳");
-
-      const response = await fetch(getApiUrl("/api/korapay-initialize"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          reference: finalOrderId,
-          amount: authoritativeAmount,
-          currency: "GHS",
-          customerName,
-          customerEmail,
-          narration: productDetails,
-          redirect_url: `${redirectTarget}/?reference=${finalOrderId}&method=korapay`,
-        }),
-      });
-
-      const resData = await response.json();
-      if (!response.ok || !resData.success) {
-        throw new Error(resData.error || resData.message || "Failed to initialize Korapay payment session");
-      }
-
-      const checkoutUrl = resData.checkout_url || resData.hosted_url || resData.checkout_link;
-      if (checkoutUrl) {
-        toast.success("Redirecting to Korapay payment...");
-        if (window.self !== window.top) {
-          try {
-            window.top.location.href = checkoutUrl;
-          } catch (redirectError) {
-            window.location.href = checkoutUrl;
-          }
-        } else {
-          window.location.href = checkoutUrl;
-        }
-      } else {
-        throw new Error(resData.error || "Failed to retrieve checkout URL from Korapay");
-      }
-    } catch (err: any) {
-      console.error("Korapay Checkout Error:", err);
-      toast.error(err.message || "Could not initialize Korapay payment. Please try again.");
       setIsSubmitting(false);
     }
   };

@@ -138,10 +138,10 @@ export default function App() {
       window.history.replaceState({}, document.title, "/");
     }
 
-    // 1. Check for Paystack / Korapay Reference in URL
+    // 1. Check for Paystack Reference in URL
     const params = new URLSearchParams(window.location.search);
     const reference = params.get('reference') || params.get('trxref') || params.get('orderId') || params.get('order_id');
-    const methodParam = params.get('method');
+    const methodParam = (params.get('method') || '').trim().toLowerCase();
 
     // Check for Referral Link ?ref=... or ?referrer=...
     const refParam = params.get('ref') || params.get('referrer');
@@ -153,14 +153,35 @@ export default function App() {
     }
 
     if (reference) {
-        toast.info("Verifying your payment, please wait...", { duration: 5000 });
-
-        const verifyPayment = async () => {
+        const cleanHistoryUrl = () => {
             try {
-                const isKorapay = methodParam === 'korapay' || reference.startsWith('KORA');
-                const verifyEndpoint = isKorapay ? '/api/korapay-verify' : '/api/verify-payment';
-                const apiUrl = getApiUrl(verifyEndpoint);
-                console.log(`[Payment Verification] Sending verification request to: ${apiUrl} for reference: ${reference}`);
+                if (window.location.hostname !== 'kingjdeals.site' && window.location.hostname !== 'www.kingjdeals.site' && window.location.hostname !== 'dataghananow.com') {
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                } else {
+                    window.history.replaceState({}, document.title, "/");
+                }
+            } catch (histErr) {
+                console.warn("[Payment Verification] History state update notice:", histErr);
+            }
+        };
+
+        const trimmedReference = reference.trim();
+        const isLegacyKorapayCallback =
+            methodParam === 'korapay' || trimmedReference.toUpperCase().startsWith('KORA');
+
+        if (isLegacyKorapayCallback) {
+            console.info(`[Payment Verification] Skipping Paystack verification for legacy Korapay callback: ${trimmedReference}`);
+            toast.info("This link belongs to a legacy Korapay payment. Historical order records remain preserved in My Orders.");
+            cleanHistoryUrl();
+        } else {
+            toast.info("Verifying your payment, please wait...", { duration: 5000 });
+
+            const verifyPayment = async (attempt = 1): Promise<void> => {
+                const maxAttempts = 3;
+                try {
+                    const verifyEndpoint = '/api/verify-payment';
+                    const apiUrl = getApiUrl(verifyEndpoint);
+                    console.log(`[Payment Verification] Attempt ${attempt}/${maxAttempts} sending verification request to: ${apiUrl} for reference: ${reference}`);
 
                 const response = await fetch(apiUrl, {
                     method: 'POST',
@@ -175,8 +196,14 @@ export default function App() {
 
                 console.log("[Payment Verification] Backend verification response:", resData);
 
-                const provider = isKorapay ? 'korapay' : 'paystack';
-                const method = isKorapay ? 'Korapay' : 'Paystack';
+                // Retry automatically on transient gateway errors (503) or in-flight/pending MoMo confirmations (202)
+                if ((response.status === 202 || response.status === 503 || resData.retryable === true || resData.pending === true) && attempt < maxAttempts) {
+                    await new Promise((r) => setTimeout(r, 1800));
+                    return verifyPayment(attempt + 1);
+                }
+
+                const provider = 'paystack';
+                const method = 'Paystack';
                 const orderDocRef = doc(db, 'orders', reference);
 
                 if (response.ok && resData.success && resData.verified !== false) {
@@ -188,9 +215,11 @@ export default function App() {
 
                         if (orderSnap.exists()) {
                             const orderData = orderSnap.data();
+                            const existingStatusLower = String(orderData.status || '').toLowerCase().trim();
+                            const activeFulfillment = ['processing', 'accepted', 'delivered', 'completed'].includes(existingStatusLower);
                             await updateDoc(orderDocRef, {
                                 paymentStatus: "success",
-                                status: "paid",
+                                status: activeFulfillment ? orderData.status : "paid",
                                 paymentMethod: orderData.paymentMethod || method,
                                 payment_provider: orderData.payment_provider || provider,
                                 ...(agentData ? {
@@ -310,47 +339,34 @@ export default function App() {
                     if (!reference.startsWith("BC_") && params.get("service") !== "booking_codes") {
                         setIsHistoryView(true); // Take user to view their orders for standard data/bundle orders
                     }
-                    try {
-                      if (window.location.hostname !== 'kingjdeals.site' && window.location.hostname !== 'www.kingjdeals.site' && window.location.hostname !== 'dataghananow.com') {
-                        window.history.replaceState({}, document.title, window.location.pathname);
-                      } else {
-                        window.history.replaceState({}, document.title, "/");
-                      }
-                    } catch (histErr) {
-                      console.warn("[Payment Verification] History state update notice:", histErr);
-                    }
+                    cleanHistoryUrl();
+                } else if (resData.cancelled || resData.status === 'cancelled') {
+                    console.info("[Payment Verification] Checkout was cancelled before completion:", resData);
+                    toast.info(resData.error || "Payment was cancelled before completion.");
+                    cleanHistoryUrl();
+                } else if (response.status === 202 || response.status === 503 || resData.pending || resData.retryable) {
+                    console.info("[Payment Verification] Payment still pending confirmation:", resData);
+                    toast.info("Payment confirmation is still processing. Check your My Orders page shortly.");
+                    cleanHistoryUrl();
                 } else {
-                    console.warn("[Payment Verification] Payment not completed or was cancelled:", resData);
-                    try {
-                        await setDoc(orderDocRef, {
-                            paymentStatus: "failed",
-                            status: "failed",
-                            paymentMethod: method,
-                            payment_provider: provider
-                        }, { merge: true });
-                    } catch (fsErr) {
-                        console.warn("[Payment Verification] Failed to mark order failed in Firestore:", fsErr);
-                    }
-
-                    toast.error(resData.error || "Payment was cancelled or unsuccessful.");
-                    try {
-                        window.history.replaceState({}, document.title, "/");
-                    } catch (histErr) {
-                        console.warn("[Payment Verification] History state error:", histErr);
-                    }
+                    // Authoritative failure from backend — do NOT blindly mutate Firestore on the client
+                    console.warn("[Payment Verification] Backend reported payment not completed:", resData);
+                    toast.error(resData.error || "Payment was unsuccessful.");
+                    cleanHistoryUrl();
                 }
             } catch (err: any) {
-                console.error("[Payment Verification Error] Request failed:", err.message || err);
-                toast.error("Unable to complete payment verification. Please check your orders page.");
-                try {
-                    window.history.replaceState({}, document.title, "/");
-                } catch (fallbackErr) {
-                    console.warn("[Payment Verification] History fallback error:", fallbackErr);
+                if (attempt < maxAttempts) {
+                    await new Promise((r) => setTimeout(r, 1800));
+                    return verifyPayment(attempt + 1);
                 }
+                console.error("[Payment Verification Error] Request failed:", err.message || err);
+                toast.info("We could not confirm your payment right now. Check My Orders in a moment — your order status has been preserved.");
+                cleanHistoryUrl();
             }
-        };
-        
-        verifyPayment();
+            };
+
+            verifyPayment();
+        }
     }
 
     let profileUnsubscribe: (() => void) | undefined;

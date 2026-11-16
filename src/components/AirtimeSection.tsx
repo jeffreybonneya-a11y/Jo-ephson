@@ -240,12 +240,27 @@ export default function AirtimeSection({ profile, agentContext }: AirtimeSection
             });
             setIsSubmitting(false);
 
-            // Trigger background verification
-            fetch(getApiUrl("/api/verify-payment"), {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ reference: verifiedRef || generatedRef }),
-            }).catch((err) => console.warn("Airtime verify-payment background:", err));
+            // Trigger background verification with retry for pending/transient gateway responses
+            const verifyAirtimePayment = async (attempt = 1): Promise<void> => {
+              try {
+                const vRes = await fetch(getApiUrl("/api/verify-payment"), {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ reference: verifiedRef || generatedRef }),
+                });
+                const vData = await vRes.json().catch(() => ({}));
+                if ((vRes.status === 202 || vRes.status === 503 || vData.retryable || vData.pending) && attempt < 3) {
+                  setTimeout(() => verifyAirtimePayment(attempt + 1), 2000);
+                }
+              } catch (err) {
+                if (attempt < 3) {
+                  setTimeout(() => verifyAirtimePayment(attempt + 1), 2000);
+                } else {
+                  console.warn("Airtime verify-payment background:", err);
+                }
+              }
+            };
+            verifyAirtimePayment();
           },
           onClose: () => {
             toast.warning("Payment window closed.");

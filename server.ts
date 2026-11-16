@@ -70,55 +70,186 @@ try {
     console.warn("[Firebase Admin] Init notice:", e);
 }
 
+// Test/runtime extensible Firestore adapter (defaults to live Firebase Client SDK)
+const serverFirestoreOps = {
+    getDoc: async (collectionName: string, docId: string): Promise<{ exists: boolean; data: () => any; id: string; ref?: any } | null> => {
+        try {
+            const dRef = clientDoc(serverClientDb, collectionName, docId);
+            const snap = await clientGetDoc(dRef);
+            return {
+                exists: snap.exists(),
+                data: () => snap.data() || {},
+                id: snap.id,
+                ref: dRef
+            };
+        } catch (err: any) {
+            console.warn(`[Server Firestore] getDoc notice (${collectionName}/${docId}):`, err.message || err);
+            return null;
+        }
+    },
+    setDoc: async (collectionName: string, docId: string, data: any, merge = true): Promise<boolean> => {
+        try {
+            const cleanData = { ...data };
+            Object.keys(cleanData).forEach(key => {
+                if (cleanData[key] && typeof cleanData[key] === 'object' && cleanData[key].constructor && cleanData[key].constructor.name === 'FieldValue') {
+                    cleanData[key] = clientServerTimestamp();
+                }
+            });
+            const dRef = clientDoc(serverClientDb, collectionName, docId);
+            await clientSetDoc(dRef, cleanData, { merge });
+            return true;
+        } catch (err: any) {
+            console.warn(`[Server Firestore] setDoc notice (${collectionName}/${docId}):`, err.message || err);
+            return false;
+        }
+    },
+    updateDoc: async (collectionName: string, docId: string, data: any): Promise<boolean> => {
+        try {
+            const cleanData = { ...data };
+            Object.keys(cleanData).forEach(key => {
+                if (cleanData[key] && typeof cleanData[key] === 'object' && cleanData[key].constructor && cleanData[key].constructor.name === 'FieldValue') {
+                    cleanData[key] = clientServerTimestamp();
+                }
+            });
+            const dRef = clientDoc(serverClientDb, collectionName, docId);
+            await clientUpdateDoc(dRef, cleanData);
+            return true;
+        } catch (err: any) {
+            console.warn(`[Server Firestore] updateDoc notice (${collectionName}/${docId}):`, err.message || err);
+            return serverFirestoreOps.setDoc(collectionName, docId, data, true);
+        }
+    },
+    queryByField: async (collectionName: string, fieldName: string, value: string): Promise<{ exists: boolean; data: () => any; id: string } | null> => {
+        try {
+            const cRef = clientCollection(serverClientDb, collectionName);
+            const q = clientQuery(cRef, clientWhere(fieldName, '==', value), clientLimit(1));
+            const snap = await clientGetDocs(q);
+            if (!snap.empty) {
+                const d = snap.docs[0];
+                return { exists: true, data: () => d.data() || {}, id: d.id };
+            }
+            return null;
+        } catch (err: any) {
+            console.warn(`[Server Firestore] queryByField notice (${collectionName}.${fieldName}=${value}):`, err.message || err);
+            return null;
+        }
+    },
+    incrementField: async (collectionName: string, docId: string, fieldName: string, amount = 1): Promise<void> => {
+        try {
+            const dRef = clientDoc(serverClientDb, collectionName, docId);
+            await clientUpdateDoc(dRef, {
+                [fieldName]: clientIncrement(amount),
+                updatedAt: clientServerTimestamp()
+            });
+        } catch (err: any) {
+            console.warn(`[Server Firestore] incrementField notice (${collectionName}/${docId}.${fieldName}):`, err.message || err);
+        }
+    }
+};
+
 // Unified, robust Firestore helper methods that never throw permission errors due to missing service accounts
 async function getFirestoreDoc(collectionName: string, docId: string): Promise<{ exists: boolean; data: () => any; id: string; ref?: any } | null> {
-    try {
-        const dRef = clientDoc(serverClientDb, collectionName, docId);
-        const snap = await clientGetDoc(dRef);
-        return {
-            exists: snap.exists(),
-            data: () => snap.data() || {},
-            id: snap.id,
-            ref: dRef
-        };
-    } catch (err: any) {
-        console.warn(`[Server Firestore] getDoc notice (${collectionName}/${docId}):`, err.message || err);
-        return null;
-    }
+    return serverFirestoreOps.getDoc(collectionName, docId);
 }
 
 async function setFirestoreDoc(collectionName: string, docId: string, data: any, merge = true): Promise<boolean> {
-    try {
-        const cleanData = { ...data };
-        Object.keys(cleanData).forEach(key => {
-            if (cleanData[key] && typeof cleanData[key] === 'object' && cleanData[key].constructor && cleanData[key].constructor.name === 'FieldValue') {
-                cleanData[key] = clientServerTimestamp();
-            }
-        });
-        const dRef = clientDoc(serverClientDb, collectionName, docId);
-        await clientSetDoc(dRef, cleanData, { merge });
-        return true;
-    } catch (err: any) {
-        console.warn(`[Server Firestore] setDoc notice (${collectionName}/${docId}):`, err.message || err);
-        return false;
-    }
+    return serverFirestoreOps.setDoc(collectionName, docId, data, merge);
 }
 
 async function updateFirestoreDoc(collectionName: string, docId: string, data: any): Promise<boolean> {
-    try {
-        const cleanData = { ...data };
-        Object.keys(cleanData).forEach(key => {
-            if (cleanData[key] && typeof cleanData[key] === 'object' && cleanData[key].constructor && cleanData[key].constructor.name === 'FieldValue') {
-                cleanData[key] = clientServerTimestamp();
-            }
-        });
-        const dRef = clientDoc(serverClientDb, collectionName, docId);
-        await clientUpdateDoc(dRef, cleanData);
-        return true;
-    } catch (err: any) {
-        console.warn(`[Server Firestore] updateDoc notice (${collectionName}/${docId}):`, err.message || err);
-        return setFirestoreDoc(collectionName, docId, data, true);
+    return serverFirestoreOps.updateDoc(collectionName, docId, data);
+}
+
+const PROTECTED_ORDER_STATUSES = new Set([
+    'paid', 'success', 'successful', 'processing', 'accepted', 'delivered', 'completed'
+]);
+const PROTECTED_PAYMENT_STATUSES = new Set(['success', 'paid']);
+const ACTIVE_FULFILLMENT_STATUSES = new Set(['processing', 'accepted', 'delivered', 'completed']);
+const PAYSTACK_PENDING_STATUSES = new Set([
+    'pending', 'ongoing', 'processing', 'queued', 'pay_offline',
+    'send_otp', 'otp', 'send_pin', 'send_phone', 'send_birthday', 'send_address'
+]);
+
+function isProtectedPaidOrFulfilledState(orderData: any): boolean {
+    if (!orderData) return false;
+    const status = String(orderData.status || '').toLowerCase().trim();
+    const paymentStatus = String(orderData.paymentStatus || '').toLowerCase().trim();
+    const fulfillmentStatus = String(orderData.fulfillmentStatus || '').toLowerCase().trim();
+    return (
+        PROTECTED_ORDER_STATUSES.has(status) ||
+        PROTECTED_PAYMENT_STATUSES.has(paymentStatus) ||
+        fulfillmentStatus === 'delivered'
+    );
+}
+
+async function resolveOrderDocByReference(reference: string): Promise<{ docId: string; snap: any; data: any }> {
+    const cleanRef = String(reference || '').trim();
+    if (!cleanRef) return { docId: '', snap: null, data: null };
+
+    const directSnap = await getFirestoreDoc('orders', cleanRef);
+    if (directSnap && directSnap.exists) {
+        return { docId: cleanRef, snap: directSnap, data: directSnap.data() };
     }
+
+    const searchFields = ['paymentReference', 'paystackReference', 'reference', 'orderId'];
+    for (const field of searchFields) {
+        const match = await serverFirestoreOps.queryByField('orders', field, cleanRef);
+        if (match && match.exists) {
+            return { docId: match.id, snap: match, data: match.data() };
+        }
+    }
+
+    return { docId: cleanRef, snap: null, data: null };
+}
+
+async function creditReferralIfEligible(orderId: string, orderData: any): Promise<void> {
+    try {
+        const referralCode = orderData?.referredBy;
+        const purchaserUid = orderData?.userId;
+        if (!referralCode || !purchaserUid) return;
+
+        const cleanRefCode = String(referralCode).trim().toUpperCase();
+        const referrerMatch = await serverFirestoreOps.queryByField('users', 'referralCode', cleanRefCode);
+        if (!referrerMatch || !referrerMatch.exists) return;
+
+        const referrerUid = referrerMatch.id;
+        if (!referrerUid || referrerUid === purchaserUid) return;
+
+        const referralRecordId = `ref_${referrerUid}_${purchaserUid}`;
+        const existingRefRecord = await getFirestoreDoc('referrals', referralRecordId);
+        if (existingRefRecord && existingRefRecord.exists) return;
+
+        await setFirestoreDoc('referrals', referralRecordId, {
+            id: referralRecordId,
+            referrerUid,
+            referrerCode: cleanRefCode,
+            purchaserUid,
+            purchaserEmail: orderData.email || 'Customer',
+            purchaserName: orderData.customerName || 'Customer',
+            orderId,
+            orderAmount: orderData.amount || 0,
+            bundle: orderData.bundle || 'Data Bundle',
+            status: 'successful',
+            rewardEarned: true,
+            rewardDelivered: false,
+            rewardStatus: 'pending_delivery',
+            createdAt: clientServerTimestamp(),
+        }, false);
+
+        await serverFirestoreOps.incrementField('users', referrerUid, 'referralCount', 1);
+        console.log(`[Server Referral] Credited referrer ${referrerUid} for ${purchaserUid} on order ${orderId}`);
+    } catch (err: any) {
+        console.warn(`[Server Referral] Credit check notice for ${orderId}:`, err?.message || err);
+    }
+}
+
+function timingSafeCompareStrings(a: string, b: string): boolean {
+    const bufA = Buffer.from(String(a || ''), 'utf8');
+    const bufB = Buffer.from(String(b || ''), 'utf8');
+    if (bufA.length === 0 || bufA.length !== bufB.length) {
+        return false;
+    }
+    return crypto.timingSafeEqual(bufA, bufB);
 }
 
 async function queryActiveBookingCodes(limitCount = 5): Promise<any[]> {
@@ -242,7 +373,7 @@ app.use(cors({
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-paystack-signature', 'x-korapay-signature', 'Accept']
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-paystack-signature', 'Accept']
 }));
 
 app.use(express.json({
@@ -622,6 +753,7 @@ app.post('/api/orders/create', async (req, res) => {
             bundleId: bundleId || "",
             amount: pricing.finalAmount,
             basePrice: pricing.basePrice,
+            hiddenFee: pricing.hiddenFee,
             finalPrice: pricing.finalAmount,
             fastDelivery: pricing.fastDelivery,
             fastDeliveryFee: pricing.fastDeliveryFee,
@@ -1045,6 +1177,12 @@ async function handlePaystackInitialize(req: express.Request, res: express.Respo
                 (existingOrder?.amount ? Math.max(0, existingOrder.amount - (existingOrder.fastDeliveryFee || 0)) : 0)
             );
 
+            const existingHiddenFee = existingOrder
+                ? (existingOrder.hiddenFee != null
+                    ? Number(existingOrder.hiddenFee) || 0
+                    : Math.max(0, Number(existingOrder.amount || 0) - Number(existingOrder.basePrice || existingOrder.amount || 0) - Number(existingOrder.fastDeliveryFee || 0)))
+                : 0;
+
             verifiedResult = await verifyFastDeliverySettings({
                 requestedFastDelivery,
                 network: effectiveNetwork,
@@ -1053,26 +1191,30 @@ async function handlePaystackInitialize(req: express.Request, res: express.Respo
             });
 
             if (reference) {
-                if (existingOrder) {
-                    if (verifiedResult.isFastDelivery) {
+                if (existingOrder && !isProtectedPaidOrFulfilledState(existingOrder)) {
+                    if (verifiedResult.isFastDelivery && rawBasePrice > 0) {
+                        const updatedFinalAmount = Math.round((verifiedResult.finalPrice + existingHiddenFee) * 100) / 100;
                         await updateFirestoreDoc('orders', reference, {
                             fastDelivery: true,
                             fastDeliveryType: verifiedResult.fastDeliveryType,
                             fastDeliveryFee: verifiedResult.fastDeliveryFee,
                             basePrice: verifiedResult.basePrice,
-                            finalPrice: verifiedResult.finalPrice,
-                            amount: verifiedResult.finalPrice,
+                            hiddenFee: existingHiddenFee,
+                            finalPrice: updatedFinalAmount,
+                            amount: updatedFinalAmount,
                             updatedAt: clientServerTimestamp(),
                         });
                         console.log(`[Paystack Init] Verified Fast Delivery ⚡ (${verifiedResult.fastDeliveryType}) for order ${reference}, fee: GH¢${verifiedResult.fastDeliveryFee}`);
-                    } else if (existingOrder.fastDelivery) {
+                    } else if (existingOrder.fastDelivery && rawBasePrice > 0) {
+                        const updatedFinalAmount = Math.round((verifiedResult.basePrice + existingHiddenFee) * 100) / 100;
                         await updateFirestoreDoc('orders', reference, {
                             fastDelivery: false,
                             fastDeliveryType: verifiedResult.fastDeliveryType,
                             fastDeliveryFee: 0,
                             basePrice: verifiedResult.basePrice,
-                            finalPrice: verifiedResult.basePrice,
-                            amount: verifiedResult.basePrice,
+                            hiddenFee: existingHiddenFee,
+                            finalPrice: updatedFinalAmount,
+                            amount: updatedFinalAmount,
                             updatedAt: clientServerTimestamp(),
                         });
                     }
@@ -1155,7 +1297,7 @@ async function handlePaystackInitialize(req: express.Request, res: express.Respo
             }
         };
 
-        const response = await axios.post('https://api.paystack.co/transaction/initialize', paystackPayload, {
+        const response = await gatewayHttpClient.post('https://api.paystack.co/transaction/initialize', paystackPayload, {
             headers: {
                 Authorization: `Bearer ${key}`,
                 'Content-Type': 'application/json'
@@ -1191,17 +1333,45 @@ app.post('/api/paystack-initialize', handlePaystackInitialize);
 app.post('/api/paystack/initialize', handlePaystackInitialize);
 app.post('/api/booking-codes/initialize', handlePaystackInitialize);
 
-async function updateFirestoreOrderPaymentStatus(reference: string, paymentStatus: "success" | "failed" | "pending" = "success") {
+async function updateFirestoreOrderPaymentStatus(
+    reference: string,
+    paymentStatus: "success" | "failed" | "cancelled" | "pending" = "success",
+    extraMeta?: Record<string, any>
+) {
     try {
         console.log(`[Server Firestore] Updating order ${reference} to paymentStatus: ${paymentStatus}`);
-        const orderSnap = await getFirestoreDoc('orders', reference);
-        const agentOrderSnap = await getFirestoreDoc('agent_orders', reference);
+        const resolved = await resolveOrderDocByReference(reference);
+        const targetId = resolved.docId || reference;
+        const orderSnap = resolved.snap;
+        const orderData = resolved.data;
+        const agentOrderSnap = await getFirestoreDoc('agent_orders', targetId);
         const agentData = agentOrderSnap?.exists ? agentOrderSnap.data() : null;
 
+        // Guard: Never downgrade or mark failed/cancelled an order already verified as paid/processing/accepted/delivered/completed
+        if (orderData && isProtectedPaidOrFulfilledState(orderData)) {
+            if (paymentStatus === "failed" || paymentStatus === "cancelled" || paymentStatus === "pending") {
+                console.warn(
+                    `[Payment Guard] Refusing to overwrite protected order ${targetId} (status=${orderData.status}, paymentStatus=${orderData.paymentStatus}) with ${paymentStatus}`
+                );
+                return;
+            }
+        }
+
         if (orderSnap && orderSnap.exists) {
-            const orderData = orderSnap.data();
-            const newStatus = paymentStatus === "success" ? "paid" : (paymentStatus === "failed" ? "failed" : (orderData?.status || "pending"));
-            await updateFirestoreDoc('orders', reference, {
+            const currentStatus = String(orderData?.status || '').toLowerCase().trim();
+            let newStatus: string;
+            if (paymentStatus === "success") {
+                // Preserve active fulfillment progression (processing/accepted/delivered/completed)
+                newStatus = ACTIVE_FULFILLMENT_STATUSES.has(currentStatus) ? orderData.status : "paid";
+            } else if (paymentStatus === "failed") {
+                newStatus = "failed";
+            } else if (paymentStatus === "cancelled") {
+                newStatus = "cancelled";
+            } else {
+                newStatus = orderData?.status || "pending";
+            }
+
+            await updateFirestoreDoc('orders', targetId, {
                 paymentStatus,
                 status: newStatus,
                 ...(agentData ? {
@@ -1215,10 +1385,11 @@ async function updateFirestoreOrderPaymentStatus(reference: string, paymentStatu
                     agent_profit: agentData.profit || orderData?.agent_profit,
                     isAgentOrder: true
                 } : {}),
+                ...(extraMeta || {}),
                 updatedAt: clientServerTimestamp()
             });
-            console.log(`[Server Firestore] Updated order ${reference} to status: ${newStatus}`);
-            
+            console.log(`[Server Firestore] Updated order ${targetId} to status: ${newStatus}`);
+
             // Instantly grant Agent Access if this was an Agent Unlock order and payment is successful
             if (paymentStatus === "success" && orderData?.bundle === "AGENT ACCESS UNLOCK" && orderData?.userId) {
                 await updateFirestoreDoc('users', orderData.userId, { isAgent: true });
@@ -1226,9 +1397,9 @@ async function updateFirestoreOrderPaymentStatus(reference: string, paymentStatu
             }
         } else if (agentData && paymentStatus === "success") {
             // Order existed in agent_orders but not in orders collection - create it in orders
-            await setFirestoreDoc('orders', reference, {
-                id: reference,
-                reference: reference,
+            await setFirestoreDoc('orders', targetId, {
+                id: targetId,
+                reference: targetId,
                 paymentStatus: "success",
                 status: "paid",
                 email: agentData.customer_details?.email || "",
@@ -1253,42 +1424,64 @@ async function updateFirestoreOrderPaymentStatus(reference: string, paymentStatu
                     basePrice: Number(agentData.basePrice || agentData.agent_price || 0),
                     finalPrice: Number(agentData.finalPrice || agentData.amount || agentData.agent_price || 0),
                 } : {}),
+                ...(extraMeta || {}),
                 createdAt: agentData.created_at || clientServerTimestamp(),
                 updatedAt: clientServerTimestamp()
             }, true);
-            console.log(`[Server Firestore] Reconstructed order ${reference} from agent_orders doc`);
+            console.log(`[Server Firestore] Reconstructed order ${targetId} from agent_orders doc`);
         } else {
-            console.log(`[Server Firestore] Order document ${reference} not found in Firestore.`);
+            console.log(`[Server Firestore] Order document ${targetId} not found in Firestore.`);
         }
 
         if (agentOrderSnap && agentOrderSnap.exists) {
-            await updateFirestoreDoc('agent_orders', reference, {
-                status: paymentStatus === "success" ? "success" : paymentStatus,
-                paymentStatus: paymentStatus
-            });
-            console.log(`[Server Firestore] Successfully updated agent_orders document ${reference} to status: ${paymentStatus}`);
+            const agentAlreadyPaid = Boolean(
+                agentData &&
+                (PROTECTED_ORDER_STATUSES.has(String(agentData.status || '').toLowerCase()) ||
+                 PROTECTED_PAYMENT_STATUSES.has(String(agentData.paymentStatus || '').toLowerCase()) ||
+                 agentData.profit_credited === true)
+            );
+            if (!(agentAlreadyPaid && (paymentStatus === "failed" || paymentStatus === "cancelled" || paymentStatus === "pending"))) {
+                await updateFirestoreDoc('agent_orders', targetId, {
+                    status: paymentStatus === "success" ? "success" : paymentStatus,
+                    paymentStatus: paymentStatus
+                });
+                console.log(`[Server Firestore] Successfully updated agent_orders document ${targetId} to status: ${paymentStatus}`);
+            }
         }
 
         // Also update efootballOrders collection if present
         try {
-            const efOrderSnap = await getFirestoreDoc('efootballOrders', reference);
+            const efOrderSnap = await getFirestoreDoc('efootballOrders', targetId);
             if (efOrderSnap && efOrderSnap.exists) {
                 const efData = efOrderSnap.data();
-                const newEfPaymentStatus = paymentStatus === "success" ? "PAID" : (paymentStatus === "failed" ? "FAILED" : "PAYMENT_PENDING");
-                const newEfStatus = paymentStatus === "success" ? "paid" : (paymentStatus === "failed" ? "failed" : "pending");
-                const newFulfillmentStatus = paymentStatus === "success"
-                    ? (efData?.fulfillmentStatus === "DELIVERED" ? "DELIVERED" : "AWAITING_FULFILLMENT")
-                    : efData?.fulfillmentStatus || "AWAITING_FULFILLMENT";
+                const efProtected = Boolean(
+                    efData &&
+                    (PROTECTED_PAYMENT_STATUSES.has(String(efData.paymentStatus || '').toLowerCase()) ||
+                     PROTECTED_ORDER_STATUSES.has(String(efData.status || '').toLowerCase()) ||
+                     String(efData.fulfillmentStatus || '').toUpperCase() === 'DELIVERED')
+                );
+                if (efProtected && (paymentStatus === "failed" || paymentStatus === "cancelled" || paymentStatus === "pending")) {
+                    console.warn(`[Payment Guard] Refusing to downgrade protected efootballOrders ${targetId} to ${paymentStatus}`);
+                } else {
+                    const newEfPaymentStatus = paymentStatus === "success" ? "PAID" : (paymentStatus === "failed" ? "FAILED" : (paymentStatus === "cancelled" ? "CANCELLED" : "PAYMENT_PENDING"));
+                    const currentEfStatus = String(efData?.status || '').toLowerCase().trim();
+                    const newEfStatus = paymentStatus === "success"
+                        ? (ACTIVE_FULFILLMENT_STATUSES.has(currentEfStatus) ? efData.status : "paid")
+                        : (paymentStatus === "failed" ? "failed" : (paymentStatus === "cancelled" ? "cancelled" : "pending"));
+                    const newFulfillmentStatus = paymentStatus === "success"
+                        ? (efData?.fulfillmentStatus === "DELIVERED" ? "DELIVERED" : "AWAITING_FULFILLMENT")
+                        : efData?.fulfillmentStatus || "AWAITING_FULFILLMENT";
 
-                await updateFirestoreDoc('efootballOrders', reference, {
-                    paymentStatus: newEfPaymentStatus,
-                    status: newEfStatus,
-                    fulfillmentStatus: newFulfillmentStatus,
-                    adminStatus: newFulfillmentStatus,
-                    ...(paymentStatus === "success" ? { paidAt: clientServerTimestamp() } : {}),
-                    updatedAt: clientServerTimestamp()
-                });
-                console.log(`[Server Firestore] Successfully updated efootballOrders document ${reference} to paymentStatus: ${newEfPaymentStatus}`);
+                    await updateFirestoreDoc('efootballOrders', targetId, {
+                        paymentStatus: newEfPaymentStatus,
+                        status: newEfStatus,
+                        fulfillmentStatus: newFulfillmentStatus,
+                        adminStatus: newFulfillmentStatus,
+                        ...(paymentStatus === "success" && !efData?.paidAt ? { paidAt: clientServerTimestamp() } : {}),
+                        updatedAt: clientServerTimestamp()
+                    });
+                    console.log(`[Server Firestore] Successfully updated efootballOrders document ${targetId} to paymentStatus: ${newEfPaymentStatus}`);
+                }
             }
         } catch (efErr: any) {
             console.warn('[Server Firestore] efootballOrders update notice:', efErr?.message);
@@ -1302,16 +1495,34 @@ async function updateFirestoreOrderPaymentSuccess(reference: string) {
     return updateFirestoreOrderPaymentStatus(reference, "success");
 }
 
-async function verifyPaystackReference(reference: string) {
+const gatewayHttpClient = {
+    get: (url: string, config?: any) => axios.get(url, config),
+    post: (url: string, data?: any, config?: any) => axios.post(url, data, config)
+};
+
+async function verifyPaystackReference(reference: string): Promise<{
+    status: boolean;
+    transientError?: boolean;
+    gatewayNotFound?: boolean;
+    httpStatus?: number;
+    message: string;
+    data: any;
+}> {
     const key = getPaystackSecretKey();
     if (!key || (!key.startsWith('sk_') && !key.startsWith('sat_'))) {
         console.warn('[Paystack Backend Error] PAYSTACK_SECRET_KEY is missing or invalid in server environment.');
-        return { status: false, message: 'Paystack secret key is missing or not configured on the server' };
+        return {
+            status: false,
+            transientError: true,
+            httpStatus: 503,
+            message: 'Paystack secret key is missing or not configured on the server',
+            data: {}
+        };
     }
-    
+
     try {
         console.log(`[Paystack Backend] Calling Paystack Verify Transaction API for reference: ${reference}`);
-        const response = await axios.get(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
+        const response = await gatewayHttpClient.get(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
             headers: { Authorization: `Bearer ${key}` },
             timeout: 15000
         });
@@ -1319,61 +1530,206 @@ async function verifyPaystackReference(reference: string) {
         console.log(`[Paystack Backend Response] Status: ${response.status}, Data Status: ${response.data?.data?.status}`);
         return response.data;
     } catch (err: any) {
+        const httpStatus = err.response?.status;
         const errorMsg = err.response?.data?.message || err.message || 'Verification failed';
-        console.warn(`[Paystack Backend Error] Paystack verify API call error for reference ${reference}: ${errorMsg}`);
-        return { status: false, message: errorMsg, data: err.response?.data?.data || {} };
+        const isNetworkOrRateLimitOrServer =
+            !err.response ||
+            err.code === 'ECONNABORTED' ||
+            err.code === 'ETIMEDOUT' ||
+            err.code === 'ECONNRESET' ||
+            err.code === 'ENOTFOUND' ||
+            httpStatus === 408 ||
+            httpStatus === 429 ||
+            (typeof httpStatus === 'number' && httpStatus >= 500);
+        const gatewayNotFound = !err.response?.data?.data?.status && (httpStatus === 400 || httpStatus === 404);
+
+        console.warn(
+            `[Paystack Backend Error] Paystack verify API call error for reference ${reference} (httpStatus=${httpStatus || 'network'}, transient=${isNetworkOrRateLimitOrServer}): ${errorMsg}`
+        );
+        return {
+            status: false,
+            transientError: isNetworkOrRateLimitOrServer,
+            gatewayNotFound,
+            httpStatus,
+            message: errorMsg,
+            data: err.response?.data?.data || {}
+        };
     }
 }
 
 // Unified Payment Verification Handler
 async function handlePaystackVerificationRequest(req: express.Request, res: express.Response) {
-    const reference = req.body?.reference || req.body?.orderId || req.body?.trxref || req.query?.reference;
+    const rawReference = req.body?.reference || req.body?.orderId || req.body?.trxref || req.query?.reference;
+    const reference = rawReference ? String(rawReference).trim() : '';
     console.log(`[Paystack Backend Request] Verification requested for reference: ${reference}`);
-    
+
     if (!reference) {
         console.error('[Paystack Backend Error] Missing reference in request body or query.');
-        return res.status(400).json({ 
-            success: false, 
+        return res.status(400).json({
+            success: false,
             verified: false,
-            error: 'Payment verification failed ❌', 
-            message: 'Transaction reference is missing.' 
+            error: 'Payment verification failed ❌',
+            message: 'Transaction reference is missing.'
         });
     }
 
+    let resolvedOrder: { docId: string; snap: any; data: any } = { docId: reference, snap: null, data: null };
+
     try {
-        const verifyResult = await verifyPaystackReference(reference);
-        const paystackData = verifyResult?.data || {};
-        const paystackStatus = (paystackData?.status || '').toLowerCase();
-        
-        // Strictly check if Paystack verified transaction as successful
-        const isSuccess = verifyResult?.status === true && (paystackStatus === 'success' || paystackStatus === 'paid');
+        resolvedOrder = await resolveOrderDocByReference(reference);
+        const resolvedId = resolvedOrder.docId || reference;
+        const existingData = resolvedOrder.data;
+        const alreadyProtected = isProtectedPaidOrFulfilledState(existingData);
 
-        if (!isSuccess) {
-            console.warn(`[Paystack Backend Unverified] Reference ${reference} status is NOT successful: ${paystackStatus || 'failed/unpaid'}`);
-            await setFirestoreDoc('orders', reference, {
-                paymentStatus: "failed",
-                status: "failed",
-                paymentMethod: "Paystack",
-                payment_provider: "paystack",
-                updatedAt: clientServerTimestamp()
-            }, true);
+        const existingProvider = String(existingData?.payment_provider || '').trim().toLowerCase();
+        const existingMethod = String(existingData?.paymentMethod || '').trim().toLowerCase();
+        const requestMethod = String(req.body?.method || req.query?.method || '').trim().toLowerCase();
+        const isLegacyKorapayOrder =
+            existingProvider === 'korapay' ||
+            existingMethod === 'korapay' ||
+            requestMethod === 'korapay' ||
+            (reference.toUpperCase().startsWith('KORA') && existingProvider !== 'paystack' && existingMethod !== 'paystack');
 
-            return res.status(400).json({ 
-                success: false, 
+        if (isLegacyKorapayOrder) {
+            console.info(`[Paystack Verify Guard] Skipping Paystack API call for legacy Korapay reference ${reference} (resolvedId=${resolvedId})`);
+            return res.status(400).json({
+                success: false,
                 verified: false,
-                error: verifyResult?.message || 'Payment was not completed.', 
-                status: paystackStatus || 'failed' 
+                unsupportedProvider: true,
+                legacyProvider: 'korapay',
+                status: existingData?.status || 'legacy',
+                paymentMethod: existingData?.paymentMethod || 'Korapay',
+                message: 'This transaction belongs to a legacy payment provider (Korapay) that is no longer active.',
+                error: 'Legacy Korapay transactions cannot be verified through Paystack. Existing order records remain preserved.'
             });
         }
 
-        const amountInMainCurrency = paystackData?.amount ? paystackData.amount / 100 : 0;
+        const verifyResult = await verifyPaystackReference(reference);
+        const paystackData = verifyResult?.data || {};
+        const paystackStatus = String(paystackData?.status || '').toLowerCase().trim();
+
+        // 1. Transient API/Network Error or Missing Secret Key: NEVER overwrite order as failed
+        if (verifyResult?.transientError) {
+            if (alreadyProtected) {
+                return res.json({
+                    success: true,
+                    verified: true,
+                    message: "Order already verified and processed ✅",
+                    data: paystackData
+                });
+            }
+            return res.status(503).json({
+                success: false,
+                verified: false,
+                retryable: true,
+                status: existingData?.status || 'pending',
+                error: 'Temporary gateway verification delay. Please retry shortly.'
+            });
+        }
+
+        // 2. Transaction Pending / In-Flight (e.g. Mobile Money prompt awaiting PIN): Keep PENDING, allow retry
+        if (PAYSTACK_PENDING_STATUSES.has(paystackStatus) || (verifyResult?.gatewayNotFound && !paystackStatus)) {
+            if (alreadyProtected) {
+                return res.json({
+                    success: true,
+                    verified: true,
+                    message: "Order already verified and processed ✅",
+                    data: paystackData
+                });
+            }
+            return res.status(202).json({
+                success: false,
+                verified: false,
+                pending: true,
+                retryable: true,
+                status: paystackStatus || 'pending',
+                message: 'Payment is still being confirmed by Paystack. Please wait a moment.'
+            });
+        }
+
+        // 3. Explicit User Cancellation / Checkout Abandonment: Record CANCELLED cleanly (NOT FAILED)
+        if (paystackStatus === 'abandoned') {
+            if (alreadyProtected) {
+                return res.json({
+                    success: true,
+                    verified: true,
+                    message: "Order already verified and processed ✅",
+                    data: paystackData
+                });
+            }
+            if (resolvedOrder.snap && resolvedOrder.snap.exists) {
+                await updateFirestoreOrderPaymentStatus(resolvedId, "cancelled", {
+                    paymentMethod: existingData?.paymentMethod || "Paystack",
+                    payment_provider: "paystack",
+                    cancellationReason: paystackData?.gateway_response || 'Payment was cancelled before completion'
+                });
+            }
+            return res.status(200).json({
+                success: false,
+                verified: false,
+                cancelled: true,
+                status: 'cancelled',
+                error: 'Payment was cancelled before completion.'
+            });
+        }
+
+        // 4. Strictly check if Paystack verified transaction as successful
+        const isSuccess = verifyResult?.status === true && (paystackStatus === 'success' || paystackStatus === 'paid');
+
+        if (!isSuccess) {
+            // Critical Guard: If order is already paid/processing/delivered (e.g. via webhook), NEVER mark it failed
+            if (alreadyProtected) {
+                console.warn(`[Paystack Verify Guard] Order ${resolvedId} already protected (${existingData?.status}). Ignoring non-success verify state: ${paystackStatus}`);
+                return res.json({
+                    success: true,
+                    verified: true,
+                    message: "Order already verified and processed ✅",
+                    data: paystackData
+                });
+            }
+
+            console.warn(`[Paystack Backend Unverified] Reference ${reference} explicitly failed: ${paystackStatus || verifyResult?.message || 'failed'}`);
+            if (resolvedOrder.snap && resolvedOrder.snap.exists) {
+                await updateFirestoreOrderPaymentStatus(resolvedId, "failed", {
+                    paymentMethod: existingData?.paymentMethod || "Paystack",
+                    payment_provider: "paystack",
+                    failureReason: paystackData?.gateway_response || verifyResult?.message || 'Payment failed'
+                });
+            }
+
+            return res.status(400).json({
+                success: false,
+                verified: false,
+                status: paystackStatus || 'failed',
+                error: paystackData?.gateway_response || verifyResult?.message || 'Payment was not completed.'
+            });
+        }
+
+        // 5. Reference Match Guard
+        const gatewayRef = String(paystackData?.reference || '').trim();
+        if (gatewayRef) {
+            const matchesRequestedRef =
+                gatewayRef.toLowerCase() === reference.toLowerCase() ||
+                gatewayRef.toLowerCase() === resolvedId.toLowerCase() ||
+                (existingData?.paymentReference && gatewayRef.toLowerCase() === String(existingData.paymentReference).toLowerCase());
+            if (!matchesRequestedRef) {
+                console.warn(`[Paystack Security Alert] Reference mismatch: requested=${reference}, gateway=${gatewayRef}`);
+                return res.status(400).json({
+                    success: false,
+                    verified: false,
+                    error: 'Transaction reference mismatch.'
+                });
+            }
+        }
+
+        const amountInMainCurrency = paystackData?.amount ? Number(paystackData.amount) / 100 : 0;
         const currency = (paystackData?.currency || "GHS").toUpperCase();
         const customerEmail = paystackData?.customer?.email || "";
         const customerName = [paystackData?.customer?.first_name, paystackData?.customer?.last_name].filter(Boolean).join(" ").trim() || paystackData?.customer?.name || "";
         const customerPhone = paystackData?.customer?.phone || "";
         const paymentTimestamp = paystackData?.paid_at || new Date().toISOString();
 
-        // 1. Strict Currency Check: Must be GHS
+        // 6. Strict Currency Check: Must be GHS
         if (currency !== "GHS") {
             console.warn(`[Paystack Backend Warning] Transaction ${reference} currency mismatch: received ${currency}, expected GHS`);
             return res.status(400).json({
@@ -1383,60 +1739,72 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
             });
         }
 
-        // 2. Fetch existing order from Firestore to check idempotency and amount
-        const orderSnap = await getFirestoreDoc('orders', reference);
-        const existingData = orderSnap?.exists ? orderSnap.data() : null;
-
-        // Idempotency check: if order is already fulfilled or verified as paid, do not double-fulfill
-        if (existingData && (existingData.status === 'paid' || existingData.status === 'delivered' || existingData.paymentStatus === 'success')) {
-            console.log(`[Paystack Backend] Order ${reference} was already successfully verified and fulfilled.`);
-            return res.json({
-                success: true,
-                message: "Order already verified and processed ✅",
-                verified: true,
-                data: paystackData
-            });
-        }
-
-        // 3. Strict Authoritative Amount Check (Exact Pesewa Comparison)
-        if (existingData && existingData.amount != null) {
+        // 7. Strict Underpayment Check (Pesewa Comparison; allow fee pass-through >= expected - 1 pesewa)
+        if (!alreadyProtected && existingData && existingData.amount != null) {
             const expectedPesewas = Math.round(Number(existingData.amount) * 100);
             const verifiedPesewas = Math.round(amountInMainCurrency * 100);
 
-            if (expectedPesewas > 0 && verifiedPesewas !== expectedPesewas) {
-                const isUnderpayment = verifiedPesewas < expectedPesewas;
-                console.warn(`[Paystack Security Alert] Amount mismatch on reference ${reference}: paid ${verifiedPesewas} pesewas, expected ${expectedPesewas} pesewas`);
-                await updateFirestoreDoc('orders', reference, {
-                    paymentStatus: isUnderpayment ? "underpaid" : "overpaid",
+            if (expectedPesewas > 0 && verifiedPesewas < expectedPesewas - 1) {
+                console.warn(`[Paystack Security Alert] Underpayment on reference ${reference}: paid ${verifiedPesewas} pesewas, expected ${expectedPesewas} pesewas`);
+                await updateFirestoreDoc('orders', resolvedId, {
+                    paymentStatus: "underpaid",
                     status: "failed",
                     amountPaid: amountInMainCurrency,
+                    failureReason: `Underpayment: paid ${amountInMainCurrency} GHS, expected ${existingData.amount} GHS`,
                     updatedAt: clientServerTimestamp()
                 });
                 return res.status(400).json({
                     success: false,
                     verified: false,
-                    error: isUnderpayment
-                        ? `Underpayment detected. Paid ${amountInMainCurrency} GHS, required ${existingData.amount} GHS.`
-                        : `Overpayment detected. Paid ${amountInMainCurrency} GHS, required ${existingData.amount} GHS. Sent for reconciliation.`
+                    status: 'failed',
+                    error: `Underpayment detected. Paid ${amountInMainCurrency} GHS, required ${existingData.amount} GHS.`
                 });
             }
         }
 
-        console.log(`[Paystack Backend Success] Reference ${reference} verified! Customer: ${customerEmail || 'Guest'}`);
-
+        // 8. Check booking code reveal even if already verified (idempotent booking code response)
         let revealedBookingCode: any = null;
+        const isBookingCode = existingData?.serviceType === 'booking_code' ||
+            existingData?.bookingCodeId ||
+            reference.startsWith('BC_') ||
+            req.body?.bookingCodeId ||
+            req.body?.service === 'booking_codes' ||
+            paystackData?.metadata?.service === 'booking_codes' ||
+            paystackData?.metadata?.bookingCodeId;
+
+        if (alreadyProtected) {
+            console.log(`[Paystack Backend] Order ${resolvedId} was already successfully verified and fulfilled.`);
+            if (isBookingCode) {
+                const purchaseSnap = await getFirestoreDoc('booking_code_purchases', resolvedId);
+                if (purchaseSnap && purchaseSnap.exists) {
+                    const p = purchaseSnap.data();
+                    revealedBookingCode = {
+                        id: p.bookingCodeId,
+                        code: p.code,
+                        title: p.title,
+                        bookmaker: p.bookmaker,
+                        odds: p.odds,
+                        price: p.price,
+                        reference: resolvedId
+                    };
+                }
+            }
+            if (existingData) {
+                await creditReferralIfEligible(resolvedId, existingData);
+            }
+            return res.json({
+                success: true,
+                message: "Order already verified and processed ✅",
+                verified: true,
+                ...(revealedBookingCode ? { serviceType: "booking_code", bookingCode: revealedBookingCode } : {}),
+                data: paystackData
+            });
+        }
+
+        console.log(`[Paystack Backend Success] Reference ${reference} verified! Customer: ${customerEmail || 'Guest'}`);
 
         // Update/Save verified order details in Firestore
         try {
-            // Check if this purchase is a booking code
-            const isBookingCode = existingData?.serviceType === 'booking_code' ||
-                existingData?.bookingCodeId ||
-                reference.startsWith('BC_') ||
-                req.body?.bookingCodeId ||
-                req.body?.service === 'booking_codes' ||
-                paystackData?.metadata?.service === 'booking_codes' ||
-                paystackData?.metadata?.bookingCodeId;
-
             const targetBookingCodeId = existingData?.bookingCodeId ||
                 req.body?.bookingCodeId ||
                 paystackData?.metadata?.bookingCodeId;
@@ -1447,7 +1815,6 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
                     bcSnap = await getFirestoreDoc('booking_codes', targetBookingCodeId);
                 }
 
-                // If not found by ID, try searching by title or take latest active match
                 if (!bcSnap || !bcSnap.exists) {
                     const activeCodes = await queryActiveBookingCodes(5);
                     if (activeCodes.length > 0) {
@@ -1458,7 +1825,7 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
                 if (bcSnap && bcSnap.exists) {
                     const bcData = bcSnap.data();
                     const realCode = bcData.code || "";
-                    
+
                     revealedBookingCode = {
                         id: bcSnap.id,
                         code: realCode,
@@ -1466,13 +1833,12 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
                         bookmaker: bcData.bookmaker || existingData?.bookmaker || "SportyBet",
                         odds: Number(bcData.odds) || Number(existingData?.odds) || 1.0,
                         price: Number(bcData.price) || amountInMainCurrency,
-                        reference: reference,
+                        reference: resolvedId,
                         description: bcData.description || "",
                     };
 
-                    // Record in booking_code_purchases collection
-                    await setFirestoreDoc('booking_code_purchases', reference, {
-                        id: reference,
+                    await setFirestoreDoc('booking_code_purchases', resolvedId, {
+                        id: resolvedId,
                         bookingCodeId: bcSnap.id,
                         userId: existingData?.userId || req.body?.userId || "",
                         customerName: customerName || existingData?.customerName || "Royal Customer",
@@ -1491,15 +1857,18 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
                         verifiedAt: clientServerTimestamp()
                     }, true);
 
-                    // Increment total purchases on the booking code doc
                     await incrementBookingCodePurchases(bcSnap.id);
                 }
             }
 
+            const currentStatus = String(existingData?.status || '').toLowerCase().trim();
+            const preservedStatus = ACTIVE_FULFILLMENT_STATUSES.has(currentStatus) ? existingData.status : "paid";
+            const resolvedMethod = existingData?.paymentMethod === 'momo' ? 'momo' : (existingData?.paymentMethod || "Paystack");
+
             const orderPayload: any = {
                 paymentStatus: "success",
-                status: "paid",
-                paymentMethod: "Paystack",
+                status: preservedStatus,
+                paymentMethod: resolvedMethod,
                 payment_provider: "paystack",
                 paymentReference: reference,
                 currency,
@@ -1522,29 +1891,30 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
                 updatedAt: clientServerTimestamp()
             };
 
-            if (orderSnap && orderSnap.exists) {
-                await updateFirestoreDoc('orders', reference, orderPayload);
-                console.log(`[Server Firestore] Order ${reference} updated to paymentStatus: success`);
+            if (resolvedOrder.snap && resolvedOrder.snap.exists) {
+                await updateFirestoreDoc('orders', resolvedId, orderPayload);
+                console.log(`[Server Firestore] Order ${resolvedId} updated to paymentStatus: success (status: ${preservedStatus})`);
 
-                // Grant Agent Access if applicable
                 if (existingData?.bundle === "AGENT ACCESS UNLOCK" && existingData?.userId) {
                     await updateFirestoreDoc('users', existingData.userId, { isAgent: true });
                     console.log(`[Server Firestore] Unlocked Agent Access for user: ${existingData.userId}`);
                 }
+                await creditReferralIfEligible(resolvedId, existingData);
             } else {
-                await setFirestoreDoc('orders', reference, {
-                    id: reference,
+                await setFirestoreDoc('orders', resolvedId, {
+                    id: resolvedId,
+                    reference: resolvedId,
                     createdAt: clientServerTimestamp(),
                     ...orderPayload
                 }, true);
-                console.log(`[Server Firestore] Created new verified order ${reference} in Firestore`);
+                console.log(`[Server Firestore] Created new verified order ${resolvedId} in Firestore`);
             }
 
             // Update agent_orders if present
-            const agentOrderSnap = await getFirestoreDoc('agent_orders', reference);
+            const agentOrderSnap = await getFirestoreDoc('agent_orders', resolvedId);
             if (agentOrderSnap && agentOrderSnap.exists) {
                 const agentData = agentOrderSnap.data();
-                await updateFirestoreDoc('agent_orders', reference, {
+                await updateFirestoreDoc('agent_orders', resolvedId, {
                     status: "success",
                     paymentStatus: "success",
                     paymentMethod: "Paystack",
@@ -1553,8 +1923,7 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
                     paymentTimestamp
                 });
 
-                // Ensure orders collection document contains all agent details
-                await setFirestoreDoc('orders', reference, {
+                await setFirestoreDoc('orders', resolvedId, {
                     agentId: agentData.agent_id,
                     agent_id: agentData.agent_id,
                     wholesalePrice: agentData.wholesale_price,
@@ -1573,68 +1942,74 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
                     } : {}),
                 }, true);
             }
-            // Update booking_code_orders if present
+
+            // Update booking_code_orders only if it actually exists or this is a booking code order
             try {
-                await setFirestoreDoc('booking_code_orders', reference, {
-                    status: "delivered",
-                    paymentStatus: "success",
-                    ...(revealedBookingCode ? { bookingCode: revealedBookingCode.code } : {}),
-                    updatedAt: clientServerTimestamp()
-                }, true);
+                const bcoSnap = await getFirestoreDoc('booking_code_orders', resolvedId);
+                if ((bcoSnap && bcoSnap.exists) || isBookingCode) {
+                    await setFirestoreDoc('booking_code_orders', resolvedId, {
+                        status: "delivered",
+                        paymentStatus: "success",
+                        ...(revealedBookingCode ? { bookingCode: revealedBookingCode.code } : {}),
+                        updatedAt: clientServerTimestamp()
+                    }, true);
+                }
             } catch (bcoErr: any) {
-                console.warn(`[Server Firestore] booking_code_orders update notice for ${reference}:`, bcoErr?.message);
+                console.warn(`[Server Firestore] booking_code_orders update notice for ${resolvedId}:`, bcoErr?.message);
             }
 
             // Update efootballOrders if present
             try {
-                const efOrderSnap = await getFirestoreDoc('efootballOrders', reference);
+                const efOrderSnap = await getFirestoreDoc('efootballOrders', resolvedId);
                 if (efOrderSnap && efOrderSnap.exists) {
                     const efData = efOrderSnap.data();
-                    await updateFirestoreDoc('efootballOrders', reference, {
+                    await updateFirestoreDoc('efootballOrders', resolvedId, {
                         paymentStatus: "PAID",
-                        status: "paid",
+                        status: ACTIVE_FULFILLMENT_STATUSES.has(String(efData?.status || '').toLowerCase()) ? efData.status : "paid",
                         fulfillmentStatus: efData?.fulfillmentStatus === "DELIVERED" ? "DELIVERED" : "AWAITING_FULFILLMENT",
                         adminStatus: efData?.fulfillmentStatus === "DELIVERED" ? "DELIVERED" : "AWAITING_FULFILLMENT",
-                        paidAt: clientServerTimestamp(),
+                        paidAt: efData?.paidAt || clientServerTimestamp(),
                         payment_provider: "paystack",
                         paymentMethod: "Paystack",
                         updatedAt: clientServerTimestamp()
                     });
-                    console.log(`[Server Firestore] efootballOrders document ${reference} verified as PAID`);
+                    console.log(`[Server Firestore] efootballOrders document ${resolvedId} verified as PAID`);
                 }
             } catch (efVerifyErr: any) {
-                console.warn(`[Server Firestore] efootballOrders verify update notice for ${reference}:`, efVerifyErr?.message);
+                console.warn(`[Server Firestore] efootballOrders verify update notice for ${resolvedId}:`, efVerifyErr?.message);
             }
         } catch (fsErr: any) {
             console.error(`[Server Firestore] Update notice for reference ${reference}:`, fsErr.message);
         }
 
-        return res.json({ 
-            success: true, 
-            message: "Payment Verified Successfully ✅", 
+        return res.json({
+            success: true,
+            message: "Payment Verified Successfully ✅",
             verified: true,
-            ...(revealedBookingCode ? { 
+            ...(revealedBookingCode ? {
                 serviceType: "booking_code",
-                bookingCode: revealedBookingCode 
+                bookingCode: revealedBookingCode
             } : {}),
-            data: paystackData 
+            data: paystackData
         });
     } catch (err: any) {
         const errorDetails = err.response?.data || err.message || 'Unknown error';
         console.error(`[Paystack Backend Verification Exception] Reference ${reference}:`, errorDetails);
 
-        await setFirestoreDoc('orders', reference, {
-            paymentStatus: "failed",
-            status: "failed",
-            paymentMethod: "Paystack",
-            payment_provider: "paystack",
-            updatedAt: clientServerTimestamp()
-        }, true);
+        // NEVER overwrite an order as failed on an internal/runtime exception
+        if (isProtectedPaidOrFulfilledState(resolvedOrder.data)) {
+            return res.json({
+                success: true,
+                verified: true,
+                message: "Order already verified and processed ✅"
+            });
+        }
 
-        return res.status(400).json({
+        return res.status(503).json({
             success: false,
             verified: false,
-            error: "Payment was not completed. Your booking code has not been released."
+            retryable: true,
+            error: "Temporary verification error. Your order status has not been marked failed; please retry shortly."
         });
     }
 }
@@ -1681,359 +2056,14 @@ app.post('/api/booking-codes/reveal', async (req, res) => {
     }
 });
 
-// Endpoint to retrieve Korapay Public Key dynamically at runtime
-app.get('/api/korapay-public-key', (req, res) => {
-    const pubKey = getSanitizedKey(process.env.KORAPAY_PUBLIC_KEY || process.env.VITE_KORAPAY_PUBLIC_KEY) || "";
-    res.json({ publicKey: pubKey });
-});
-
-// REST Endpoint: Korapay Payment Initialization
-async function handleKorapayInitialize(req: express.Request, res: express.Response) {
-    try {
-        const { reference, orderId, amount, currency, customerName, customerEmail, narration, redirect_url } = req.body;
-        const refToUse = reference || orderId;
-
-        if (!refToUse || !amount || !customerEmail) {
-            console.error('[Korapay Error] Missing required parameters:', { refToUse, amount, customerEmail });
-            return res.status(400).json({
-                success: false,
-                error: 'Reference, amount, and customerEmail are required'
-            });
-        }
-
-        const secretKey = getSanitizedKey(
-            process.env.KORAPAY_SECRET_KEY || 
-            process.env.VITE_KORAPAY_SECRET_KEY || 
-            process.env.KORA_SECRET_KEY
-        );
-        const hostOrigin = process.env.PUBLIC_APP_URL || (req.headers.origin && typeof req.headers.origin === 'string' ? req.headers.origin : 'https://kingjdeals.onrender.com');
-        const defaultRedirectUrl = `${hostOrigin}/?reference=${refToUse}&method=korapay`;
-        const redirectUrl = redirect_url || defaultRedirectUrl;
-        const notificationUrl = `${hostOrigin}/api/korapay-webhook`;
-
-        console.log(`[Korapay API] Initializing charge for reference: ${refToUse}, amount: ${amount}, email: ${customerEmail}`);
-
-        if (!secretKey) {
-            console.error('[Korapay Error] KORAPAY_SECRET_KEY is missing in server environment.');
-            return res.status(400).json({
-                success: false,
-                error: 'Korapay secret key (KORAPAY_SECRET_KEY) is missing in server environment settings.'
-            });
-        }
-
-        const rawAmount = Number(amount);
-        const targetCurrency = (currency || 'GHS').toUpperCase();
-
-        if (targetCurrency === 'GHS' && rawAmount < 10) {
-            console.error('[Korapay Error] Order total below GHS 10.00 minimum:', rawAmount);
-            return res.status(400).json({
-                success: false,
-                error: 'Korapay is available only for orders of GHS 10.00 or more. Please increase your order amount to continue.'
-            });
-        }
-
-        const korapayPayload: any = {
-            reference: refToUse,
-            amount: Number(rawAmount.toFixed(2)),
-            currency: targetCurrency,
-            customer: {
-                name: customerName || 'Royal Customer',
-                email: customerEmail
-            },
-            notification_url: notificationUrl,
-            redirect_url: redirectUrl,
-            narration: narration || 'Bundle Purchase'
-        };
-
-        console.log('[Korapay Request Payload]:', JSON.stringify(korapayPayload, null, 2));
-
-        try {
-            const korapayRes = await axios.post(
-                'https://api.korapay.com/merchant/api/v1/charges/initialize',
-                korapayPayload,
-                {
-                    headers: {
-                        'Authorization': `Bearer ${secretKey}`,
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    timeout: 15000
-                }
-            );
-
-            console.log('[Korapay API Response]:', JSON.stringify(korapayRes.data, null, 2));
-
-            const responseData = korapayRes.data;
-            const checkoutUrl = responseData?.data?.checkout_url ||
-                                responseData?.data?.checkout_link ||
-                                responseData?.data?.hosted_url ||
-                                responseData?.data?.url ||
-                                responseData?.checkout_url;
-
-            if (checkoutUrl) {
-                console.log('[Korapay Checkout] Acquired checkout URL:', checkoutUrl);
-                return res.json({
-                    success: true,
-                    checkout_url: checkoutUrl,
-                    reference: refToUse
-                });
-            } else {
-                console.error('[Korapay Error] Response missing checkout_url:', responseData);
-                return res.status(400).json({
-                    success: false,
-                    error: responseData?.message || 'Failed to obtain checkout URL from Korapay response.'
-                });
-            }
-        } catch (apiErr: any) {
-            const errorDetails = apiErr.response?.data || apiErr.message || 'Korapay API Error';
-            console.error('[Korapay API Error Details]:', JSON.stringify(errorDetails, null, 2));
-            return res.status(apiErr.response?.status || 400).json({
-                success: false,
-                error: apiErr.response?.data?.message || apiErr.message || 'Failed to initialize payment with Korapay.'
-            });
-        }
-
-    } catch (err: any) {
-        console.error('[Korapay Initialize Exception]:', err.message || err);
-        return res.status(500).json({
-            success: false,
-            error: err.message || 'Internal server error during Korapay payment initialization.'
-        });
-    }
-}
-
-app.post('/api/korapay-initialize', handleKorapayInitialize);
-app.post('/api/korapay/initialize', handleKorapayInitialize);
-app.post('/korapay-initialize', handleKorapayInitialize);
-
-// Verification Helper for Korapay
-async function verifyKorapayReference(reference: string) {
-    const secretKey = getSanitizedKey(
-        process.env.KORAPAY_SECRET_KEY || 
-        process.env.VITE_KORAPAY_SECRET_KEY || 
-        process.env.KORA_SECRET_KEY
-    );
-    if (!secretKey) {
-        console.warn('[Korapay Backend Error] KORAPAY_SECRET_KEY is missing in server environment.');
-        return { status: false, message: 'Korapay secret key is missing or not configured on the server' };
-    }
-    
-    try {
-        console.log(`[Korapay Backend] Calling Korapay Verify Charge API for reference: ${reference}`);
-        const response = await axios.get(`https://api.korapay.com/merchant/api/v1/charges/${encodeURIComponent(reference)}`, {
-            headers: { Authorization: `Bearer ${secretKey}` },
-            timeout: 15000
-        });
-
-        console.log(`[Korapay Backend Response] Status: ${response.status}, Data Status: ${response.data?.data?.status}`);
-        return response.data;
-    } catch (err: any) {
-        const errorMsg = err.response?.data?.message || err.message || 'Verification failed';
-        console.warn(`[Korapay Backend Error] Korapay verify API call error for reference ${reference}: ${errorMsg}`);
-        return { status: false, message: errorMsg, data: err.response?.data?.data || {} };
-    }
-}
-
-// Verification Request Handler for Korapay
-async function handleKorapayVerificationRequest(req: express.Request, res: express.Response) {
-    const reference = req.body?.reference || req.body?.orderId || req.body?.trxref || req.query?.reference;
-    console.log(`[Korapay Backend Request] Verification requested for reference: ${reference}`);
-    
-    if (!reference) {
-        return res.status(400).json({ 
-            success: false, 
-            verified: false,
-            error: 'Payment verification failed ❌', 
-            message: 'Transaction reference is missing.' 
-        });
-    }
-
-    try {
-        const verifyResult = await verifyKorapayReference(reference);
-        const koraData = verifyResult?.data || {};
-        const koraStatus = (koraData?.status || '').toLowerCase();
-        
-        // Strictly check if Korapay verified transaction as successful
-        const isSuccess = verifyResult?.status === true && (koraStatus === 'success' || koraStatus === 'paid');
-
-        if (!isSuccess) {
-            console.warn(`[Korapay Backend Unverified] Reference ${reference} status is NOT successful: ${koraStatus || 'failed/unpaid'}`);
-            try {
-                await setFirestoreDoc('orders', reference, {
-                    paymentStatus: "failed",
-                    status: "failed",
-                    paymentMethod: "Korapay",
-                    payment_provider: "korapay",
-                    updatedAt: clientServerTimestamp()
-                }, true);
-            } catch (fsErr: any) {
-                console.error(`[Server Firestore] Failed updating failed status for reference ${reference}:`, fsErr.message);
-            }
-
-            return res.status(400).json({ 
-                success: false, 
-                verified: false,
-                error: verifyResult?.message || 'Korapay payment was cancelled or not completed.', 
-                status: koraStatus || 'failed' 
-            });
-        }
-
-        const amount = Number(koraData?.amount) || 0;
-        const currency = (koraData?.currency || "GHS").toUpperCase();
-        const customerEmail = koraData?.customer?.email || "";
-        const customerName = koraData?.customer?.name || "";
-
-        // 1. Strict Currency Check: Must be GHS
-        if (currency !== "GHS") {
-            console.warn(`[Korapay Backend Warning] Transaction ${reference} currency mismatch: received ${currency}, expected GHS`);
-            return res.status(400).json({
-                success: false,
-                verified: false,
-                error: `Invalid payment currency: ${currency}. Only GHS is accepted.`
-            });
-        }
-
-        // 2. Fetch existing order from Firestore to check idempotency and amount
-        const orderSnap = await getFirestoreDoc('orders', reference);
-        const existingData = orderSnap?.exists ? orderSnap.data() : null;
-
-        // Idempotency check: if order is already fulfilled or verified as paid, do not double-fulfill
-        if (existingData && (existingData.status === 'paid' || existingData.status === 'delivered' || existingData.paymentStatus === 'success')) {
-            console.log(`[Korapay Backend] Order ${reference} was already successfully verified and fulfilled.`);
-            return res.json({
-                success: true,
-                message: "Order already verified and processed ✅",
-                verified: true,
-                data: koraData
-            });
-        }
-
-        // 3. Strict Authoritative Amount Check (Exact Pesewa Comparison)
-        if (existingData && existingData.amount != null) {
-            const expectedPesewas = Math.round(Number(existingData.amount) * 100);
-            const verifiedPesewas = Math.round(amount * 100);
-
-            if (expectedPesewas > 0 && verifiedPesewas !== expectedPesewas) {
-                const isUnderpayment = verifiedPesewas < expectedPesewas;
-                console.warn(`[Korapay Security Alert] Amount mismatch on reference ${reference}: paid ${verifiedPesewas} pesewas, expected ${expectedPesewas} pesewas`);
-                await updateFirestoreDoc('orders', reference, {
-                    paymentStatus: isUnderpayment ? "underpaid" : "overpaid",
-                    status: "failed",
-                    amountPaid: amount,
-                    updatedAt: clientServerTimestamp()
-                });
-                return res.status(400).json({
-                    success: false,
-                    verified: false,
-                    error: isUnderpayment
-                        ? `Underpayment detected. Paid ${amount} GHS, required ${existingData.amount} GHS.`
-                        : `Overpayment detected. Paid ${amount} GHS, required ${existingData.amount} GHS. Sent for reconciliation.`
-                });
-            }
-        }
-
-        console.log(`[Korapay Backend Success] Reference ${reference} verified! Customer: ${customerEmail || 'Guest'}`);
-
-        try {
-            const orderPayload = {
-                paymentStatus: "success",
-                status: "paid",
-                paymentMethod: "Korapay",
-                payment_provider: "korapay",
-                paymentReference: reference,
-                currency,
-                ...(amount > 0 ? { amountPaid: amount } : {}),
-                customerDetails: {
-                    email: customerEmail,
-                    name: customerName,
-                },
-                verifiedByBackend: true,
-                updatedAt: clientServerTimestamp()
-            };
-
-            if (orderSnap && orderSnap.exists) {
-                await updateFirestoreDoc('orders', reference, orderPayload);
-                if (existingData?.bundle === "AGENT ACCESS UNLOCK" && existingData?.userId) {
-                    await updateFirestoreDoc('users', existingData.userId, { isAgent: true });
-                }
-            } else {
-                await setFirestoreDoc('orders', reference, {
-                    id: reference,
-                    createdAt: clientServerTimestamp(),
-                    ...orderPayload
-                }, true);
-            }
-
-            const agentOrderSnap = await getFirestoreDoc('agent_orders', reference);
-            if (agentOrderSnap && agentOrderSnap.exists) {
-                const agentData = agentOrderSnap.data();
-                await updateFirestoreDoc('agent_orders', reference, {
-                    status: "success",
-                    paymentStatus: "success",
-                    paymentMethod: "Korapay",
-                    payment_provider: "korapay",
-                    paymentReference: reference
-                });
-
-                // Ensure orders collection document contains all agent details
-                await setFirestoreDoc('orders', reference, {
-                    agentId: agentData.agent_id,
-                    agent_id: agentData.agent_id,
-                    wholesalePrice: agentData.wholesale_price,
-                    wholesale_price: agentData.wholesale_price,
-                    agentPrice: agentData.agent_price,
-                    agent_price: agentData.agent_price,
-                    profit: agentData.profit,
-                    agent_profit: agentData.profit,
-                    isAgentOrder: true,
-                    ...(agentData.fastDelivery ? {
-                        fastDelivery: true,
-                        fastDeliveryType: agentData.fastDeliveryType || "agent",
-                        fastDeliveryFee: Number(agentData.fastDeliveryFee ?? 1.00),
-                        basePrice: Number(agentData.basePrice || agentData.agent_price || 0),
-                        finalPrice: Number(agentData.finalPrice || agentData.amount || agentData.agent_price || 0),
-                    } : {}),
-                }, true);
-            }
-        } catch (fsErr: any) {
-            console.error(`[Server Firestore] Failed updating Firestore for Korapay reference ${reference}:`, fsErr.message);
-        }
-
-        return res.json({ 
-            success: true, 
-            message: "Korapay Payment Successful ✅", 
-            verified: true, 
-            data: koraData 
-        });
-    } catch (err: any) {
-        console.error(`[Korapay Verification Exception] Reference ${reference}:`, err.message || err);
-        await setFirestoreDoc('orders', reference, {
-            paymentStatus: "failed",
-            status: "failed",
-            paymentMethod: "Korapay",
-            payment_provider: "korapay",
-            updatedAt: clientServerTimestamp()
-        }, true);
-
-        return res.status(400).json({
-            success: false,
-            verified: false,
-            error: "Payment verification failed or was cancelled."
-        });
-    }
-}
-
-app.post('/korapay-verify', handleKorapayVerificationRequest);
-app.post('/api/korapay-verify', handleKorapayVerificationRequest);
-
 // REST Endpoint: Paystack Webhook Event Receiver
 app.post('/api/paystack-webhook', async (req, res) => {
     try {
         const secretKey = getPaystackSecretKey();
         const signature = req.headers['x-paystack-signature'] as string;
-        
+
         console.log('[Paystack Webhook] Incoming webhook call with signature header:', signature ? 'Present' : 'None');
-        
+
         // 1. Mandatory Header and Secret Key Check: Reject missing signatures
         if (!signature) {
             console.warn('[Paystack Webhook Security Warning] Rejected webhook: Missing x-paystack-signature header.');
@@ -2045,26 +2075,27 @@ app.post('/api/paystack-webhook', async (req, res) => {
             return res.status(500).json({ status: false, message: 'Webhook receiver configuration error' });
         }
 
-        // 2. Strict HMAC-SHA512 verification against raw body buffer
+        // 2. Strict timing-safe HMAC-SHA512 verification against raw body buffer
         const rawBody = (req as any).rawBody || (typeof req.body === 'string' ? req.body : JSON.stringify(req.body));
         const computedSignature = crypto.createHmac('sha512', secretKey)
             .update(rawBody)
             .digest('hex');
-        
-        if (signature !== computedSignature) {
+
+        if (!timingSafeCompareStrings(signature, computedSignature)) {
             console.warn('[Paystack Webhook Security Alert] Signature verification failed! Mismatched HMAC.');
             return res.status(401).json({ status: false, message: 'Invalid webhook signature' });
         }
         console.log('[Paystack Webhook] Signature verified successfully.');
 
         const payload = req.body;
-        const event = payload?.event;
+        const event = String(payload?.event || '').toLowerCase().trim();
         const data = payload?.data || {};
         const reference = data.reference || data.id;
-        
-        console.log(`[Paystack Webhook Details] Event: ${event}, Reference: ${reference}, Status: ${data.status}`);
-        
-        if (event === 'charge.success' && (data.status === 'success' || data.status === 'paid')) {
+        const gatewayStatus = String(data.status || '').toLowerCase().trim();
+
+        console.log(`[Paystack Webhook Details] Event: ${event}, Reference: ${reference}, Status: ${gatewayStatus}`);
+
+        if (event === 'charge.success' && (gatewayStatus === 'success' || gatewayStatus === 'paid')) {
             if (reference) {
                 // Currency validation: GHS only
                 const currency = (data.currency || 'GHS').toUpperCase();
@@ -2074,171 +2105,82 @@ app.post('/api/paystack-webhook', async (req, res) => {
                 }
 
                 const amountInGHS = Number(data.amount) / 100;
-                const existingOrderSnap = await getFirestoreDoc('orders', reference);
-                const existingOrder = existingOrderSnap?.exists ? existingOrderSnap.data() : null;
+                const resolved = await resolveOrderDocByReference(String(reference));
+                const resolvedId = resolved.docId || String(reference);
+                const existingOrder = resolved.data;
 
-                // Idempotency: skip if already fulfilled
-                if (existingOrder && (existingOrder.status === 'paid' || existingOrder.status === 'delivered')) {
-                    console.log(`[Paystack Webhook] Order ${reference} was already fulfilled.`);
+                // Idempotency: skip if already paid / processing / accepted / delivered / completed
+                if (isProtectedPaidOrFulfilledState(existingOrder)) {
+                    console.log(`[Paystack Webhook] Order ${resolvedId} was already verified/fulfilled (${existingOrder?.status}).`);
+                    if (existingOrder) {
+                        await creditReferralIfEligible(resolvedId, existingOrder);
+                    }
                     return res.status(200).json({ status: true, message: 'Already fulfilled' });
                 }
 
-                // Amount validation
+                // Amount validation: strictly reject underpayment
                 if (existingOrder && existingOrder.amount != null) {
                     const expectedAmount = Number(existingOrder.amount);
                     if (expectedAmount > 0 && amountInGHS < expectedAmount - 0.05) {
                         console.warn(`[Paystack Webhook Security Alert] Underpayment on reference ${reference}: paid ${amountInGHS}, expected ${expectedAmount}`);
-                        await updateFirestoreDoc('orders', reference, {
+                        await updateFirestoreDoc('orders', resolvedId, {
                             paymentStatus: 'underpaid',
                             status: 'failed',
                             amountPaid: amountInGHS,
+                            failureReason: `Underpayment: paid ${amountInGHS} GHS, expected ${expectedAmount} GHS`,
                             updatedAt: clientServerTimestamp()
                         });
                         return res.status(400).json({ status: false, message: 'Underpayment rejected' });
                     }
                 }
 
-                await updateFirestoreOrderPaymentStatus(reference, "success");
                 const resolvedPaymentMethod = existingOrder?.paymentMethod === 'momo' ? 'momo' : (existingOrder?.paymentMethod || "Paystack");
-                await updateFirestoreDoc('orders', reference, {
+                await updateFirestoreOrderPaymentStatus(resolvedId, "success", {
                     payment_provider: "paystack",
                     paymentMethod: resolvedPaymentMethod,
+                    paymentReference: String(reference),
                     amountPaid: amountInGHS,
-                    paidAt: clientServerTimestamp(),
-                    updatedAt: clientServerTimestamp()
+                    paidAt: existingOrder?.paidAt || clientServerTimestamp(),
+                    verifiedByWebhook: true,
                 });
 
-                // Update agent_orders if present
-                const agentSnap = await getFirestoreDoc('agent_orders', reference);
-                if (agentSnap && agentSnap.exists) {
-                    await updateFirestoreDoc('agent_orders', reference, {
-                        status: 'success',
-                        paymentStatus: 'success',
-                        payment_provider: 'paystack',
-                        paymentMethod: 'Paystack',
-                        paymentReference: reference
-                    });
+                if (existingOrder) {
+                    await creditReferralIfEligible(resolvedId, existingOrder);
                 }
-                console.log(`[Paystack Webhook Success] Processed charge.success for ${reference}`);
+
+                console.log(`[Paystack Webhook Success] Processed charge.success for ${resolvedId}`);
             }
-        } else if (event === 'charge.failed' || data.status === 'failed') {
+        } else if (event === 'charge.abandoned' || gatewayStatus === 'abandoned') {
             if (reference) {
-                await updateFirestoreOrderPaymentStatus(reference, "failed");
-                console.log(`[Paystack Webhook Failed] Processed charge.failed for ${reference}`);
+                const resolved = await resolveOrderDocByReference(String(reference));
+                const resolvedId = resolved.docId || String(reference);
+                if (isProtectedPaidOrFulfilledState(resolved.data)) {
+                    console.warn(`[Paystack Webhook Guard] Ignoring abandoned event for already paid/fulfilled order ${resolvedId}`);
+                } else {
+                    await updateFirestoreOrderPaymentStatus(resolvedId, "cancelled", {
+                        cancellationReason: data.gateway_response || 'Payment abandoned in checkout'
+                    });
+                    console.log(`[Paystack Webhook Cancelled] Processed abandoned checkout for ${resolvedId}`);
+                }
+            }
+        } else if (event === 'charge.failed' || gatewayStatus === 'failed' || gatewayStatus === 'reversed') {
+            if (reference) {
+                const resolved = await resolveOrderDocByReference(String(reference));
+                const resolvedId = resolved.docId || String(reference);
+                if (isProtectedPaidOrFulfilledState(resolved.data)) {
+                    console.warn(`[Paystack Webhook Guard] Ignoring delayed charge.failed for already paid/fulfilled order ${resolvedId}`);
+                } else {
+                    await updateFirestoreOrderPaymentStatus(resolvedId, "failed", {
+                        failureReason: data.gateway_response || payload?.message || 'Paystack charge.failed'
+                    });
+                    console.log(`[Paystack Webhook Failed] Processed charge.failed for ${resolvedId}`);
+                }
             }
         }
-        
+
         return res.status(200).json({ status: true, message: 'Webhook processed' });
     } catch (err: any) {
         console.error('[Paystack Webhook Exception]:', err.message || err);
-        return res.status(500).json({ status: false, error: err.message || 'Internal webhook error' });
-    }
-});
-
-// REST Endpoint: Korapay Webhook Event Receiver
-app.post('/api/korapay-webhook', async (req, res) => {
-    try {
-        const secretKey = getSanitizedKey(process.env.KORAPAY_SECRET_KEY);
-        const signature = (req.headers['x-korapay-signature'] || req.headers['x-korapay-hash']) as string;
-        
-        console.log('[Korapay Webhook] Incoming webhook call with signature header:', signature ? 'Present' : 'None');
-        
-        // 1. Mandatory Header and Secret Key Check: Reject missing signatures
-        if (!signature) {
-            console.warn('[Korapay Webhook Security Warning] Rejected webhook: Missing x-korapay-signature header.');
-            return res.status(400).json({ status: false, message: 'Missing x-korapay-signature header' });
-        }
-
-        if (!secretKey) {
-            console.error('[Korapay Webhook Error] KORAPAY_SECRET_KEY is not configured on server.');
-            return res.status(500).json({ status: false, message: 'Webhook receiver configuration error' });
-        }
-
-        // 2. Strict HMAC-SHA256 verification against raw body buffer
-        const rawBody = (req as any).rawBody || (typeof req.body === 'string' ? req.body : JSON.stringify(req.body));
-        const computedSignature = crypto.createHmac('sha256', secretKey)
-            .update(rawBody)
-            .digest('hex');
-        
-        if (signature !== computedSignature) {
-            console.warn('[Korapay Webhook Security Alert] Signature verification failed! Mismatched HMAC.');
-            return res.status(401).json({ status: false, message: 'Invalid webhook signature' });
-        }
-        console.log('[Korapay Webhook] Signature verified successfully.');
-
-        const payload = req.body;
-        const event = payload?.event || payload?.type;
-        const data = payload?.data || {};
-        const reference = data.reference || data.order_id || data.tx_ref;
-        
-        console.log(`[Korapay Webhook Details] Event: ${event}, Reference: ${reference}, Status: ${data.status}`);
-        
-        if (event === 'charge.success' && (data.status === 'success' || data.status === 'paid')) {
-            if (reference) {
-                // Currency validation: GHS only
-                const currency = (data.currency || 'GHS').toUpperCase();
-                if (currency !== 'GHS') {
-                    console.warn(`[Korapay Webhook Warning] Webhook reference ${reference} has invalid currency: ${currency}`);
-                    return res.status(400).json({ status: false, message: 'Invalid currency' });
-                }
-
-                const amountInGHS = Number(data.amount);
-                const existingOrderSnap = await getFirestoreDoc('orders', reference);
-                const existingOrder = existingOrderSnap?.exists ? existingOrderSnap.data() : null;
-
-                // Idempotency: skip if already fulfilled
-                if (existingOrder && (existingOrder.status === 'paid' || existingOrder.status === 'delivered')) {
-                    console.log(`[Korapay Webhook] Order ${reference} was already fulfilled.`);
-                    return res.status(200).json({ status: true, message: 'Already fulfilled' });
-                }
-
-                // Amount validation
-                if (existingOrder && existingOrder.amount != null) {
-                    const expectedAmount = Number(existingOrder.amount);
-                    if (expectedAmount > 0 && amountInGHS < expectedAmount - 0.05) {
-                        console.warn(`[Korapay Webhook Security Alert] Underpayment on reference ${reference}: paid ${amountInGHS}, expected ${expectedAmount}`);
-                        await updateFirestoreDoc('orders', reference, {
-                            paymentStatus: 'underpaid',
-                            status: 'failed',
-                            amountPaid: amountInGHS,
-                            updatedAt: clientServerTimestamp()
-                        });
-                        return res.status(400).json({ status: false, message: 'Underpayment rejected' });
-                    }
-                }
-
-                await updateFirestoreOrderPaymentStatus(reference, "success");
-                await updateFirestoreDoc('orders', reference, {
-                    payment_provider: "korapay",
-                    paymentMethod: "Korapay",
-                    amountPaid: amountInGHS,
-                    paidAt: clientServerTimestamp(),
-                    updatedAt: clientServerTimestamp()
-                });
-
-                // Update agent_orders if present
-                const agentSnap = await getFirestoreDoc('agent_orders', reference);
-                if (agentSnap && agentSnap.exists) {
-                    await updateFirestoreDoc('agent_orders', reference, {
-                        status: 'success',
-                        paymentStatus: 'success',
-                        payment_provider: 'korapay',
-                        paymentMethod: 'Korapay',
-                        paymentReference: reference
-                    });
-                }
-                console.log(`[Korapay Webhook Success] Processed charge.success for ${reference}`);
-            }
-        } else if (event === 'charge.failed' || data.status === 'failed') {
-            if (reference) {
-                await updateFirestoreOrderPaymentStatus(reference, "failed");
-                console.log(`[Korapay Webhook Failed] Processed charge.failed for ${reference}`);
-            }
-        }
-        
-        return res.status(200).json({ status: true, message: 'Webhook processed' });
-    } catch (err: any) {
-        console.error('[Korapay Webhook Exception]:', err.message || err);
         return res.status(500).json({ status: false, error: err.message || 'Internal webhook error' });
     }
 });
@@ -2660,12 +2602,8 @@ async function startServer() {
   console.log("[Startup] Checking payment gateway configuration...");
   const hasPaystackSecret = Boolean(getPaystackSecretKey());
   const hasPaystackPublic = Boolean(getPaystackPublicKey());
-  const koraSecretKey = getSanitizedKey(process.env.KORAPAY_SECRET_KEY);
-  const koraPublicKey = getSanitizedKey(process.env.KORAPAY_PUBLIC_KEY || process.env.VITE_KORAPAY_PUBLIC_KEY);
   console.log(`[Startup] PAYSTACK_SECRET_KEY Configured: ${hasPaystackSecret ? "YES" : "NO"}`);
   console.log(`[Startup] PAYSTACK_PUBLIC_KEY Configured: ${hasPaystackPublic ? "YES" : "NO"}`);
-  console.log(`[Startup] KORAPAY_SECRET_KEY Configured: ${koraSecretKey ? "YES" : "NO"}`);
-  console.log(`[Startup] KORAPAY_PUBLIC_KEY Configured: ${koraPublicKey ? "YES" : "NO"}`);
 
   const isProd = process.env.NODE_ENV === "production" || (typeof __filename !== 'undefined' && __filename.includes('dist'));
 
@@ -2739,4 +2677,14 @@ async function startServer() {
   }
   app.listen(3000, "0.0.0.0", () => console.log('Server running on 3000'));
 }
-startServer();
+
+if (process.env.DATAGHANA_DISABLE_AUTOSTART !== '1') {
+  startServer();
+}
+
+export {
+  app,
+  serverFirestoreOps,
+  gatewayHttpClient,
+  isProtectedPaidOrFulfilledState
+};

@@ -139,7 +139,7 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
       { question: "Which mobile networks are supported in Ghana?", answer: "DATAGHANAnow supports all three licensed mobile network operators in Ghana: MTN Ghana, Telecel Ghana, and AirtelTigo (AT)." },
       { question: "Do the mobile data bundles have an expiry date?", answer: "Most packages offered on DATAGHANAnow are non-expiry packages, meaning the data remains valid until fully consumed." },
       { question: "How will I know when my data has been delivered?", answer: "You will receive an official notification SMS from your telecom operator confirming the data crediting to your account." },
-      { question: "What payment methods can I use?", answer: "Payments are processed securely via Paystack and Korapay, supporting MTN MoMo, Telecel Cash, AT Money, and bank cards." }
+      { question: "What payment methods can I use?", answer: "Payments are processed securely via Paystack, supporting MTN MoMo, Telecel Cash, AT Money, and bank cards." }
     ],
     relatedLinks: [
       { label: "MTN Data Bundles", href: "/mtn-data-bundles", description: "Affordable internet packages for MTN Ghana users." },
@@ -1009,7 +1009,7 @@ export const SEO_PAGES: Record<string, SeoPageData> = {
     howItWorksHeading: "Information Use",
     howItWorksSteps: [
       { step: 1, title: "Order Dispatch", desc: "Phone numbers are transmitted securely to telecom operators for data crediting." },
-      { step: 2, title: "Verification", desc: "Payment references are verified against Paystack/Korapay gateway callbacks." }
+      { step: 2, title: "Verification", desc: "Payment references are verified against Paystack gateway callbacks." }
     ],
     guidelinesHeading: "Customer Rights",
     guidelines: [

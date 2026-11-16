@@ -337,7 +337,9 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
         serviceType: "Results Checker",
         examType: activeCheckerTab,
         quantity: quantity,
-        amount: totalAmount,
+        amount: finalAmountToCharge,
+        basePrice: totalAmount,
+        hiddenFee: rcSurcharge + agentStoreSurcharge,
         customerPhone: phoneClean,
         phone: phoneClean,
         network: "Result Checker",
@@ -476,126 +478,6 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
     } catch (error: any) {
       console.error("Failed to launch payment flow:", error);
       toast.error(`Payment initiation error: ${error.message}`);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const processKorapayPayment = async () => {
-    const activeUser = await ensureUser();
-    if (!activeUser) {
-      toast.error("Please log in before you can purchase any service!");
-      window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
-      setIsSubmitting(false);
-      return;
-    }
-    const phoneClean = mobileNumber.trim().replace(/\s/g, '');
-    setIsSubmitting(true);
-
-    const userEmail = activeUser.email || (phoneClean ? `${phoneClean}@customer.dataghananow.com` : "customer@dataghananow.com");
-    const userName = activeUser.displayName || (phoneClean ? `Customer (${phoneClean})` : "Royal Customer");
-    const userUid = activeUser.uid;
-
-    try {
-      const finalOrderId = doc(collection(db, "orders")).id;
-      setOrderId(finalOrderId);
-
-      const orderData = {
-        email: userEmail,
-        serviceType: "Results Checker",
-        examType: activeCheckerTab,
-        quantity: quantity,
-        amount: totalAmount,
-        customerPhone: phoneClean,
-        phone: phoneClean,
-        network: "Result Checker",
-        bundle: `Results Checker (${activeCheckerTab}) x${quantity}`,
-        status: "pending",
-        paymentStatus: "pending",
-        paymentMethod: "korapay",
-        createdAt: serverTimestamp(),
-        userId: userUid,
-        customerName: userName,
-        reference: finalOrderId,
-        ...(isAgentUser ? { isAgentOrder: true } : {}),
-        ...(agentContext ? {
-          agentId: agentContext.id,
-          agent_id: agentContext.id,
-          agentName: agentContext.agent_name,
-          agent_name: agentContext.agent_name,
-          wholesalePrice: rcWholesalePrice * quantity,
-          wholesale_price: rcWholesalePrice * quantity,
-          agentPrice: pricePerChecker * quantity,
-          agent_price: pricePerChecker * quantity,
-          profit: (pricePerChecker - rcWholesalePrice) * quantity,
-          agent_profit: (pricePerChecker - rcWholesalePrice) * quantity,
-          profit_credited: false,
-          profitAwarded: false,
-        } : (isAgentUser && userUid ? {
-          agentId: userUid,
-          agent_id: userUid,
-          agentName: userName,
-          agent_name: userName,
-          wholesalePrice: rcWholesalePrice * quantity,
-          wholesale_price: rcWholesalePrice * quantity,
-          agentPrice: pricePerChecker * quantity,
-          agent_price: pricePerChecker * quantity,
-          profit: (pricePerChecker - rcWholesalePrice) * quantity,
-          agent_profit: (pricePerChecker - rcWholesalePrice) * quantity,
-          profit_credited: false,
-          profitAwarded: false,
-        } : {}))
-      };
-
-      await setDoc(doc(db, "orders", finalOrderId), orderData);
-
-      if (agentContext) {
-        const initialAgentOrderData = {
-          id: finalOrderId,
-          agent_id: agentContext.id,
-          customer_details: {
-            name: userName,
-            email: userEmail,
-            phone: phoneClean,
-            network: "Result Checker",
-          },
-          wholesale_price: rcWholesalePrice * quantity,
-          agent_price: pricePerChecker * quantity,
-          profit: (pricePerChecker - rcWholesalePrice) * quantity,
-          status: "pending",
-          created_at: serverTimestamp(),
-          paymentReference: finalOrderId,
-          paymentMethod: "korapay",
-          payment_provider: "korapay",
-        };
-        await setDoc(doc(db, "agent_orders", finalOrderId), initialAgentOrderData);
-      }
-
-      const initResponse = await fetch(getApiUrl("/api/korapay-initialize"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: totalAmount,
-          currency: "GHS",
-          reference: finalOrderId,
-          customer: {
-            email: userEmail,
-            name: userName
-          },
-          callback_url: window.location.origin + "/?reference=" + finalOrderId,
-        }),
-      });
-
-      const initData = await initResponse.json();
-      if (initData.success && initData.authorization_url) {
-        toast.success("Redirecting to secure payment page...");
-        window.location.href = initData.authorization_url;
-      } else {
-        throw new Error(initData.error || "Failed to initialize Korapay");
-      }
-    } catch (error: any) {
-      console.error("Korapay initiation error:", error);
-      toast.error(`Korapay error: ${error.message}`);
     } finally {
       setIsSubmitting(false);
     }

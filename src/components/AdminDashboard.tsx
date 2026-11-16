@@ -2720,7 +2720,7 @@ export default function AdminDashboard() {
                                 ) : null
                               ) : (
                                 <>
-                                  {(order.status === "pending" || order.status === "pending_verification" || order.status === "paid" || order.status === "success") && (
+                                  {(order.status === "pending" || order.status === "pending_verification" || order.status === "paid" || order.status === "success" || order.status === "successful") && (
                                     <div className="flex flex-wrap items-center justify-end gap-1.5">
                                       <Button
                                         size="sm"
@@ -5877,7 +5877,7 @@ export default function AdminDashboard() {
                                 </TableCell>
                                 <TableCell className="text-right p-4">
                                   <div className="flex justify-end gap-2">
-                                    {(o.status === "pending" || o.status === "pending_verification" || o.status === "paid" || o.status === "success") && (
+                                    {(o.status === "pending" || o.status === "pending_verification" || o.status === "paid" || o.status === "success" || o.status === "successful") && (
                                       <>
                                         <Button
                                           size="sm"

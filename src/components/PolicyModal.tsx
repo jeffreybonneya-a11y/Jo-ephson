@@ -100,7 +100,7 @@ export default function PolicyModal({ type, onClose }: PolicyModalProps) {
                 <strong>How Information Is Used:</strong> Your contact information is strictly used for order processing, automated dispatching, payment verification, and sending order confirmation updates via SMS/Email.
               </p>
               <p>
-                <strong>Payment Security:</strong> All financial transactions are securely processed via licensed payment gateways (Paystack and Korapay). DataGhanaNow does not store or handle raw bank card numbers or Mobile Money PINs.
+                <strong>Payment Security:</strong> All financial transactions are securely processed via our licensed payment gateway (Paystack). DataGhanaNow does not store or handle raw bank card numbers or Mobile Money PINs.
               </p>
               <p>
                 <strong>Data Protection:</strong> We implement bank-grade encryption and Firestore access rules. Your information is never sold, rented, or shared with third parties.
