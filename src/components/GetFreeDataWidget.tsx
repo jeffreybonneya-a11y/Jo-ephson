@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, Gift, X, Loader2, Trophy, Frown, CheckCircle2, ChevronRight, Crown, Clock } from 'lucide-react';
-import { doc, onSnapshot, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { db, auth } from '../lib/firebase';
 import { openPaystackPopup } from '../lib/paystack';
-import { getApiUrl } from '../lib/api';
+import { getApiUrl, getOptionalAuthHeaders } from '../lib/api';
 import { toast } from 'sonner';
 
 // Helper for local date string (YYYY-MM-DD)
@@ -239,11 +239,12 @@ export const GetFreeDataWidget: React.FC = () => {
       try {
         const redirectTarget = (typeof window !== 'undefined' && window.location.origin)
           ? window.location.origin
-          : 'https://dataghananow.com';
+          : 'https://kingjdeals.site';
         
+        const initHeaders = await getOptionalAuthHeaders();
         const initResponse = await fetch(getApiUrl("/api/paystack-initialize"), {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: initHeaders,
           body: JSON.stringify({
             email: userEmail,
             amount: pesewas,
@@ -324,7 +325,6 @@ export const GetFreeDataWidget: React.FC = () => {
   // 4. Step 3: Handle Claim Submission for Winner (Only after winning spin)
   const handleClaimFreeData = async (e: React.FormEvent) => {
     e.preventDefault();
-    const activeUser = currentUser || auth.currentUser;
 
     const phoneClean = phone.trim().replace(/\s/g, '');
     if (!phoneClean || phoneClean.length < 9) {
@@ -339,34 +339,28 @@ export const GetFreeDataWidget: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const orderData = {
-        email: activeUser?.email || `${phoneClean}@customer.dataghananow.com`,
-        serviceType: "Free Data Win",
-        orderType: "Free Data Win",
-        isFreeDataWin: true,
-        network: network,
-        bundle: `1GB ${network} Free Data Win`,
-        bundleName: `1GB ${network} Free Data Win`,
-        phone: phoneClean,
-        amount: Number(servicePrice || 0),
-        quantity: 1,
-        status: "pending",
-        paymentStatus: servicePrice > 0 ? "paid" : "free_promo",
-        paymentMethod: servicePrice > 0 ? "paystack" : "free_promo",
-        reference: paymentRef || `FD_${Date.now()}_${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
-        createdAt: serverTimestamp(),
-        userId: activeUser?.uid || "free_data_winner",
-        customerName: activeUser?.displayName || (phoneClean ? `Customer (${phoneClean})` : "Royal Winner"),
-      };
+      const headers = await getOptionalAuthHeaders();
+      const claimRes = await fetch(getApiUrl('/api/free-data/claim'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          phone: phoneClean,
+          network,
+          paymentRef,
+        }),
+      });
+      const claimData = await claimRes.json().catch(() => ({}));
+      if (!claimRes.ok || !claimData.success) {
+        throw new Error(claimData.error || "Failed to submit claim. Please try again.");
+      }
 
-      await addDoc(collection(db, "orders"), orderData);
       setIsSubmitting(false);
       setStage('win_success');
       toast.success("Order submitted successfully to Admin!");
     } catch (err: any) {
       setIsSubmitting(false);
       console.error("Error creating Free Data Win order:", err);
-      toast.error("Failed to submit claim. Please try again.");
+      toast.error(err.message || "Failed to submit claim. Please try again.");
     }
   };
 

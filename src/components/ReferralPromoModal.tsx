@@ -4,8 +4,9 @@ import { X, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import BrandWordmark from './BrandWordmark';
-import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db, auth } from '../lib/firebase';
+import { getApiUrl, getRequiredAuthHeaders } from '../lib/api';
 import { UserProfile } from '../types';
 
 interface ReferralPromoModalProps {
@@ -38,7 +39,7 @@ export default function ReferralPromoModal({
     if (profile?.referralCode) {
       code = profile.referralCode;
     } else if (user?.uid) {
-      // Create stable personal code based on user UID or phone
+      // Create stable local preview code while persisting authoritatively on backend
       const savedCode = localStorage.getItem(`dgn_ref_code_${user.uid}`);
       if (savedCode) {
         code = savedCode;
@@ -46,14 +47,27 @@ export default function ReferralPromoModal({
         const uidSuffix = user.uid.replace(/[^a-zA-Z0-9]/g, '').slice(0, 5).toUpperCase();
         code = `DGN-${uidSuffix || 'VIP'}`;
         localStorage.setItem(`dgn_ref_code_${user.uid}`, code);
-        // Persist non-blockingly to user profile in firestore
-        try {
-          updateDoc(doc(db, 'users', user.uid), { referralCode: code }).catch(() => {
+      }
+
+      if (auth.currentUser && !auth.currentUser.isAnonymous) {
+        (async () => {
+          try {
+            const headers = await getRequiredAuthHeaders();
+            const res = await fetch(getApiUrl('/api/referrals/ensure-code'), {
+              method: 'POST',
+              headers,
+            });
+            if (res.ok) {
+              const data = await res.json().catch(() => ({}));
+              if (data.success && data.referralCode) {
+                localStorage.setItem(`dgn_ref_code_${user.uid}`, data.referralCode);
+                setReferralCode(data.referralCode);
+              }
+            }
+          } catch {
             // Non-blocking fallback
-          });
-        } catch {
-          // ignore
-        }
+          }
+        })();
       }
     } else {
       // Guest customer: create or reuse persistent guest code

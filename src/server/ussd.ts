@@ -1,17 +1,4 @@
-import { 
-    getFirestore, 
-    collection, 
-    query, 
-    where, 
-    limit, 
-    getDocs, 
-    doc, 
-    getDoc,
-    setDoc,
-    updateDoc,
-    serverTimestamp,
-    Firestore 
-} from 'firebase/firestore';
+import { Firestore, FieldValue } from 'firebase-admin/firestore';
 import axios from 'axios';
 
 /**
@@ -317,17 +304,15 @@ export async function getActiveBundlesForNetwork(
     }
 
     try {
-        const bundlesCol = collection(db, 'bundles');
-        const q = query(
-            bundlesCol,
-            where('network', '==', normNetwork),
-            where('active', '==', true)
-        );
-        const snapshot = await getDocs(q);
+        const snapshot = await db
+            .collection('bundles')
+            .where('network', '==', normNetwork)
+            .where('active', '==', true)
+            .get();
 
         const map = new Map<string, UssdBundleItem>();
         snapshot.docs.forEach(docSnap => {
-            const data = docSnap.data();
+            const data = docSnap.data() || {};
             const price = typeof data.price === 'number' ? data.price : parseFloat(data.price) || 0;
             const dataAmount = String(data.dataAmount || data.name || '').trim();
             const name = String(data.name || data.dataAmount || `${normNetwork} Data`).trim();
@@ -383,25 +368,21 @@ export async function getActiveGameCoinsBundles(
     }
 
     try {
-        const bundlesCol = collection(db, 'bundles');
-        const qCat = query(
-            bundlesCol,
-            where('category', '==', category),
-            where('active', '==', true)
-        );
-        const catSnap = await getDocs(qCat);
+        const bundlesCol = db.collection('bundles');
+        const catSnap = await bundlesCol
+            .where('category', '==', category)
+            .where('active', '==', true)
+            .get();
 
-        const qNet = query(
-            bundlesCol,
-            where('network', '==', category),
-            where('active', '==', true)
-        );
-        const netSnap = await getDocs(qNet);
+        const netSnap = await bundlesCol
+            .where('network', '==', category)
+            .where('active', '==', true)
+            .get();
 
         const map = new Map<string, UssdBundleItem>();
 
         const processDoc = (docSnap: any) => {
-            const data = docSnap.data();
+            const data = docSnap.data() || {};
             if (!data.active) return;
             const price = typeof data.price === 'number' ? data.price : parseFloat(data.price) || 0;
             const dataAmount = String(data.dataAmount || data.name || '').trim();
@@ -634,31 +615,28 @@ export async function lookupOrderByReferenceInFirestore(db: Firestore | null, se
     const uniqueCandidates = Array.from(new Set(candidates));
 
     try {
-        const ordersCol = collection(db, 'orders');
+        const ordersCol = db.collection('orders');
 
         // 1. Direct document ID lookup
         for (const candidate of uniqueCandidates) {
             try {
-                const docRef = doc(db, 'orders', candidate);
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                    return formatOrderSummary(docSnap.data());
+                const docSnap = await ordersCol.doc(candidate).get();
+                if (docSnap.exists) {
+                    return formatOrderSummary(docSnap.data() || {});
                 }
             } catch (_) {}
         }
 
         // 2. Query by reference & referenceCode fields
         for (const candidate of uniqueCandidates) {
-            const qRef = query(ordersCol, where('reference', '==', candidate), limit(1));
-            const refSnap = await getDocs(qRef);
+            const refSnap = await ordersCol.where('reference', '==', candidate).limit(1).get();
             if (!refSnap.empty) {
-                return formatOrderSummary(refSnap.docs[0].data());
+                return formatOrderSummary(refSnap.docs[0].data() || {});
             }
 
-            const qRefCode = query(ordersCol, where('referenceCode', '==', candidate), limit(1));
-            const refCodeSnap = await getDocs(qRefCode);
+            const refCodeSnap = await ordersCol.where('referenceCode', '==', candidate).limit(1).get();
             if (!refCodeSnap.empty) {
-                return formatOrderSummary(refCodeSnap.docs[0].data());
+                return formatOrderSummary(refCodeSnap.docs[0].data() || {});
             }
         }
 
@@ -700,7 +678,7 @@ export async function lookupOrderByPhoneInFirestore(
     }
 
     try {
-        const ordersCol = collection(db, 'orders');
+        const ordersCol = db.collection('orders');
         const candidatePhones = Array.from(new Set([
             normalized,
             phoneInput.trim(),
@@ -712,22 +690,19 @@ export async function lookupOrderByPhoneInFirestore(
         for (const phoneVal of candidatePhones) {
             // Check recipientPhone
             try {
-                const qRecipient = query(ordersCol, where('recipientPhone', '==', phoneVal), limit(5));
-                const snapRecipient = await getDocs(qRecipient);
+                const snapRecipient = await ordersCol.where('recipientPhone', '==', phoneVal).limit(5).get();
                 snapRecipient.docs.forEach(d => matchedDocsMap.set(d.id, d.data()));
             } catch (_) {}
 
             // Check phone
             try {
-                const qPhone = query(ordersCol, where('phone', '==', phoneVal), limit(5));
-                const snapPhone = await getDocs(qPhone);
+                const snapPhone = await ordersCol.where('phone', '==', phoneVal).limit(5).get();
                 snapPhone.docs.forEach(d => matchedDocsMap.set(d.id, d.data()));
             } catch (_) {}
 
             // Check paymentPhone
             try {
-                const qPaymentPhone = query(ordersCol, where('paymentPhone', '==', phoneVal), limit(5));
-                const snapPaymentPhone = await getDocs(qPaymentPhone);
+                const snapPaymentPhone = await ordersCol.where('paymentPhone', '==', phoneVal).limit(5).get();
                 snapPaymentPhone.docs.forEach(d => matchedDocsMap.set(d.id, d.data()));
             } catch (_) {}
         }
@@ -1080,14 +1055,14 @@ export async function processUssdRequest(
 
             if (db && session.selectedBundle?.bundleId) {
                 try {
-                    const bundleDoc = await getDoc(doc(db, 'bundles', session.selectedBundle.bundleId));
-                    if (!bundleDoc.exists() || !bundleDoc.data().active) {
+                    const bundleDoc = await db.collection('bundles').doc(session.selectedBundle.bundleId).get();
+                    if (!bundleDoc.exists || !bundleDoc.data()?.active) {
                         session.screen = 'MAIN_MENU';
                         responseMsg = `Selected package is no longer available. Please choose another package:\n\nDATAGHANAnow\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n0. Exit`;
                         shouldContinue = true;
                         break;
                     }
-                    const bData = bundleDoc.data();
+                    const bData = bundleDoc.data() || {};
                     livePrice = typeof bData.price === 'number' ? bData.price : parseFloat(bData.price) || livePrice;
                     if (bData.name) liveBundleName = bData.name;
                 } catch (valErr: any) {
@@ -1137,8 +1112,8 @@ export async function processUssdRequest(
                 reference: orderRef,
                 referenceCode: orderRef,
 
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
+                createdAt: FieldValue.serverTimestamp(),
+                updatedAt: FieldValue.serverTimestamp(),
 
                 source: "ussd",
                 channel: "USSD",
@@ -1154,13 +1129,20 @@ export async function processUssdRequest(
                 orderData.category = session.gameCategory || "";
             }
 
-            if (db) {
-                try {
-                    await setDoc(doc(db, 'orders', orderDocId), orderData);
-                    console.log(`[NALO USSD] Successfully created Firestore order: ${orderDocId} (${orderRef}) for recipient ${recipientPhone}, payer ${paymentPhone}, GH¢${livePrice}`);
-                } catch (writeErr: any) {
-                    console.error(`[NALO USSD] Error writing order to Firestore:`, writeErr.message || writeErr);
-                }
+            if (!db) {
+                responseMsg = `Service temporarily unavailable. Please try again shortly or contact:\n${SUPPORT_NUMBERS}`;
+                shouldContinue = false;
+                break;
+            }
+
+            try {
+                await db.collection('orders').doc(orderDocId).set(orderData);
+                console.log(`[NALO USSD] Successfully created Firestore order: ${orderDocId} (${orderRef}) for recipient ${recipientPhone}, payer ${paymentPhone}, GH¢${livePrice}`);
+            } catch (writeErr: any) {
+                console.error(`[NALO USSD] Error writing order to Firestore:`, writeErr.message || writeErr);
+                responseMsg = `Service temporarily unavailable. Please try again shortly or contact:\n${SUPPORT_NUMBERS}`;
+                shouldContinue = false;
+                break;
             }
 
             // Mark session with created order for idempotency
@@ -1190,10 +1172,10 @@ export async function processUssdRequest(
                 // Update order in Firestore to failed so it does not linger as pending
                 if (db) {
                     try {
-                        await updateDoc(doc(db, 'orders', orderDocId), {
+                        await db.collection('orders').doc(orderDocId).update({
                             status: "failed",
                             paymentStatus: "failed",
-                            updatedAt: serverTimestamp()
+                            updatedAt: FieldValue.serverTimestamp()
                         });
                     } catch (e) {}
                 }

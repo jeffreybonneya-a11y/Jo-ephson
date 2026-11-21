@@ -30,13 +30,14 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() && (
+      return isAuthenticated() &&
+             ("email_verified" in request.auth.token) &&
+             request.auth.token.email_verified == true &&
              ("email" in request.auth.token && (
                (request.auth.token.email.lower() == "kingjdeals@gmail.com") ||
                (request.auth.token.email.lower() == "jeffreybonneya@gmail.com") ||
                (request.auth.token.email.lower() == "emmagyapong62@gmail.com")
-             ))
-      );
+             ));
     }
 
     function isOwner(userId) {
@@ -181,8 +182,12 @@ service cloud.firestore {
     }
 
     function isValidClientUserUpdate(incoming, existing) {
-       return (!('role' in incoming) || incoming.role == existing.role) &&
-              (!('walletBalance' in incoming) || incoming.walletBalance <= existing.get('walletBalance', 0));
+       return (!('role' in incoming) || incoming.role == existing.get('role', 'user')) &&
+              (!('isAgent' in incoming) || incoming.isAgent == existing.get('isAgent', false)) &&
+              (!('referralCount' in incoming) || incoming.referralCount == existing.get('referralCount', 0)) &&
+              (!('referredBy' in incoming) || incoming.referredBy == existing.get('referredBy', null)) &&
+              (!('referralCode' in incoming) || incoming.referralCode == existing.get('referralCode', null)) &&
+              incoming.get('walletBalance', 0) <= existing.get('walletBalance', 0);
     }
 
     function isValidComplaint(data) {
@@ -249,32 +254,33 @@ service cloud.firestore {
     match /orders/{orderId} {
       // Admins can read all orders; authenticated users can read their own orders or agent orders
       allow read: if isAdmin() || (isAuthenticated() && (
-        resource.data.userId == request.auth.uid || 
-        resource.data.email == request.auth.token.email || 
-        resource.data.agentId == request.auth.uid
+        resource.data.userId == request.auth.uid ||
+        (("email" in request.auth.token) && resource.data.email == request.auth.token.email) ||
+        resource.data.agentId == request.auth.uid ||
+        resource.data.agent_id == request.auth.uid
       ));
-      // Direct client-side order creation is disabled; all orders must be created via POST /api/orders/create using Firebase Admin SDK
-      allow create: if false;
-      // Client can only update user confirmation flags on pending orders; cannot alter amount, status, or userId
-      allow update: if isAdmin() || (
-        isAuthenticated() && 
-        resource.data.userId == request.auth.uid && 
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['momoSentClicked', 'userConfirmedAt', 'momoTransactionId']) && 
-        resource.data.status in ['pending', 'pending_verification']
-      );
+      // Direct client-side order creation & mutation are disabled; handled strictly via backend Admin SDK endpoints
+      allow create, update: if isAdmin();
       allow delete: if isAdmin();
     }
 
     match /users/{userId} {
       // Authenticated users can read their own profile; admins can read all
       allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      // Users can create their own profile, but cannot assign themselves admin role
-      allow create: if isAuthenticated() && request.auth.uid == userId && 
+      // Users can create their own profile, but cannot assign themselves admin/agent/wallet/referral privileges
+      allow create: if isAuthenticated() && request.auth.uid == userId &&
                     isValidUser(request.resource.data) &&
-                    ((request.resource.data.role == 'user') || (request.resource.data.role == 'admin' && isAdmin()));
-      // Users can update their own profile, but cannot escalate to admin or inflate walletBalance
+                    ((request.resource.data.role == 'user') || (request.resource.data.role == 'admin' && isAdmin())) &&
+                    (isAdmin() || (
+                      request.resource.data.get('isAgent', false) == false &&
+                      request.resource.data.get('walletBalance', 0) == 0 &&
+                      request.resource.data.get('referralCount', 0) == 0 &&
+                      !('referralCode' in request.resource.data) &&
+                      !('referredBy' in request.resource.data)
+                    ));
+      // Users can update their own profile, but cannot escalate role, isAgent, referral*, or walletBalance
       allow update: if isAuthenticated() && (
-        isAdmin() || 
+        isAdmin() ||
         (request.auth.uid == userId && isValidClientUserUpdate(request.resource.data, resource.data))
       );
       allow delete: if isAdmin();
@@ -282,27 +288,31 @@ service cloud.firestore {
 
     match /complaints/{complaintId} {
       allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
-      allow create: if isValidComplaint(request.resource.data);
+      // Support tickets are created strictly via POST /api/support/tickets using Firebase Admin SDK
+      allow create: if false;
       allow update, delete: if isAdmin();
     }
 
     match /wallet_transactions/{transactionId} {
       allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid && 
-                    request.resource.data.status == 'pending' && 
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid &&
+                    request.resource.data.status == 'pending' &&
                     isValidWalletTransaction(request.resource.data);
       allow update, delete: if isAdmin();
     }
 
     match /messages/{messageId} {
       allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
-      allow create: if isValidMessage(request.resource.data);
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid &&
+                    isValidMessage(request.resource.data);
       allow update, delete: if isAdmin();
     }
 
     match /streamAccess/{accessId} {
       allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
-      allow create: if isValidStreamAccess(request.resource.data) && request.resource.data.status == 'pending';
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid &&
+                    isValidStreamAccess(request.resource.data) &&
+                    request.resource.data.status == 'pending';
       allow update, delete: if isAdmin();
     }
 
@@ -324,14 +334,14 @@ service cloud.firestore {
 
     match /agent_orders/{orderId} {
       allow read: if isAdmin() || (isAuthenticated() && resource.data.agent_id == request.auth.uid);
-      allow create: if isAdmin() || (isAuthenticated() && request.resource.data.status in ['pending', 'pending_verification']);
+      allow create: if false;
       allow update, delete: if isAdmin();
     }
 
     match /profit_requests/{requestId} {
       allow read: if isAdmin() || (isAuthenticated() && resource.data.agent_id == request.auth.uid);
-      allow create: if isAuthenticated() && request.resource.data.agent_id == request.auth.uid && 
-                    request.resource.data.status == 'pending' && 
+      allow create: if isAuthenticated() && request.resource.data.agent_id == request.auth.uid &&
+                    request.resource.data.status == 'pending' &&
                     isValidProfitRequest(request.resource.data);
       allow update, delete: if isAdmin();
     }
@@ -353,18 +363,19 @@ service cloud.firestore {
 
     match /booking_code_purchases/{purchaseId} {
       allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
-      allow create: if isAdmin() || (isAuthenticated() && request.resource.data.status == 'pending');
+      allow create: if false;
       allow update, delete: if isAdmin();
     }
 
     match /booking_code_orders/{orderId} {
       allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
-      allow create: if isAdmin() || (isAuthenticated() && request.resource.data.status == 'pending');
+      allow create: if false;
       allow update, delete: if isAdmin();
     }
 
     match /app_downloads/{downloadId} {
-      allow create: if true;
+      allow create: if request.resource.data.keys().hasAll(['apkName', 'downloadedAt']) &&
+                    request.resource.data.downloadedAt is timestamp;
       allow read, update, delete: if isAdmin();
     }
 
@@ -374,8 +385,11 @@ service cloud.firestore {
     }
 
     match /efootballOrders/{orderId} {
-      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
-      allow create: if isAdmin() || (isAuthenticated() && request.resource.data.status in ['pending', 'PAYMENT_PENDING']);
+      allow read: if isAdmin() || (isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.customerId == request.auth.uid
+      ));
+      allow create: if false;
       allow update, delete: if isAdmin();
     }
   }

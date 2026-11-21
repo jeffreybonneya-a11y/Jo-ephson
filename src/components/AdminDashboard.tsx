@@ -28,6 +28,7 @@ import {
   Complaint,
 } from "@/src/types";
 import { getProductImage } from "@/src/lib/images";
+import { getAgentStoreUrl } from "@/src/lib/siteUrl";
 import {
   deduplicateOrdersList,
   purgeDuplicateOrdersFromFirestore,
@@ -5693,8 +5694,8 @@ export default function AdminDashboard() {
                                   <span className="font-black text-foreground">
                                     {ag.agent_name}
                                   </span>
-                                  <span className="text-[10px] text-primary font-bold lowercase">
-                                    /store/{ag.agent_slug}
+                                  <span className="text-[10px] text-primary font-bold font-mono">
+                                    {getAgentStoreUrl(ag.agent_slug)}
                                   </span>
                                 </div>
                               </TableCell>
@@ -5712,15 +5713,29 @@ export default function AdminDashboard() {
                                 GHS {Number(ag.profit_balance || 0).toFixed(2)}
                               </TableCell>
                               <TableCell className="text-right p-4">
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  className="h-8 px-3 rounded-lg font-black uppercase text-[9px] shadow-sm flex items-center gap-1 ml-auto cursor-pointer"
-                                  onClick={() => handleRelockStore(ag.id)}
-                                >
-                                  <Lock className="w-3 h-3" />
-                                  Relock Store
-                                </Button>
+                                <div className="flex items-center justify-end gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 px-3 rounded-lg font-black uppercase text-[9px] shadow-sm flex items-center gap-1 cursor-pointer"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(getAgentStoreUrl(ag.agent_slug));
+                                      toast.success(`Copied store link for ${ag.agent_name}!`);
+                                    }}
+                                  >
+                                    <Copy className="w-3 h-3 text-primary" />
+                                    Copy Link
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    className="h-8 px-3 rounded-lg font-black uppercase text-[9px] shadow-sm flex items-center gap-1 cursor-pointer"
+                                    onClick={() => handleRelockStore(ag.id)}
+                                  >
+                                    <Lock className="w-3 h-3" />
+                                    Relock Store
+                                  </Button>
+                                </div>
                               </TableCell>
                             </TableRow>
                           ))

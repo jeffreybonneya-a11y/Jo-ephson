@@ -13,6 +13,7 @@ import { Bundle } from '../types';
 import { getApiUrl } from '../lib/api';
 import { openPaystackPopup } from '../lib/paystack';
 import { isOrderSuccessfullyPaid } from '../lib/orderDeduplication';
+import { getAgentStoreUrl } from '../lib/siteUrl';
 
 interface AgentStoreProps {
   profile: any;
@@ -536,8 +537,8 @@ Reference Code: ${refCode}
   };
 
   const copyStoreLink = () => {
-    if (!agent) return;
-    const link = `${window.location.origin}/store/${agent.agent_slug}`;
+    if (!agent || !agent.agent_slug) return;
+    const link = getAgentStoreUrl(agent.agent_slug);
     navigator.clipboard.writeText(link);
     toast.success("Store link copied successfully! Share it to start earning.");
   };

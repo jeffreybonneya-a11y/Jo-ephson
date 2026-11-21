@@ -28,12 +28,11 @@ import {
   Monitor,
   Apple
 } from 'lucide-react';
-import { auth, db } from '../lib/firebase';
-import { doc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { auth } from '../lib/firebase';
 import { EFootballProduct } from '../types';
 import KonamiIdGuideModal from './KonamiIdGuideModal';
 import { openPaystackPopup } from '../lib/paystack';
-import { getApiUrl } from '../lib/api';
+import { getApiUrl, getOptionalAuthHeaders, getRequiredAuthHeaders } from '../lib/api';
 import { toast } from 'sonner';
 
 interface EFootballOrderModalProps {
@@ -136,65 +135,38 @@ export default function EFootballOrderModal({
     }
 
     setIsSubmitting(true);
-
-    // 1. Generate Order ID and unique Paystack Reference
-    const orderNumber = Math.floor(10000 + Math.random() * 90000);
-    const orderId = `EF-${orderNumber}`;
-    const reference = `EF_${Date.now()}_${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
-
-    // 2. Prepare Order Payload
-    // Strictly preserve:
-    // customerEmail = authenticated Firebase user email (website Gmail)
-    // accountIdentifier = customer provided KONAMI ID or eFootball account email
-    const orderPayload = {
-      id: reference,
-      orderId: orderId,
-      customerId: currentUser.uid,
-      userId: currentUser.uid,
-      customerName: userName,
-      customerEmail: userEmail, // Authenticated website email (source of truth)
-      email: userEmail,
-      customerPhone: customerPhone.trim() || profile?.phone || '',
-      phone: customerPhone.trim() || profile?.phone || '',
-      productId: product.id,
-      productName: product.name,
-      bundle: `${product.name} (${normalizedPlatform})`,
-      bundleName: product.name,
-      coinAmount: product.coinAmount,
-      platform: normalizedPlatform, // "iOS", "Android", or "Steam"
-      accountIdentifier: trimmedId,
-      accountIdentifierType: accountIdentifierType,
-      konamiId: trimmedId, // Kept in sync with accountIdentifier
-      amount: product.price,
-      currency: product.currency || 'GHS',
-      paymentStatus: 'PAYMENT_PENDING',
-      fulfillmentStatus: 'AWAITING_FULFILLMENT',
-      adminStatus: 'AWAITING_FULFILLMENT',
-      status: 'pending',
-      serviceType: 'efootball',
-      network: 'Game Coins',
-      category: 'eFootball Coins',
-      paystackReference: reference,
-      reference: reference,
-      paymentMethod: 'Paystack',
-      payment_provider: 'paystack',
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      paidAt: null,
-      acceptedAt: null,
-      acceptedBy: null,
-      deliveredAt: null,
-      deliveredBy: null,
-      deliveryNote: null,
-    };
+    let createdReference = '';
 
     try {
-      // 3. FIRST save order into Firestore BEFORE Paystack redirect
-      await setDoc(doc(db, 'efootballOrders', reference), orderPayload);
-      await setDoc(doc(db, 'orders', reference), orderPayload);
-      console.log(`[eFootball Order] Successfully pre-created order ${orderId} (${reference}) for ${userEmail} with platform ${normalizedPlatform}.`);
+      // 1. Pre-create authoritative order on backend BEFORE Paystack launch
+      const requiredHeaders = await getRequiredAuthHeaders();
+      const createRes = await fetch(getApiUrl('/api/efootball/orders'), {
+        method: 'POST',
+        headers: requiredHeaders,
+        body: JSON.stringify({
+          productId: product.id,
+          platform: normalizedPlatform,
+          accountIdentifier: trimmedId,
+          customerPhone: customerPhone.trim(),
+        }),
+      });
+      const createData = await createRes.json().catch(() => ({}));
+      if (!createRes.ok || !createData.success || !createData.reference) {
+        throw new Error(createData.error || 'Could not create eFootball order.');
+      }
 
-      // 4. Initialize Paystack through backend
+      const orderId = createData.orderId;
+      const reference = createData.reference;
+      createdReference = reference;
+      const authoritativeAmount = Number(createData.amount ?? product.price);
+      const authUserEmail = createData.customerEmail || userEmail;
+      const authUserName = createData.customerName || userName;
+      const authCoinAmount = Number(createData.coinAmount ?? product.coinAmount);
+      const authPhone = createData.customerPhone || customerPhone.trim();
+
+      console.log(`[eFootball Order] Successfully pre-created order ${orderId} (${reference}) for ${authUserEmail} with platform ${normalizedPlatform}.`);
+
+      // 2. Initialize Paystack through backend
       const redirectTarget = window.location.origin;
       const callbackUrl = `${redirectTarget}/?reference=${reference}&method=paystack`;
 
@@ -208,8 +180,8 @@ export default function EFootballOrderModal({
         if (paystackPublicKey && typeof window !== 'undefined') {
           await openPaystackPopup({
             key: paystackPublicKey,
-            email: userEmail,
-            amount: Math.round(product.price * 100), // in pesewas
+            email: authUserEmail,
+            amount: Math.round(authoritativeAmount * 100), // in pesewas
             currency: 'GHS',
             ref: reference,
             metadata: {
@@ -221,10 +193,10 @@ export default function EFootballOrderModal({
               accountIdentifierType: accountIdentifierType,
               konamiId: trimmedId,
               platform: normalizedPlatform,
-              coinAmount: product.coinAmount,
-              customerEmail: userEmail,
-              customerName: userName,
-              customerPhone: customerPhone.trim(),
+              coinAmount: authCoinAmount,
+              customerEmail: authUserEmail,
+              customerName: authUserName,
+              customerPhone: authPhone,
             },
             onSuccess: async () => {
               toast.success(`Payment Received for Order #${orderId}! Your coins are awaiting delivery`);
@@ -243,14 +215,15 @@ export default function EFootballOrderModal({
         console.warn('[eFootball Paystack] Inline popup notice, falling back to server initialize:', inlineErr);
       }
 
-      // 5. Fallback: Call backend /api/paystack-initialize
+      // 3. Fallback: Call backend /api/paystack-initialize
       if (!initializedViaPopup) {
+        const initHeaders = await getOptionalAuthHeaders();
         const initResponse = await fetch(getApiUrl('/api/paystack-initialize'), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: initHeaders,
           body: JSON.stringify({
-            email: userEmail,
-            amount: Math.round(product.price * 100),
+            email: authUserEmail,
+            amount: Math.round(authoritativeAmount * 100),
             reference,
             callback_url: callbackUrl,
             currency: 'GHS',
@@ -261,8 +234,8 @@ export default function EFootballOrderModal({
             accountIdentifierType: accountIdentifierType,
             konamiId: trimmedId,
             userId: currentUser.uid,
-            customerName: userName,
-            customerPhone: customerPhone.trim(),
+            customerName: authUserName,
+            customerPhone: authPhone,
             metadata: {
               orderId,
               efootballOrderId: orderId,
@@ -272,8 +245,8 @@ export default function EFootballOrderModal({
               accountIdentifier: trimmedId,
               accountIdentifierType: accountIdentifierType,
               konamiId: trimmedId,
-              coinAmount: product.coinAmount,
-              customerEmail: userEmail,
+              coinAmount: authCoinAmount,
+              customerEmail: authUserEmail,
             },
           }),
         });
@@ -287,19 +260,16 @@ export default function EFootballOrderModal({
       }
     } catch (err: any) {
       console.error('[eFootball Payment Error]:', err);
-      try {
-        await updateDoc(doc(db, 'efootballOrders', reference), {
-          paymentStatus: 'PAYMENT_INITIALIZATION_FAILED',
-          status: 'failed',
-          updatedAt: serverTimestamp(),
-        });
-        await updateDoc(doc(db, 'orders', reference), {
-          paymentStatus: 'PAYMENT_INITIALIZATION_FAILED',
-          status: 'failed',
-          updatedAt: serverTimestamp(),
-        });
-      } catch (updateErr) {
-        console.warn('[eFootball Error Record Notice]:', updateErr);
+      if (createdReference) {
+        try {
+          const authHeaders = await getRequiredAuthHeaders();
+          await fetch(getApiUrl(`/api/efootball/orders/${encodeURIComponent(createdReference)}/init-failed`), {
+            method: 'POST',
+            headers: authHeaders,
+          });
+        } catch (updateErr) {
+          console.warn('[eFootball Error Record Notice]:', updateErr);
+        }
       }
 
       toast.error(`Payment initialization notice: ${err.message || 'Please try again'}`);
