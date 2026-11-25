@@ -125,9 +125,6 @@ export default function WhatsAppChannelAdModal({ forceOpen, onClose }: WhatsAppC
           {/* WhatsApp Channel Icon with Royal Crown */}
           <div className="relative flex justify-center items-center my-3">
             <div className="relative">
-              {/* Outer Pulse Glow */}
-              <div className="absolute -inset-2 bg-gradient-to-r from-emerald-500/20 to-amber-500/20 rounded-full blur-md animate-pulse" />
-              
               {/* WhatsApp Circular Icon Container */}
               <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-[#25D366] to-[#1EBE5D] flex items-center justify-center shadow-[0_8px_25px_rgba(37,211,102,0.45)] border-2 border-white/30">
                 {/* Official WhatsApp Logo SVG */}

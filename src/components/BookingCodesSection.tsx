@@ -38,11 +38,13 @@ import {
   Check,
   Zap,
   Gift,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
 import { getApiUrl, getOptionalAuthHeaders, getRequiredAuthHeaders } from "@/src/lib/api";
 import { openPaystackPopup } from "@/src/lib/paystack";
+import { useServiceStatus } from "@/src/hooks/useServiceStatus";
 import {
   PlatformLogo,
   PLATFORMS_CONFIG,
@@ -64,6 +66,8 @@ export default function BookingCodesSection({
   const [purchasedCodes, setPurchasedCodes] = useState<BookingCodePurchase[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"available" | "my_codes">("available");
+  const { isOutOfStock } = useServiceStatus();
+  const isBookingOutOfStock = isOutOfStock("booking_codes");
 
   // Filters
   const [selectedBookmaker, setSelectedBookmaker] = useState<string>("ALL");
@@ -358,6 +362,13 @@ export default function BookingCodesSection({
   };
 
   const handleOpenCheckout = (code: BookingCode) => {
+    if (isBookingOutOfStock) {
+      toast.error("Booking Codes is temporarily Out of Stock.", {
+        description: "Purchases for Booking Codes are paused until stock is restored.",
+      });
+      return;
+    }
+
     const expiryStatus = getRemainingTime(code.expiresAt);
     if (expiryStatus.isExpired) {
       toast.error("This booking code has expired and can no longer be purchased.");
@@ -383,6 +394,10 @@ export default function BookingCodesSection({
   // Execute payment via Paystack Popup or direct hosted checkout
   const handleProceedToPayment = async () => {
     if (!checkoutCode) return;
+    if (isBookingOutOfStock) {
+      toast.error("Booking Codes is temporarily Out of Stock.");
+      return;
+    }
 
     const emailToUse = (customerEmail || profile?.email || auth.currentUser?.email || "").trim();
     const phoneToUse = (customerPhone || profile?.phoneNumber || profile?.phone || "").trim();
@@ -704,6 +719,27 @@ export default function BookingCodesSection({
       {/* 2. PLATFORM LOGOS SELECTOR & FILTERS */}
       {activeTab === "available" && (
         <div className="space-y-4">
+          {isBookingOutOfStock && (
+            <div className="rounded-2xl bg-red-500/10 border-2 border-red-500/40 p-4 sm:p-5 flex items-start gap-3.5 text-red-100 shadow-sm">
+              <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center text-red-400 shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h4 className="text-sm sm:text-base font-black uppercase tracking-wide text-red-300">
+                    Booking Codes Temporarily Unavailable
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-red-600 text-white tracking-wider">
+                    Out of Stock
+                  </span>
+                </div>
+                <p className="text-xs text-red-200/90 font-medium leading-relaxed">
+                  Booking Codes is temporarily out of stock and cannot be purchased right now. Your previously purchased codes remain accessible under My Codes, and other services remain available.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Header row with search */}
           <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
             <div className="flex items-center gap-2">
@@ -998,6 +1034,13 @@ export default function BookingCodesSection({
                           >
                             Expired ⚠️
                           </Button>
+                        ) : isBookingOutOfStock ? (
+                          <Button
+                            disabled
+                            className="rounded-xl bg-slate-800 text-red-400 font-black text-xs uppercase px-4 h-10 border border-red-500/40 cursor-not-allowed"
+                          >
+                            Out of Stock
+                          </Button>
                         ) : Number(code.price) === 0 ? (
                           <Button
                             onClick={() => handleOpenCheckout(code)}
@@ -1168,6 +1211,16 @@ export default function BookingCodesSection({
 
           {checkoutCode && (
             <div className="space-y-4 pt-2">
+              {isBookingOutOfStock && (
+                <div className="p-3.5 rounded-2xl bg-red-500/15 border border-red-500/40 flex items-start gap-2.5 text-red-200 text-xs">
+                  <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-black uppercase text-red-300">Booking Codes Out of Stock</p>
+                    <p className="opacity-90">This service is temporarily unavailable and cannot be purchased right now.</p>
+                  </div>
+                </div>
+              )}
+
               {/* Slip Summary Info */}
               <div className="bg-[#111C38] rounded-2xl p-4 border border-slate-700/80 space-y-2.5">
                 <div className="flex justify-between items-center text-xs">
@@ -1268,14 +1321,18 @@ export default function BookingCodesSection({
                 <div className="pt-2 flex flex-col gap-2">
                   <Button
                     onClick={handleProceedToPayment}
-                    disabled={isProcessingPayment}
-                    className={`h-12 w-full rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider hover:brightness-110 shadow-lg cursor-pointer ${
-                      Number(checkoutCode.price) === 0
-                        ? "bg-gradient-to-r from-emerald-400 via-green-400 to-teal-400 text-slate-950 border border-emerald-300/40 shadow-[0_2px_20px_rgba(16,185,129,0.3)]"
-                        : "bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 border border-amber-300/40 shadow-[0_2px_20px_rgba(245,158,11,0.25)]"
+                    disabled={isProcessingPayment || isBookingOutOfStock}
+                    className={`h-12 w-full rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg ${
+                      isBookingOutOfStock
+                        ? "bg-slate-800 text-red-400 border border-red-500/40 cursor-not-allowed"
+                        : Number(checkoutCode.price) === 0
+                        ? "bg-gradient-to-r from-emerald-400 via-green-400 to-teal-400 text-slate-950 border border-emerald-300/40 shadow-[0_2px_20px_rgba(16,185,129,0.3)] hover:brightness-110 cursor-pointer"
+                        : "bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 border border-amber-300/40 shadow-[0_2px_20px_rgba(245,158,11,0.25)] hover:brightness-110 cursor-pointer"
                     }`}
                   >
-                    {isProcessingPayment
+                    {isBookingOutOfStock
+                      ? "Out of Stock"
+                      : isProcessingPayment
                       ? Number(checkoutCode.price) === 0
                         ? "Unlocking Free Code..."
                         : "Connecting to Paystack..."
@@ -1305,7 +1362,7 @@ export default function BookingCodesSection({
       <Dialog open={!!revealedCodeData} onOpenChange={(open) => !open && setRevealedCodeData(null)}>
         <DialogContent className="max-w-md w-[95vw] rounded-3xl bg-[#0B132B] border-2 border-amber-400/50 text-white p-5 sm:p-8 shadow-[0_0_50px_rgba(245,158,11,0.3)] max-h-[90vh] overflow-y-auto">
           <DialogHeader className="space-y-2 text-center">
-            <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full text-slate-950 flex items-center justify-center mx-auto shadow-lg animate-bounce ${
+            <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full text-slate-950 flex items-center justify-center mx-auto shadow-lg ${
               revealedCodeData?.price === 0
                 ? "bg-gradient-to-br from-emerald-400 via-green-300 to-teal-400"
                 : "bg-gradient-to-br from-amber-400 via-yellow-300 to-amber-500"
@@ -1451,18 +1508,29 @@ export default function BookingCodesSection({
                   </span>
                 )}
                 <Button
+                  disabled={isBookingOutOfStock}
                   onClick={() => {
+                    if (isBookingOutOfStock) {
+                      toast.error("Booking Codes is temporarily Out of Stock.");
+                      return;
+                    }
                     const c = previewSlipCode;
                     setPreviewSlipCode(null);
                     handleOpenCheckout(c);
                   }}
-                  className={`rounded-xl font-black text-xs uppercase px-5 cursor-pointer ${
-                    Number(previewSlipCode.price) === 0
-                      ? "bg-emerald-400 hover:bg-emerald-300 text-slate-950"
-                      : "bg-amber-400 hover:bg-amber-300 text-slate-950"
+                  className={`rounded-xl font-black text-xs uppercase px-5 ${
+                    isBookingOutOfStock
+                      ? "bg-slate-800 text-red-400 border border-red-500/40 cursor-not-allowed"
+                      : Number(previewSlipCode.price) === 0
+                      ? "bg-emerald-400 hover:bg-emerald-300 text-slate-950 cursor-pointer"
+                      : "bg-amber-400 hover:bg-amber-300 text-slate-950 cursor-pointer"
                   }`}
                 >
-                  {Number(previewSlipCode.price) === 0 ? "Get Free Code" : "Buy Code Now"}
+                  {isBookingOutOfStock
+                    ? "Out of Stock"
+                    : Number(previewSlipCode.price) === 0
+                    ? "Get Free Code"
+                    : "Buy Code Now"}
                 </Button>
               </div>
             </div>

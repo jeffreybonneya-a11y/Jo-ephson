@@ -883,7 +883,7 @@ export default function MyOrders({ user, profile, onBackHome }: MyOrdersProps) {
                           variant="outline"
                           className={`font-black text-[10px] uppercase px-2.5 py-1 rounded-lg ${getFulfillmentBadgeStyle(order.fulfillmentStatus)}`}
                         >
-                          {order.fulfillmentStatus === "processing" && <Clock className="w-3 h-3 mr-1 animate-pulse" />}
+                          {order.fulfillmentStatus === "processing" && <Clock className="w-3 h-3 mr-1" />}
                           {order.fulfillmentStatus === "delivered" && <CheckCircle2 className="w-3 h-3 mr-1" />}
                           {(order.fulfillmentStatus === "declined" || order.fulfillmentStatus === "failed") && <XCircle className="w-3 h-3 mr-1" />}
                           Fulfillment: {order.fulfillmentStatusLabel}

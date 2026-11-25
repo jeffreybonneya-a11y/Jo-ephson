@@ -14,6 +14,8 @@ import { getApiUrl } from '../lib/api';
 import { openPaystackPopup } from '../lib/paystack';
 import { isOrderSuccessfullyPaid } from '../lib/orderDeduplication';
 import { getAgentStoreUrl } from '../lib/siteUrl';
+import { useServiceStatus } from '../hooks/useServiceStatus';
+import { ServiceId } from '../lib/serviceStatus';
 
 interface AgentStoreProps {
   profile: any;
@@ -37,6 +39,7 @@ const parseDataAmountToMB = (amountStr: string): number => {
 };
 
 export default function AgentStore({ profile, onSelectBundle }: AgentStoreProps) {
+  const { isOutOfStock } = useServiceStatus();
   const [isPaying, setIsPaying] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -549,7 +552,7 @@ Reference Code: ${refCode}
     return (
       <div className="flex flex-col items-center justify-center min-h-[70vh] gap-4">
         <Loader2 className="w-12 h-12 text-primary animate-spin" />
-        <p className="text-slate-500 font-black text-xs tracking-[0.2em] animate-pulse">SETTING UP ROYAL ACCESS...👑</p>
+        <p className="text-slate-500 font-black text-xs tracking-[0.2em]">SETTING UP ROYAL ACCESS...👑</p>
       </div>
     );
   }
@@ -725,7 +728,7 @@ Reference Code: ${refCode}
                 <FileText className="w-4 h-4 mr-1.5" />
                 Sales Tracker
                 {orders.filter(o => o.status === 'processing').length > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-amber-500 text-white font-mono text-[8px] w-4.5 h-4.5 rounded-full flex items-center justify-center font-black shadow-lg animate-pulse">
+                  <span className="absolute -top-1 -right-1 bg-amber-500 text-white font-mono text-[8px] w-4.5 h-4.5 rounded-full flex items-center justify-center font-black shadow-lg">
                     {orders.filter(o => o.status === 'processing').length}
                   </span>
                 )}
@@ -750,7 +753,7 @@ Reference Code: ${refCode}
                 {loadingBundles ? (
                   <div className="py-12 text-center">
                     <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">FETCHING MASTER OFFERS...</p>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">FETCHING MASTER OFFERS...</p>
                   </div>
                 ) : (
                   <div className="space-y-8">
@@ -819,12 +822,30 @@ Reference Code: ${refCode}
                       const theme = getNetworkTheme(net);
                       
                       const displayName = net === 'FC Mobile Points' ? 'FC ™ MOBILE Points' : net === 'FC Mobile Silver' ? 'FC ™ MOBILE Silver' : net;
+                      const groupServiceId: ServiceId =
+                        net === 'MTN'
+                          ? 'mtn'
+                          : net === 'Telecel'
+                          ? 'telecel'
+                          : net === 'AirtelTigo'
+                          ? 'airteltigo'
+                          : 'game_coins';
+                      const isGroupOut = isOutOfStock(groupServiceId);
 
                       return (
                         <div key={net} className="space-y-4">
-                          <h3 className={`text-lg font-black tracking-widest uppercase border-b pb-2 flex items-center gap-2 ${theme.text} ${theme.border}`}>
+                          <h3 className={`text-lg font-black tracking-widest uppercase border-b pb-2 flex items-center flex-wrap gap-2 ${theme.text} ${theme.border}`}>
                             <span>{displayName} Packages</span>
                             <span className="text-[10px] font-bold text-slate-400 not-italic">({networkBundles.length} active)</span>
+                            <span
+                              className={`ml-auto text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full ${
+                                isGroupOut
+                                  ? 'bg-red-600 text-white'
+                                  : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                              }`}
+                            >
+                              {isGroupOut ? 'Out of Stock' : 'In Stock'}
+                            </span>
                           </h3>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {networkBundles.map(bundle => {
@@ -907,9 +928,18 @@ Reference Code: ${refCode}
 
                     {/* Results Checker Section */}
                     <div className="space-y-4 pt-6 border-t-2 border-dashed border-slate-100 dark:border-slate-800">
-                      <h3 className="text-lg font-black tracking-widest uppercase border-b pb-2 flex items-center gap-2 text-indigo-600 dark:text-indigo-400 border-indigo-500/20">
+                      <h3 className="text-lg font-black tracking-widest uppercase border-b pb-2 flex items-center flex-wrap gap-2 text-indigo-600 dark:text-indigo-400 border-indigo-500/20">
                         <GraduationCap className="w-5 h-5 text-indigo-500" />
                         <span>Results Checker</span>
+                        <span
+                          className={`ml-auto text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full ${
+                            isOutOfStock('checkers')
+                              ? 'bg-red-600 text-white'
+                              : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                          }`}
+                        >
+                          {isOutOfStock('checkers') ? 'Out of Stock' : 'In Stock'}
+                        </span>
                       </h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {(() => {
@@ -998,7 +1028,7 @@ Reference Code: ${refCode}
                         GHS <span className="text-4xl md:text-5xl font-extrabold">{Number(agent.profit_balance || 0).toFixed(2)}</span>
                       </h3>
                       <div className="mt-4 flex items-center gap-1.5 text-[10px] bg-white/5 border border-white/10 w-fit px-3 py-1 rounded-full text-slate-300 font-bold uppercase">
-                        <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                        <span className="w-2 h-2 rounded-full bg-green-400" />
                         Ready to Withdraw
                       </div>
                     </div>
@@ -1121,7 +1151,7 @@ Reference Code: ${refCode}
                   <CardContent className="p-8">
                     {profitRequests.length === 0 ? (
                       <div className="text-center py-24 border-2 border-dashed rounded-3xl border-slate-200 dark:border-slate-800">
-                        <Wallet className="w-16 h-16 text-slate-300 mx-auto mb-4 animate-pulse" />
+                        <Wallet className="w-16 h-16 text-slate-300 mx-auto mb-4" />
                         <h4 className="text-sm font-black uppercase text-slate-700 dark:text-slate-300 tracking-wider">Empty Payout Log</h4>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium max-w-sm mx-auto mt-2 px-4">
                           Your accrued store sales margins will appear here whenever you submit a Mobile Money payout request.
@@ -1158,7 +1188,7 @@ Reference Code: ${refCode}
                             <div className="flex items-center justify-between md:justify-end gap-3 self-end md:self-auto shrink-0">
                               {request.status === 'pending' ? (
                                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 text-[10px] font-black rounded-full uppercase tracking-wider border border-amber-200/40">
-                                  <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+                                  <span className="w-2 h-2 bg-amber-500 rounded-full" />
                                   PENDING PAYOUT
                                 </span>
                               ) : (
@@ -1250,7 +1280,7 @@ Reference Code: ${refCode}
                   {loadingOrders ? (
                     <div className="py-24 text-center">
                       <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
-                      <p className="text-xs font-black uppercase tracking-widest text-slate-400 animate-pulse">Syncing store sales data...</p>
+                      <p className="text-xs font-black uppercase tracking-widest text-slate-400">Syncing store sales data...</p>
                     </div>
                   ) : acceptedOrdersForTracking.length === 0 ? (
                     <div className="py-24 text-center px-4 max-w-md mx-auto">
@@ -1305,7 +1335,7 @@ Reference Code: ${refCode}
                                     </span>
                                   )}
                                   {order.status === 'processing' && (
-                                    <span className="text-[9px] bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border border-blue-250 px-2.5 py-0.5 rounded-full font-black uppercase shadow-xs animate-pulse">
+                                    <span className="text-[9px] bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border border-blue-250 px-2.5 py-0.5 rounded-full font-black uppercase shadow-xs">
                                       processing
                                     </span>
                                   )}

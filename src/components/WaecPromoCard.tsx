@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { GraduationCap, ArrowRight, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
 import { db } from '@/src/lib/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
+import { useServiceStatus } from '@/src/hooks/useServiceStatus';
 
 interface WaecPromoCardProps {
   onNavigateToChecker?: () => void;
@@ -11,30 +12,33 @@ interface WaecPromoCardProps {
 
 export default function WaecPromoCard({ onNavigateToChecker }: WaecPromoCardProps) {
   const [imgError, setImgError] = useState(false);
-  const [isOutOfStock, setIsOutOfStock] = useState(false);
+  const [legacyOutOfStock, setLegacyOutOfStock] = useState(false);
+  const { isOutOfStock: isServiceOutOfStock } = useServiceStatus();
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'settings', 'results_checker'), (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
         if (typeof data.inStock === 'boolean') {
-          setIsOutOfStock(!data.inStock);
+          setLegacyOutOfStock(!data.inStock);
         } else if (typeof data.isOutOfStock === 'boolean') {
-          setIsOutOfStock(data.isOutOfStock);
+          setLegacyOutOfStock(data.isOutOfStock);
         } else if (typeof data.outOfStock === 'boolean') {
-          setIsOutOfStock(data.outOfStock);
+          setLegacyOutOfStock(data.outOfStock);
         } else {
-          setIsOutOfStock(false);
+          setLegacyOutOfStock(false);
         }
       } else {
-        setIsOutOfStock(false);
+        setLegacyOutOfStock(false);
       }
     }, () => {
-      setIsOutOfStock(false);
+      setLegacyOutOfStock(false);
     });
 
     return () => unsub();
   }, []);
+
+  const isOutOfStock = legacyOutOfStock || isServiceOutOfStock('checkers');
 
   const handleClick = () => {
     if (onNavigateToChecker) {

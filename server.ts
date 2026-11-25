@@ -5,6 +5,7 @@ import cors from 'cors';
 import path from 'path';
 import dotenv from 'dotenv';
 import fs from 'fs';
+import os from 'os';
 import { createServer as createViteServer } from 'vite';
 import { getSeoPageData } from './src/data/seoPages';
 import { renderSeoHtml } from './src/lib/serverSeoHtml';
@@ -25,7 +26,8 @@ import {
     where as clientWhere,
     limit as clientLimit,
     serverTimestamp as clientServerTimestamp,
-    increment as clientIncrement
+    increment as clientIncrement,
+    setLogLevel as setClientFirestoreLogLevel
 } from 'firebase/firestore';
 
 dotenv.config();
@@ -49,6 +51,7 @@ try {
     console.warn("[Server Firestore] Using fallback config");
 }
 
+setClientFirestoreLogLevel('error');
 const serverClientApp = initClientApp(fbClientConfig, "server-firestore-app");
 const serverClientDb = getClientFirestore(serverClientApp, fbClientConfig.firestoreDatabaseId);
 console.log(`[Server Firestore] Successfully initialized Firestore database: ${fbClientConfig.firestoreDatabaseId}`);
@@ -186,6 +189,125 @@ async function updateFirestoreDoc(collectionName: string, docId: string, data: a
     return serverFirestoreOps.updateDoc(collectionName, docId, data);
 }
 
+const ORDER_LEDGER_FILE = path.join(os.tmpdir(), 'dgn-order-ledger.json');
+const localOrderLedger = new Map<string, { id: string; orderData: any; agentOrderData?: any; savedAtMs: number }>();
+const localVerifiedPayments = new Map<string, any>();
+
+function loadLocalLedgerFromDisk() {
+    try {
+        if (fs.existsSync(ORDER_LEDGER_FILE)) {
+            const raw = JSON.parse(fs.readFileSync(ORDER_LEDGER_FILE, 'utf8'));
+            if (Array.isArray(raw?.orders)) {
+                for (const item of raw.orders) {
+                    if (item?.id && item?.orderData) {
+                        localOrderLedger.set(String(item.id), item);
+                    }
+                }
+            }
+            if (Array.isArray(raw?.verified)) {
+                for (const v of raw.verified) {
+                    if (v?.orderId) {
+                        localVerifiedPayments.set(String(v.orderId), v);
+                    }
+                }
+            }
+        }
+    } catch (err: any) {
+        console.warn('[Order Ledger] Load notice:', err?.message || err);
+    }
+}
+
+function persistLocalLedgerToDisk() {
+    try {
+        // Keep bounded to the most recent 1000 entries
+        const ordersArr = Array.from(localOrderLedger.values())
+            .sort((a, b) => (b.savedAtMs || 0) - (a.savedAtMs || 0))
+            .slice(0, 1000);
+        const verifiedArr = Array.from(localVerifiedPayments.values()).slice(-1000);
+        fs.writeFileSync(ORDER_LEDGER_FILE, JSON.stringify({ orders: ordersArr, verified: verifiedArr }), 'utf8');
+    } catch (err: any) {
+        console.warn('[Order Ledger] Persist notice:', err?.message || err);
+    }
+}
+
+loadLocalLedgerFromDisk();
+
+function recordLocalOrder(orderId: string, orderData: any, agentOrderData?: any) {
+    if (!orderId || !orderData) return;
+    localOrderLedger.set(orderId, {
+        id: orderId,
+        orderData: { ...orderData },
+        ...(agentOrderData ? { agentOrderData: { ...agentOrderData } } : {}),
+        savedAtMs: Date.now()
+    });
+    persistLocalLedgerToDisk();
+}
+
+function recordVerifiedPayment(orderId: string, verifiedUpdate: Record<string, any>) {
+    if (!orderId || !verifiedUpdate) return;
+    const existing = localVerifiedPayments.get(orderId) || {};
+    const merged = {
+        ...existing,
+        ...verifiedUpdate,
+        orderId,
+        updatedAtIso: new Date().toISOString(),
+        verifiedAtMs: existing.verifiedAtMs || Date.now()
+    };
+    localVerifiedPayments.set(orderId, merged);
+
+    const ledgerEntry = localOrderLedger.get(orderId);
+    if (ledgerEntry?.orderData) {
+        ledgerEntry.orderData = {
+            ...ledgerEntry.orderData,
+            ...merged
+        };
+        if (ledgerEntry.agentOrderData && merged.paymentStatus === 'success') {
+            ledgerEntry.agentOrderData = {
+                ...ledgerEntry.agentOrderData,
+                status: 'success',
+                paymentStatus: 'success',
+                paymentReference: merged.paymentReference || orderId
+            };
+        }
+    }
+    persistLocalLedgerToDisk();
+}
+
+function findLocalOrderEntry(reference: string) {
+    const cleanRef = String(reference || '').trim();
+    if (!cleanRef) return null;
+    if (localOrderLedger.has(cleanRef)) {
+        return localOrderLedger.get(cleanRef)!;
+    }
+    for (const entry of localOrderLedger.values()) {
+        const d = entry.orderData || {};
+        if (
+            String(d.paymentReference || '').trim() === cleanRef ||
+            String(d.paystackReference || '').trim() === cleanRef ||
+            String(d.reference || '').trim() === cleanRef ||
+            String(d.orderId || '').trim() === cleanRef
+        ) {
+            return entry;
+        }
+    }
+    return null;
+}
+
+function getMergedOrderData(orderId: string, firestoreData?: any) {
+    const ledgerEntry = findLocalOrderEntry(orderId);
+    const baseData = firestoreData || ledgerEntry?.orderData || null;
+    if (!baseData) return null;
+    const verified = localVerifiedPayments.get(orderId) || (baseData.paymentReference ? localVerifiedPayments.get(String(baseData.paymentReference)) : null);
+    if (!verified) return baseData;
+    const currentStatus = String(baseData.status || '').toLowerCase().trim();
+    const mergedStatus = ACTIVE_FULFILLMENT_STATUSES.has(currentStatus) ? baseData.status : (verified.status || baseData.status);
+    return {
+        ...baseData,
+        ...verified,
+        status: mergedStatus
+    };
+}
+
 const PROTECTED_ORDER_STATUSES = new Set([
     'paid', 'success', 'successful', 'processing', 'accepted', 'delivered', 'completed'
 ]);
@@ -214,15 +336,20 @@ async function resolveOrderDocByReference(reference: string): Promise<{ docId: s
 
     const directSnap = await getFirestoreDoc('orders', cleanRef);
     if (directSnap && directSnap.exists) {
-        return { docId: cleanRef, snap: directSnap, data: directSnap.data() };
+        return { docId: cleanRef, snap: directSnap, data: getMergedOrderData(cleanRef, directSnap.data()) };
     }
 
     const searchFields = ['paymentReference', 'paystackReference', 'reference', 'orderId'];
     for (const field of searchFields) {
         const match = await serverFirestoreOps.queryByField('orders', field, cleanRef);
         if (match && match.exists) {
-            return { docId: match.id, snap: match, data: match.data() };
+            return { docId: match.id, snap: match, data: getMergedOrderData(match.id, match.data()) };
         }
+    }
+
+    const localEntry = findLocalOrderEntry(cleanRef);
+    if (localEntry) {
+        return { docId: localEntry.id, snap: null, data: getMergedOrderData(localEntry.id, localEntry.orderData) };
     }
 
     return { docId: cleanRef, snap: null, data: null };
@@ -398,7 +525,7 @@ app.use(cors({
         return callback(null, true);
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-paystack-signature', 'Accept']
 }));
 
@@ -455,7 +582,12 @@ app.post('/api/ussd', async (req, res) => {
         }
 
         const payload = { ...req.query, ...req.body };
-        const response = await processUssdRequest(payload, serverClientDb as any, getPaystackSecretKey());
+        const response = await processUssdRequest(
+            payload,
+            serverClientDb as any,
+            getPaystackSecretKey(),
+            isServiceStocked
+        );
 
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         return res.status(200).json(response);
@@ -760,6 +892,7 @@ app.post('/api/orders/create', async (req, res) => {
             serviceType: req.body.serviceType,
             bookingCodeId: req.body.bookingCodeId,
             metadata: req.body.metadata,
+            bundleName: req.body.bundleName || req.body.bundle,
             bundleId
         });
         const stocked = await isServiceStocked(serviceId);
@@ -788,17 +921,20 @@ app.post('/api/orders/create', async (req, res) => {
             agentId
         });
 
+        const authUser = await verifyRequestUser(req);
         const generatedRef = 'DGN_' + Date.now() + '_' + crypto.randomBytes(4).toString('hex').toUpperCase();
         const orderAccessToken = crypto.randomBytes(32).toString('hex');
         const orderId = clientDoc(clientCollection(serverClientDb, 'orders')).id;
 
         const customerEmail = (providedEmail && providedEmail.includes('@')) 
             ? providedEmail 
-            : (cleanPhone ? `${cleanPhone}@gmail.com` : "customer@gmail.com");
+            : (authUser?.email && authUser.email.includes('@') ? authUser.email : (cleanPhone ? `${cleanPhone}@gmail.com` : "customer@gmail.com"));
         const customerName = providedName || (cleanPhone ? `Customer (${cleanPhone})` : "Customer");
-        const customerUid = cleanPhone ? `guest_${cleanPhone}` : `guest_${Date.now()}`;
+        const customerUid = authUser?.uid || (cleanPhone ? `guest_${cleanPhone}` : `guest_${Date.now()}`);
+        const nowMs = Date.now();
+        const nowIso = new Date(nowMs).toISOString();
 
-        const orderData: any = {
+        const serializableOrderData: any = {
             id: orderId,
             reference: orderId,
             paymentReference: generatedRef,
@@ -820,33 +956,30 @@ app.post('/api/orders/create', async (req, res) => {
             paymentMethod: paymentMethod,
             userId: customerUid,
             customerName: customerName,
-            createdAt: clientServerTimestamp(),
-            updatedAt: clientServerTimestamp(),
+            verifiedByBackend: false,
             ...(referredBy ? { referredBy: String(referredBy).trim().toUpperCase() } : {}),
             ...(fcUserId ? { fcUserId } : {}),
             ...(fcUsername ? { fcUsername } : {}),
         };
 
-        if (pricing.agentDetails) {
-            orderData.isAgentOrder = true;
-            orderData.agentId = pricing.agentDetails.id || agentId;
-            orderData.agent_id = pricing.agentDetails.id || agentId;
-            orderData.agentName = pricing.agentDetails.agent_name || "Agent";
-            orderData.agent_name = pricing.agentDetails.agent_name || "Agent";
-            orderData.wholesalePrice = pricing.wholesalePrice;
-            orderData.wholesale_price = pricing.wholesalePrice;
-            orderData.agentPrice = pricing.agentPrice;
-            orderData.agent_price = pricing.agentPrice;
-            orderData.profit = pricing.agentProfit;
-            orderData.agent_profit = pricing.agentProfit;
-            orderData.profitAwarded = false;
-            orderData.profit_credited = false;
-        }
-
-        await setFirestoreDoc('orders', orderId, orderData, false);
+        let serializableAgentOrderData: any = null;
 
         if (pricing.agentDetails) {
-            const agentOrderData = {
+            serializableOrderData.isAgentOrder = true;
+            serializableOrderData.agentId = pricing.agentDetails.id || agentId;
+            serializableOrderData.agent_id = pricing.agentDetails.id || agentId;
+            serializableOrderData.agentName = pricing.agentDetails.agent_name || "Agent";
+            serializableOrderData.agent_name = pricing.agentDetails.agent_name || "Agent";
+            serializableOrderData.wholesalePrice = pricing.wholesalePrice;
+            serializableOrderData.wholesale_price = pricing.wholesalePrice;
+            serializableOrderData.agentPrice = pricing.agentPrice;
+            serializableOrderData.agent_price = pricing.agentPrice;
+            serializableOrderData.profit = pricing.agentProfit;
+            serializableOrderData.agent_profit = pricing.agentProfit;
+            serializableOrderData.profitAwarded = false;
+            serializableOrderData.profit_credited = false;
+
+            serializableAgentOrderData = {
                 id: orderId,
                 agent_id: pricing.agentDetails.id || agentId,
                 customer_details: {
@@ -865,10 +998,25 @@ app.post('/api/orders/create', async (req, res) => {
                 finalPrice: pricing.finalAmount,
                 status: "pending",
                 paymentStatus: "pending",
-                created_at: clientServerTimestamp(),
                 paymentReference: orderId
             };
-            await setFirestoreDoc('agent_orders', orderId, agentOrderData, false);
+        }
+
+        const orderData = {
+            ...serializableOrderData,
+            createdAt: clientServerTimestamp(),
+            updatedAt: clientServerTimestamp(),
+        };
+
+        recordLocalOrder(orderId, { ...serializableOrderData, createdAt: nowIso, updatedAt: nowIso }, serializableAgentOrderData ? { ...serializableAgentOrderData, created_at: nowIso } : undefined);
+
+        const persistedToFirestore = await setFirestoreDoc('orders', orderId, orderData, false);
+
+        if (serializableAgentOrderData) {
+            await setFirestoreDoc('agent_orders', orderId, {
+                ...serializableAgentOrderData,
+                created_at: clientServerTimestamp(),
+            }, false);
         }
 
         return res.status(200).json({
@@ -881,7 +1029,10 @@ app.post('/api/orders/create', async (req, res) => {
             customerEmail,
             customerPhone: cleanPhone,
             network: recipientNetwork,
-            bundle: orderData.bundle
+            bundle: serializableOrderData.bundle,
+            persistedToFirestore,
+            orderDocData: serializableOrderData,
+            agentOrderDocData: serializableAgentOrderData
         });
     } catch (err: any) {
         console.error('[Create Order Error]:', err.message || err);
@@ -900,11 +1051,12 @@ app.get('/api/orders/status/:orderId', async (req, res) => {
         }
 
         const orderSnap = await getFirestoreDoc('orders', orderId);
-        if (!orderSnap || !orderSnap.exists) {
+        const rawData = (orderSnap && orderSnap.exists) ? orderSnap.data() : findLocalOrderEntry(orderId)?.orderData;
+        if (!rawData) {
             return res.status(404).json({ success: false, error: 'Order not found' });
         }
 
-        const data = orderSnap.data();
+        const data = getMergedOrderData(orderId, rawData) || rawData;
 
         // Validate token or admin authentication
         const isAuthorizedByToken = Boolean(token && data.orderAccessToken && token === data.orderAccessToken);
@@ -1200,7 +1352,14 @@ app.post('/api/orders/track-guest', async (req, res) => {
         }
 
         const matchedDocs = await queryOrdersByPhoneVariants(canonicalPhone);
-        const sanitized = matchedDocs.map(({ id, data }) => sanitizeOrderForCustomerHistory(id, data));
+        for (const entry of localOrderLedger.values()) {
+            const d = entry.orderData || {};
+            const candidatePhones = [d.phone, d.customerPhone, d.recipientPhone];
+            if (candidatePhones.some((p) => phonesMatch(p, canonicalPhone))) {
+                matchedDocs.push({ id: entry.id, data: d });
+            }
+        }
+        const sanitized = matchedDocs.map(({ id, data }) => sanitizeOrderForCustomerHistory(id, getMergedOrderData(id, data) || data));
         const orders = dedupeAndSortHistoryOrders(sanitized);
 
         return res.status(200).json({
@@ -1269,6 +1428,10 @@ app.get('/api/orders/my-history', async (req, res) => {
             rawDocs.push(...phoneMatched);
         }
 
+        for (const entry of localOrderLedger.values()) {
+            rawDocs.push({ id: entry.id, data: entry.orderData });
+        }
+
         // Strict ownership check on every returned document
         const authorizedDocs = rawDocs.filter(({ data }) => {
             if (data.userId === uid || data.customerId === uid) return true;
@@ -1285,7 +1448,7 @@ app.get('/api/orders/my-history', async (req, res) => {
             return false;
         });
 
-        const sanitized = authorizedDocs.map(({ id, data }) => sanitizeOrderForCustomerHistory(id, data));
+        const sanitized = authorizedDocs.map(({ id, data }) => sanitizeOrderForCustomerHistory(id, getMergedOrderData(id, data) || data));
         const orders = dedupeAndSortHistoryOrders(sanitized);
 
         return res.status(200).json({
@@ -1621,13 +1784,26 @@ const ALL_SERVICES_DEF = [
     { id: 'pc_games', name: 'PC Games', description: 'PC games digital downloads & setups' },
 ];
 
-async function isServiceStocked(serviceId: string): Promise<boolean> {
+async function isServiceStocked(serviceId: string | null): Promise<boolean> {
+    if (!serviceId) return true;
     try {
         const docSnap = await serverFirestoreOps.getDoc('service_status', serviceId);
         if (docSnap && docSnap.exists) {
             const data = docSnap.data();
             if (data?.status === 'out_of_stock') {
                 return false;
+            }
+            if (data?.status === 'in_stock') {
+                return true;
+            }
+        }
+        if (serviceId === 'checkers') {
+            const rcSnap = await serverFirestoreOps.getDoc('settings', 'results_checker');
+            if (rcSnap && rcSnap.exists) {
+                const rcData = rcSnap.data() || {};
+                if (rcData.inStock === false || rcData.isOutOfStock === true || rcData.outOfStock === true) {
+                    return false;
+                }
             }
         }
     } catch (e) {}
@@ -1643,31 +1819,99 @@ function determineServiceId(payload: {
     metadata?: any;
     bundleName?: string;
     bundleId?: string;
-}): string {
-    const net = String(payload.recipientNetwork || payload.network || '').toLowerCase();
-    const sType = String(payload.serviceType || '').toLowerCase();
-    const metaService = String(payload.metadata?.service || '').toLowerCase();
-    const bName = String(payload.bundleName || payload.bundleId || '').toLowerCase();
+}): string | null {
+    const net = String(payload.recipientNetwork || payload.network || '').trim().toLowerCase();
+    const sType = String(payload.serviceType || '').trim().toLowerCase();
+    const metaService = String(payload.metadata?.service || payload.metadata?.serviceType || '').trim().toLowerCase();
+    const bName = String(payload.bundleName || payload.bundleId || '').trim().toLowerCase();
 
-    if (payload.bookingCodeId || sType === 'booking_code' || net.includes('booking') || metaService === 'booking_code' || bName.includes('booking')) {
+    if (
+        sType === 'airtime' ||
+        metaService === 'airtime' ||
+        net === 'airtime' ||
+        net === 'system' ||
+        sType === 'agent_unlock' ||
+        sType === 'free_data' ||
+        net === 'free_data' ||
+        bName.includes('agent access unlock') ||
+        net === 'premium apps' ||
+        net.includes('premium app') ||
+        bName.includes('premium app') ||
+        net === 'playstation' ||
+        net.includes('playstation')
+    ) {
+        return null;
+    }
+
+    if (
+        payload.bookingCodeId ||
+        sType === 'booking_code' ||
+        sType === 'booking_codes' ||
+        net.includes('booking') ||
+        metaService === 'booking_code' ||
+        metaService === 'booking_codes' ||
+        bName.includes('booking')
+    ) {
         return 'booking_codes';
     }
-    if (payload.efootballProductId || metaService === 'efootball' || net.includes('game') || net.includes('fc mobile') || net.includes('pubg') || net.includes('coins') || net.includes('points') || net.includes('uc')) {
+    if (
+        payload.efootballProductId ||
+        sType === 'efootball' ||
+        sType === 'game_coins' ||
+        metaService === 'efootball' ||
+        metaService === 'game_coins' ||
+        net.includes('game coin') ||
+        net.includes('fc mobile') ||
+        net.includes('pubg') ||
+        net.includes('efootball') ||
+        bName.includes('fc points') ||
+        bName.includes('fc silver') ||
+        bName.includes('pubg') ||
+        bName.includes('efootball')
+    ) {
         return 'game_coins';
     }
-    if (sType === 'results_checker' || net.includes('checker') || metaService === 'checker' || bName.includes('checker') || bName.includes('waec')) {
+    if (
+        sType === 'results_checker' ||
+        sType === 'checkers' ||
+        net.includes('checker') ||
+        metaService === 'checker' ||
+        metaService === 'results_checker' ||
+        metaService === 'checkers' ||
+        bName.includes('checker') ||
+        bName.includes('waec') ||
+        bName.includes('wassce') ||
+        bName.includes('bece') ||
+        bName.includes('novdec')
+    ) {
         return 'checkers';
     }
-    if (net.includes('pc game') || metaService === 'pc_games' || bName.includes('pc game') || bName.includes('fc 26')) {
+    if (
+        sType === 'pc_games' ||
+        net === 'pc games' ||
+        net.includes('pc game') ||
+        metaService === 'pc_games' ||
+        bName.includes('pc game') ||
+        bName.includes('fc 26') ||
+        bName === 'fc_26_pc_game'
+    ) {
         return 'pc_games';
     }
-    if (net.includes('telecel') || net.includes('vodafone')) {
+    if (net === 'telecel' || net === 'vodafone' || /\b(telecel|vodafone)\b/.test(net)) {
         return 'telecel';
     }
-    if (net.includes('airteltigo') || net.includes('at') || net.includes('airtel') || net.includes('tigo')) {
+    if (
+        net === 'airteltigo' ||
+        net === 'at' ||
+        net === 'at (airteltigo)' ||
+        /\b(airteltigo|airtel|tigo|at)\b/.test(net)
+    ) {
         return 'airteltigo';
     }
-    return 'mtn';
+    if (net === 'mtn' || net === 'mtn data' || /\bmtn\b/.test(net)) {
+        return 'mtn';
+    }
+    return null;
 }
 
 // GET /api/service-status
@@ -1748,6 +1992,120 @@ app.patch('/api/admin/service-status/:serviceId', async (req, res) => {
     }
 });
 
+// POST /api/admin/sync-payments
+// Authenticated Admin endpoint that checks Paystack / verified payment ledger for pending orders
+// so the Admin Tracking tab reliably transitions completed orders to SUCCESSFUL ✅
+app.post('/api/admin/sync-payments', async (req, res) => {
+    try {
+        const isAuthorizedAdmin = await verifyAdminAuth(req);
+        if (!isAuthorizedAdmin) {
+            return res.status(403).json({ success: false, error: 'Admin authorization required' });
+        }
+
+        const pendingOrders = Array.isArray(req.body?.pendingOrders) ? req.body.pendingOrders : [];
+        const knownOrderIds = new Set<string>(
+            Array.isArray(req.body?.knownOrderIds) ? req.body.knownOrderIds.map((v: any) => String(v)) : []
+        );
+
+        const verifiedUpdates: any[] = [];
+        let liveGatewayChecks = 0;
+        const MAX_LIVE_CHECKS = 10;
+
+        for (const item of pendingOrders) {
+            const orderId = String(item?.id || '').trim();
+            if (!orderId) continue;
+
+            const payRef = String(item?.paymentReference || '').trim();
+            const cached =
+                localVerifiedPayments.get(orderId) ||
+                (payRef ? localVerifiedPayments.get(payRef) : null);
+
+            if (cached && cached.paymentStatus === 'success') {
+                verifiedUpdates.push({
+                    orderId,
+                    status: 'paid',
+                    paymentStatus: 'success',
+                    paymentMethod: cached.paymentMethod || 'Paystack',
+                    payment_provider: 'paystack',
+                    paymentReference: cached.paymentReference || orderId,
+                    amountPaid: cached.amountPaid,
+                    paymentTimestamp: cached.paymentTimestamp || new Date().toISOString(),
+                    verifiedByBackend: true,
+                });
+                continue;
+            }
+
+            // Skip manual MoMo direct orders unless they also have a Paystack ref
+            const methodLower = String(item?.paymentMethod || '').toLowerCase();
+            if (methodLower === 'momo_direct' && item?.momoSentClicked) {
+                continue;
+            }
+
+            // Live Paystack verification for recent pending orders (within 48h)
+            const ageMs = item?.createdAtMs ? (Date.now() - Number(item.createdAtMs)) : 0;
+            if (ageMs > 48 * 60 * 60 * 1000) continue;
+            if (liveGatewayChecks >= MAX_LIVE_CHECKS) continue;
+
+            liveGatewayChecks++;
+            let verifyResult = await verifyPaystackReference(orderId);
+            if ((!verifyResult.status || verifyResult.data?.status !== 'success') && payRef && payRef !== orderId) {
+                verifyResult = await verifyPaystackReference(payRef);
+            }
+
+            const psData = verifyResult?.data;
+            const psStatus = String(psData?.status || '').toLowerCase().trim();
+            if (verifyResult.status && psStatus === 'success') {
+                const currency = String(psData?.currency || 'GHS').toUpperCase();
+                if (currency !== 'GHS') continue;
+
+                const amountPaid = psData?.amount ? Number(psData.amount) / 100 : 0;
+                const expectedPesewas = item?.amount != null ? Math.round(Number(item.amount) * 100) : 0;
+                const paidPesewas = Math.round(amountPaid * 100);
+                if (expectedPesewas > 0 && paidPesewas < expectedPesewas - 1) {
+                    continue;
+                }
+
+                const updatePayload = {
+                    orderId,
+                    status: 'paid',
+                    paymentStatus: 'success',
+                    paymentMethod: 'Paystack',
+                    payment_provider: 'paystack',
+                    paymentReference: String(psData?.reference || orderId),
+                    amountPaid,
+                    paymentTimestamp: psData?.paid_at || new Date().toISOString(),
+                    verifiedByBackend: true,
+                };
+                recordVerifiedPayment(orderId, updatePayload);
+                verifiedUpdates.push(updatePayload);
+            }
+        }
+
+        // Also surface any recent server-ledger orders not yet present in Firestore
+        const missingOrders: any[] = [];
+        const cutoffMs = Date.now() - 48 * 60 * 60 * 1000;
+        for (const entry of localOrderLedger.values()) {
+            if (!entry?.id || knownOrderIds.has(entry.id)) continue;
+            if ((entry.savedAtMs || 0) < cutoffMs) continue;
+            const merged = getMergedOrderData(entry.id, entry.orderData) || entry.orderData;
+            missingOrders.push({
+                orderId: entry.id,
+                orderData: merged,
+                agentOrderData: entry.agentOrderData || null,
+            });
+        }
+
+        return res.json({
+            success: true,
+            verifiedUpdates,
+            missingOrders
+        });
+    } catch (err: any) {
+        console.error('[Admin Sync Payments Error]:', err.message || err);
+        return res.status(500).json({ success: false, error: 'Failed to sync pending payments' });
+    }
+});
+
 // Endpoint to initialize a Paystack transaction and get a direct redirect URL
 async function handlePaystackInitialize(req: express.Request, res: express.Response) {
     try {
@@ -1756,14 +2114,40 @@ async function handlePaystackInitialize(req: express.Request, res: express.Respo
             return res.status(400).json({ success: false, error: 'Email, reference, and callback_url are required' });
         }
 
+        let existingOrderData: any = null;
+        try {
+            const resolvedExisting = await resolveOrderDocByReference(reference);
+            if (resolvedExisting?.data) {
+                existingOrderData = resolvedExisting.data;
+            } else {
+                const efSnap = await getFirestoreDoc('efootballOrders', reference);
+                if (efSnap && efSnap.exists) {
+                    existingOrderData = efSnap.data();
+                }
+            }
+        } catch (lookupErr) {}
+
         const serviceId = determineServiceId({
-            recipientNetwork: req.body.recipientNetwork || customerPhone || metadata?.network,
-            network: req.body.network || metadata?.network,
-            serviceType: req.body.serviceType || metadata?.serviceType,
-            bookingCodeId,
-            efootballProductId: req.body.efootballProductId || metadata?.efootballProductId,
+            recipientNetwork:
+                req.body.recipientNetwork ||
+                req.body.network ||
+                metadata?.network ||
+                existingOrderData?.recipientNetwork ||
+                existingOrderData?.network,
+            network: req.body.network || metadata?.network || existingOrderData?.network,
+            serviceType: req.body.serviceType || metadata?.serviceType || existingOrderData?.serviceType,
+            bookingCodeId: bookingCodeId || existingOrderData?.bookingCodeId,
+            efootballProductId:
+                req.body.efootballProductId ||
+                metadata?.efootballProductId ||
+                existingOrderData?.productId,
             metadata,
-            bundleName: req.body.bundleName || req.body.bundle
+            bundleName:
+                req.body.bundleName ||
+                req.body.bundle ||
+                existingOrderData?.bundleName ||
+                existingOrderData?.bundle,
+            bundleId: req.body.bundleId || existingOrderData?.bundleId,
         });
         const stocked = await isServiceStocked(serviceId);
         if (!stocked) {
@@ -2745,6 +3129,11 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
                 updatedAt: clientServerTimestamp()
             };
 
+            recordVerifiedPayment(resolvedId, {
+                ...orderPayload,
+                orderId: resolvedId
+            });
+
             if (resolvedOrder.snap && resolvedOrder.snap.exists) {
                 await updateFirestoreDoc('orders', resolvedId, orderPayload);
                 console.log(`[Server Firestore] Order ${resolvedId} updated to paymentStatus: success (status: ${preservedStatus})`);
@@ -2840,6 +3229,15 @@ async function handlePaystackVerificationRequest(req: express.Request, res: expr
             success: true,
             message: "Payment Verified Successfully ✅",
             verified: true,
+            verifiedPayment: localVerifiedPayments.get(resolvedId) || {
+                orderId: resolvedId,
+                status: ACTIVE_FULFILLMENT_STATUSES.has(String(existingData?.status || '').toLowerCase().trim()) ? existingData.status : 'paid',
+                paymentStatus: 'success',
+                paymentReference: reference,
+                amountPaid: amountInMainCurrency,
+                paymentTimestamp,
+                verifiedByBackend: true
+            },
             ...(revealedBookingCode ? {
                 serviceType: "booking_code",
                 bookingCode: revealedBookingCode
@@ -2989,6 +3387,18 @@ app.post('/api/paystack-webhook', async (req, res) => {
                 }
 
                 const resolvedPaymentMethod = existingOrder?.paymentMethod === 'momo' ? 'momo' : (existingOrder?.paymentMethod || "Paystack");
+                recordVerifiedPayment(resolvedId, {
+                    orderId: resolvedId,
+                    status: ACTIVE_FULFILLMENT_STATUSES.has(String(existingOrder?.status || '').toLowerCase().trim()) ? existingOrder.status : "paid",
+                    paymentStatus: "success",
+                    payment_provider: "paystack",
+                    paymentMethod: resolvedPaymentMethod,
+                    paymentReference: String(reference),
+                    amountPaid: amountInGHS,
+                    paymentTimestamp: data.paid_at || new Date().toISOString(),
+                    verifiedByBackend: true,
+                    verifiedByWebhook: true,
+                });
                 await updateFirestoreOrderPaymentStatus(resolvedId, "success", {
                     payment_provider: "paystack",
                     paymentMethod: resolvedPaymentMethod,

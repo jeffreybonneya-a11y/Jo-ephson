@@ -117,7 +117,19 @@ service cloud.firestore {
              (!('momoNumber' in data) || data.momoNumber is string) &&
              (!('isAgentOrder' in data) || data.isAgentOrder is bool) &&
              (!('momoSentClicked' in data) || data.momoSentClicked is bool) &&
-             (!('userConfirmedAt' in data) || data.userConfirmedAt is timestamp);
+             (!('userConfirmedAt' in data) || data.userConfirmedAt is timestamp) &&
+             (!('orderAccessToken' in data) || data.orderAccessToken is string) &&
+             (!('bundleId' in data) || data.bundleId is string) &&
+             (!('basePrice' in data) || data.basePrice is number) &&
+             (!('hiddenFee' in data) || data.hiddenFee is number) &&
+             (!('finalPrice' in data) || data.finalPrice is number) &&
+             (!('fastDelivery' in data) || data.fastDelivery is bool) &&
+             (!('fastDeliveryFee' in data) || data.fastDeliveryFee is number) &&
+             (!('fastDeliveryType' in data) || data.fastDeliveryType is string) &&
+             (!('referredBy' in data) || data.referredBy is string) &&
+             (!('verifiedByBackend' in data) || data.verifiedByBackend is bool) &&
+             (!('amountPaid' in data) || data.amountPaid is number) &&
+             (!('paymentTimestamp' in data) || data.paymentTimestamp is string);
     }
 
     function isValidUser(data) {
@@ -257,9 +269,26 @@ service cloud.firestore {
         resource.data.agentId == request.auth.uid ||
         resource.data.agent_id == request.auth.uid
       ));
-      // Direct client-side order creation & mutation are disabled; handled strictly via backend Admin SDK endpoints
-      allow create, update: if isAdmin();
-      allow delete: if isAdmin();
+      // Allow strictly validated initial pending checkout order creation; status/payment updates & deletes remain Admin-only
+      allow create: if isAdmin() || (
+        orderId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        orderId.size() <= 128 &&
+        isValidOrder(request.resource.data) &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.get('paymentStatus', 'pending') == 'pending' &&
+        request.resource.data.amount > 0 &&
+        request.resource.data.get('verifiedByBackend', false) == false &&
+        request.resource.data.get('profitAwarded', false) == false &&
+        request.resource.data.get('profit_credited', false) == false &&
+        (
+          (!isAuthenticated() && request.resource.data.get('userId', '').matches('^guest_.*')) ||
+          (isAuthenticated() && (
+            request.resource.data.get('userId', '') == request.auth.uid ||
+            request.resource.data.get('userId', '').matches('^guest_.*')
+          ))
+        )
+      );
+      allow update, delete: if isAdmin();
     }
 
     match /users/{userId} {
@@ -332,7 +361,14 @@ service cloud.firestore {
 
     match /agent_orders/{orderId} {
       allow read: if isAdmin() || (isAuthenticated() && resource.data.agent_id == request.auth.uid);
-      allow create: if false;
+      allow create: if isAdmin() || (
+        orderId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        orderId.size() <= 128 &&
+        isValidAgentOrder(request.resource.data) &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.get('paymentStatus', 'pending') == 'pending' &&
+        request.resource.data.get('profit_credited', false) == false
+      );
       allow update, delete: if isAdmin();
     }
 

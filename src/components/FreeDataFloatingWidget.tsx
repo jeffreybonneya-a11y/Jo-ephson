@@ -276,8 +276,7 @@ export default function FreeDataFloatingWidget(_props: FreeDataFloatingWidgetPro
           className="flex items-center gap-2.5 px-4 py-2.5 rounded-full shadow-[0_10px_30px_rgba(11,19,43,0.5)] border-2 border-amber-400 bg-[#0B132B] text-amber-300 hover:scale-105 active:scale-95 transition-all group"
         >
           <div className="relative flex items-center justify-center w-7 h-7 rounded-full bg-amber-400/20 text-amber-300">
-            <Gift className="w-4 h-4 animate-bounce" />
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-400 rounded-full animate-ping" />
+            <Gift className="w-4 h-4" />
           </div>
           <div className="flex flex-col text-left">
             <span className="text-[11px] font-black uppercase tracking-wider text-amber-300 group-hover:text-amber-200">
@@ -329,7 +328,7 @@ export default function FreeDataFloatingWidget(_props: FreeDataFloatingWidgetPro
                 {step === 'payment' && (
                   <div className="flex flex-col items-center text-center space-y-5">
                     <div className="w-20 h-20 rounded-full bg-amber-400/10 border-2 border-amber-400/30 flex items-center justify-center text-amber-300 shadow-inner">
-                      <Zap className="w-10 h-10 animate-pulse text-amber-400" />
+                      <Zap className="w-10 h-10 text-amber-400" />
                     </div>
 
                     <div className="space-y-2">
@@ -450,7 +449,7 @@ export default function FreeDataFloatingWidget(_props: FreeDataFloatingWidgetPro
                 {step === 'won' && (
                   <div className="space-y-5 text-center">
                     <div className="w-16 h-16 mx-auto rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center text-emerald-400 shadow-lg">
-                      <Trophy className="w-9 h-9 animate-bounce" />
+                      <Trophy className="w-9 h-9" />
                     </div>
 
                     <div className="space-y-1">
@@ -574,7 +573,7 @@ export default function FreeDataFloatingWidget(_props: FreeDataFloatingWidgetPro
                 {/* STEP 4: LOST */}
                 {step === 'lost' && (
                   <div className="flex flex-col items-center text-center space-y-5 py-4">
-                    <div className="text-5xl animate-pulse">🥲</div>
+                    <div className="text-5xl">🥲</div>
                     <div className="space-y-2">
                       <h4 className="text-xl font-black text-amber-300 uppercase tracking-tight">
                         Try Again

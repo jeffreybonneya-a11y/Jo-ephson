@@ -296,7 +296,6 @@ export default function WhatsAppChannelButton() {
                 : 'top-1/2 -translate-y-1/2'
             }`}
           >
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span>Join our WhatsApp Channel</span>
           </motion.div>
         )}

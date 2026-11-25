@@ -6,9 +6,13 @@ import { Bundle, Network, UserProfile } from "@/src/types";
 import { auth, db } from "@/src/lib/firebase";
 import { getApiUrl, getOptionalAuthHeaders } from "@/src/lib/api";
 import { openPaystackPopup } from "@/src/lib/paystack";
+import { useServiceStatus } from "@/src/hooks/useServiceStatus";
+import { getServiceIdForProduct } from "@/src/lib/serviceStatus";
 import {
   doc,
   onSnapshot,
+  setDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -253,6 +257,15 @@ export default function CheckoutForm({
   });
 
   const watchNetwork = watch("recipientNetwork");
+  const { isOutOfStock, getServiceName } = useServiceStatus();
+  const activeServiceId = bundle
+    ? getServiceIdForProduct({
+        ...bundle,
+        recipientNetwork: watchNetwork || bundle.network,
+      })
+    : null;
+  const isServiceUnavailable = activeServiceId ? isOutOfStock(activeServiceId) : false;
+  const unavailableServiceName = activeServiceId ? getServiceName(activeServiceId) : "This service";
 
   const isAgentBuyingFromOwnStore =
     !!(agentContext && auth.currentUser?.uid === agentContext.id);
@@ -363,10 +376,16 @@ export default function CheckoutForm({
   }, [profile, bundle, setValue]);
 
   useEffect(() => {
-    if (bundle?.network === "PC Games" && auth.currentUser && !auth.currentUser.isAnonymous && !isSubmitting) {
+    if (
+      bundle?.network === "PC Games" &&
+      !isServiceUnavailable &&
+      auth.currentUser &&
+      !auth.currentUser.isAnonymous &&
+      !isSubmitting
+    ) {
       handleSubmit(onSubmit)();
     }
-  }, [bundle, auth.currentUser]);
+  }, [bundle, auth.currentUser, isServiceUnavailable]);
 
   useEffect(() => {
     let interval: any;
@@ -434,6 +453,10 @@ export default function CheckoutForm({
 
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
     if (!bundle) return;
+    if (isServiceUnavailable) {
+      toast.error(`${unavailableServiceName} is temporarily Out of Stock.`);
+      return;
+    }
     setSavedFormData(data);
     if (selectedPaymentMethod === "paystack") {
       processPaystackPayment(data);
@@ -451,6 +474,10 @@ export default function CheckoutForm({
 
   const processMoMoDirectPayment = async (data: z.infer<typeof formSchema>) => {
     if (!bundle) return;
+    if (isServiceUnavailable) {
+      toast.error(`${unavailableServiceName} is temporarily Out of Stock.`);
+      return;
+    }
     setIsSubmitting(true);
 
     try {
@@ -497,6 +524,24 @@ export default function CheckoutForm({
       const finalOrderId = orderResult.orderId;
       const token = orderResult.orderAccessToken || "";
 
+      if (!orderResult.persistedToFirestore && orderResult.orderDocData) {
+        try {
+          await setDoc(doc(db, 'orders', finalOrderId), {
+            ...orderResult.orderDocData,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+          if (orderResult.agentOrderDocData) {
+            await setDoc(doc(db, 'agent_orders', finalOrderId), {
+              ...orderResult.agentOrderDocData,
+              created_at: serverTimestamp(),
+            }).catch(() => {});
+          }
+        } catch (fsErr) {
+          console.warn("Notice: direct Firestore pending order write skipped:", fsErr);
+        }
+      }
+
       setOrderId(finalOrderId);
       setOrderAccessToken(token);
       if (cleanPhone) {
@@ -532,6 +577,10 @@ export default function CheckoutForm({
 
   const processPaystackPayment = async (data: z.infer<typeof formSchema>) => {
     if (!bundle) return;
+    if (isServiceUnavailable) {
+      toast.error(`${unavailableServiceName} is temporarily Out of Stock.`);
+      return;
+    }
     setIsSubmitting(true);
 
     try {
@@ -578,6 +627,24 @@ export default function CheckoutForm({
       const finalOrderId = orderResult.orderId;
       const token = orderResult.orderAccessToken || "";
       const authoritativeAmount = Number(orderResult.amount) || finalAmountToCharge;
+
+      if (!orderResult.persistedToFirestore && orderResult.orderDocData) {
+        try {
+          await setDoc(doc(db, 'orders', finalOrderId), {
+            ...orderResult.orderDocData,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+          if (orderResult.agentOrderDocData) {
+            await setDoc(doc(db, 'agent_orders', finalOrderId), {
+              ...orderResult.agentOrderDocData,
+              created_at: serverTimestamp(),
+            }).catch(() => {});
+          }
+        } catch (fsErr) {
+          console.warn("Notice: direct Firestore pending order write skipped:", fsErr);
+        }
+      }
 
       setOrderId(finalOrderId);
       setOrderAccessToken(token);
@@ -686,11 +753,19 @@ export default function CheckoutForm({
 
   const handleProceedPayment = async () => {
     if (!savedFormData) return;
+    if (isServiceUnavailable) {
+      toast.error(`${unavailableServiceName} is temporarily Out of Stock.`);
+      return;
+    }
     processPaystackPayment(savedFormData);
   };
 
   const handleSentPayment = async () => {
     if (!orderId) return;
+    if (isServiceUnavailable) {
+      toast.error(`${unavailableServiceName} is temporarily Out of Stock.`);
+      return;
+    }
     try {
       const headers = await getOptionalAuthHeaders();
       const res = await fetch(getApiUrl(`/api/orders/${encodeURIComponent(orderId)}/momo-confirm`), {
@@ -752,7 +827,7 @@ export default function CheckoutForm({
       <DialogContent className="sm:max-w-[550px] w-[95vw] max-h-[95vh] overflow-y-auto rounded-[2rem] sm:rounded-[2.5rem] border-2 sm:border-4 border-slate-100 dark:border-slate-800 bg-background shadow-2xl p-0">
         {bundle.network === "PC Games" && isSubmitting ? (
           <div className="py-16 sm:py-24 text-center space-y-6 sm:space-y-8 px-6 bg-slate-50/50 dark:bg-slate-900/50">
-            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-primary/20 animate-pulse">
+            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-primary/20">
               <Loader2 className="w-10 h-10 sm:w-12 sm:h-12 animate-spin" />
             </div>
             <div className="space-y-2 sm:space-y-3">
@@ -766,7 +841,7 @@ export default function CheckoutForm({
           </div>
         ) : orderStatus === "processing" ? (
           <div className="py-16 sm:py-24 text-center space-y-6 sm:space-y-8 px-6 bg-slate-50/50 dark:bg-slate-900/50">
-            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-primary/20 animate-pulse">
+            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-primary/20">
               <Loader2 className="w-10 h-10 sm:w-12 sm:h-12 animate-spin" />
             </div>
             <div className="space-y-2 sm:space-y-3">
@@ -780,7 +855,7 @@ export default function CheckoutForm({
           </div>
         ) : orderStatus === "success" ? (
           <div className="py-12 sm:py-16 text-center space-y-6 px-6 bg-slate-50/50 dark:bg-slate-900/50">
-            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-green-500 text-white rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-green-500/20 shadow-2xl animate-bounce">
+            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-green-500 text-white rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-green-500/20 shadow-2xl">
               <CheckCircle2 className="w-10 h-10 sm:w-12 sm:h-12" />
             </div>
             <div className="space-y-4">
@@ -842,6 +917,16 @@ export default function CheckoutForm({
               </DialogDescription>
             </DialogHeader>
 
+            {isServiceUnavailable && (
+              <div className="p-3.5 rounded-2xl bg-red-500/10 border-2 border-red-500/40 flex items-start gap-2.5 text-red-700 dark:text-red-300 text-xs">
+                <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-black uppercase">{unavailableServiceName} Temporarily Out of Stock</p>
+                  <p className="font-medium opacity-90">This service is temporarily unavailable and cannot proceed to payment.</p>
+                </div>
+              </div>
+            )}
+
             <div className="bg-primary/5 p-4 rounded-2xl border-2 border-primary/20 flex items-center justify-between">
               <div>
                 <p className="text-[10px] font-black text-primary uppercase tracking-widest">
@@ -891,10 +976,12 @@ export default function CheckoutForm({
 
             <Button
               onClick={handleProceedPayment}
-              disabled={isSubmitting}
-              className="w-full h-14 text-lg font-black gap-2 rounded-2xl shadow-xl bg-primary text-secondary hover:shadow-2xl transition-all"
+              disabled={isSubmitting || isServiceUnavailable}
+              className="w-full h-14 text-lg font-black gap-2 rounded-2xl shadow-xl bg-primary text-secondary hover:shadow-2xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? (
+              {isServiceUnavailable ? (
+                <span>OUT OF STOCK</span>
+              ) : isSubmitting ? (
                 <div className="flex items-center gap-3">
                   <Loader2 className="h-5 w-5 animate-spin" />
                   <span>PREPARING...</span>
@@ -931,6 +1018,16 @@ export default function CheckoutForm({
                 Transfer exact amount to the MoMo number below with reference code
               </DialogDescription>
             </DialogHeader>
+
+            {isServiceUnavailable && (
+              <div className="p-3.5 rounded-2xl bg-red-500/10 border-2 border-red-500/40 flex items-start gap-2.5 text-red-700 dark:text-red-300 text-xs">
+                <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-black uppercase">{unavailableServiceName} Temporarily Out of Stock</p>
+                  <p className="font-medium opacity-90">This service is temporarily unavailable and cannot be purchased right now.</p>
+                </div>
+              </div>
+            )}
 
             {/* Total Amount, MoMo Number, Reference Code with Copy buttons */}
             <div className="space-y-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 p-4 sm:p-5 rounded-2xl">
@@ -969,7 +1066,7 @@ export default function CheckoutForm({
                     <span className="text-[10px] font-black uppercase bg-yellow-400 text-slate-950 px-2 py-0.5 rounded-full tracking-wider shadow-sm">
                       MTN MoMo Number 📲
                     </span>
-                    <span className="text-[10px] font-bold text-yellow-700 dark:text-yellow-300 animate-pulse">
+                    <span className="text-[10px] font-bold text-yellow-700 dark:text-yellow-300">
                       (Send Payment Here)
                     </span>
                   </div>
@@ -1051,7 +1148,7 @@ export default function CheckoutForm({
           </div>
         ) : checkoutStep === "momo_sent" ? (
           <div className="text-center bg-white dark:bg-slate-950 h-full flex flex-col items-center justify-center p-6 sm:p-10 animate-in fade-in zoom-in duration-500 space-y-6">
-            <div className="w-20 h-20 bg-amber-500 text-white rounded-3xl flex items-center justify-center shadow-2xl rotate-6 animate-bounce">
+            <div className="w-20 h-20 bg-amber-500 text-white rounded-3xl flex items-center justify-center shadow-2xl rotate-6">
               <Crown className="w-10 h-10" />
             </div>
 
@@ -1131,6 +1228,16 @@ export default function CheckoutForm({
                 <span className="text-[11px] sm:text-xs font-bold text-emerald-700 dark:text-emerald-300">
                   Guest Checkout: Instant order processing to your phone number. No login required!
                 </span>
+              </div>
+            )}
+
+            {isServiceUnavailable && (
+              <div className="p-3.5 rounded-2xl bg-red-500/10 border-2 border-red-500/40 flex items-start gap-2.5 text-red-700 dark:text-red-300 text-xs">
+                <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-black uppercase">{unavailableServiceName} Temporarily Out of Stock</p>
+                  <p className="font-medium opacity-90">This service is temporarily unavailable. Please choose another service.</p>
+                </div>
               </div>
             )}
 
@@ -1387,10 +1494,12 @@ export default function CheckoutForm({
 
               <Button
                 type="submit"
-                className="w-full h-12 sm:h-16 text-base sm:text-xl font-black gap-2 sm:gap-3 rounded-xl sm:rounded-[1.5rem] shadow-lg hover:shadow-2xl transition-all bg-primary text-secondary mb-2"
-                disabled={isSubmitting}
+                className="w-full h-12 sm:h-16 text-base sm:text-xl font-black gap-2 sm:gap-3 rounded-xl sm:rounded-[1.5rem] shadow-lg hover:shadow-2xl transition-all bg-primary text-secondary mb-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isSubmitting || isServiceUnavailable}
               >
-                {isSubmitting ? (
+                {isServiceUnavailable ? (
+                  <span>OUT OF STOCK</span>
+                ) : isSubmitting ? (
                   <div className="flex items-center gap-3">
                     <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" />
                     <span>PREPARING...</span>
@@ -1406,7 +1515,7 @@ export default function CheckoutForm({
           </div>
         ) : (
           <div className="text-center bg-white dark:bg-slate-950 h-full flex flex-col items-center justify-center p-6 sm:p-12 animate-in fade-in zoom-in duration-700">
-            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-green-500 text-white rounded-[1.5rem] sm:rounded-[2rem] flex items-center justify-center mb-6 sm:mb-8 shadow-2xl rotate-12 scale-110 animate-bounce">
+            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-green-500 text-white rounded-[1.5rem] sm:rounded-[2rem] flex items-center justify-center mb-6 sm:mb-8 shadow-2xl rotate-12 scale-110">
               <CheckCircle2 className="w-10 h-10 sm:w-12 sm:h-12" />
             </div>
 

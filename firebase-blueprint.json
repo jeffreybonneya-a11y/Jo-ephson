@@ -268,6 +268,25 @@
         "paystackReference": { "type": "string" }
       },
       "required": ["customerEmail", "coinAmount", "konamiId", "amount", "paymentStatus"]
+    },
+    "ServiceStatus": {
+      "title": "Service Status",
+      "description": "Availability status for each managed storefront service.",
+      "type": "object",
+      "properties": {
+        "serviceId": {
+          "type": "string",
+          "enum": ["mtn", "airteltigo", "telecel", "checkers", "booking_codes", "game_coins", "pc_games"]
+        },
+        "serviceName": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["in_stock", "out_of_stock"]
+        },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string" }
+      },
+      "required": ["serviceId", "serviceName", "status"]
     }
   },
   "firestore": {
@@ -330,6 +349,10 @@
     "/app_downloads/{downloadId}": {
       "schema": "AppDownload",
       "description": "Log of customers downloading the app."
+    },
+    "/service_status/{statusId}": {
+      "schema": "ServiceStatus",
+      "description": "Real-time service availability status documents."
     }
   }
 }

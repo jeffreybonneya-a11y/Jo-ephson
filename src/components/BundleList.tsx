@@ -19,7 +19,11 @@ import {
   Sparkles,
   DollarSign,
   PhoneCall,
+  AlertTriangle,
 } from "lucide-react";
+import { toast } from "sonner";
+import { useServiceStatus } from "@/src/hooks/useServiceStatus";
+import { getServiceIdForProduct, ServiceId } from "@/src/lib/serviceStatus";
 import { Skeleton } from "@/components/ui/skeleton";
 import StreamingTab from "./StreamingTab";
 import ResultCheckerSection from "./ResultCheckerSection";
@@ -83,6 +87,37 @@ export default function BundleList({
   const isFastDeliveryEnabledForUser = isAgentScope ? agentFastDeliveryEnabled : customerFastDeliveryEnabled;
   const currentFastDeliveryFee = isAgentScope ? agentFastDeliveryFee : customerFastDeliveryFee;
   const currentFastDeliveryType: "customer" | "agent" = isAgentScope ? "agent" : "customer";
+
+  const { isOutOfStock, getServiceName } = useServiceStatus();
+  const isCheckersOutOfStock = isRcOutOfStock || isOutOfStock("checkers");
+  const isMtnOutOfStock = isOutOfStock("mtn");
+  const isTelecelOutOfStock = isOutOfStock("telecel");
+  const isAirtelTigoOutOfStock = isOutOfStock("airteltigo");
+  const isBookingCodesOutOfStock = isOutOfStock("booking_codes");
+  const isGameCoinsOutOfStock = isOutOfStock("game_coins");
+  const isPcGamesOutOfStock = isOutOfStock("pc_games");
+
+  const isBundleServiceOutOfStock = (product: any): boolean => {
+    const sid = getServiceIdForProduct(product);
+    if (!sid) return false;
+    if (sid === "checkers") return isCheckersOutOfStock;
+    return isOutOfStock(sid);
+  };
+
+  const getProductUnavailableLabel = (product: any): string => {
+    const sid = getServiceIdForProduct(product);
+    return sid ? getServiceName(sid) : "This service";
+  };
+
+  const activeDataServiceId: ServiceId | null =
+    activeTab === "MTN"
+      ? "mtn"
+      : activeTab === "Telecel"
+      ? "telecel"
+      : activeTab === "AirtelTigo"
+      ? "airteltigo"
+      : null;
+  const isActiveDataTabOutOfStock = activeDataServiceId ? isOutOfStock(activeDataServiceId) : false;
 
   const toggleFastDelivery = (bundleId: string) => {
     setFastDeliveryMap((prev) => ({
@@ -779,7 +814,6 @@ export default function BundleList({
                 animate={{ opacity: 1, y: 0 }}
                 className="mt-4 inline-flex items-center gap-2 px-4 py-1.5 rounded-xl bg-primary/10 border border-primary/20 text-primary text-xs font-black uppercase tracking-tight shadow-md"
               >
-                <div className="w-1.5 h-1.5 rounded-full bg-primary animate-ping" />
                 <span>Verified Agent Wholesale Pricing Active</span>
               </motion.div>
             )}
@@ -800,6 +834,15 @@ export default function BundleList({
                 {mainCategories.map((cat) => {
                   const isActive = currentMainCat === cat.id;
                   const IconComponent = cat.icon;
+                  const isCatOutOfStock =
+                    (cat.id === "RESULT_CHECKER" && isCheckersOutOfStock) ||
+                    (cat.id === "BOOKING_CODES" && isBookingCodesOutOfStock) ||
+                    (cat.id === "GAME_COINS" && isGameCoinsOutOfStock) ||
+                    (cat.id === "PC_GAMES" && isPcGamesOutOfStock) ||
+                    (cat.id === "DATA_BUNDLES" &&
+                      isMtnOutOfStock &&
+                      isTelecelOutOfStock &&
+                      isAirtelTigoOutOfStock);
                   return (
                     <button
                       key={cat.id}
@@ -819,9 +862,9 @@ export default function BundleList({
                         }`}
                       />
                       <span className="truncate tracking-wide">{cat.label}</span>
-                      {cat.id === "RESULT_CHECKER" && isRcOutOfStock && (
-                        <span className="ml-1 px-1.5 py-0.2 rounded text-[9px] font-black uppercase bg-red-500/20 text-red-400 border border-red-500/30 shrink-0">
-                          Sold Out
+                      {isCatOutOfStock && (
+                        <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-red-600 text-white border border-red-400/40 shrink-0">
+                          Out of Stock
                         </span>
                       )}
                     </button>
@@ -839,21 +882,30 @@ export default function BundleList({
                   </span>
                   {dataNetworks.map((net) => {
                     const isSelected = activeTab === net.id;
+                    const isNetOutOfStock =
+                      (net.id === "MTN" && isMtnOutOfStock) ||
+                      (net.id === "Telecel" && isTelecelOutOfStock) ||
+                      (net.id === "AirtelTigo" && isAirtelTigoOutOfStock);
                     return (
                       <button
                         key={net.id}
                         type="button"
                         onClick={() => setActiveTab(net.id)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer border ${
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer border shrink-0 ${
                           isSelected
                             ? net.activeClass + " shadow-md scale-[1.02]"
                             : "bg-[#0B132B] text-slate-300 border-slate-800 hover:border-amber-500/40 hover:text-white"
                         }`}
                       >
                         <span
-                          className={`w-2.5 h-2.5 rounded-full ${net.dotClass} shrink-0`}
+                          className={`w-2.5 h-2.5 rounded-full ${isNetOutOfStock ? "bg-red-500" : net.dotClass} shrink-0`}
                         />
                         <span>{net.label}</span>
+                        {isNetOutOfStock && (
+                          <span className="px-1.5 py-0.5 rounded bg-red-600 text-white text-[9px] font-black uppercase tracking-wider">
+                            Out of Stock
+                          </span>
+                        )}
                       </button>
                     );
                   })}
@@ -912,7 +964,10 @@ export default function BundleList({
 
               {globalSearchResults.length > 0 ? (
                 <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                  {globalSearchResults.map((bundle, index) => (
+                  {globalSearchResults.map((bundle, index) => {
+                    const cardOut = isBundleServiceOutOfStock(bundle);
+                    const unavailableName = getProductUnavailableLabel(bundle);
+                    return (
                     <motion.div
                       key={bundle.id}
                       initial={{ opacity: 0, y: 15 }}
@@ -920,17 +975,23 @@ export default function BundleList({
                       viewport={{ once: true }}
                       transition={{ duration: 0.3, delay: index * 0.02 }}
                     >
-                      <Card className="hover:shadow-[0_8px_25px_rgba(245,158,11,0.15)] hover:border-amber-500/60 transition-all duration-300 border border-amber-500/20 rounded-2xl overflow-hidden group bg-[#111C38] shadow-md hover:-translate-y-0.5 flex flex-col h-full">
+                      <Card className={`transition-all duration-300 rounded-2xl overflow-hidden group bg-[#111C38] shadow-md flex flex-col h-full ${cardOut ? "border border-red-500/40 opacity-85" : "border border-amber-500/20 hover:shadow-[0_8px_25px_rgba(245,158,11,0.15)] hover:border-amber-500/60 hover:-translate-y-0.5"}`}>
                         <CardHeader
                           className={`${getNetworkBadgeColor(bundle.network)}/10 border-b border-amber-500/20 p-4 flex flex-col gap-1`}
                         >
-                          <div className="flex justify-between items-center">
+                          <div className="flex justify-between items-center gap-1.5">
                             <Badge
                               className={`${getNetworkBadgeColor(bundle.network)} text-[10px] px-2 py-0.5 font-black uppercase rounded-md shadow-sm border border-white/20`}
                             >
                               {bundle.network}
                             </Badge>
-                            <Zap className="w-4 h-4 text-amber-400 fill-amber-400 animate-pulse shrink-0" />
+                            {cardOut ? (
+                              <Badge className="bg-red-600 text-white text-[9px] px-2 py-0.5 font-black uppercase rounded-md border border-red-400/50 shrink-0">
+                                Out of Stock
+                              </Badge>
+                            ) : (
+                              <Zap className="w-4 h-4 text-amber-400 fill-amber-400 shrink-0" />
+                            )}
                           </div>
                           <CardTitle className="text-lg sm:text-xl font-black mt-2 text-slate-100 tracking-tight leading-none min-h-[2rem] flex items-center">
                             {bundle.dataAmount}
@@ -947,7 +1008,7 @@ export default function BundleList({
                           {(() => {
                             const isMTN = bundle.network === "MTN";
                             const canShowFastDelivery = isMTN && isFastDeliveryEnabledForUser;
-                            const isFast = canShowFastDelivery && !!fastDeliveryMap[bundle.id];
+                            const isFast = !cardOut && canShowFastDelivery && !!fastDeliveryMap[bundle.id];
                             const applicablePrice = Number(bundle.price);
                             const cardDisplayPrice = isFast ? applicablePrice + currentFastDeliveryFee : applicablePrice;
 
@@ -977,7 +1038,7 @@ export default function BundleList({
                                     {isAgentUser && (
                                       <Badge
                                         variant="outline"
-                                        className="mt-1.5 border-amber-500/40 text-amber-300 font-black animate-pulse rounded px-1.5 py-0.5 text-[8px] uppercase w-fit bg-amber-500/10"
+                                        className="mt-1.5 border-amber-500/40 text-amber-300 font-black rounded px-1.5 py-0.5 text-[8px] uppercase w-fit bg-amber-500/10"
                                       >
                                         Agent Wholesale
                                       </Badge>
@@ -987,7 +1048,7 @@ export default function BundleList({
                                 </div>
 
                                 {canShowFastDelivery && (
-                                  <div className="bg-[#0B132B]/90 border border-amber-500/30 rounded-xl p-2.5 space-y-2">
+                                  <div className={`bg-[#0B132B]/90 border border-amber-500/30 rounded-xl p-2.5 space-y-2 ${cardOut ? "opacity-50 pointer-events-none" : ""}`}>
                                     <div className="flex items-center justify-between">
                                       <div className="flex items-center gap-1.5">
                                         <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
@@ -998,11 +1059,12 @@ export default function BundleList({
                                       <button
                                         type="button"
                                         id={`fast-toggle-search-${bundle.id}`}
+                                        disabled={cardOut}
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          toggleFastDelivery(bundle.id);
+                                          if (!cardOut) toggleFastDelivery(bundle.id);
                                         }}
-                                        className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none cursor-pointer ${
+                                        className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none ${cardOut ? "cursor-not-allowed opacity-60" : "cursor-pointer"} ${
                                           isFast ? "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]" : "bg-slate-700"
                                         }`}
                                         aria-label="Toggle Fast Delivery"
@@ -1046,8 +1108,17 @@ export default function BundleList({
                                 )}
 
                                 <Button
-                                  className="w-full h-10 text-xs font-black tracking-wide rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 hover:brightness-110 border border-amber-300/50 transition-all shadow-[0_2px_10px_rgba(245,158,11,0.25)] cursor-pointer"
+                                  disabled={cardOut}
+                                  className={`w-full h-10 text-xs font-black tracking-wide rounded-xl transition-all ${
+                                    cardOut
+                                      ? "bg-slate-800 text-red-400 border border-red-500/30 cursor-not-allowed"
+                                      : "bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 hover:brightness-110 border border-amber-300/50 shadow-[0_2px_10px_rgba(245,158,11,0.25)] cursor-pointer"
+                                  }`}
                                   onClick={() => {
+                                    if (cardOut) {
+                                      toast.error(`${unavailableName} is temporarily Out of Stock.`);
+                                      return;
+                                    }
                                     onSelectBundle({
                                       ...bundle,
                                       fastDelivery: isFast,
@@ -1058,7 +1129,7 @@ export default function BundleList({
                                     });
                                   }}
                                 >
-                                  BUY NOW
+                                  {cardOut ? "Out of Stock" : "BUY NOW"}
                                 </Button>
                               </>
                             );
@@ -1066,11 +1137,12 @@ export default function BundleList({
                         </CardContent>
                       </Card>
                     </motion.div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-16 bg-card rounded-2xl border border-dashed border-primary/20">
-                  <Smartphone className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4 animate-bounce" />
+                  <Smartphone className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4" />
                   <h3 className="text-lg font-black text-foreground mb-1 dark:text-white uppercase italic">
                     NO DEALS MATCH YOUR SEARCH
                   </h3>
@@ -1094,13 +1166,38 @@ export default function BundleList({
                   "AirtelTigo",
                   "Premium Apps",
                 ].includes(tab) ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                  <div className="space-y-4">
+                    {tab === activeTab && isActiveDataTabOutOfStock && activeDataServiceId && (
+                      <div className="rounded-2xl bg-red-500/10 border-2 border-red-500/35 p-4 sm:p-5 flex items-start gap-3.5 text-red-950 dark:text-red-200 shadow-sm">
+                        <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center text-red-500 shrink-0">
+                          <AlertTriangle className="w-5 h-5" />
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="text-sm sm:text-base font-black uppercase tracking-wide text-red-700 dark:text-red-300">
+                              {getServiceName(activeDataServiceId)} Temporarily Unavailable
+                            </h4>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-red-600 text-white tracking-wider">
+                              Out of Stock
+                            </span>
+                          </div>
+                          <p className="text-xs text-red-700/90 dark:text-red-200/90 font-medium leading-relaxed">
+                            {getServiceName(activeDataServiceId)} is temporarily out of stock and cannot be purchased right now. Other services remain available for purchase.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                     {loading ? (
                       Array.from({ length: 10 }).map((_, i) => (
                         <Skeleton key={i} className="h-44 rounded-2xl" />
                       ))
                     ) : filteredBundles.length > 0 ? (
-                      filteredBundles.map((bundle, index) => (
+                      filteredBundles.map((bundle, index) => {
+                        const cardOut = isBundleServiceOutOfStock(bundle);
+                        const unavailableName = getProductUnavailableLabel(bundle);
+                        return (
                         <motion.div
                           key={bundle.id}
                           initial={{ opacity: 0, y: 15 }}
@@ -1108,17 +1205,23 @@ export default function BundleList({
                           viewport={{ once: true }}
                           transition={{ duration: 0.3, delay: index * 0.03 }}
                         >
-                          <Card className="hover:shadow-[0_8px_25px_rgba(245,158,11,0.15)] hover:border-amber-500/60 transition-all duration-300 border border-amber-500/20 rounded-2xl overflow-hidden group bg-[#111C38] shadow-md hover:-translate-y-0.5 flex flex-col h-full">
+                          <Card className={`transition-all duration-300 rounded-2xl overflow-hidden group bg-[#111C38] shadow-md flex flex-col h-full ${cardOut ? "border border-red-500/40 opacity-85" : "border border-amber-500/20 hover:shadow-[0_8px_25px_rgba(245,158,11,0.15)] hover:border-amber-500/60 hover:-translate-y-0.5"}`}>
                             <CardHeader
                               className={`${getNetworkBadgeColor(bundle.network)}/10 border-b border-amber-500/20 p-4 flex flex-col gap-1`}
                             >
-                              <div className="flex justify-between items-center">
+                              <div className="flex justify-between items-center gap-1.5">
                                 <Badge
                                   className={`${getNetworkBadgeColor(bundle.network)} text-[10px] px-2 py-0.5 font-black uppercase rounded-md shadow-sm border border-white/20`}
                                 >
                                   {bundle.network}
                                 </Badge>
-                                <Zap className="w-4 h-4 text-amber-400 fill-amber-400 animate-pulse shrink-0" />
+                                {cardOut ? (
+                                  <Badge className="bg-red-600 text-white text-[9px] px-2 py-0.5 font-black uppercase rounded-md border border-red-400/50 shrink-0">
+                                    Out of Stock
+                                  </Badge>
+                                ) : (
+                                  <Zap className="w-4 h-4 text-amber-400 fill-amber-400 shrink-0" />
+                                )}
                               </div>
                               <CardTitle className="text-xl sm:text-2xl font-black mt-2 text-slate-100 tracking-tight leading-none">
                                 {bundle.dataAmount}
@@ -1135,7 +1238,7 @@ export default function BundleList({
                               {(() => {
                                 const isMTN = bundle.network === "MTN";
                                 const canShowFastDelivery = isMTN && isFastDeliveryEnabledForUser;
-                                const isFast = canShowFastDelivery && !!fastDeliveryMap[bundle.id];
+                                const isFast = !cardOut && canShowFastDelivery && !!fastDeliveryMap[bundle.id];
                                 const applicablePrice = Number(bundle.price);
                                 const cardDisplayPrice = isFast ? applicablePrice + currentFastDeliveryFee : applicablePrice;
 
@@ -1165,7 +1268,7 @@ export default function BundleList({
                                         {isAgentUser && (
                                           <Badge
                                             variant="outline"
-                                            className="mt-1.5 border-amber-500/40 text-amber-300 font-black animate-pulse rounded px-1.5 py-0.5 text-[8px] uppercase w-fit bg-amber-500/10"
+                                            className="mt-1.5 border-amber-500/40 text-amber-300 font-black rounded px-1.5 py-0.5 text-[8px] uppercase w-fit bg-amber-500/10"
                                           >
                                             Agent Wholesale
                                           </Badge>
@@ -1175,7 +1278,7 @@ export default function BundleList({
                                     </div>
 
                                     {canShowFastDelivery && (
-                                      <div className="bg-[#0B132B]/90 border border-amber-500/30 rounded-xl p-2.5 space-y-2">
+                                      <div className={`bg-[#0B132B]/90 border border-amber-500/30 rounded-xl p-2.5 space-y-2 ${cardOut ? "opacity-50 pointer-events-none" : ""}`}>
                                         <div className="flex items-center justify-between">
                                           <div className="flex items-center gap-1.5">
                                             <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
@@ -1186,11 +1289,12 @@ export default function BundleList({
                                           <button
                                             type="button"
                                             id={`fast-toggle-tab-${bundle.id}`}
+                                            disabled={cardOut}
                                             onClick={(e) => {
                                               e.stopPropagation();
-                                              toggleFastDelivery(bundle.id);
+                                              if (!cardOut) toggleFastDelivery(bundle.id);
                                             }}
-                                            className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none cursor-pointer ${
+                                            className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none ${cardOut ? "cursor-not-allowed opacity-60" : "cursor-pointer"} ${
                                               isFast ? "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]" : "bg-slate-700"
                                             }`}
                                             aria-label="Toggle Fast Delivery"
@@ -1234,8 +1338,17 @@ export default function BundleList({
                                     )}
 
                                     <Button
-                                      className="w-full h-10 text-xs font-black tracking-wide rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 hover:brightness-110 border border-amber-300/50 transition-all shadow-[0_2px_10px_rgba(245,158,11,0.25)] cursor-pointer"
+                                      disabled={cardOut}
+                                      className={`w-full h-10 text-xs font-black tracking-wide rounded-xl transition-all ${
+                                        cardOut
+                                          ? "bg-slate-800 text-red-400 border border-red-500/30 cursor-not-allowed"
+                                          : "bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-500 text-slate-950 hover:brightness-110 border border-amber-300/50 shadow-[0_2px_10px_rgba(245,158,11,0.25)] cursor-pointer"
+                                      }`}
                                       onClick={() => {
+                                        if (cardOut) {
+                                          toast.error(`${unavailableName} is temporarily Out of Stock.`);
+                                          return;
+                                        }
                                         onSelectBundle({
                                           ...bundle,
                                           fastDelivery: isFast,
@@ -1246,7 +1359,7 @@ export default function BundleList({
                                         });
                                       }}
                                     >
-                                      BUY NOW
+                                      {cardOut ? "Out of Stock" : "BUY NOW"}
                                     </Button>
                                   </>
                                 );
@@ -1254,10 +1367,11 @@ export default function BundleList({
                             </CardContent>
                           </Card>
                         </motion.div>
-                      ))
+                        );
+                      })
                     ) : (
                       <div className="col-span-full text-center py-12 bg-card rounded-2xl border border-dashed border-primary/20">
-                        <Smartphone className="w-10 h-10 text-muted-foreground/20 mx-auto mb-4 animate-pulse" />
+                        <Smartphone className="w-10 h-10 text-muted-foreground/20 mx-auto mb-4" />
                         <h3 className="text-lg font-black text-foreground mb-1 dark:text-white uppercase">
                           Updating packages, available soon
                         </h3>
@@ -1267,6 +1381,7 @@ export default function BundleList({
                         </p>
                       </div>
                     )}
+                    </div>
                   </div>
                 ) : tab === "Airtime" ? (
                   <AirtimeSection profile={profile} agentContext={agentContext} />
@@ -1276,6 +1391,27 @@ export default function BundleList({
                   <ResultCheckerSection agentContext={agentContext} isAgentUser={isAgentUser} />
                 ) : tab === "Game Coins" ? (
                   <div className="space-y-6">
+                    {isGameCoinsOutOfStock && (
+                      <div className="rounded-2xl bg-red-500/10 border-2 border-red-500/35 p-4 sm:p-5 flex items-start gap-3.5 text-red-950 dark:text-red-200 shadow-sm">
+                        <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center text-red-500 shrink-0">
+                          <AlertTriangle className="w-5 h-5" />
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="text-sm sm:text-base font-black uppercase tracking-wide text-red-700 dark:text-red-300">
+                              Game Coins Temporarily Unavailable
+                            </h4>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-red-600 text-white tracking-wider">
+                              Out of Stock
+                            </span>
+                          </div>
+                          <p className="text-xs text-red-700/90 dark:text-red-200/90 font-medium leading-relaxed">
+                            Game Coins (FC Mobile Points, FC Mobile Silver, PUBG Mobile UC) are temporarily out of stock and cannot be purchased right now. Other services remain available.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
                       {gameCoinSubTabs.map((subTab) => (
                         <Button
@@ -1286,9 +1422,14 @@ export default function BundleList({
                               ? "default"
                               : "outline"
                           }
-                          className="rounded-full font-black uppercase tracking-wider h-12"
+                          className="rounded-full font-black uppercase tracking-wider h-12 flex items-center gap-2"
                         >
-                          {subTab.label}
+                          <span>{subTab.label}</span>
+                          {isGameCoinsOutOfStock && (
+                            <span className="px-1.5 py-0.5 rounded bg-red-600 text-white text-[9px] font-black uppercase">
+                              Out of Stock
+                            </span>
+                          )}
                         </Button>
                       ))}
                     </div>
@@ -1312,6 +1453,11 @@ export default function BundleList({
                             />
                             <div className="absolute inset-0 bg-black/40 z-10 pointer-events-none"></div>
                             <div className="relative z-20 w-full flex flex-col justify-end md:justify-center items-center md:items-start text-center md:text-left p-6 md:p-12 h-full">
+                              {isGameCoinsOutOfStock && (
+                                <Badge className="mb-3 bg-red-600 text-white text-xs font-black uppercase px-3 py-1 rounded-lg border border-red-400/50">
+                                  Out of Stock
+                                </Badge>
+                              )}
                               <h2 className="text-3xl sm:text-4xl md:text-6xl font-black text-white uppercase tracking-tight mb-2 sm:mb-4 drop-shadow-lg">
                                 FC ™ MOBILE
                               </h2>
@@ -1320,10 +1466,21 @@ export default function BundleList({
                                 upgrade your ultimate team.
                               </p>
                               <Button
-                                className="w-full sm:w-auto h-12 sm:h-16 px-8 sm:px-12 text-lg sm:text-xl font-black rounded-2xl bg-[#00FF87] text-black hover:bg-white transition-all shadow-xl"
-                                onClick={() => setShowFCOptions(true)}
+                                disabled={isGameCoinsOutOfStock}
+                                className={`w-full sm:w-auto h-12 sm:h-16 px-8 sm:px-12 text-lg sm:text-xl font-black rounded-2xl transition-all shadow-xl ${
+                                  isGameCoinsOutOfStock
+                                    ? "bg-slate-800 text-red-400 border border-red-500/40 cursor-not-allowed"
+                                    : "bg-[#00FF87] text-black hover:bg-white cursor-pointer"
+                                }`}
+                                onClick={() => {
+                                  if (isGameCoinsOutOfStock) {
+                                    toast.error("Game Coins is temporarily Out of Stock.");
+                                    return;
+                                  }
+                                  setShowFCOptions(true);
+                                }}
                               >
-                                BUY NOW
+                                {isGameCoinsOutOfStock ? "Out of Stock" : "BUY NOW"}
                               </Button>
                             </div>
                           </div>
@@ -1498,7 +1655,7 @@ export default function BundleList({
                                   if (filteredPoints.length === 0) {
                                     return (
                                       <div className="col-span-full text-center py-12 bg-card rounded-2xl border border-dashed border-[#00FF87]/20">
-                                        <Smartphone className="w-10 h-10 text-muted-foreground/20 mx-auto mb-4 animate-pulse" />
+                                        <Smartphone className="w-10 h-10 text-muted-foreground/20 mx-auto mb-4" />
                                         <h3 className="text-lg font-black text-foreground mb-1 dark:text-white uppercase">
                                           Updating packages, available soon
                                         </h3>
@@ -1523,13 +1680,19 @@ export default function BundleList({
                                             delay: index * 0.03,
                                           }}
                                         >
-                                          <Card className="hover:shadow-md hover:shadow-[#00FF87]/5 hover:border-[#00FF87]/50 transition-all duration-300 border border-border/80 rounded-2xl overflow-hidden group bg-card shadow-sm hover:-translate-y-0.5 flex flex-col h-full">
+                                          <Card className={`transition-all duration-300 rounded-2xl overflow-hidden group bg-card shadow-sm flex flex-col h-full ${isGameCoinsOutOfStock ? "border border-red-500/40 opacity-85" : "border border-border/80 hover:shadow-md hover:shadow-[#00FF87]/5 hover:border-[#00FF87]/50 hover:-translate-y-0.5"}`}>
                                             <CardHeader className="bg-[#00FF87]/5 border-b border-border/50 p-4 flex flex-col gap-1">
-                                              <div className="flex justify-between items-center">
+                                              <div className="flex justify-between items-center gap-1.5">
                                                 <Badge className="bg-[#00FF87] text-black text-[10px] px-2 py-0.5 font-black uppercase rounded-md">
                                                   FC Points
                                                 </Badge>
-                                                <Crown className="w-4 h-4 text-[#00FF87] fill-[#00FF87] animate-pulse shrink-0" />
+                                                {isGameCoinsOutOfStock ? (
+                                                  <Badge className="bg-red-600 text-white text-[9px] px-2 py-0.5 font-black uppercase rounded-md shrink-0">
+                                                    Out of Stock
+                                                  </Badge>
+                                                ) : (
+                                                  <Crown className="w-4 h-4 text-[#00FF87] fill-[#00FF87] shrink-0" />
+                                                )}
                                               </div>
                                               <CardTitle
                                                 className={`text-lg sm:text-xl font-black mt-2 text-foreground dark:text-white tracking-tight leading-none ${bundle.dataAmount.length > 15 ? "text-base sm:text-lg" : ""}`}
@@ -1550,12 +1713,21 @@ export default function BundleList({
                                                 </div>
                                               </div>
                                               <Button
-                                                className="w-full h-10 text-xs font-black rounded-xl bg-black text-[#00FF87] hover:bg-[#00FF87] hover:text-black transition-all shadow-md cursor-pointer"
-                                                onClick={() =>
-                                                  onSelectBundle(bundle as any)
-                                                }
+                                                disabled={isGameCoinsOutOfStock}
+                                                className={`w-full h-10 text-xs font-black rounded-xl transition-all ${
+                                                  isGameCoinsOutOfStock
+                                                    ? "bg-slate-800 text-red-400 border border-red-500/30 cursor-not-allowed"
+                                                    : "bg-black text-[#00FF87] hover:bg-[#00FF87] hover:text-black shadow-md cursor-pointer"
+                                                }`}
+                                                onClick={() => {
+                                                  if (isGameCoinsOutOfStock) {
+                                                    toast.error("Game Coins is temporarily Out of Stock.");
+                                                    return;
+                                                  }
+                                                  onSelectBundle(bundle as any);
+                                                }}
                                               >
-                                                BUY NOW
+                                                {isGameCoinsOutOfStock ? "Out of Stock" : "BUY NOW"}
                                               </Button>
                                             </CardContent>
                                           </Card>
@@ -1596,7 +1768,7 @@ export default function BundleList({
                                   if (filteredSilver.length === 0) {
                                     return (
                                       <div className="col-span-full text-center py-12 bg-card rounded-2xl border border-dashed border-[#00FF87]/20">
-                                        <Smartphone className="w-10 h-10 text-muted-foreground/20 mx-auto mb-4 animate-pulse" />
+                                        <Smartphone className="w-10 h-10 text-muted-foreground/20 mx-auto mb-4" />
                                         <h3 className="text-lg font-black text-foreground mb-1 dark:text-white uppercase">
                                           Updating packages, available soon
                                         </h3>
@@ -1622,13 +1794,19 @@ export default function BundleList({
                                             delay: index * 0.03,
                                           }}
                                         >
-                                          <Card className="hover:shadow-md hover:shadow-[#00FF87]/5 hover:border-[#00FF87]/50 transition-all duration-300 border border-border/80 rounded-2xl overflow-hidden group bg-card shadow-sm hover:-translate-y-0.5 flex flex-col h-full">
+                                          <Card className={`transition-all duration-300 rounded-2xl overflow-hidden group bg-card shadow-sm flex flex-col h-full ${isGameCoinsOutOfStock ? "border border-red-500/40 opacity-85" : "border border-border/80 hover:shadow-md hover:shadow-[#00FF87]/5 hover:border-[#00FF87]/50 hover:-translate-y-0.5"}`}>
                                             <CardHeader className="bg-[#00FF87]/5 border-b border-border/50 p-4 flex flex-col gap-1">
-                                              <div className="flex justify-between items-center">
+                                              <div className="flex justify-between items-center gap-1.5">
                                                 <Badge className="bg-[#00FF87] text-black text-[10px] px-2 py-0.5 font-black uppercase rounded-md">
                                                   FC Silver
                                                 </Badge>
-                                                <Zap className="w-4 h-4 text-slate-400 fill-slate-400 animate-pulse shrink-0" />
+                                                {isGameCoinsOutOfStock ? (
+                                                  <Badge className="bg-red-600 text-white text-[9px] px-2 py-0.5 font-black uppercase rounded-md shrink-0">
+                                                    Out of Stock
+                                                  </Badge>
+                                                ) : (
+                                                  <Zap className="w-4 h-4 text-slate-400 fill-slate-400 shrink-0" />
+                                                )}
                                               </div>
                                               <CardTitle className="text-xl sm:text-2xl font-black mt-2 text-foreground dark:text-white tracking-tight leading-none">
                                                 {bundle.dataAmount}
@@ -1647,12 +1825,21 @@ export default function BundleList({
                                                 </div>
                                               </div>
                                               <Button
-                                                className="w-full h-10 text-xs font-black rounded-xl bg-black text-[#00FF87] hover:bg-[#00FF87] hover:text-black transition-all shadow-md cursor-pointer"
-                                                onClick={() =>
-                                                  onSelectBundle(bundle as any)
-                                                }
+                                                disabled={isGameCoinsOutOfStock}
+                                                className={`w-full h-10 text-xs font-black rounded-xl transition-all ${
+                                                  isGameCoinsOutOfStock
+                                                    ? "bg-slate-800 text-red-400 border border-red-500/30 cursor-not-allowed"
+                                                    : "bg-black text-[#00FF87] hover:bg-[#00FF87] hover:text-black shadow-md cursor-pointer"
+                                                }`}
+                                                onClick={() => {
+                                                  if (isGameCoinsOutOfStock) {
+                                                    toast.error("Game Coins is temporarily Out of Stock.");
+                                                    return;
+                                                  }
+                                                  onSelectBundle(bundle as any);
+                                                }}
                                               >
-                                                BUY NOW
+                                                {isGameCoinsOutOfStock ? "Out of Stock" : "BUY NOW"}
                                               </Button>
                                             </CardContent>
                                           </Card>
@@ -1716,7 +1903,7 @@ export default function BundleList({
                           if (filteredPubg.length === 0) {
                             return (
                               <div className="col-span-full text-center py-12 bg-card rounded-2xl border border-dashed border-amber-500/20">
-                                <Zap className="w-10 h-10 text-amber-500/20 mx-auto mb-4 animate-pulse" />
+                                <Zap className="w-10 h-10 text-amber-500/20 mx-auto mb-4" />
                                 <h3 className="text-lg font-black text-foreground mb-1 dark:text-white uppercase">
                                   Updating packages, available soon
                                 </h3>
@@ -1741,13 +1928,19 @@ export default function BundleList({
                                     delay: index * 0.03,
                                   }}
                                 >
-                                  <Card className="hover:shadow-md hover:shadow-amber-500/5 hover:border-amber-500/50 transition-all duration-300 border border-border/80 rounded-2xl overflow-hidden group bg-card shadow-sm hover:-translate-y-0.5 flex flex-col h-full">
+                                  <Card className={`transition-all duration-300 rounded-2xl overflow-hidden group bg-card shadow-sm flex flex-col h-full ${isGameCoinsOutOfStock ? "border border-red-500/40 opacity-85" : "border border-border/80 hover:shadow-md hover:shadow-amber-500/5 hover:border-amber-500/50 hover:-translate-y-0.5"}`}>
                                     <CardHeader className="bg-amber-500/5 border-b border-border/50 p-4 flex flex-col gap-1">
-                                      <div className="flex justify-between items-center">
+                                      <div className="flex justify-between items-center gap-1.5">
                                         <Badge className="bg-amber-500 text-black text-[10px] px-2 py-0.5 font-black uppercase rounded-md">
                                           PUBG UC
                                         </Badge>
-                                        <Zap className="w-4 h-4 text-amber-500 fill-amber-500 shrink-0" />
+                                        {isGameCoinsOutOfStock ? (
+                                          <Badge className="bg-red-600 text-white text-[9px] px-2 py-0.5 font-black uppercase rounded-md shrink-0">
+                                            Out of Stock
+                                          </Badge>
+                                        ) : (
+                                          <Zap className="w-4 h-4 text-amber-500 fill-amber-500 shrink-0" />
+                                        )}
                                       </div>
                                       <CardTitle className="text-xl sm:text-2xl font-black mt-2 text-foreground dark:text-white tracking-tight leading-none">
                                         {bundle.dataAmount}
@@ -1765,12 +1958,21 @@ export default function BundleList({
                                         </div>
                                       </div>
                                       <Button
-                                        className="w-full h-10 text-xs font-black rounded-xl bg-black text-amber-500 hover:bg-amber-500 hover:text-black transition-all shadow-md cursor-pointer"
-                                        onClick={() =>
-                                          onSelectBundle(bundle as any)
-                                        }
+                                        disabled={isGameCoinsOutOfStock}
+                                        className={`w-full h-10 text-xs font-black rounded-xl transition-all ${
+                                          isGameCoinsOutOfStock
+                                            ? "bg-slate-800 text-red-400 border border-red-500/30 cursor-not-allowed"
+                                            : "bg-black text-amber-500 hover:bg-amber-500 hover:text-black shadow-md cursor-pointer"
+                                        }`}
+                                        onClick={() => {
+                                          if (isGameCoinsOutOfStock) {
+                                            toast.error("Game Coins is temporarily Out of Stock.");
+                                            return;
+                                          }
+                                          onSelectBundle(bundle as any);
+                                        }}
                                       >
-                                        BUY NOW
+                                        {isGameCoinsOutOfStock ? "Out of Stock" : "BUY NOW"}
                                       </Button>
                                     </CardContent>
                                   </Card>
@@ -1784,6 +1986,27 @@ export default function BundleList({
                   </div>
                 ) : tab === "PC Games" ? (
                   <div className="space-y-6">
+                    {isPcGamesOutOfStock && (
+                      <div className="rounded-2xl bg-red-500/10 border-2 border-red-500/35 p-4 sm:p-5 flex items-start gap-3.5 text-red-950 dark:text-red-200 shadow-sm">
+                        <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center text-red-500 shrink-0">
+                          <AlertTriangle className="w-5 h-5" />
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="text-sm sm:text-base font-black uppercase tracking-wide text-red-700 dark:text-red-300">
+                              PC Games Temporarily Unavailable
+                            </h4>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-red-600 text-white tracking-wider">
+                              Out of Stock
+                            </span>
+                          </div>
+                          <p className="text-xs text-red-700/90 dark:text-red-200/90 font-medium leading-relaxed">
+                            PC Games are temporarily out of stock and cannot be purchased right now. Other services remain available.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
                       {[{ id: "FC_26", label: "FC 26" }].map((subTab) => (
                         <Button
@@ -1794,9 +2017,14 @@ export default function BundleList({
                               ? "default"
                               : "outline"
                           }
-                          className="rounded-full font-black uppercase tracking-wider h-12"
+                          className="rounded-full font-black uppercase tracking-wider h-12 flex items-center gap-2"
                         >
-                          {subTab.label}
+                          <span>{subTab.label}</span>
+                          {isPcGamesOutOfStock && (
+                            <span className="px-1.5 py-0.5 rounded bg-red-600 text-white text-[9px] font-black uppercase">
+                              Out of Stock
+                            </span>
+                          )}
                         </Button>
                       ))}
                     </div>
@@ -1812,9 +2040,16 @@ export default function BundleList({
                           {/* 40% dark overlay so text remains easy to read */}
                           <div className="absolute inset-0 bg-black/50 z-10 pointer-events-none"></div>
                           <div className="relative z-20 w-full flex flex-col justify-center items-center md:items-start text-center md:text-left p-6 md:p-12 h-full">
-                            <Badge className="bg-primary text-black font-black mb-2 rounded uppercase text-[9px] tracking-wider px-2 py-0.5">
-                              Hot PC Title
-                            </Badge>
+                            <div className="flex flex-wrap items-center gap-2 mb-2">
+                              <Badge className="bg-primary text-black font-black rounded uppercase text-[9px] tracking-wider px-2 py-0.5">
+                                Hot PC Title
+                              </Badge>
+                              {isPcGamesOutOfStock && (
+                                <Badge className="bg-red-600 text-white font-black rounded uppercase text-[9px] tracking-wider px-2 py-0.5 border border-red-400/50">
+                                  Out of Stock
+                                </Badge>
+                              )}
+                            </div>
                             <h2 className="text-3xl sm:text-4xl md:text-6xl font-black text-white uppercase tracking-tight mb-2 sm:mb-4 drop-shadow-lg">
                               FC 26 PC GAME
                             </h2>
@@ -1922,8 +2157,17 @@ export default function BundleList({
                             </div>
 
                             <Button
-                              className="w-full sm:w-auto h-12 sm:h-16 px-8 sm:px-12 text-lg sm:text-xl font-black rounded-2xl bg-white text-black hover:bg-primary transition-all shadow-xl uppercase"
-                              onClick={() =>
+                              disabled={isPcGamesOutOfStock}
+                              className={`w-full sm:w-auto h-12 sm:h-16 px-8 sm:px-12 text-lg sm:text-xl font-black rounded-2xl transition-all shadow-xl uppercase ${
+                                isPcGamesOutOfStock
+                                  ? "bg-slate-800 text-red-400 border border-red-500/40 cursor-not-allowed"
+                                  : "bg-white text-black hover:bg-primary cursor-pointer"
+                              }`}
+                              onClick={() => {
+                                if (isPcGamesOutOfStock) {
+                                  toast.error("PC Games is temporarily Out of Stock.");
+                                  return;
+                                }
                                 onSelectBundle({
                                   id: "fc_26_pc_game",
                                   network: "PC Games",
@@ -1932,10 +2176,10 @@ export default function BundleList({
                                   price: 50.0,
                                   active: true,
                                   name: "FC 26 PC Game",
-                                } as any)
-                              }
+                                } as any);
+                              }}
                             >
-                              BUY NOW FOR 50 GHC
+                              {isPcGamesOutOfStock ? "Out of Stock" : "BUY NOW FOR 50 GHC"}
                             </Button>
                           </div>
                         </div>
@@ -1946,7 +2190,7 @@ export default function BundleList({
                   <StreamingTab onSelectBundle={onSelectBundle} bundles={bundles} />
                 ) : (
                   <div className="min-h-[40vh] flex flex-col items-center justify-center p-8 bg-card rounded-[2rem] border-2 border-border text-center">
-                    <Crown className="w-12 h-12 text-primary/30 mb-4 animate-bounce" />
+                    <Crown className="w-12 h-12 text-primary/30 mb-4" />
                     <h2 className="text-xl md:text-2xl font-black text-foreground uppercase tracking-tight mb-2 dark:text-white">
                       Updating packages, available soon
                     </h2>

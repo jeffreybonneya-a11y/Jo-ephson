@@ -12,7 +12,7 @@ import { Toaster, toast } from 'sonner';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, getRedirectResult } from 'firebase/auth';
 import { syncUserCustomerRecord, ADMIN_EMAILS } from '@/src/lib/userSync';
-import { doc, onSnapshot, query, collection, where } from 'firebase/firestore';
+import { doc, onSnapshot, query, collection, where, setDoc, serverTimestamp } from 'firebase/firestore';
 import { MessageSquare, Zap, Loader2, Crown } from 'lucide-react';
 import { motion } from 'motion/react';
 import MyOrders from './components/MyOrders';
@@ -37,9 +37,11 @@ import ReferralPromoModal from './components/ReferralPromoModal';
 import { getSeoPageData, SeoPageData, SEO_PAGES } from './data/seoPages';
 import { getApiUrl, getOptionalAuthHeaders } from './lib/api';
 import { cleanupMonetagInPagePush } from './lib/monetag';
+import { useServiceStatus } from './hooks/useServiceStatus';
 
 export default function App() {
   const { branding } = useBranding();
+  const { isProductOutOfStock, getServiceIdForProduct, getServiceName } = useServiceStatus();
   const [currentSeoPage, setCurrentSeoPage] = useState<SeoPageData | null>(() => {
     if (typeof window !== 'undefined') {
       const p = window.location.pathname;
@@ -212,6 +214,31 @@ export default function App() {
                 }
 
                 if (response.ok && resData.success && resData.verified !== false) {
+                    if (
+                        resData.verifiedPayment &&
+                        auth.currentUser?.emailVerified &&
+                        auth.currentUser?.email &&
+                        ADMIN_EMAILS.includes(auth.currentUser.email.trim().toLowerCase())
+                    ) {
+                        const vp = resData.verifiedPayment;
+                        const targetOrderId = vp.orderId || reference;
+                        setDoc(
+                            doc(db, 'orders', targetOrderId),
+                            {
+                                status: vp.status || 'paid',
+                                paymentStatus: 'success',
+                                paymentMethod: vp.paymentMethod || 'Paystack',
+                                payment_provider: 'paystack',
+                                paymentReference: vp.paymentReference || reference,
+                                ...(vp.amountPaid != null ? { amountPaid: Number(vp.amountPaid) } : {}),
+                                ...(vp.paymentTimestamp ? { paymentTimestamp: vp.paymentTimestamp } : {}),
+                                verifiedByBackend: true,
+                                updatedAt: serverTimestamp(),
+                            },
+                            { merge: true }
+                        ).catch(() => {});
+                    }
+
                     if (resData.unlockedAgent) {
                         toast.success("Agent Access Unlocked! Welcome");
                     }
@@ -516,6 +543,13 @@ export default function App() {
   const [activeService, setActiveService] = useState('data');
 
   const handleSelectBundle = (bundle: Bundle) => {
+    const sid = getServiceIdForProduct(bundle);
+    if (sid && isProductOutOfStock(bundle)) {
+      toast.error(`${getServiceName(sid)} is temporarily Out of Stock.`, {
+        description: 'Purchases for this service are paused until stock is restored.',
+      });
+      return;
+    }
     // Guest shoppers can select and purchase bundles directly without login
     setSelectedBundle(bundle);
   };
@@ -554,9 +588,9 @@ export default function App() {
           }`}
         >
           <div className="container mx-auto flex items-center justify-center gap-2">
-            <Zap className="w-4 h-4 animate-pulse" />
+            <Zap className="w-4 h-4" />
             <span>{announcement.text}</span>
-            <Zap className="w-4 h-4 animate-pulse" />
+            <Zap className="w-4 h-4" />
           </div>
         </motion.div>
       )}
@@ -604,7 +638,7 @@ export default function App() {
           ) : (
             <div className="flex flex-col items-center justify-center min-h-[70vh] gap-4">
               <Loader2 className="w-12 h-12 text-primary animate-spin" />
-              <p className="text-slate-500 font-black text-xs tracking-[0.2em] animate-pulse">LOADING AGENT STORE...👑</p>
+              <p className="text-slate-500 font-black text-xs tracking-[0.2em]">LOADING AGENT STORE...👑</p>
             </div>
           )
         ) : isAdminView && isAdmin ? (

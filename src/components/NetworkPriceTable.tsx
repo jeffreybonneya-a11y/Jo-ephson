@@ -1,6 +1,8 @@
 import React from 'react';
 import { SeoBundleRow, BASELINE_MTN_BUNDLES, BASELINE_TELECEL_BUNDLES, BASELINE_AIRTELTIGO_BUNDLES, getNetworkSeoBundles } from '../lib/seoPriceTables';
-import { ShoppingBag, ArrowRight, Zap, ShieldCheck } from 'lucide-react';
+import { ShoppingBag, ArrowRight, Zap, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { useServiceStatus } from '../hooks/useServiceStatus';
+import { ServiceId } from '../lib/serviceStatus';
 
 interface NetworkPriceTableProps {
   network: 'MTN' | 'Telecel' | 'AirtelTigo' | 'ALL';
@@ -13,11 +15,17 @@ export default function NetworkPriceTable({
   onSelectNetworkAndOrder,
   customBundles
 }: NetworkPriceTableProps) {
+  const { isOutOfStock } = useServiceStatus();
+  const mtnOut = isOutOfStock('mtn');
+  const telecelOut = isOutOfStock('telecel');
+  const atOut = isOutOfStock('airteltigo');
+
   const mtnBundles = getNetworkSeoBundles('MTN', customBundles);
   const telecelBundles = getNetworkSeoBundles('Telecel', customBundles);
   const atBundles = getNetworkSeoBundles('AirtelTigo', customBundles);
 
-  const renderTableRows = (rows: SeoBundleRow[], badgeColor: string) => {
+  const renderTableRows = (rows: SeoBundleRow[], badgeColor: string, rowServiceId: ServiceId) => {
+    const out = isOutOfStock(rowServiceId);
     return rows.map((b) => (
       <tr key={b.id} className="hover:bg-slate-800/40 transition-colors border-b border-slate-800/60">
         <td className="p-3.5 font-bold text-white">
@@ -38,11 +46,16 @@ export default function NetworkPriceTable({
         <td className="p-3.5 text-right">
           <button
             type="button"
-            onClick={() => onSelectNetworkAndOrder?.(b.network, b.dataAmount)}
-            className="px-3 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs inline-flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
+            disabled={out}
+            onClick={() => !out && onSelectNetworkAndOrder?.(b.network, b.dataAmount)}
+            className={`px-3 py-1.5 rounded-lg font-black text-xs inline-flex items-center gap-1 shadow-sm transition-all ${
+              out
+                ? 'bg-red-950/60 text-red-300 border border-red-500/40 cursor-not-allowed'
+                : 'bg-amber-400 hover:bg-amber-300 text-slate-950 active:scale-95 cursor-pointer'
+            }`}
           >
-            <span>Order</span>
-            <ArrowRight className="w-3 h-3" />
+            <span>{out ? 'Out of Stock' : 'Order'}</span>
+            {!out && <ArrowRight className="w-3 h-3" />}
           </button>
         </td>
       </tr>
@@ -54,10 +67,15 @@ export default function NetworkPriceTable({
       <div className="space-y-8 my-8">
         {/* MTN Overview Table */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <h3 className="text-lg font-black text-white flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-amber-400" />
               <span>MTN Ghana Data Bundle Prices (15 Active Packages)</span>
+              {mtnOut && (
+                <span className="px-2 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-black uppercase">
+                  Out of Stock
+                </span>
+              )}
             </h3>
             <span className="text-xs text-amber-400 font-bold">1GB to 100GB</span>
           </div>
@@ -73,7 +91,7 @@ export default function NetworkPriceTable({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {renderTableRows(mtnBundles, "bg-amber-400 text-slate-950")}
+                {renderTableRows(mtnBundles, "bg-amber-400 text-slate-950", 'mtn')}
               </tbody>
             </table>
           </div>
@@ -81,10 +99,15 @@ export default function NetworkPriceTable({
 
         {/* Telecel Overview Table */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <h3 className="text-lg font-black text-white flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-red-500" />
               <span>Telecel Ghana Data Bundle Prices (10GB to 100GB)</span>
+              {telecelOut && (
+                <span className="px-2 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-black uppercase">
+                  Out of Stock
+                </span>
+              )}
             </h3>
             <span className="text-xs text-red-400 font-bold">Starting at 10GB</span>
           </div>
@@ -100,7 +123,7 @@ export default function NetworkPriceTable({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {renderTableRows(telecelBundles, "bg-red-600 text-white")}
+                {renderTableRows(telecelBundles, "bg-red-600 text-white", 'telecel')}
               </tbody>
             </table>
           </div>
@@ -108,10 +131,15 @@ export default function NetworkPriceTable({
 
         {/* AirtelTigo Overview Table */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <h3 className="text-lg font-black text-white flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-blue-500" />
               <span>AirtelTigo (AT) Data Bundle Prices (1GB to 8GB)</span>
+              {atOut && (
+                <span className="px-2 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-black uppercase">
+                  Out of Stock
+                </span>
+              )}
             </h3>
             <span className="text-xs text-blue-400 font-bold">1GB to 8GB</span>
           </div>
@@ -127,7 +155,7 @@ export default function NetworkPriceTable({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {renderTableRows(atBundles, "bg-blue-600 text-white")}
+                {renderTableRows(atBundles, "bg-blue-600 text-white", 'airteltigo')}
               </tbody>
             </table>
           </div>
@@ -135,6 +163,10 @@ export default function NetworkPriceTable({
       </div>
     );
   }
+
+  const targetServiceId: ServiceId =
+    network === 'MTN' ? 'mtn' : network === 'Telecel' ? 'telecel' : 'airteltigo';
+  const targetOut = isOutOfStock(targetServiceId);
 
   const targetRows =
     network === 'MTN'
@@ -159,15 +191,27 @@ export default function NetworkPriceTable({
 
   return (
     <div className="my-8 space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h3 className="text-xl font-black text-white tracking-tight flex items-center gap-2">
           <Zap className="w-5 h-5 text-amber-400" />
           <span>Official {network} Ghana Data Bundle Price List</span>
+          {targetOut && (
+            <span className="px-2.5 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-black uppercase">
+              Out of Stock
+            </span>
+          )}
         </h3>
         <span className="text-xs font-bold text-slate-400">
           {targetRows.length} Active Offers
         </span>
       </div>
+
+      {targetOut && (
+        <div className="rounded-xl bg-red-950/40 border border-red-500/40 p-3.5 flex items-center gap-2.5 text-xs text-red-200 font-semibold">
+          <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+          <span>{network} Data bundles are temporarily Out of Stock and cannot be purchased right now.</span>
+        </div>
+      )}
 
       <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-[#0A1226]/90 shadow-lg">
         <table className="w-full text-left border-collapse text-xs sm:text-sm">
@@ -181,7 +225,7 @@ export default function NetworkPriceTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/60">
-            {renderTableRows(targetRows, badgeTheme)}
+            {renderTableRows(targetRows, badgeTheme, targetServiceId)}
           </tbody>
         </table>
       </div>

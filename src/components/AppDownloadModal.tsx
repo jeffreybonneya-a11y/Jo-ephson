@@ -157,7 +157,7 @@ export default function AppDownloadModal({ isOpen, onClose }: AppDownloadModalPr
             <div className="space-y-2.5">
               {/* Status Feedback Card */}
               {downloadStep === 'downloading' && (
-                <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-2.5 flex items-center justify-center gap-2 text-amber-300 text-xs font-bold animate-pulse">
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-2.5 flex items-center justify-center gap-2 text-amber-300 text-xs font-bold">
                   <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
                   <span>Downloading DATAGHANAnow.apk ({APK_SIZE_LABEL})...</span>
                 </div>

@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Coins, Monitor, Gamepad2, Sparkles, GraduationCap, Search, Crown, ShoppingCart, Zap } from 'lucide-react';
+import { Coins, Monitor, Gamepad2, Sparkles, GraduationCap, Search, Crown, ShoppingCart, Zap, AlertTriangle } from 'lucide-react';
 import { Bundle } from '../types';
 import { getProductImage } from '../lib/images';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { useServiceStatus } from '@/src/hooks/useServiceStatus';
+import { getServiceIdForProduct } from '@/src/lib/serviceStatus';
+import { toast } from 'sonner';
 
 interface StreamingTabProps {
   onSelectBundle?: (bundle: Bundle) => void;
@@ -51,21 +54,32 @@ function getTabCategory(b: Bundle): SubTabId | null {
   return 'pc_games';
 }
 
-const ProductCard: React.FC<{ bundle: Bundle; onSelect: (bundle: Bundle) => void }> = ({ bundle, onSelect }) => {
+const ProductCard: React.FC<{ bundle: Bundle; outOfStock?: boolean; onSelect: (bundle: Bundle) => void }> = ({ bundle, outOfStock = false, onSelect }) => {
   return (
     <motion.div 
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.25 }}
-      className="hover:border-primary hover:shadow-[0_10px_30px_rgba(245,158,11,0.15)] transition-all duration-300 group border-2 rounded-[2rem] overflow-hidden bg-card border-border flex flex-col h-full shadow-md"
+      className={`transition-all duration-300 group border-2 rounded-[2rem] overflow-hidden bg-card flex flex-col h-full shadow-md ${
+        outOfStock
+          ? 'border-red-500/40 opacity-85'
+          : 'border-border hover:border-primary hover:shadow-[0_10px_30px_rgba(245,158,11,0.15)]'
+      }`}
     >
 
       <div className="p-6 md:p-8 flex flex-col flex-1">
         <div className="mb-6">
-          <h3 className="text-lg md:text-xl font-black mb-2 text-foreground dark:text-white uppercase tracking-tight group-hover:text-primary transition-colors line-clamp-1">
-            {bundle.name}
-          </h3>
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <h3 className="text-lg md:text-xl font-black text-foreground dark:text-white uppercase tracking-tight group-hover:text-primary transition-colors line-clamp-1">
+              {bundle.name}
+            </h3>
+            {outOfStock && (
+              <Badge className="bg-red-600 text-white text-[9px] font-black uppercase px-2 py-0.5 shrink-0">
+                Out of Stock
+              </Badge>
+            )}
+          </div>
           <p className="text-muted-foreground text-xs md:text-sm font-medium leading-relaxed line-clamp-2 min-h-[2.5rem]">
             {bundle.description || `Automated instant delivery. ${bundle.dataAmount ? `Package Volume: ${bundle.dataAmount}.` : 'Verified high quality service.'}`}
           </p>
@@ -79,11 +93,22 @@ const ProductCard: React.FC<{ bundle: Bundle; onSelect: (bundle: Bundle) => void
             </span>
           </div>
           <Button 
-            className="rounded-2xl px-6 h-14 bg-secondary text-secondary-foreground hover:bg-primary hover:text-white font-black uppercase tracking-wider text-xs md:text-sm shadow-lg transition-all active:scale-95 cursor-pointer flex items-center gap-2"
-            onClick={() => onSelect(bundle)}
+            disabled={outOfStock}
+            className={`rounded-2xl px-6 h-14 font-black uppercase tracking-wider text-xs md:text-sm shadow-lg transition-all flex items-center gap-2 ${
+              outOfStock
+                ? 'bg-red-950/60 text-red-200 border border-red-500/40 cursor-not-allowed'
+                : 'bg-secondary text-secondary-foreground hover:bg-primary hover:text-white active:scale-95 cursor-pointer'
+            }`}
+            onClick={() => {
+              if (outOfStock) {
+                toast.error('This service is temporarily Out of Stock.');
+                return;
+              }
+              onSelect(bundle);
+            }}
           >
             <ShoppingCart className="w-4 h-4" />
-            <span>Buy Now</span>
+            <span>{outOfStock ? 'Out of Stock' : 'Buy Now'}</span>
           </Button>
         </div>
       </div>
@@ -94,9 +119,17 @@ const ProductCard: React.FC<{ bundle: Bundle; onSelect: (bundle: Bundle) => void
 export default function StreamingTab({ onSelectBundle, bundles = [] }: StreamingTabProps) {
   const [activeSubTab, setActiveSubTab] = useState<SubTabId>('pc_games');
   const [searchQuery, setSearchQuery] = useState('');
+  const { isOutOfStock, getServiceName } = useServiceStatus();
+
+  const isSubTabOutOfStock = (tabId: SubTabId): boolean => {
+    if (tabId === 'pc_games') return isOutOfStock('pc_games');
+    if (tabId === 'results_checker') return isOutOfStock('checkers');
+    return false;
+  };
 
   // Group bundles by sub tab
   const activeTabConfig = SUB_TABS.find(t => t.id === activeSubTab) || SUB_TABS[0];
+  const activeTabUnavailable = isSubTabOutOfStock(activeSubTab);
 
   const matchingBundles = bundles.filter(b => {
     const tabCategory = getTabCategory(b);
@@ -148,6 +181,7 @@ export default function StreamingTab({ onSelectBundle, bundles = [] }: Streaming
         {SUB_TABS.map(tab => {
           const Icon = tab.icon;
           const isActive = tab.id === activeSubTab;
+          const tabOut = isSubTabOutOfStock(tab.id);
 
           return (
             <button
@@ -168,6 +202,11 @@ export default function StreamingTab({ onSelectBundle, bundles = [] }: Streaming
                 <Icon className="w-5 h-5 stroke-[2.5px]" />
               </div>
               <span className="text-xs md:text-sm uppercase tracking-tight line-clamp-1">{tab.label}</span>
+              {tabOut && (
+                <span className="mt-1 px-2 py-0.5 rounded-full bg-red-600 text-white text-[9px] font-black uppercase">
+                  Out of Stock
+                </span>
+              )}
             </button>
           );
         })}
@@ -175,13 +214,18 @@ export default function StreamingTab({ onSelectBundle, bundles = [] }: Streaming
 
       {/* Selected Tab Banner Description */}
       <div className="bg-primary/5 border-2 border-primary/20 rounded-2xl p-4 md:p-6 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <Badge className="bg-primary text-secondary font-black uppercase tracking-wider text-[10px] px-2.5 py-1">
             Active Category
           </Badge>
           <span className="font-black text-foreground dark:text-white uppercase tracking-tight text-sm md:text-base">
             {activeTabConfig.label}
           </span>
+          {activeTabUnavailable && (
+            <Badge className="bg-red-600 text-white font-black uppercase text-[10px] px-2.5 py-1">
+              Out of Stock
+            </Badge>
+          )}
           <span className="text-muted-foreground hidden md:inline">• {activeTabConfig.desc}</span>
         </div>
         <span className="text-xs font-black text-primary font-mono uppercase bg-background px-3 py-1.5 rounded-xl border border-primary/20 shrink-0">
@@ -189,20 +233,41 @@ export default function StreamingTab({ onSelectBundle, bundles = [] }: Streaming
         </span>
       </div>
 
+      {activeTabUnavailable && (
+        <div className="rounded-2xl bg-red-500/10 border-2 border-red-500/40 p-4 flex items-center gap-3 text-sm text-red-700 dark:text-red-300 font-semibold">
+          <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
+          <span>
+            {activeTabConfig.label} is temporarily Out of Stock. Purchases are paused until stock is restored.
+          </span>
+        </div>
+      )}
+
       {/* Product Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 pt-2">
         {matchingBundles.length > 0 ? (
-          matchingBundles.map(bundle => (
-            <ProductCard 
-              key={bundle.id} 
-              bundle={bundle} 
-              onSelect={b => onSelectBundle && onSelectBundle(b)} 
-            />
-          ))
+          matchingBundles.map(bundle => {
+            const mappedSid = getServiceIdForProduct(bundle);
+            const cardOut = activeTabUnavailable || (mappedSid ? isOutOfStock(mappedSid) : false);
+            return (
+              <ProductCard 
+                key={bundle.id} 
+                bundle={bundle}
+                outOfStock={cardOut}
+                onSelect={b => {
+                  if (cardOut) {
+                    const name = mappedSid ? getServiceName(mappedSid) : activeTabConfig.label;
+                    toast.error(`${name} is temporarily Out of Stock.`);
+                    return;
+                  }
+                  onSelectBundle && onSelectBundle(b);
+                }} 
+              />
+            );
+          })
         ) : (
           <div className="col-span-full py-20 px-6 bg-card rounded-[2.5rem] border-4 border-dashed border-border text-center flex flex-col items-center justify-center">
             <div className="w-20 h-20 rounded-3xl bg-primary/10 border-2 border-primary/20 text-primary flex items-center justify-center mb-6 shadow-inner">
-              <Crown className="w-10 h-10 animate-pulse" />
+              <Crown className="w-10 h-10" />
             </div>
             <h3 className="text-2xl font-black text-foreground dark:text-white mb-2 uppercase tracking-tight">
               {searchQuery ? 'No Results Found' : `Restocking ${activeTabConfig.label} Soon`}

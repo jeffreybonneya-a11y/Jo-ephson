@@ -78,15 +78,7 @@ export default function HowItWorks() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-4 relative">
           {/* Connector Line (Desktop) */}
-          <div className="hidden lg:block absolute top-[2.25rem] left-[10%] right-[10%] h-[1px] bg-border z-0 overflow-hidden">
-            <motion.div 
-              initial={{ x: '-100%' }}
-              whileInView={{ x: '100%' }}
-              viewport={{ once: true }}
-              transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-              className="w-1/3 h-full bg-gradient-to-r from-transparent via-primary/40 to-transparent" 
-            />
-          </div>
+          <div className="hidden lg:block absolute top-[2.25rem] left-[10%] right-[10%] h-[1px] bg-border z-0" />
 
           {steps.map((step, i) => (
             <motion.div

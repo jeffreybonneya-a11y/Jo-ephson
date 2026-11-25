@@ -120,6 +120,21 @@ export default function AdminServiceStatusManager() {
         { merge: true }
       );
 
+      if (serviceId === "checkers") {
+        await setDoc(
+          doc(db, "settings", "results_checker"),
+          {
+            inStock: newStatus === "in_stock",
+            isOutOfStock: newStatus === "out_of_stock",
+            outOfStock: newStatus === "out_of_stock",
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        ).catch((syncErr) => {
+          console.warn("[Service Status] Legacy results_checker sync notice:", syncErr);
+        });
+      }
+
       // Optimistic state update
       setServices((prev) =>
         prev.map((s) => (s.id === serviceId ? { ...s, status: newStatus } : s))
@@ -193,7 +208,7 @@ export default function AdminServiceStatusManager() {
                           className={`font-black text-[9px] uppercase px-2 py-0.5 rounded-lg ${
                             isInStock
                               ? "bg-emerald-500 text-white"
-                              : "bg-red-600 text-white animate-pulse"
+                              : "bg-red-600 text-white"
                           }`}
                         >
                           {isInStock ? "In Stock" : "Out of Stock"}

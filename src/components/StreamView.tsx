@@ -131,7 +131,7 @@ export default function StreamView() {
           </Card>
         ) : access.status === 'pending' ? (
           <Card className="rounded-[3rem] border-4 border-amber-100 bg-amber-50/30 p-12 text-center">
-            <div className="w-24 h-24 bg-amber-100 text-amber-600 rounded-3xl flex items-center justify-center mx-auto mb-8 animate-pulse">
+            <div className="w-24 h-24 bg-amber-100 text-amber-600 rounded-3xl flex items-center justify-center mx-auto mb-8">
               <Clock className="w-12 h-12" />
             </div>
             <h2 className="text-3xl font-black text-slate-900 mb-4">REQUEST UNDER REVIEW</h2>
@@ -186,7 +186,7 @@ export default function StreamView() {
                     <h4 className="font-black text-slate-900 uppercase">STREAM STATUS</h4>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
+                    <div className="w-3 h-3 bg-red-500 rounded-full" />
                     <p className="text-2xl font-black text-slate-900 tracking-tight italic">OFFLINE</p>
                   </div>
                   <p className="text-xs text-slate-400 font-medium mt-2">Next session scheduled for Sunday</p>

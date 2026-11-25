@@ -14,6 +14,7 @@ import {
   getDoc,
   setDoc,
   serverTimestamp,
+  Timestamp,
   increment,
   getDocs,
   where,
@@ -709,6 +710,185 @@ export default function AdminDashboard() {
       unsubAirtime();
     };
   }, []);
+
+  const ordersRef = React.useRef<any[]>([]);
+  ordersRef.current = orders;
+  const paymentSyncInFlightRef = React.useRef(false);
+  const lastPaymentSyncAtRef = React.useRef(0);
+  const seenPendingIdsRef = React.useRef<Set<string>>(new Set());
+
+  const syncPendingPaymentsWithBackend = React.useCallback(async (force = false) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser || paymentSyncInFlightRef.current) return;
+
+    const now = Date.now();
+    if (!force && now - lastPaymentSyncAtRef.current < 2500) return;
+
+    const currentOrders = ordersRef.current || [];
+    const knownOrderIds = currentOrders.map((o) => String(o.id)).filter(Boolean);
+    const pendingOrders = currentOrders
+      .filter((o) => {
+        const s = String(o.status || "").toLowerCase().trim();
+        const ps = String(o.paymentStatus || "").toLowerCase().trim();
+        const isTerminalOrPaid =
+          s === "delivered" ||
+          s === "completed" ||
+          s === "declined" ||
+          s === "cancelled" ||
+          s === "failed" ||
+          s === "paid" ||
+          s === "success" ||
+          s === "successful" ||
+          ps === "success" ||
+          ps === "paid";
+        return !isTerminalOrPaid;
+      })
+      .slice(0, 30)
+      .map((o) => ({
+        id: o.id,
+        reference: o.reference || o.id,
+        paymentReference: o.paymentReference || "",
+        amount: o.amount,
+        paymentMethod: o.paymentMethod || "",
+        momoSentClicked: Boolean(o.momoSentClicked),
+        createdAtMs: getCustomerTimestampMillis(o.createdAt) || now,
+      }));
+
+    paymentSyncInFlightRef.current = true;
+    lastPaymentSyncAtRef.current = now;
+
+    try {
+      const token = await currentUser.getIdToken();
+      const res = await fetch(getApiUrl("/api/admin/sync-payments"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ pendingOrders, knownOrderIds }),
+      });
+
+      if (!res.ok) return;
+      const data = await res.json().catch(() => ({}));
+      if (!data?.success) return;
+
+      const verifiedUpdates: any[] = Array.isArray(data.verifiedUpdates) ? data.verifiedUpdates : [];
+      for (const u of verifiedUpdates) {
+        if (!u?.orderId) continue;
+        const existing = currentOrders.find((o) => o.id === u.orderId);
+        const curStatus = String(existing?.status || "").toLowerCase().trim();
+        const preservedFulfillment =
+          curStatus === "processing" ||
+          curStatus === "accepted" ||
+          curStatus === "delivered" ||
+          curStatus === "completed";
+        const nextStatus = preservedFulfillment ? existing.status : (u.status || "paid");
+
+        await setDoc(
+          doc(db, "orders", u.orderId),
+          {
+            status: nextStatus,
+            paymentStatus: "success",
+            paymentMethod: u.paymentMethod || existing?.paymentMethod || "Paystack",
+            payment_provider: u.payment_provider || "paystack",
+            paymentReference: u.paymentReference || existing?.paymentReference || u.orderId,
+            ...(u.amountPaid != null ? { amountPaid: Number(u.amountPaid) } : {}),
+            ...(u.paymentTimestamp ? { paymentTimestamp: u.paymentTimestamp } : {}),
+            verifiedByBackend: true,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+
+        if (existing?.isAgentOrder || existing?.agentId || existing?.agent_id) {
+          try {
+            const agentRef = doc(db, "agent_orders", u.orderId);
+            const agentSnap = await getDoc(agentRef);
+            if (agentSnap.exists()) {
+              await updateDoc(agentRef, {
+                status: "success",
+                paymentStatus: "success",
+                paymentMethod: u.paymentMethod || "Paystack",
+                payment_provider: "paystack",
+                paymentReference: u.paymentReference || u.orderId,
+              });
+            }
+          } catch {}
+        }
+
+        if (existing?.bundle === "AGENT ACCESS UNLOCK" && existing?.userId) {
+          await updateDoc(doc(db, "users", existing.userId), { isAgent: true }).catch(() => {});
+        }
+      }
+
+      const missingOrders: any[] = Array.isArray(data.missingOrders) ? data.missingOrders : [];
+      for (const m of missingOrders) {
+        if (!m?.orderId || !m?.orderData) continue;
+        const { createdAt, updatedAt, ...restOrderData } = m.orderData;
+        const createdMs = getCustomerTimestampMillis(createdAt);
+        await setDoc(
+          doc(db, "orders", m.orderId),
+          {
+            ...restOrderData,
+            createdAt: createdMs > 0 ? Timestamp.fromMillis(createdMs) : serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+
+        if (m.agentOrderData) {
+          const { created_at, ...restAgentData } = m.agentOrderData;
+          const agentCreatedMs = getCustomerTimestampMillis(created_at);
+          await setDoc(
+            doc(db, "agent_orders", m.orderId),
+            {
+              ...restAgentData,
+              created_at: agentCreatedMs > 0 ? Timestamp.fromMillis(agentCreatedMs) : serverTimestamp(),
+            },
+            { merge: true }
+          ).catch(() => {});
+        }
+      }
+    } catch (syncErr) {
+      console.warn("Notice: pending payment sync skipped:", syncErr);
+    } finally {
+      paymentSyncInFlightRef.current = false;
+    }
+  }, []);
+
+  useEffect(() => {
+    syncPendingPaymentsWithBackend(true);
+    const interval = setInterval(() => {
+      syncPendingPaymentsWithBackend(false);
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [syncPendingPaymentsWithBackend]);
+
+  useEffect(() => {
+    const newPendingIds: string[] = [];
+    for (const o of orders) {
+      const s = String(o.status || "").toLowerCase().trim();
+      const ps = String(o.paymentStatus || "").toLowerCase().trim();
+      const isPending =
+        s !== "delivered" &&
+        s !== "completed" &&
+        s !== "declined" &&
+        s !== "cancelled" &&
+        s !== "failed" &&
+        s !== "paid" &&
+        s !== "success" &&
+        s !== "successful" &&
+        ps !== "success" &&
+        ps !== "paid";
+      if (isPending && o.id && !seenPendingIdsRef.current.has(o.id)) {
+        seenPendingIdsRef.current.add(o.id);
+        newPendingIds.push(o.id);
+      }
+    }
+    if (newPendingIds.length > 0) {
+      syncPendingPaymentsWithBackend(true);
+    }
+  }, [orders, syncPendingPaymentsWithBackend]);
 
   const handleSaveAirtimeSettings = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -1609,7 +1789,7 @@ export default function AdminDashboard() {
         return (
           <Badge
             variant="outline"
-            className="bg-blue-50 text-blue-700 border-blue-200 font-black animate-pulse dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-900/50"
+            className="bg-blue-50 text-blue-700 border-blue-200 font-black dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-900/50"
           >
             PROCESSING ⚡
           </Badge>
@@ -1687,7 +1867,7 @@ export default function AdminDashboard() {
         return (
           <Badge
             variant="outline"
-            className="bg-blue-50 text-blue-700 border-blue-200 font-black animate-pulse dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-900/50"
+            className="bg-blue-50 text-blue-700 border-blue-200 font-black dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-900/50"
           >
             PROCESSING
           </Badge>
@@ -1875,6 +2055,13 @@ export default function AdminDashboard() {
         inStock: !newOutOfStockState,
         isOutOfStock: newOutOfStockState,
         outOfStock: newOutOfStockState,
+      }, { merge: true });
+      await setDoc(doc(db, "service_status", "checkers"), {
+        serviceId: "checkers",
+        serviceName: "Checkers",
+        status: newOutOfStockState ? "out_of_stock" : "in_stock",
+        updatedAt: serverTimestamp(),
+        updatedBy: auth.currentUser?.email || "admin",
       }, { merge: true });
       setRcOutOfStock(newOutOfStockState);
       toast.success(newOutOfStockState ? "Results Checker marked as OUT OF STOCK 🚫" : "Results Checker marked as IN STOCK ✅");
@@ -2226,7 +2413,7 @@ export default function AdminDashboard() {
             <RotateCcw className="w-4 h-4 text-amber-500" />
             Reset Notifier ({notifierCount})
             {notifierCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 bg-red-600 text-white text-[10px] min-w-[20px] h-5 px-1 flex items-center justify-center rounded-full font-black shadow-lg animate-pulse">
+              <span className="absolute -top-1.5 -right-1.5 bg-red-600 text-white text-[10px] min-w-[20px] h-5 px-1 flex items-center justify-center rounded-full font-black shadow-lg">
                 {notifierCount}
               </span>
             )}
@@ -2741,9 +2928,7 @@ export default function AdminDashboard() {
                               {getStatusBadge(order.status, order.paymentStatus)}
                               {order.createdAt && (
                                 <span className="text-[9px] font-mono text-slate-400 dark:text-slate-500">
-                                  {new Date(
-                                    order.createdAt?.seconds * 1000,
-                                  ).toLocaleString()}
+                                  {formatCustomerDateTime(order.createdAt)}
                                 </span>
                               )}
                             </div>
@@ -4426,7 +4611,7 @@ export default function AdminDashboard() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <CardTitle className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-3">
-                    <Zap className="w-7 h-7 text-amber-500 fill-amber-500 animate-pulse" />
+                    <Zap className="w-7 h-7 text-amber-500 fill-amber-500" />
                     FAST DELIVERY SETTINGS ⚡
                   </CardTitle>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-bold">
@@ -5499,7 +5684,7 @@ export default function AdminDashboard() {
                     <span>Profit Requests</span>
                     {profitRequests.filter((r) => r.status === "pending")
                       .length > 0 && (
-                      <span className="bg-primary text-secondary text-[8px] px-1.5 py-0.5 rounded-full font-black animate-pulse">
+                      <span className="bg-primary text-secondary text-[8px] px-1.5 py-0.5 rounded-full font-black">
                         {
                           profitRequests.filter((r) => r.status === "pending")
                             .length
@@ -5523,7 +5708,7 @@ export default function AdminDashboard() {
                         (o.status === "paid" || o.status === "processing") &&
                         (o.agent_id || o.agentId || o.isAgentOrder || o.bundle === "AGENT ACCESS UNLOCK"),
                     ).length > 0 && (
-                      <span className="bg-blue-600 text-white text-[8px] px-1.5 py-0.5 rounded-full font-black animate-pulse">
+                      <span className="bg-blue-600 text-white text-[8px] px-1.5 py-0.5 rounded-full font-black">
                         {
                           orders.filter(
                             (o) =>

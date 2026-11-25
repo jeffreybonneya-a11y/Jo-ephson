@@ -15,10 +15,24 @@ import {
   Gift,
   Download,
   MessageCircle,
-  Monitor
+  Monitor,
+  AlertCircle
 } from 'lucide-react';
+import { toast } from 'sonner';
+import { useServiceStatus } from '@/src/hooks/useServiceStatus';
+import { ServiceId } from '@/src/lib/serviceStatus';
 
 export default function Hero() {
+  const { isOutOfStock, getServiceName } = useServiceStatus();
+
+  const notifyIfOutOfStock = (serviceId: ServiceId) => {
+    if (isOutOfStock(serviceId)) {
+      toast.error(`${getServiceName(serviceId)} is temporarily Out of Stock.`, {
+        description: 'Purchases for this service are paused until stock is restored. Other services remain available.',
+      });
+    }
+  };
+
   const scrollToPricing = () => {
     const el = document.getElementById('bundle-tabs');
     if (el) {
@@ -27,6 +41,9 @@ export default function Hero() {
   };
 
   const handleSelectNetwork = (network: string) => {
+    const sid: ServiceId =
+      network === 'Telecel' ? 'telecel' : network === 'AirtelTigo' ? 'airteltigo' : 'mtn';
+    notifyIfOutOfStock(sid);
     window.dispatchEvent(new CustomEvent('SELECT_BUNDLE_TAB', { detail: { tab: network } }));
     scrollToPricing();
   };
@@ -37,6 +54,7 @@ export default function Hero() {
   };
 
   const handleGoBookingCodes = () => {
+    notifyIfOutOfStock('booking_codes');
     window.dispatchEvent(new CustomEvent('SELECT_BUNDLE_TAB', { detail: { tab: 'Booking Codes' } }));
     scrollToPricing();
   };
@@ -62,16 +80,19 @@ export default function Hero() {
   };
 
   const handleGoCheckers = () => {
+    notifyIfOutOfStock('checkers');
     window.dispatchEvent(new CustomEvent('SELECT_BUNDLE_TAB', { detail: { tab: 'Result Checker' } }));
     scrollToPricing();
   };
 
   const handleGoGameCoins = () => {
+    notifyIfOutOfStock('game_coins');
     window.dispatchEvent(new CustomEvent('SELECT_BUNDLE_TAB', { detail: { tab: 'Game Coins' } }));
     scrollToPricing();
   };
 
   const handleGoPcGames = () => {
+    notifyIfOutOfStock('pc_games');
     window.dispatchEvent(new CustomEvent('SELECT_BUNDLE_TAB', { detail: { tab: 'PC Games' } }));
     scrollToPricing();
   };
@@ -189,95 +210,108 @@ export default function Hero() {
           transition={{ duration: 0.6, delay: 0.1 }}
           className="rounded-3xl bg-[#0D1527] border border-amber-500/20 p-5 sm:p-7 shadow-xl"
         >
-          <div className="flex items-center justify-between pb-4 mb-5 border-b border-slate-800">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-              <h2 className="font-serif text-lg sm:text-xl font-bold text-slate-100 tracking-wide">
-                Place New Order • Select Service
-              </h2>
-            </div>
-            <span className="text-xs text-amber-400 font-semibold">100% Automated</span>
+          <div className="flex items-center pb-4 mb-5 border-b border-slate-800">
+            <h2 className="font-serif text-lg sm:text-xl font-bold text-slate-100 tracking-wide">
+              Place New Order • Select Service
+            </h2>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3.5 sm:gap-4">
-            
-            {/* 1. MTN Data */}
-            <div 
-              onClick={() => handleSelectNetwork('MTN')}
-              className="group cursor-pointer rounded-2xl bg-[#080E1E] hover:bg-[#121E38] border border-slate-800 hover:border-amber-400/50 p-4 text-center transition-all duration-300 flex flex-col items-center justify-center gap-2.5 shadow-sm hover:-translate-y-1"
-            >
-              <div className="w-12 h-12 rounded-xl bg-amber-400 text-slate-950 font-black flex items-center justify-center text-xs shadow-md group-hover:scale-110 transition-transform">
-                MTN
-              </div>
-              <span className="text-xs font-bold text-slate-200 group-hover:text-amber-300">MTN Data</span>
-            </div>
-
-            {/* 2. AirtelTigo (AT) */}
-            <div 
-              onClick={() => handleSelectNetwork('AirtelTigo')}
-              className="group cursor-pointer rounded-2xl bg-[#080E1E] hover:bg-[#121E38] border border-slate-800 hover:border-amber-400/50 p-4 text-center transition-all duration-300 flex flex-col items-center justify-center gap-2.5 shadow-sm hover:-translate-y-1"
-            >
-              <div className="w-12 h-12 rounded-xl bg-blue-600 text-white font-black flex items-center justify-center text-xs shadow-md group-hover:scale-110 transition-transform">
-                AT
-              </div>
-              <span className="text-xs font-bold text-slate-200 group-hover:text-amber-300">AirtelTigo</span>
-            </div>
-
-            {/* 3. Telecel */}
-            <div 
-              onClick={() => handleSelectNetwork('Telecel')}
-              className="group cursor-pointer rounded-2xl bg-[#080E1E] hover:bg-[#121E38] border border-slate-800 hover:border-amber-400/50 p-4 text-center transition-all duration-300 flex flex-col items-center justify-center gap-2.5 shadow-sm hover:-translate-y-1"
-            >
-              <div className="w-12 h-12 rounded-xl bg-red-600 text-white font-black flex items-center justify-center text-xs shadow-md group-hover:scale-110 transition-transform">
-                TEL
-              </div>
-              <span className="text-xs font-bold text-slate-200 group-hover:text-amber-300">Telecel</span>
-            </div>
-
-            {/* 4. Checkers */}
-            <div 
-              onClick={handleGoCheckers}
-              className="group cursor-pointer rounded-2xl bg-[#080E1E] hover:bg-[#121E38] border border-slate-800 hover:border-amber-400/50 p-4 text-center transition-all duration-300 flex flex-col items-center justify-center gap-2.5 shadow-sm hover:-translate-y-1"
-            >
-              <div className="w-12 h-12 rounded-xl bg-emerald-600 text-white font-black flex items-center justify-center text-xs shadow-md group-hover:scale-110 transition-transform">
-                <CheckSquare className="w-6 h-6" />
-              </div>
-              <span className="text-xs font-bold text-slate-200 group-hover:text-amber-300">Checkers</span>
-            </div>
-
-            {/* 5. Booking Codes */}
-            <div 
-              onClick={handleGoBookingCodes}
-              className="group cursor-pointer rounded-2xl bg-[#080E1E] hover:bg-[#121E38] border border-slate-800 hover:border-amber-400/50 p-4 text-center transition-all duration-300 flex flex-col items-center justify-center gap-2.5 shadow-sm hover:-translate-y-1"
-            >
-              <div className="w-12 h-12 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/40 font-black flex items-center justify-center text-xs shadow-md group-hover:scale-110 transition-transform">
-                <DollarSign className="w-6 h-6" />
-              </div>
-              <span className="text-xs font-bold text-slate-200 group-hover:text-amber-300">Booking Codes</span>
-            </div>
-
-            {/* 6. Game Coins */}
-            <div 
-              onClick={handleGoGameCoins}
-              className="group cursor-pointer rounded-2xl bg-[#080E1E] hover:bg-[#121E38] border border-slate-800 hover:border-amber-400/50 p-4 text-center transition-all duration-300 flex flex-col items-center justify-center gap-2.5 shadow-sm hover:-translate-y-1"
-            >
-              <div className="w-12 h-12 rounded-xl bg-purple-600 text-white font-black flex items-center justify-center text-xs shadow-md group-hover:scale-110 transition-transform">
-                <Gamepad2 className="w-6 h-6" />
-              </div>
-              <span className="text-xs font-bold text-slate-200 group-hover:text-amber-300">Game Coins</span>
-            </div>
-
-            {/* 7. PC Games */}
-            <div 
-              onClick={handleGoPcGames}
-              className="group cursor-pointer rounded-2xl bg-[#080E1E] hover:bg-[#121E38] border border-slate-800 hover:border-amber-400/50 p-4 text-center transition-all duration-300 flex flex-col items-center justify-center gap-2.5 shadow-sm hover:-translate-y-1 col-span-2 sm:col-span-1"
-            >
-              <div className="w-12 h-12 rounded-xl bg-teal-600 text-white font-black flex items-center justify-center text-xs shadow-md group-hover:scale-110 transition-transform">
-                <Monitor className="w-6 h-6" />
-              </div>
-              <span className="text-xs font-bold text-slate-200 group-hover:text-amber-300">PC Games</span>
-            </div>
-
+            {[
+              {
+                id: 'mtn' as ServiceId,
+                label: 'MTN Data',
+                shortLabel: 'MTN',
+                onClick: () => handleSelectNetwork('MTN'),
+                iconBg: 'bg-amber-400 text-slate-950',
+                icon: 'MTN',
+                extraClass: '',
+              },
+              {
+                id: 'airteltigo' as ServiceId,
+                label: 'AirtelTigo',
+                shortLabel: 'AT',
+                onClick: () => handleSelectNetwork('AirtelTigo'),
+                iconBg: 'bg-blue-600 text-white',
+                icon: 'AT',
+                extraClass: '',
+              },
+              {
+                id: 'telecel' as ServiceId,
+                label: 'Telecel',
+                shortLabel: 'TEL',
+                onClick: () => handleSelectNetwork('Telecel'),
+                iconBg: 'bg-red-600 text-white',
+                icon: 'TEL',
+                extraClass: '',
+              },
+              {
+                id: 'checkers' as ServiceId,
+                label: 'Checkers',
+                onClick: handleGoCheckers,
+                iconBg: 'bg-emerald-600 text-white',
+                icon: <CheckSquare className="w-6 h-6" />,
+                extraClass: '',
+              },
+              {
+                id: 'booking_codes' as ServiceId,
+                label: 'Booking Codes',
+                onClick: handleGoBookingCodes,
+                iconBg: 'bg-amber-500/20 text-amber-400 border border-amber-500/40',
+                icon: <DollarSign className="w-6 h-6" />,
+                extraClass: '',
+              },
+              {
+                id: 'game_coins' as ServiceId,
+                label: 'Game Coins',
+                onClick: handleGoGameCoins,
+                iconBg: 'bg-purple-600 text-white',
+                icon: <Gamepad2 className="w-6 h-6" />,
+                extraClass: '',
+              },
+              {
+                id: 'pc_games' as ServiceId,
+                label: 'PC Games',
+                onClick: handleGoPcGames,
+                iconBg: 'bg-teal-600 text-white',
+                icon: <Monitor className="w-6 h-6" />,
+                extraClass: 'col-span-2 sm:col-span-1',
+              },
+            ].map((svc) => {
+              const out = isOutOfStock(svc.id);
+              return (
+                <div
+                  key={svc.id}
+                  onClick={svc.onClick}
+                  className={`group relative cursor-pointer rounded-2xl p-4 text-center transition-all duration-300 flex flex-col items-center justify-center gap-2.5 shadow-sm ${svc.extraClass} ${
+                    out
+                      ? 'bg-red-950/20 hover:bg-red-950/30 border border-red-500/45 hover:border-red-400/70'
+                      : 'bg-[#080E1E] hover:bg-[#121E38] border border-slate-800 hover:border-amber-400/50 hover:-translate-y-1'
+                  }`}
+                >
+                  {out && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-600 text-white text-[9px] font-black uppercase tracking-wider shadow-sm">
+                      <AlertCircle className="w-2.5 h-2.5" />
+                      Out of Stock
+                    </span>
+                  )}
+                  <div
+                    className={`w-12 h-12 rounded-xl ${svc.iconBg} font-black flex items-center justify-center text-xs shadow-md transition-transform ${
+                      out ? 'opacity-60 grayscale-[35%]' : 'group-hover:scale-110'
+                    }`}
+                  >
+                    {svc.icon}
+                  </div>
+                  <span
+                    className={`text-xs font-bold ${
+                      out ? 'text-slate-300' : 'text-slate-200 group-hover:text-amber-300'
+                    }`}
+                  >
+                    {svc.label}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </motion.div>
 

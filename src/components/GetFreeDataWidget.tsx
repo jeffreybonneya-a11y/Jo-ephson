@@ -385,27 +385,18 @@ export const GetFreeDataWidget: React.FC = () => {
           }
         }}
         initial={{ scale: 0, opacity: 0, y: 10 }}
-        animate={{ scale: 1, opacity: 1, y: [0, -6, 0] }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
         transition={{
-          y: {
-            duration: 2.5,
-            repeat: Infinity,
-            repeatType: 'reverse',
-            ease: 'easeInOut',
-          },
-          scale: { duration: 0.3 },
+          duration: 0.3,
         }}
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.95 }}
         className="fixed bottom-28 right-4 md:bottom-32 md:right-8 z-[999] cursor-grab active:cursor-grabbing select-none touch-none"
       >
         <div className="relative group">
-          {/* Outer glowing pulsing aura */}
-          <div className="absolute -inset-1.5 rounded-full bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 opacity-80 blur-md animate-pulse group-hover:opacity-100 transition-opacity" />
-
           {/* Main button pill */}
-          <div className="relative flex items-center gap-2.5 px-4 py-3 rounded-full bg-[#0B132B] text-amber-300 border-2 border-amber-400 shadow-[0_12px_30px_rgba(11,19,43,0.7),0_0_20px_rgba(251,191,36,0.5)] backdrop-blur-md">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-500 via-yellow-400 to-amber-300 text-slate-950 flex items-center justify-center font-black shadow-lg animate-bounce" style={{ animationDuration: '2s' }}>
+          <div className="relative flex items-center gap-2.5 px-4 py-3 rounded-full bg-[#0B132B] text-amber-300 border-2 border-amber-400 shadow-[0_12px_30px_rgba(11,19,43,0.7)] backdrop-blur-md">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-500 via-yellow-400 to-amber-300 text-slate-950 flex items-center justify-center font-black shadow-lg">
               <Gift className="w-4 h-4 stroke-[2.5]" />
             </div>
             <div className="flex flex-col items-start leading-tight">
@@ -416,7 +407,7 @@ export const GetFreeDataWidget: React.FC = () => {
                 {hasSpunToday ? "SPIN USED TODAY" : "GET FREE DATA"}
               </span>
             </div>
-            <Sparkles className="w-4 h-4 text-yellow-300 animate-spin ml-0.5" style={{ animationDuration: '4s' }} />
+            <Sparkles className="w-4 h-4 text-yellow-300 ml-0.5" />
           </div>
         </div>
       </motion.div>
@@ -635,7 +626,7 @@ export const GetFreeDataWidget: React.FC = () => {
               {/* Stage 3: Winner Claim Form (Number and network type taken here after winning spin) */}
               {stage === 'win_form' && (
                 <div className="flex flex-col items-center text-center space-y-4 py-2">
-                  <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border-2 border-emerald-400 text-emerald-400 flex items-center justify-center shadow-lg animate-bounce">
+                  <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border-2 border-emerald-400 text-emerald-400 flex items-center justify-center shadow-lg">
                     <Trophy className="w-8 h-8" />
                   </div>
                   <div>

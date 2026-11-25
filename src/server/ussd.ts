@@ -779,10 +779,51 @@ function renderGameCoinsBundleMenu(category: string, bundles: UssdBundleItem[], 
 /**
  * Main USSD State-Machine & Menu Processor
  */
+function getUssdServiceIdForNetwork(network: string): string {
+    const net = String(network || '').trim().toLowerCase();
+    if (net.includes('telecel') || net.includes('vodafone')) return 'telecel';
+    if (net === 'airteltigo' || net === 'at' || /\b(airteltigo|airtel|tigo|at)\b/.test(net)) return 'airteltigo';
+    if (net.includes('game') || net.includes('fc mobile') || net.includes('pubg') || net.includes('efootball')) return 'game_coins';
+    return 'mtn';
+}
+
+function getUssdServiceLabel(serviceId: string): string {
+    if (serviceId === 'telecel') return 'Telecel Data';
+    if (serviceId === 'airteltigo') return 'AirtelTigo Data';
+    if (serviceId === 'game_coins') return 'Game Coins';
+    return 'MTN Data';
+}
+
+async function isUssdServiceAvailable(
+    db: Firestore | null,
+    serviceId: string,
+    serviceStockChecker?: (serviceId: string) => Promise<boolean>
+): Promise<boolean> {
+    if (serviceStockChecker) {
+        try {
+            return await serviceStockChecker(serviceId);
+        } catch (e) {
+            return true;
+        }
+    }
+    if (db && typeof (db as any).collection === 'function') {
+        try {
+            const snap = await db.collection('service_status').doc(serviceId).get();
+            if (snap && snap.exists && snap.data()?.status === 'out_of_stock') {
+                return false;
+            }
+        } catch (e) {
+            return true;
+        }
+    }
+    return true;
+}
+
 export async function processUssdRequest(
     payload: NaloUssdIncomingPayload,
     db: Firestore | null,
-    paystackSecretKey?: string
+    paystackSecretKey?: string,
+    serviceStockChecker?: (serviceId: string) => Promise<boolean>
 ): Promise<NaloUssdResponsePayload> {
     const { userId, msisdn, userData, isNewSession, sessionId } = normalizeNaloRequest(payload);
 
@@ -841,6 +882,15 @@ export async function processUssdRequest(
             // User input on main menu
             if (input === '1' || input === '2' || input === '3') {
                 const network = input === '1' ? 'MTN' : input === '2' ? 'Telecel' : 'AirtelTigo';
+                const serviceId = getUssdServiceIdForNetwork(network);
+                const stocked = await isUssdServiceAvailable(db, serviceId, serviceStockChecker);
+                if (!stocked) {
+                    sessionStore.delete(sessionId);
+                    responseMsg = `${getUssdServiceLabel(serviceId)} is temporarily Out of Stock. Please choose another service or contact ${SUPPORT_NUMBERS}.`;
+                    shouldContinue = false;
+                    break;
+                }
+
                 session.selectedNetwork = network;
                 session.bundlePage = 0;
 
@@ -855,6 +905,13 @@ export async function processUssdRequest(
                     shouldContinue = true;
                 }
             } else if (input === '4') {
+                const gameCoinsStocked = await isUssdServiceAvailable(db, 'game_coins', serviceStockChecker);
+                if (!gameCoinsStocked) {
+                    sessionStore.delete(sessionId);
+                    responseMsg = `Game Coins is temporarily Out of Stock. Please choose another service or contact ${SUPPORT_NUMBERS}.`;
+                    shouldContinue = false;
+                    break;
+                }
                 session.screen = 'GAME_COINS_MENU';
                 responseMsg = `Game Coins & Points:\n1. FC Mobile Points\n2. FC Mobile Silver\n3. PUBG Mobile UC\n0. Back`;
                 shouldContinue = true;
@@ -1070,11 +1127,22 @@ export async function processUssdRequest(
                 }
             }
 
+            const isGameCoins = Boolean(session.gameCategory || session.gameUserId);
+            const targetServiceId = isGameCoins
+                ? 'game_coins'
+                : getUssdServiceIdForNetwork(session.selectedNetwork || 'MTN');
+            const finalServiceStocked = await isUssdServiceAvailable(db, targetServiceId, serviceStockChecker);
+            if (!finalServiceStocked) {
+                sessionStore.delete(sessionId);
+                responseMsg = `${getUssdServiceLabel(targetServiceId)} is temporarily Out of Stock. Your order was not created.`;
+                shouldContinue = false;
+                break;
+            }
+
             // Generate Unique Order Reference
             const orderRef = generateUssdOrderReference();
             const orderDocId = orderRef;
 
-            const isGameCoins = Boolean(session.gameCategory || session.gameUserId);
             const recipientPhone = isGameCoins ? (session.paymentPhone || msisdn) : (session.recipientPhone || msisdn);
             const paymentPhone = session.paymentPhone;
             const network = isGameCoins ? (session.gameCategory || session.selectedNetwork || 'FC Mobile') : (session.selectedNetwork || 'MTN');
@@ -1191,6 +1259,13 @@ export async function processUssdRequest(
                 responseMsg = `DATAGHANAnow\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
                 shouldContinue = true;
             } else if (input === '1' || input === '2' || input === '3') {
+                const gameCoinsStocked = await isUssdServiceAvailable(db, 'game_coins', serviceStockChecker);
+                if (!gameCoinsStocked) {
+                    session.screen = 'MAIN_MENU';
+                    responseMsg = `Game Coins is temporarily Out of Stock.\n\nDATAGHANAnow\n1. MTN Data\n2. Telecel Data\n3. AirtelTigo Data\n4. Game Coins\n5. Check Order\n6. Contact Us\n7. Join WhatsApp Channel\n0. Exit`;
+                    shouldContinue = true;
+                    break;
+                }
                 const category = input === '1' ? 'FC Mobile Points' : input === '2' ? 'FC Mobile Silver' : 'PUBG Mobile UC';
                 const defaultNetwork = input === '3' ? 'PUBG Mobile' : 'FC Mobile';
                 session.gameCategory = category;

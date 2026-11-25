@@ -21,8 +21,11 @@ import {
   HelpCircle,
   Flame,
   CheckCircle2,
-  Apple
+  Apple,
+  AlertTriangle
 } from 'lucide-react';
+import { toast } from 'sonner';
+import { useServiceStatus } from '../hooks/useServiceStatus';
 import EFootballOrderModal from './EFootballOrderModal';
 import KonamiIdGuideModal from './KonamiIdGuideModal';
 
@@ -135,7 +138,14 @@ export default function EFootballCoinsSection({
       ? 'Android'
       : 'Steam';
 
+  const { isOutOfStock } = useServiceStatus();
+  const isGameCoinsOutOfStock = isOutOfStock('game_coins');
+
   const handleBuyNow = (product: EFootballProduct) => {
+    if (isGameCoinsOutOfStock) {
+      toast.error('Game Coins is temporarily Out of Stock. Please try again later.');
+      return;
+    }
     setSelectedProduct(product);
     setIsOrderModalOpen(true);
   };
@@ -254,7 +264,7 @@ export default function EFootballCoinsSection({
             <Apple className="w-4 h-4" />
             <span>iOS (iPhone / iPad)</span>
             {selectedPlatform === 'ios' && (
-              <span className="ml-auto w-2 h-2 rounded-full bg-slate-950 animate-pulse" />
+              <span className="ml-auto w-2 h-2 rounded-full bg-slate-950" />
             )}
           </button>
 
@@ -271,7 +281,7 @@ export default function EFootballCoinsSection({
             <Smartphone className="w-4 h-4" />
             <span>Android Mobile</span>
             {selectedPlatform === 'android' && (
-              <span className="ml-auto w-2 h-2 rounded-full bg-slate-950 animate-pulse" />
+              <span className="ml-auto w-2 h-2 rounded-full bg-slate-950" />
             )}
           </button>
 
@@ -288,11 +298,25 @@ export default function EFootballCoinsSection({
             <Monitor className="w-4 h-4" />
             <span>Steam (PC)</span>
             {selectedPlatform === 'steam' && (
-              <span className="ml-auto w-2 h-2 rounded-full bg-slate-950 animate-pulse" />
+              <span className="ml-auto w-2 h-2 rounded-full bg-slate-950" />
             )}
           </button>
         </div>
       </div>
+
+      {isGameCoinsOutOfStock && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-red-950/40 border-2 border-red-500/40 flex items-start gap-3 text-red-200">
+          <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+          <div className="space-y-0.5">
+            <p className="text-sm font-black uppercase tracking-wide text-red-300">
+              Game Coins Out of Stock
+            </p>
+            <p className="text-xs text-red-200/90">
+              Game Coins top-ups are temporarily unavailable while inventory is being restocked. Other services remain available.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ========================================================= */}
       {/* 3. PRODUCT CARDS GRID                                     */}
@@ -375,8 +399,8 @@ export default function EFootballCoinsSection({
                     <span className="text-[10px] font-bold text-blue-300/80 uppercase tracking-wider">
                       Platform: {prod.platformLabel || platformTitle}
                     </span>
-                    <span className="text-[10px] font-black text-emerald-400">
-                      In Stock
+                    <span className={`text-[10px] font-black ${isGameCoinsOutOfStock ? 'text-red-400' : 'text-emerald-400'}`}>
+                      {isGameCoinsOutOfStock ? 'Out of Stock' : 'In Stock'}
                     </span>
                   </div>
 
@@ -401,11 +425,16 @@ export default function EFootballCoinsSection({
                   </div>
 
                   <Button
+                    disabled={isGameCoinsOutOfStock}
                     onClick={() => handleBuyNow(prod)}
-                    className="w-full h-11 bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-black rounded-xl text-xs uppercase tracking-wider shadow-lg hover:shadow-yellow-400/20 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                    className={`w-full h-11 font-black rounded-xl text-xs uppercase tracking-wider shadow-lg transition-all flex items-center justify-center gap-1.5 ${
+                      isGameCoinsOutOfStock
+                        ? 'bg-red-950/60 text-red-200 border border-red-500/40 cursor-not-allowed'
+                        : 'bg-yellow-400 hover:bg-yellow-300 text-slate-950 hover:shadow-yellow-400/20 cursor-pointer'
+                    }`}
                   >
                     <Zap className="w-3.5 h-3.5 fill-current" />
-                    BUY NOW
+                    {isGameCoinsOutOfStock ? 'OUT OF STOCK' : 'BUY NOW'}
                   </Button>
                 </div>
               </div>

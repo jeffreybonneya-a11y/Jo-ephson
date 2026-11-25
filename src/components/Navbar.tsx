@@ -270,7 +270,7 @@ export default function Navbar({
                   <span className="hidden sm:inline font-extrabold tracking-wide">ADMIN DASHBOARD</span>
                   <span className="sm:hidden font-extrabold tracking-wide">ADMIN</span>
                   {unreadCount > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[9px] font-black text-white shadow-lg animate-bounce">
+                    <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[9px] font-black text-white shadow-lg">
                       {unreadCount}
                     </span>
                   )}

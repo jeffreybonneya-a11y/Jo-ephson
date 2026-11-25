@@ -26,6 +26,7 @@ import {
 import waecBannerBg from '../assets/images/waec_banner_bg_1782934507804.jpg';
 import { getApiUrl, getOptionalAuthHeaders, getRequiredAuthHeaders } from '../lib/api';
 import { openPaystackPopup } from "../lib/paystack";
+import { useServiceStatus } from "../hooks/useServiceStatus";
 
 interface ResultCheckerSectionProps {
   agentContext?: any;
@@ -38,7 +39,9 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
   const [pricePerChecker, setPricePerChecker] = useState<number>(25);
   const [rcWholesalePrice, setRcWholesalePrice] = useState<number>(19);
   const [loadingPrice, setLoadingPrice] = useState<boolean>(true);
-  const [isOutOfStock, setIsOutOfStock] = useState<boolean>(false);
+  const [legacyRcOutOfStock, setLegacyRcOutOfStock] = useState<boolean>(false);
+  const { isOutOfStock: isServiceOutOfStock } = useServiceStatus();
+  const isOutOfStock = legacyRcOutOfStock || isServiceOutOfStock('checkers');
   const [chargeSettings, setChargeSettings] = useState<{
     agentStoreCharge: number;
     retailResultsCheckerCharge: number;
@@ -102,21 +105,21 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
           setRcWholesalePrice(data.wholesalePrice);
         }
         if (typeof data.inStock === 'boolean') {
-          setIsOutOfStock(!data.inStock);
+          setLegacyRcOutOfStock(!data.inStock);
         } else if (typeof data.isOutOfStock === 'boolean') {
-          setIsOutOfStock(data.isOutOfStock);
+          setLegacyRcOutOfStock(data.isOutOfStock);
         } else if (typeof data.outOfStock === 'boolean') {
-          setIsOutOfStock(data.outOfStock);
+          setLegacyRcOutOfStock(data.outOfStock);
         } else {
-          setIsOutOfStock(false);
+          setLegacyRcOutOfStock(false);
         }
       } else {
-        setIsOutOfStock(false);
+        setLegacyRcOutOfStock(false);
       }
       setLoadingPrice(false);
     }, (error) => {
       console.error("Failed to load results checker settings:", error);
-      setIsOutOfStock(false);
+      setLegacyRcOutOfStock(false);
       setLoadingPrice(false);
     });
 
@@ -212,6 +215,10 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
   };
 
   const processMoMoDirectPayment = async () => {
+    if (isOutOfStock) {
+      toast.error("Checkers is temporarily Out of Stock.");
+      return;
+    }
     const activeUser = await ensureUser();
     if (!activeUser) {
       toast.error("Please log in before you can purchase any service!");
@@ -251,6 +258,10 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
   };
 
   const processPaystackPayment = async () => {
+    if (isOutOfStock) {
+      toast.error("Checkers is temporarily Out of Stock.");
+      return;
+    }
     const activeUser = await ensureUser();
     if (!activeUser) {
       toast.error("Please log in before you can purchase any service!");
@@ -366,6 +377,10 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
   };
 
   const handleProceedPayment = () => {
+    if (isOutOfStock) {
+      toast.error("Checkers is temporarily Out of Stock.");
+      return;
+    }
     processPaystackPayment();
   };
 
@@ -653,6 +668,16 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
                     </button>
                   </div>
 
+                  {isOutOfStock && (
+                    <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/40 flex items-start gap-2.5 text-red-700 dark:text-red-300 text-xs">
+                      <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-black uppercase">Checkers Temporarily Out of Stock</p>
+                        <p className="font-medium opacity-90">This service is temporarily unavailable and cannot be purchased right now.</p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Summary & Price Banner */}
                   <div className="flex items-center justify-between p-3 rounded-2xl bg-indigo-50/60 dark:bg-slate-900 border border-indigo-100 dark:border-slate-800">
                     <div className="flex items-center gap-2">
@@ -744,11 +769,13 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
                   {/* One-Tap Action Button */}
                   <div className="pt-2">
                     <Button
-                      disabled={!mobileNumber.trim() || isSubmitting}
+                      disabled={!mobileNumber.trim() || isSubmitting || isOutOfStock}
                       onClick={handleFormSubmit}
-                      className="w-full h-12 sm:h-13 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-xs sm:text-sm tracking-wider shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+                      className="w-full h-12 sm:h-13 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-xs sm:text-sm tracking-wider shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {isSubmitting ? (
+                      {isOutOfStock ? (
+                        <span>Out of Stock</span>
+                      ) : isSubmitting ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin" /> Processing...
                         </>
@@ -831,12 +858,24 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
                         </div>
                       </div>
 
+                      {isOutOfStock && (
+                        <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/40 flex items-start gap-2.5 text-red-700 dark:text-red-300 text-xs">
+                          <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-black uppercase">Checkers Temporarily Out of Stock</p>
+                            <p className="font-medium opacity-90">This service is temporarily unavailable and cannot be purchased right now.</p>
+                          </div>
+                        </div>
+                      )}
+
                       <Button
-                        disabled={isSubmitting}
+                        disabled={isSubmitting || isOutOfStock}
                         onClick={() => processPaystackPayment()}
-                        className="w-full h-14 bg-amber-400 hover:bg-amber-500 text-slate-950 font-black rounded-2xl flex items-center justify-center gap-2 shadow-lg uppercase tracking-wider text-base"
+                        className="w-full h-14 bg-amber-400 hover:bg-amber-500 text-slate-950 font-black rounded-2xl flex items-center justify-center gap-2 shadow-lg uppercase tracking-wider text-base disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {isSubmitting ? (
+                        {isOutOfStock ? (
+                          <span>OUT OF STOCK</span>
+                        ) : isSubmitting ? (
                           <>
                             <Loader2 className="w-5 h-5 animate-spin" /> Processing...
                           </>
@@ -909,7 +948,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
                               <span className="text-[10px] font-black uppercase bg-yellow-400 text-slate-950 px-2 py-0.5 rounded-full tracking-wider shadow-sm">
                                 MTN MoMo Number 📲
                               </span>
-                              <span className="text-[10px] font-bold text-yellow-700 dark:text-yellow-300 animate-pulse">
+                              <span className="text-[10px] font-bold text-yellow-700 dark:text-yellow-300">
                                 (Send Payment Here)
                               </span>
                             </div>
@@ -992,7 +1031,7 @@ export default function ResultCheckerSection({ agentContext, isAgentUser }: Resu
                   ) : (
                     /* momo_sent step */
                     <div className="text-center bg-white dark:bg-slate-950 h-full flex flex-col items-center justify-center p-6 md:p-8 space-y-6">
-                      <div className="w-20 h-20 bg-amber-500 text-white rounded-3xl flex items-center justify-center shadow-2xl rotate-6 animate-bounce">
+                      <div className="w-20 h-20 bg-amber-500 text-white rounded-3xl flex items-center justify-center shadow-2xl rotate-6">
                         <Crown className="w-10 h-10" />
                       </div>
 

@@ -34,6 +34,7 @@ import KonamiIdGuideModal from './KonamiIdGuideModal';
 import { openPaystackPopup } from '../lib/paystack';
 import { getApiUrl, getOptionalAuthHeaders, getRequiredAuthHeaders } from '../lib/api';
 import { toast } from 'sonner';
+import { useServiceStatus } from '../hooks/useServiceStatus';
 
 interface EFootballOrderModalProps {
   isOpen: boolean;
@@ -59,6 +60,8 @@ export default function EFootballOrderModal({
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [step, setStep] = useState<'details' | 'confirmation'>('details');
+  const { isOutOfStock } = useServiceStatus();
+  const isGameCoinsOutOfStock = isOutOfStock('game_coins');
 
   const currentUser = auth.currentUser;
   const userEmail = (currentUser?.email || profile?.email || profile?.gmail || '').trim();
@@ -118,6 +121,11 @@ export default function EFootballOrderModal({
   };
 
   const handleConfirmAndPay = async () => {
+    if (isGameCoinsOutOfStock) {
+      toast.error('Game Coins is temporarily Out of Stock and cannot be purchased right now.');
+      return;
+    }
+
     if (!currentUser || !userEmail) {
       toast.error('Please sign in with your Google or account email before purchasing.');
       if (onOpenAuthModal) onOpenAuthModal();
@@ -535,6 +543,15 @@ export default function EFootballOrderModal({
                     </p>
                   </div>
 
+                  {isGameCoinsOutOfStock && (
+                    <div className="p-3 rounded-xl bg-red-950/50 border border-red-500/40 flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                      <p className="text-[11px] text-red-200 leading-relaxed font-semibold">
+                        Game Coins is temporarily Out of Stock. Purchases are paused until stock is restored.
+                      </p>
+                    </div>
+                  )}
+
                   <div className="flex items-center gap-3 pt-1">
                     <Button
                       type="button"
@@ -548,13 +565,17 @@ export default function EFootballOrderModal({
                     <Button
                       type="button"
                       onClick={handleConfirmAndPay}
-                      disabled={!trimmedId || !isConfirmedCorrect || isSubmitting}
+                      disabled={!trimmedId || !isConfirmedCorrect || isSubmitting || isGameCoinsOutOfStock}
                       className="flex-1 h-12 bg-yellow-400 hover:bg-yellow-300 disabled:opacity-50 text-slate-950 font-black rounded-xl text-xs uppercase tracking-wider shadow-xl transition-all cursor-pointer flex items-center justify-center gap-2"
                     >
                       {isSubmitting ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin" />
                           Creating Order & Connecting Paystack...
+                        </>
+                      ) : isGameCoinsOutOfStock ? (
+                        <>
+                          OUT OF STOCK
                         </>
                       ) : (
                         <>
