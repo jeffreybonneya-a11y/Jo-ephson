@@ -28,7 +28,6 @@ import {
   Complaint,
 } from "@/src/types";
 import { getProductImage } from "@/src/lib/images";
-import { getAgentStoreUrl } from "@/src/lib/siteUrl";
 import {
   deduplicateOrdersList,
   purgeDuplicateOrdersFromFirestore,
@@ -105,6 +104,7 @@ import AdminBrandingManager from "./AdminBrandingManager";
 import AdminBookingCodesManager from "./AdminBookingCodesManager";
 import AdminDownloadsManager from "./AdminDownloadsManager";
 import AdminEFootballTab from "./AdminEFootballTab";
+import AdminServiceStatusManager from "./AdminServiceStatusManager";
 import { CloudinaryImageUploader } from "@/src/components/CloudinaryImageUploader";
 
 const parseDataAmountToMB = (amountStr: string): number => {
@@ -2254,6 +2254,13 @@ export default function AdminDashboard() {
                   }
                 </span>
               )}
+            </TabsTrigger>
+            <TabsTrigger
+              value="service_status"
+              className="h-9 px-4 rounded-lg font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all focus-visible:ring-0 flex items-center gap-1"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              STATUS ⚙️
             </TabsTrigger>
             <TabsTrigger
               value="bundles"
@@ -5694,8 +5701,8 @@ export default function AdminDashboard() {
                                   <span className="font-black text-foreground">
                                     {ag.agent_name}
                                   </span>
-                                  <span className="text-[10px] text-primary font-bold font-mono">
-                                    {getAgentStoreUrl(ag.agent_slug)}
+                                  <span className="text-[10px] text-primary font-bold lowercase">
+                                    /store/{ag.agent_slug}
                                   </span>
                                 </div>
                               </TableCell>
@@ -5713,29 +5720,15 @@ export default function AdminDashboard() {
                                 GHS {Number(ag.profit_balance || 0).toFixed(2)}
                               </TableCell>
                               <TableCell className="text-right p-4">
-                                <div className="flex items-center justify-end gap-2">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-8 px-3 rounded-lg font-black uppercase text-[9px] shadow-sm flex items-center gap-1 cursor-pointer"
-                                    onClick={() => {
-                                      navigator.clipboard.writeText(getAgentStoreUrl(ag.agent_slug));
-                                      toast.success(`Copied store link for ${ag.agent_name}!`);
-                                    }}
-                                  >
-                                    <Copy className="w-3 h-3 text-primary" />
-                                    Copy Link
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="destructive"
-                                    className="h-8 px-3 rounded-lg font-black uppercase text-[9px] shadow-sm flex items-center gap-1 cursor-pointer"
-                                    onClick={() => handleRelockStore(ag.id)}
-                                  >
-                                    <Lock className="w-3 h-3" />
-                                    Relock Store
-                                  </Button>
-                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  className="h-8 px-3 rounded-lg font-black uppercase text-[9px] shadow-sm flex items-center gap-1 ml-auto cursor-pointer"
+                                  onClick={() => handleRelockStore(ag.id)}
+                                >
+                                  <Lock className="w-3 h-3" />
+                                  Relock Store
+                                </Button>
                               </TableCell>
                             </TableRow>
                           ))
@@ -6559,6 +6552,10 @@ export default function AdminDashboard() {
 
         <TabsContent value="efootball" className="mt-0 outline-none">
           <AdminEFootballTab />
+        </TabsContent>
+
+        <TabsContent value="service_status" className="mt-0 outline-none">
+          <AdminServiceStatusManager />
         </TabsContent>
       </Tabs>
     </div>
