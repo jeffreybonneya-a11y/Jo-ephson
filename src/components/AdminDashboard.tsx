@@ -1516,14 +1516,26 @@ export default function AdminDashboard() {
     orderData?: any,
   ) => {
     try {
-      await updateDoc(doc(db, "orders", orderId), { status });
+      const fulfillmentStatusMap: Record<string, string> = {
+        processing: "PROCESSING",
+        accepted: "ACCEPTED",
+        delivered: "DELIVERED",
+        completed: "COMPLETED",
+        declined: "DECLINED",
+        cancelled: "CANCELLED",
+        failed: "FAILED"
+      };
+      const fulfillmentStatus = fulfillmentStatusMap[status.toLowerCase()] || status.toUpperCase();
+      const payload = { status, fulfillmentStatus, adminStatus: fulfillmentStatus };
+
+      await updateDoc(doc(db, "orders", orderId), payload);
 
       // Keep agent_orders synchronized if document exists
       try {
         const agentOrderRef = doc(db, "agent_orders", orderId);
         const agentOrderSnap = await getDoc(agentOrderRef);
         if (agentOrderSnap.exists()) {
-          await updateDoc(agentOrderRef, { status });
+          await updateDoc(agentOrderRef, payload);
         }
       } catch (agentErr) {
         console.warn("Notice: agent_orders sync:", agentErr);

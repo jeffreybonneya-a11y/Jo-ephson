@@ -301,18 +301,19 @@ function getMergedOrderData(orderId: string, firestoreData?: any) {
     if (!verified) return baseData;
     const currentStatus = String(baseData.status || '').toLowerCase().trim();
     const mergedStatus = ACTIVE_FULFILLMENT_STATUSES.has(currentStatus) ? baseData.status : (verified.status || baseData.status);
+    const { status: _, ...cleanVerified } = verified;
     return {
         ...baseData,
-        ...verified,
+        ...cleanVerified,
         status: mergedStatus
     };
 }
 
 const PROTECTED_ORDER_STATUSES = new Set([
-    'paid', 'success', 'successful', 'processing', 'accepted', 'delivered', 'completed'
+    'paid', 'success', 'successful', 'processing', 'accepted', 'delivered', 'completed', 'declined', 'cancelled', 'failed'
 ]);
 const PROTECTED_PAYMENT_STATUSES = new Set(['success', 'paid']);
-const ACTIVE_FULFILLMENT_STATUSES = new Set(['processing', 'accepted', 'delivered', 'completed']);
+const ACTIVE_FULFILLMENT_STATUSES = new Set(['processing', 'accepted', 'delivered', 'completed', 'declined', 'cancelled', 'failed']);
 const PAYSTACK_PENDING_STATUSES = new Set([
     'pending', 'ongoing', 'processing', 'queued', 'pay_offline',
     'send_otp', 'otp', 'send_pin', 'send_phone', 'send_birthday', 'send_address'
